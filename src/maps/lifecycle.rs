@@ -1,25 +1,36 @@
 //! Map lifecycle actions: create, update, delete, list, and read the graph.
+//!
+//! Each mutating action takes a dedicated command struct (its future HTTP request body);
+//! `actor` stays a separate argument, injected from the session — never the payload.
 
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::access::{owns_character, require_role};
 use super::error::{MapError, Result};
 use super::{
-    Actor, ConnectionType, Map, MapConnection, MapSolarSystem, MapView, Role, SubjectType,
+    Actor, ConnectionType, Map, MapConnection, MapSolarSystem, MapView, Role, SubjectType, Validate,
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMap {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+impl Validate for CreateMap {
+    fn validate(&self) -> Result<()> {
+        if self.name.trim().is_empty() {
+            return Err(MapError::Validation("name must not be blank".into()));
+        }
+        Ok(())
+    }
+}
 
 /// Create a map and grant ownership to the acting character. Any authenticated user may
 /// create a map.
-pub async fn create_map(
-    pool: &PgPool,
-    actor: Actor,
-    name: &str,
-    description: Option<&str>,
-) -> Result<Map> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(MapError::Validation("name must not be blank".into()));
-    }
+pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<Map> {
+    cmd.validate()?;
     if !owns_character(pool, actor.user_id, actor.character_id).await? {
         return Err(MapError::Forbidden);
     }
@@ -29,8 +40,8 @@ pub async fn create_map(
         Map,
         "insert into maps (name, description) values ($1, $2)
          returning id, name, description, image_url, created_at",
-        name,
-        description,
+        cmd.name.trim(),
+        cmd.description.as_deref(),
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -50,39 +61,49 @@ pub async fn create_map(
 
 /// A partial update of a map's fields. `None` leaves a field unchanged; `Some(None)`
 /// explicitly clears a nullable field.
-#[derive(Debug, Default, Clone)]
-pub struct MapUpdate {
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct UpdateMap {
+    pub map_id: i64,
+    #[serde(default)]
     pub name: Option<String>,
+    #[serde(default)]
     pub description: Option<Option<String>>,
+    #[serde(default)]
     pub image_url: Option<Option<String>>,
 }
 
+impl Validate for UpdateMap {
+    fn validate(&self) -> Result<()> {
+        if let Some(name) = &self.name
+            && name.trim().is_empty()
+        {
+            return Err(MapError::Validation("name must not be blank".into()));
+        }
+        Ok(())
+    }
+}
+
 /// Rename / re-describe / re-icon a map. Owner only.
-pub async fn update_map(pool: &PgPool, actor: Actor, map_id: i64, patch: MapUpdate) -> Result<Map> {
-    require_role(pool, map_id, actor.user_id, Role::Owner).await?;
+pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<Map> {
+    cmd.validate()?;
+    require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
 
     let mut tx = pool.begin().await?;
     let current = sqlx::query_as!(
         Map,
         "select id, name, description, image_url, created_at from maps where id = $1",
-        map_id,
+        cmd.map_id,
     )
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(MapError::NotFound)?;
 
-    let name = match patch.name {
-        Some(name) => {
-            let name = name.trim().to_string();
-            if name.is_empty() {
-                return Err(MapError::Validation("name must not be blank".into()));
-            }
-            name
-        }
+    let name = match cmd.name {
+        Some(name) => name.trim().to_string(),
         None => current.name,
     };
-    let description = patch.description.unwrap_or(current.description);
-    let image_url = patch.image_url.unwrap_or(current.image_url);
+    let description = cmd.description.unwrap_or(current.description);
+    let image_url = cmd.image_url.unwrap_or(current.image_url);
 
     let map = sqlx::query_as!(
         Map,
@@ -91,7 +112,7 @@ pub async fn update_map(pool: &PgPool, actor: Actor, map_id: i64, patch: MapUpda
         name,
         description,
         image_url,
-        map_id,
+        cmd.map_id,
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -99,11 +120,19 @@ pub async fn update_map(pool: &PgPool, actor: Actor, map_id: i64, patch: MapUpda
     Ok(map)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteMap {
+    pub map_id: i64,
+}
+
+impl Validate for DeleteMap {}
+
 /// Delete a map. Owner only. The database cascades placements, details, connections,
 /// signatures, and access grants.
-pub async fn delete_map(pool: &PgPool, actor: Actor, map_id: i64) -> Result<()> {
-    require_role(pool, map_id, actor.user_id, Role::Owner).await?;
-    sqlx::query!("delete from maps where id = $1", map_id)
+pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<()> {
+    cmd.validate()?;
+    require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
+    sqlx::query!("delete from maps where id = $1", cmd.map_id)
         .execute(pool)
         .await?;
     Ok(())
@@ -147,15 +176,23 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
     Ok(out)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetMap {
+    pub map_id: i64,
+}
+
+impl Validate for GetMap {}
+
 /// Read a map's graph — the map, its placed systems, and its connections. Viewer+.
 /// Live pilot locations are not included (that's the member-gated tracking path).
-pub async fn get_map(pool: &PgPool, actor: Actor, map_id: i64) -> Result<MapView> {
-    require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
+pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
+    cmd.validate()?;
+    require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
 
     let map = sqlx::query_as!(
         Map,
         "select id, name, description, image_url, created_at from maps where id = $1",
-        map_id,
+        cmd.map_id,
     )
     .fetch_optional(pool)
     .await?
@@ -165,7 +202,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, map_id: i64) -> Result<MapView
         MapSolarSystem,
         "select id, map_id, solar_system_id, position_x, position_y, alias, created_at
          from map_solar_systems where map_id = $1 order by id",
-        map_id,
+        cmd.map_id,
     )
     .fetch_all(pool)
     .await?;
@@ -174,7 +211,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, map_id: i64) -> Result<MapView
         MapConnection,
         r#"select id, map_id, from_system, to_system, type as "kind: ConnectionType", created_at
            from map_connections where map_id = $1 order by id"#,
-        map_id,
+        cmd.map_id,
     )
     .fetch_all(pool)
     .await?;

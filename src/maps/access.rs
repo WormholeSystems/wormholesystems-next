@@ -1,10 +1,11 @@
 //! Authorization helpers and the access-management actions (`set_access`,
 //! `revoke_access`). See [access.md](../../docs/database/access.md).
 
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::error::{MapError, Result};
-use super::{Actor, Role, SubjectType};
+use super::{Actor, Role, SubjectType, Validate};
 
 /// The user's effective role on a map: the highest role they match across *all* their
 /// characters (a character's own id, its corporation, or its alliance). `None` means no
@@ -59,18 +60,22 @@ pub(super) async fn owns_character(pool: &PgPool, user_id: i64, character_id: i6
     Ok(exists.unwrap_or(false))
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetAccess {
+    pub map_id: i64,
+    pub subject_type: SubjectType,
+    pub subject_id: i64,
+    pub role: Role,
+}
+
+impl Validate for SetAccess {}
+
 /// Grant `role` to a subject, or change an existing subject's role. Manager+, and you
 /// may not grant a role above your own. Never leaves the map without an owner.
-pub async fn set_access(
-    pool: &PgPool,
-    actor: Actor,
-    map_id: i64,
-    subject_type: SubjectType,
-    subject_id: i64,
-    role: Role,
-) -> Result<()> {
-    let actor_role = require_role(pool, map_id, actor.user_id, Role::Manager).await?;
-    if role > actor_role {
+pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<()> {
+    cmd.validate()?;
+    let actor_role = require_role(pool, cmd.map_id, actor.user_id, Role::Manager).await?;
+    if cmd.role > actor_role {
         return Err(MapError::Forbidden);
     }
 
@@ -80,32 +85,36 @@ pub async fn set_access(
          values ($1, $2, $3, $4)
          on conflict (map_id, subject_id)
          do update set subject_type = excluded.subject_type, role = excluded.role",
-        map_id,
-        subject_type.as_str(),
-        subject_id,
-        role.as_str(),
+        cmd.map_id,
+        cmd.subject_type.as_str(),
+        cmd.subject_id,
+        cmd.role.as_str(),
     )
     .execute(&mut *tx)
     .await?;
-    ensure_has_owner(&mut tx, map_id).await?;
+    ensure_has_owner(&mut tx, cmd.map_id).await?;
     tx.commit().await?;
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RevokeAccess {
+    pub map_id: i64,
+    pub subject_id: i64,
+}
+
+impl Validate for RevokeAccess {}
+
 /// Remove a subject's grant. Manager+. Revoking the last owner is rejected.
-pub async fn revoke_access(
-    pool: &PgPool,
-    actor: Actor,
-    map_id: i64,
-    subject_id: i64,
-) -> Result<()> {
-    require_role(pool, map_id, actor.user_id, Role::Manager).await?;
+pub async fn revoke_access(pool: &PgPool, actor: Actor, cmd: RevokeAccess) -> Result<()> {
+    cmd.validate()?;
+    require_role(pool, cmd.map_id, actor.user_id, Role::Manager).await?;
 
     let mut tx = pool.begin().await?;
     let deleted = sqlx::query!(
         "delete from map_access where map_id = $1 and subject_id = $2",
-        map_id,
-        subject_id,
+        cmd.map_id,
+        cmd.subject_id,
     )
     .execute(&mut *tx)
     .await?
@@ -113,7 +122,7 @@ pub async fn revoke_access(
     if deleted == 0 {
         return Err(MapError::NotFound);
     }
-    ensure_has_owner(&mut tx, map_id).await?;
+    ensure_has_owner(&mut tx, cmd.map_id).await?;
     tx.commit().await?;
     Ok(())
 }

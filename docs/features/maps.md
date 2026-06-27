@@ -35,6 +35,37 @@ Actor { user_id, character_id }
 `character_id` must belong to `user_id` — actions validate this and reject otherwise
 (`Forbidden`).
 
+## Action shape: command in, validation split
+
+Every mutating action takes a **dedicated command struct** as its argument, with `actor`
+as a *separate* parameter:
+
+```
+add_connection(pool, actor, AddConnection { map_id, from_system, to_system, kind })
+```
+
+- Named fields kill the "transposed positional argument" bug — several actions take
+  multiple same-typed `i64`s (`map_id`, `from_system`, `to_system`) that are otherwise
+  easy to swap.
+- The command struct *is* the future HTTP/server-function request body (it derives
+  `Serialize`/`Deserialize`). `actor` stays separate so it is always injected from the
+  authenticated session — a client can never set its own `user_id`.
+
+**Validation is split by what it needs:**
+
+- **Pure / context-free** checks (non-blank name, `from != to`) live on the command via a
+  `Validate` trait the action calls first. They depend only on the input, so the **UI can
+  reuse them** for pre-submit feedback.
+- **Stateful / referential** checks (row exists, not already placed, both endpoints on
+  *this* map, last-owner, character-belongs-to-user) **stay in the action**. They depend
+  on DB state that can change between check and write, so they must be atomic with it;
+  pulling them out would reintroduce a time-of-check/time-of-use race and let callers
+  bypass invariants. Where the schema already enforces a rule (unique indexes, FKs, the
+  `from <> to` CHECK), the action leans on it and maps the error to `MapError`.
+
+So an action body reads: **validate input → authorize → perform (constraint-backed) → map
+errors**, and stays authoritative for correctness.
+
 ## Roles
 
 `Role` is an ordered enum, `Viewer < Member < Manager < Owner` (stored as text per the
@@ -232,7 +263,15 @@ it needs — a user, one or more characters with affiliations, and a handful of
 `solar_systems` rows — then drives actions and asserts on both the return value and the
 resulting rows.
 
-Coverage targets, per action: the **happy path**, each **authorization** boundary (role
+The tests are split by area, each its own integration-test binary, with shared fixtures
+in `tests/common/`:
+
+- `tests/maps_lifecycle.rs` — create / update / delete / list / get
+- `tests/maps_access.rs` — grant / change role / revoke + the owner invariant
+- `tests/maps_graph.rs` — systems and connections
+
+Coverage targets, per action: the **happy path** asserting the exact effect (return-value
+fields *and* the resulting rows match the inputs), each **authorization** boundary (role
 just-too-low rejected, minimum role accepted), and each **invariant/error** bullet above
 (e.g. duplicate add → `Conflict`, last-owner revoke → `LastOwner`, system round-trip
 preserves details). The bullet lists in this doc are the test checklist.

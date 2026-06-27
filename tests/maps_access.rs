@@ -1,0 +1,208 @@
+//! Access management: granting, changing, and revoking roles, with the privilege
+//! ceiling and the at-least-one-owner invariant.
+
+mod common;
+
+use common::{add_character, member_with_role, new_user, world};
+use sqlx::PgPool;
+use vector::maps::access::{RevokeAccess, SetAccess, effective_role, revoke_access, set_access};
+use vector::maps::{MapError, Role, SubjectType};
+
+#[sqlx::test]
+async fn set_access_grants_and_then_changes_role_in_place(pool: PgPool) {
+    let w = world(&pool).await;
+    let user = new_user(&pool).await;
+    add_character(&pool, user, 1002, 2002, None).await;
+
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1002,
+            role: Role::Member,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        effective_role(&pool, w.map_id, user).await.unwrap(),
+        Some(Role::Member)
+    );
+
+    // Re-granting the same subject updates the role rather than adding a row.
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1002,
+            role: Role::Manager,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        effective_role(&pool, w.map_id, user).await.unwrap(),
+        Some(Role::Manager)
+    );
+    let rows: i64 = sqlx::query_scalar(
+        "select count(*) from map_access where map_id = $1 and subject_id = 1002",
+    )
+    .bind(w.map_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(rows, 1, "re-grant must upsert, not duplicate");
+}
+
+#[sqlx::test]
+async fn grant_respects_privilege_ceiling(pool: PgPool) {
+    let w = world(&pool).await;
+    let manager = member_with_role(&pool, w.owner, w.map_id, 1002, 2002, Role::Manager).await;
+
+    // A manager cannot grant a role above their own.
+    assert!(matches!(
+        set_access(
+            &pool,
+            manager,
+            SetAccess {
+                map_id: w.map_id,
+                subject_type: SubjectType::Character,
+                subject_id: 1003,
+                role: Role::Owner
+            }
+        )
+        .await,
+        Err(MapError::Forbidden),
+    ));
+    // But can grant up to manager.
+    set_access(
+        &pool,
+        manager,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1003,
+            role: Role::Manager,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+#[sqlx::test]
+async fn owner_invariant_blocks_downgrade_and_revoke(pool: PgPool) {
+    let w = world(&pool).await;
+
+    // The sole owner cannot be downgraded...
+    assert!(matches!(
+        set_access(
+            &pool,
+            w.owner,
+            SetAccess {
+                map_id: w.map_id,
+                subject_type: SubjectType::Character,
+                subject_id: w.owner.character_id,
+                role: Role::Manager
+            }
+        )
+        .await,
+        Err(MapError::LastOwner),
+    ));
+    // ...nor revoked.
+    assert!(matches!(
+        revoke_access(
+            &pool,
+            w.owner,
+            RevokeAccess {
+                map_id: w.map_id,
+                subject_id: w.owner.character_id
+            }
+        )
+        .await,
+        Err(MapError::LastOwner),
+    ));
+    // The owner grant is still intact after the rejected attempts.
+    assert_eq!(
+        effective_role(&pool, w.map_id, w.owner.user_id)
+            .await
+            .unwrap(),
+        Some(Role::Owner)
+    );
+}
+
+#[sqlx::test]
+async fn revoke_removes_grant(pool: PgPool) {
+    let w = world(&pool).await;
+    let member = member_with_role(&pool, w.owner, w.map_id, 1002, 2002, Role::Member).await;
+    assert_eq!(
+        effective_role(&pool, w.map_id, member.user_id)
+            .await
+            .unwrap(),
+        Some(Role::Member)
+    );
+
+    revoke_access(
+        &pool,
+        w.owner,
+        RevokeAccess {
+            map_id: w.map_id,
+            subject_id: member.character_id,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        effective_role(&pool, w.map_id, member.user_id)
+            .await
+            .unwrap(),
+        None
+    );
+
+    // Revoking a subject that was never granted → NotFound.
+    assert!(matches!(
+        revoke_access(
+            &pool,
+            w.owner,
+            RevokeAccess {
+                map_id: w.map_id,
+                subject_id: 4242
+            }
+        )
+        .await,
+        Err(MapError::NotFound),
+    ));
+}
+
+#[sqlx::test]
+async fn access_via_corporation_grant(pool: PgPool) {
+    let w = world(&pool).await;
+
+    // Grant a corporation; a character in that corp gains access, by corp not by id.
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Corporation,
+            subject_id: 5000,
+            role: Role::Member,
+        },
+    )
+    .await
+    .unwrap();
+    let user = new_user(&pool).await;
+    add_character(&pool, user, 1002, 5000, None).await;
+    assert_eq!(
+        effective_role(&pool, w.map_id, user).await.unwrap(),
+        Some(Role::Member)
+    );
+
+    // A character in a different corp gets nothing.
+    let other = new_user(&pool).await;
+    add_character(&pool, other, 1003, 6000, None).await;
+    assert_eq!(effective_role(&pool, w.map_id, other).await.unwrap(), None);
+}

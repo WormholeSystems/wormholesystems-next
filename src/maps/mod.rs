@@ -20,7 +20,8 @@ pub use error::{MapError, Result};
 macro_rules! text_enum {
     ($(#[$m:meta])* $vis:vis enum $name:ident { $($variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+        #[serde(rename_all = "lowercase")]
         $vis enum $name { $($variant),+ }
 
         impl $name {
@@ -83,6 +84,16 @@ text_enum! {
     pub enum ConnectionType {
         Wormhole => "wormhole",
         Stargate => "stargate",
+    }
+}
+
+/// Context-free validation of an action's input — the pure checks that need no database
+/// (a non-blank name, a non-self connection). The UI can call this for pre-submit
+/// feedback; stateful checks (existence, uniqueness, authorization) stay in the action.
+/// The default is "nothing to check", so trivial commands opt in with an empty impl.
+pub trait Validate {
+    fn validate(&self) -> Result<()> {
+        Ok(())
     }
 }
 
