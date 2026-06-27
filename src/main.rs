@@ -4,6 +4,7 @@
 
 use crate::sde::SolarSystem;
 
+mod config;
 mod esi;
 mod sde;
 mod util;

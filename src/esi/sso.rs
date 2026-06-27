@@ -12,12 +12,23 @@ use super::{EsiError, Result, jwt};
 
 const METADATA_URL: &str = "https://login.eveonline.com/.well-known/oauth-authorization-server";
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SsoConfig {
     pub client_id: String,
     pub client_secret: String,
     pub redirect_uri: String,
     pub scopes: Vec<Scope>,
+}
+
+impl std::fmt::Debug for SsoConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SsoConfig")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"<redacted>")
+            .field("redirect_uri", &self.redirect_uri)
+            .field("scopes", &self.scopes)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

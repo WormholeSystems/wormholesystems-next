@@ -10,3 +10,4 @@ zip = "8.6.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 jsonwebtoken = "9"
 thiserror = "2"
+dotenvy = "0.15"

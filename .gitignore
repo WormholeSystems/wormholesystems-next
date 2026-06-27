@@ -8,5 +8,9 @@
 /data/sde/
 /data/sde.zip
 
+# Secrets — `.env.example` is committed, real `.env` is not
+.env
+.env.local
+
 # macOS
 .DS_Store
