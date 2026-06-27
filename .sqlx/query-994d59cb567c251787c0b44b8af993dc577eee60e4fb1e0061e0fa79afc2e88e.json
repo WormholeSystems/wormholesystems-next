@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_access (map_id, subject_type, subject_id, role)\n         values ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "994d59cb567c251787c0b44b8af993dc577eee60e4fb1e0061e0fa79afc2e88e"
+}

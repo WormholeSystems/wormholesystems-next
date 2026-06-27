@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_solar_systems where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f7439b67699a58d9988c7796041a3b3ee802cde9d1e02bf4233c5d0c8e8b9257"
+}

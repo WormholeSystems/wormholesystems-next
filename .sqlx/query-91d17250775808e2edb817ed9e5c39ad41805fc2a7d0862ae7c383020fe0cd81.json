@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select m.id, m.name, m.description, m.image_url, m.created_at, ma.role as \"role!: Role\"\n           from maps m\n           join map_access ma on ma.map_id = m.id\n           where ma.subject_id in (\n                 select id from characters where user_id = $1\n                 union all\n                 select corporation_id from characters where user_id = $1\n                 union all\n                 select alliance_id from characters where user_id = $1 and alliance_id is not null\n           )\n           order by m.created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "image_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "role!: Role",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "91d17250775808e2edb817ed9e5c39ad41805fc2a7d0862ae7c383020fe0cd81"
+}

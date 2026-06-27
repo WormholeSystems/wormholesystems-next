@@ -11,6 +11,8 @@ pub mod db;
 #[cfg(feature = "ssr")]
 pub mod esi;
 #[cfg(feature = "ssr")]
+pub mod maps;
+#[cfg(feature = "ssr")]
 pub mod sde;
 #[cfg(feature = "ssr")]
 pub mod seed;

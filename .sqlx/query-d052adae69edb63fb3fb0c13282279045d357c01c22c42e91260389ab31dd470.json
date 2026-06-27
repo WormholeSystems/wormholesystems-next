@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_connections (map_id, from_system, to_system, type)\n           values ($1, $2, $3, $4)\n           returning id, map_id, from_system, to_system, type as \"kind: ConnectionType\", created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "from_system",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "to_system",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "kind: ConnectionType",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d052adae69edb63fb3fb0c13282279045d357c01c22c42e91260389ab31dd470"
+}
