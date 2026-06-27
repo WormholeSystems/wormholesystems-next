@@ -148,6 +148,41 @@ even though factions never authenticate.
 | `home_solar_system_id` | int, null | SDE `solarSystemID` |
 | `size_factor` | double, null | |
 
+## Entities (ESI-cached)
+
+`corporations` and `alliances` are resolved from ESI (during login / affiliation
+refresh) and cached for display — names, tickers, and the ids that link them. Unlike
+the SDE topology these change over time, so they carry an `updated_at`.
+
+### `corporations`
+
+*Source: ESI [`GET /corporations/{id}`](../esi/corporation-public.md).*
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | pk (bigint) | |
+| `name` | text | |
+| `ticker` | text | |
+| `alliance_id` | bigint, null | current alliance |
+| `faction_id` | bigint, null | |
+| `ceo_id` | bigint, null | |
+| `member_count` | int, null | |
+| `updated_at` | timestamptz | last resolved |
+
+### `alliances`
+
+*Source: ESI [`GET /alliances/{id}`](../esi/alliance-public.md).*
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | pk (bigint) | |
+| `name` | text | |
+| `ticker` | text | |
+| `creator_corporation_id` | bigint, null | |
+| `executor_corporation_id` | bigint, null | |
+| `faction_id` | bigint, null | |
+| `updated_at` | timestamptz | last resolved |
+
 ## Dynamic overlays
 
 ### `structures`
