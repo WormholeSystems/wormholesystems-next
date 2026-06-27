@@ -12,7 +12,8 @@ use crate::esi::{EsiClient, Sso};
 #[derive(Clone)]
 pub struct AppState {
     pub leptos_options: LeptosOptions,
-    pub auth: Option<Arc<Auth>>,
+    pub auth: Arc<Auth>,
+    pub db: sqlx::PgPool,
 }
 
 impl FromRef<AppState> for LeptosOptions {
@@ -55,20 +56,15 @@ pub struct CallbackQuery {
 }
 
 pub async fn login(State(state): State<AppState>) -> Response {
-    let Some(auth) = state.auth else {
-        return sso_unconfigured();
-    };
-    let csrf = auth.issue_state();
-    Redirect::to(&auth.sso.authorize_url(&csrf)).into_response()
+    let csrf = state.auth.issue_state();
+    Redirect::to(&state.auth.sso.authorize_url(&csrf)).into_response()
 }
 
 pub async fn callback(
     State(state): State<AppState>,
     Query(query): Query<CallbackQuery>,
 ) -> Response {
-    let Some(auth) = state.auth else {
-        return sso_unconfigured();
-    };
+    let auth = &state.auth;
     if !auth.take_state(&query.state) {
         return (StatusCode::BAD_REQUEST, "invalid or expired state").into_response();
     }
@@ -110,12 +106,4 @@ pub async fn callback(
 
     let dest = reqwest::Url::parse_with_params("http://x/profile", &params).expect("valid url");
     Redirect::to(&format!("/profile?{}", dest.query().unwrap_or_default())).into_response()
-}
-
-fn sso_unconfigured() -> Response {
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        "SSO not configured — set EVE_CLIENT_ID / EVE_CLIENT_SECRET / EVE_REDIRECT_URI in .env",
-    )
-        .into_response()
 }

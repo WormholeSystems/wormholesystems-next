@@ -9,9 +9,9 @@ the [database spec](./README.md) — see it for the conventions and goals.
 Identity comes from **EVE SSO** (OAuth 2.0). A login authenticates a single
 **character**, not a user — so the EVE-native identity lives on
 [`characters`](#characters). A character authorizes one or more times, each producing
-a token with its own scope set, so the tokens live in their own [`tokens`](#tokens)
-table; the scopes themselves are catalogued in [`scopes`](#scopes) and joined via
-[`token_scopes`](#token_scopes). The JWT also carries a character **owner hash** that
+a token with its own scope set, so the tokens live in their own [`esi_tokens`](#esi_tokens)
+table; the scopes themselves are catalogued in [`esi_scopes`](#esi_scopes) and joined via
+[`esi_token_scopes`](#esi_token_scopes). The JWT also carries a character **owner hash** that
 changes if the character is transferred to another EVE account; we store it to detect
 transfers (see [`characters`](#characters)). A **`user`** is our own app-side account:
 a bag of characters. Which character is *active* is **per session** — a user can be active as a
@@ -27,7 +27,7 @@ adopt PKCE — is held in [`oauth_login_flows`](#oauth_login_flows) until the ca
 > **Scopes drive features.** Live pilot-location tracking (the
 > [viewer-vs-member line](./access.md#roles--capabilities)) requires the character to
 > have granted the location scope. A feature checks for a token of that character
-> whose `token_scopes` include the needed scope before calling the matching ESI
+> whose `esi_token_scopes` include the needed scope before calling the matching ESI
 > endpoint.
 
 ---
@@ -68,7 +68,7 @@ here.
 ## `characters`
 
 An EVE character belonging to a user. Carries the EVE identity and the corp/alliance
-used for access checks; its SSO tokens live in [`tokens`](#tokens).
+used for access checks; its SSO tokens live in [`esi_tokens`](#esi_tokens).
 
 | Column           | Type         | Notes                                          |
 |------------------|--------------|------------------------------------------------|
@@ -88,7 +88,7 @@ used for access checks; its SSO tokens live in [`tokens`](#tokens).
   — staleness is a real access-correctness risk. They are refreshed **on login** and
   by a **periodic job** — see [affiliation refresh](../processes.md#affiliation-refresh)
   — using the bulk [character affiliation](../esi/characters-affiliation.md) endpoint.
-- Re-authenticating a character adds or updates a row in [`tokens`](#tokens), never a
+- Re-authenticating a character adds or updates a row in [`esi_tokens`](#esi_tokens), never a
   duplicate character row (id is the EVE character id).
 - **The owner hash detects transfers.** On login, if the JWT's `owner_hash` differs
   from the stored value, the character has changed hands (been sold/transferred). The
@@ -105,7 +105,7 @@ used for access checks; its SSO tokens live in [`tokens`](#tokens).
 
 ---
 
-## `tokens`
+## `esi_tokens`
 
 An access/refresh token pair obtained from **one** SSO authorization for a character.
 A character may hold several tokens, each granting a different set of scopes.
@@ -125,7 +125,7 @@ A character may hold several tokens, each granting a different set of scopes.
 - Belongs to exactly one character; deleting the character deletes its tokens.
 - The **refresh token is the sensitive credential**: encrypted at rest, never logged,
   never sent to the client. The access token is short-lived and renewed from it.
-- A token's granted scopes are exactly its [`token_scopes`](#token_scopes) rows, and
+- A token's granted scopes are exactly its [`esi_token_scopes`](#esi_token_scopes) rows, and
   match the JWT `scp` at issuance.
 - **Picking a token for an ESI call:** choose a token of the (active) character whose
   scopes include the one the endpoint needs, refreshing it if expired.
@@ -136,7 +136,7 @@ A character may hold several tokens, each granting a different set of scopes.
 
 ---
 
-## `scopes`
+## `esi_scopes`
 
 Catalogue of the ESI scopes the application knows about (e.g.
 `esi-location.read_location.v1`).
@@ -157,9 +157,9 @@ Catalogue of the ESI scopes the application knows about (e.g.
 
 ---
 
-## `token_scopes`
+## `esi_token_scopes`
 
-Which scopes a token was granted — a many-to-many join between `tokens` and `scopes`.
+Which scopes a token was granted — a many-to-many join between `esi_tokens` and `esi_scopes`.
 
 | Column     | Type      | Notes |
 |------------|-----------|-------|
@@ -170,7 +170,7 @@ Which scopes a token was granted — a many-to-many join between `tokens` and `s
 
 - Primary key `(token_id, scope_id)`; a scope appears at most once per token.
 - A token's effective scope set is exactly these rows.
-- Deleting a token removes its `token_scopes`; a `scope` cannot be deleted while still
+- Deleting a token removes its `esi_token_scopes`; a `scope` cannot be deleted while still
   referenced.
 
 ---

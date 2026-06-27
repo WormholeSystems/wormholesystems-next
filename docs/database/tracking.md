@@ -10,7 +10,7 @@ not. Part of the [database spec](./README.md) — see it for conventions and goa
 The latest known status of a character — one row per character (1:1), refreshed by a
 tiered [polling job](../processes.md#character-status-polling) against
 [ESI](../esi/README.md), within the character's
-[granted scopes](./authentication.md#scopes). (A 1:1 current-state table, so the
+[granted scopes](./authentication.md#esi_scopes). (A 1:1 current-state table, so the
 singular name reads better than the usual plural.)
 
 | Column            | Type              | Notes                                                |
@@ -35,8 +35,8 @@ singular name reads better than the usual plural.)
   iff a station or structure id is present, otherwise in space. No separate flag to
   drift — same single-source-of-truth principle used elsewhere in the spec.
 - Tracking depends on **scopes**: location, online, and ship each need the matching
-  ESI scope granted (see [`scopes`](./authentication.md#scopes) /
-  [`token_scopes`](./authentication.md#token_scopes)). A field whose scope is missing
+  ESI scope granted (see [`esi_scopes`](./authentication.md#esi_scopes) /
+  [`esi_token_scopes`](./authentication.md#esi_token_scopes)). A field whose scope is missing
   stays `null` rather than guessed.
 - `last_online_at` persists while the character is offline, so the UI can show
   "last seen N ago".

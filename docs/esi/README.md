@@ -46,7 +46,7 @@ fresh:
 
 ## Scopes we request
 
-These map one-to-one to rows in the [`scopes`](../database/authentication.md#scopes)
+These map one-to-one to rows in the [`esi_scopes`](../database/authentication.md#esi_scopes)
 catalogue and are what we ask for at SSO consent:
 
 - `esi-location.read_location.v1` — character system / docked location

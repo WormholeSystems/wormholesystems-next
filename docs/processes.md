@@ -73,7 +73,7 @@ station/structure (→ derived `is_docked`) and the `ship_*` fields.
 - An offline character is never polled for location/ship.
 - An idle user's characters are not polled at all (neither tier).
 - Each poll needs the matching scope (online / location / ship); a missing scope skips
-  that field, which stays `null` (see [scopes](./database/authentication.md#scopes)).
+  that field, which stays `null` (see [scopes](./database/authentication.md#esi_scopes)).
 - Cadences track ESI's cache windows — honour each response's cache-expiry / `ETag`
   rather than re-requesting inside a cached window.
 
@@ -102,6 +102,6 @@ Documented with their own tables; listed here so the background-work picture is 
 place:
 
 - Access-token refresh from the stored refresh token
-  ([`tokens`](./database/authentication.md#tokens)).
+  ([`esi_tokens`](./database/authentication.md#esi_tokens)).
 - Expiry / cleanup of expired
   [`oauth_login_flows`](./database/authentication.md#oauth_login_flows).

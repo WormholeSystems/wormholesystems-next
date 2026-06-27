@@ -12,6 +12,8 @@ pub enum EsiError {
     Jwt(String),
     #[error("missing required scope: {0}")]
     MissingScope(String),
+    #[error("token store error: {0}")]
+    Store(String),
 }
 
 pub type Result<T> = std::result::Result<T, EsiError>;

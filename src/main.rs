@@ -18,25 +18,21 @@ async fn main() {
     let addr = leptos_options.site_addr;
     let routes = generate_route_list(App);
 
-    // Build the SSO client if credentials are configured; otherwise run without auth
-    // (the /auth routes then return 503 until EVE_* are set in .env).
-    let auth = match Config::from_env() {
-        Ok(config) => match Sso::discover(reqwest::Client::new(), config.sso).await {
-            Ok(sso) => Some(Arc::new(Auth::new(sso, EsiClient::new()))),
-            Err(e) => {
-                log!("SSO discovery failed, auth disabled: {e}");
-                None
-            }
-        },
-        Err(e) => {
-            log!("SSO not configured, auth disabled: {e}");
-            None
-        }
-    };
+    // Config, the database, and SSO are all essential — fail fast if any is unavailable.
+    let config = Config::from_env()
+        .expect("missing configuration — copy .env.example to .env and fill in the variables");
+    let db = vector::db::connect(&config.database_url).await.expect(
+        "could not connect to Postgres — is it running? start it with `docker compose up -d`",
+    );
+    let sso = Sso::discover(reqwest::Client::new(), config.sso)
+        .await
+        .expect("could not reach the EVE SSO — check your network connection");
+    let auth = Arc::new(Auth::new(sso, EsiClient::new()));
 
     let state = AppState {
         leptos_options: leptos_options.clone(),
         auth,
+        db,
     };
 
     let app = Router::new()

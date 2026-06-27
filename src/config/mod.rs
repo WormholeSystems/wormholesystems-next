@@ -10,6 +10,7 @@ pub enum ConfigError {
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    pub database_url: String,
     pub sso: SsoConfig,
 }
 
@@ -19,6 +20,7 @@ impl Config {
         dotenvy::dotenv().ok();
 
         Ok(Config {
+            database_url: required("DATABASE_URL")?,
             sso: SsoConfig {
                 client_id: required("EVE_CLIENT_ID")?,
                 client_secret: required("EVE_CLIENT_SECRET")?,
