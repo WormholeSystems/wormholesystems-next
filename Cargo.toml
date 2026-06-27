@@ -2,12 +2,59 @@
 name = "vector"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-reqwest = { version = "0.13.4", features = ["blocking", "json", "form"] }
+# Leptos (compiled for both server and client)
+leptos = { version = "0.8" }
+leptos_meta = { version = "0.8" }
+leptos_router = { version = "0.8" }
+leptos_axum = { version = "0.8", optional = true }
+
+# Web server (ssr only)
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"], optional = true }
+
+# Client / hydrate only
+console_error_panic_hook = { version = "0.1", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+# Domain (server only)
+reqwest = { version = "0.13.4", features = ["blocking", "json", "form"], optional = true }
+jsonwebtoken = { version = "9", optional = true }
+zip = { version = "8.6.0", optional = true }
+dotenvy = { version = "0.15", optional = true }
+thiserror = { version = "2", optional = true }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-zip = "8.6.0"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-jsonwebtoken = "9"
-thiserror = "2"
-dotenvy = "0.15"
+serde_json = { version = "1.0", optional = true }
+
+[features]
+default = ["ssr"]
+hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen"]
+ssr = [
+    "dep:axum",
+    "dep:tokio",
+    "dep:leptos_axum",
+    "dep:reqwest",
+    "dep:jsonwebtoken",
+    "dep:zip",
+    "dep:dotenvy",
+    "dep:thiserror",
+    "dep:serde_json",
+    "leptos/ssr",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+]
+
+[package.metadata.leptos]
+output-name = "vector"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+style-file = "style/main.scss"
+site-addr = "127.0.0.1:3000"
+reload-port = 3001
+bin-features = ["ssr"]
+bin-default-features = false
+lib-features = ["hydrate"]
+lib-default-features = false

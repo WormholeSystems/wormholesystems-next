@@ -1,17 +1,29 @@
-// The SDE structs model the full external schema; many fields aren't read yet
-// (they're only deserialized), and the download/archive bootstrap is WIP.
-#![allow(dead_code)]
+#[cfg(feature = "ssr")]
+#[tokio::main]
+async fn main() {
+    use axum::Router;
+    use leptos::logging::log;
+    use leptos::prelude::*;
+    use leptos_axum::{LeptosRoutes, generate_route_list};
+    use vector::app::{App, shell};
 
-use crate::sde::SolarSystem;
+    let conf = get_configuration(None).unwrap();
+    let leptos_options = conf.leptos_options;
+    let addr = leptos_options.site_addr;
+    let routes = generate_route_list(App);
 
-mod config;
-mod esi;
-mod sde;
-mod util;
+    let app = Router::new()
+        .leptos_routes(&leptos_options, routes, {
+            let leptos_options = leptos_options.clone();
+            move || shell(leptos_options.clone())
+        })
+        .fallback(leptos_axum::file_and_error_handler(shell))
+        .with_state(leptos_options);
 
-fn main() {
-    let systems = sde::load::<SolarSystem>().expect("failed to load solar systems");
-
-    println!("Loaded {} solar systems", systems.len());
-    println!("{:#?}", systems.get(&30000777).unwrap());
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    log!("listening on http://{}", &addr);
+    axum::serve(listener, app.into_make_service()).await.unwrap();
 }
+
+#[cfg(not(feature = "ssr"))]
+fn main() {}
