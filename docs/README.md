@@ -16,6 +16,9 @@ with layered access control and Discord alerting.
   [access](./database/access.md), [tracking](./database/tracking.md),
   [universe](./database/universe.md), [item types](./database/types.md),
   [custom static reference](./database/static.md)).
+- [`features/`](./features/) — application behaviour above the data model: the
+  authorized, validated actions users take. ([map actions](./features/maps.md) —
+  create/rename/delete maps, manage access, edit the graph.)
 - [`esi/`](./esi/) — the EVE ESI endpoints we consume: parameters, response
   structure, and examples, one file per endpoint.
 - [`processes.md`](./processes.md) — background / scheduled work (e.g. affiliation
