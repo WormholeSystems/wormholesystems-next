@@ -1,0 +1,148 @@
+//! EVE SSO (OAuth 2.0 Authorization Code flow). The web layer generates and stores the
+//! CSRF `state`, redirects to [`Sso::authorize_url`], then calls [`Sso::exchange_code`].
+//! [`Sso::access_token`] resolves a usable token through a [`TokenStore`] with refresh.
+
+use std::time::{Duration, SystemTime};
+
+use serde::Deserialize;
+
+use super::scopes::Scope;
+use super::token::{Token, TokenStore};
+use super::{EsiError, Result, jwt};
+
+const METADATA_URL: &str = "https://login.eveonline.com/.well-known/oauth-authorization-server";
+
+#[derive(Debug, Clone)]
+pub struct SsoConfig {
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_uri: String,
+    pub scopes: Vec<Scope>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Metadata {
+    pub issuer: String,
+    pub authorization_endpoint: String,
+    pub token_endpoint: String,
+    pub jwks_uri: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenResponse {
+    access_token: String,
+    expires_in: u64,
+    refresh_token: String,
+}
+
+pub struct Sso {
+    http: reqwest::Client,
+    config: SsoConfig,
+    metadata: Metadata,
+}
+
+impl Sso {
+    pub async fn discover(http: reqwest::Client, config: SsoConfig) -> Result<Sso> {
+        let metadata: Metadata = http.get(METADATA_URL).send().await?.json().await?;
+        Ok(Sso {
+            http,
+            config,
+            metadata,
+        })
+    }
+
+    /// `state` is the CSRF token the caller generates and verifies on the callback.
+    pub fn authorize_url(&self, state: &str) -> String {
+        let scope = self
+            .config
+            .scopes
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let params = [
+            ("response_type", "code"),
+            ("client_id", self.config.client_id.as_str()),
+            ("redirect_uri", self.config.redirect_uri.as_str()),
+            ("scope", scope.as_str()),
+            ("state", state),
+        ];
+        reqwest::Url::parse_with_params(&self.metadata.authorization_endpoint, params)
+            .expect("authorization_endpoint is a valid base URL")
+            .to_string()
+    }
+
+    pub async fn exchange_code(&self, code: &str) -> Result<Token> {
+        let resp = self
+            .token_request(&[("grant_type", "authorization_code"), ("code", code)])
+            .await?;
+        self.build_token(resp).await
+    }
+
+    pub async fn refresh(&self, refresh_token: &str) -> Result<Token> {
+        let resp = self
+            .token_request(&[
+                ("grant_type", "refresh_token"),
+                ("refresh_token", refresh_token),
+            ])
+            .await?;
+        self.build_token(resp).await
+    }
+
+    /// Load `character_id`'s token, refresh + save it if it's expiring, and require
+    /// `scope` before returning the access token.
+    pub async fn access_token<S: TokenStore>(
+        &self,
+        store: &S,
+        character_id: i64,
+        scope: Scope,
+    ) -> Result<String> {
+        let mut token = store
+            .load(character_id)
+            .await?
+            .ok_or_else(|| EsiError::Auth(format!("no token for character {character_id}")))?;
+
+        if token.expires_within(Duration::from_secs(30)) {
+            token = self.refresh(&token.refresh_token).await?;
+            store.save(character_id, &token).await?;
+        }
+        if !token.has_scope(scope) {
+            return Err(EsiError::MissingScope(scope.as_str().to_string()));
+        }
+        Ok(token.access_token)
+    }
+
+    async fn token_request(&self, form: &[(&str, &str)]) -> Result<TokenResponse> {
+        let resp = self
+            .http
+            .post(&self.metadata.token_endpoint)
+            .basic_auth(&self.config.client_id, Some(&self.config.client_secret))
+            .form(form)
+            .send()
+            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(EsiError::Auth(format!("token endpoint {status}: {body}")));
+        }
+        Ok(resp.json().await?)
+    }
+
+    async fn build_token(&self, resp: TokenResponse) -> Result<Token> {
+        // Scopes come from the validated JWT, not the token response body.
+        let claims = jwt::validate(
+            &self.http,
+            &self.metadata.jwks_uri,
+            &self.metadata.issuer,
+            &self.config.client_id,
+            &resp.access_token,
+        )
+        .await?;
+        Ok(Token {
+            access_token: resp.access_token,
+            refresh_token: resp.refresh_token,
+            expires_at: SystemTime::now() + Duration::from_secs(resp.expires_in),
+            scopes: claims.scopes,
+        })
+    }
+}

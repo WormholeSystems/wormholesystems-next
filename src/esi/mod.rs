@@ -1,0 +1,116 @@
+//! Async client for the EVE Swagger Interface (ESI) and its SSO.
+//!
+//! `EsiClient` is framework-agnostic: authenticated calls take an access-token string,
+//! and the web layer supplies/persists tokens through [`token::TokenStore`].
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
+pub mod error;
+pub mod jwt;
+pub mod scopes;
+pub mod sso;
+pub mod token;
+
+pub mod character;
+pub mod entities;
+pub mod sovereignty;
+mod ui;
+
+// These read as "unused" only because nothing consumes the crate yet (it's a binary);
+// they are the surface the web layer will use.
+#[allow(unused_imports)]
+pub use {
+    character::{CharacterLocation, CharacterOnline, CharacterPublic, CharacterShip},
+    entities::{Affiliation, Alliance, Corporation},
+    error::{EsiError, Result},
+    jwt::Claims,
+    scopes::Scope,
+    sovereignty::SovereigntySystem,
+    sso::{Sso, SsoConfig},
+    token::{Token, TokenStore},
+};
+
+pub const BASE_URL: &str = "https://esi.evetech.net";
+pub const COMPATIBILITY_DATE: &str = "2026-06-09";
+
+#[derive(Clone)]
+pub struct EsiClient {
+    http: reqwest::Client,
+    base_url: String,
+    compatibility_date: String,
+}
+
+impl EsiClient {
+    pub fn new() -> Self {
+        Self::with_config(reqwest::Client::new(), BASE_URL, COMPATIBILITY_DATE)
+    }
+
+    pub fn with_config(
+        http: reqwest::Client,
+        base_url: impl Into<String>,
+        compatibility_date: impl Into<String>,
+    ) -> Self {
+        EsiClient {
+            http,
+            base_url: base_url.into(),
+            compatibility_date: compatibility_date.into(),
+        }
+    }
+
+    fn request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        token: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        let mut req = self
+            .http
+            .request(method, format!("{}{}", self.base_url, path))
+            .header("X-Compatibility-Date", &self.compatibility_date);
+        if let Some(token) = token {
+            req = req.bearer_auth(token);
+        }
+        req
+    }
+
+    async fn parse<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T> {
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(EsiError::Api {
+                status: status.as_u16(),
+                body,
+            });
+        }
+        Ok(resp.json::<T>().await?)
+    }
+
+    async fn get_json<T: DeserializeOwned>(&self, path: &str, token: Option<&str>) -> Result<T> {
+        let resp = self
+            .request(reqwest::Method::GET, path, token)
+            .send()
+            .await?;
+        Self::parse(resp).await
+    }
+
+    async fn post_json<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+        token: Option<&str>,
+    ) -> Result<T> {
+        let resp = self
+            .request(reqwest::Method::POST, path, token)
+            .json(body)
+            .send()
+            .await?;
+        Self::parse(resp).await
+    }
+}
+
+impl Default for EsiClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}

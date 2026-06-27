@@ -1,9 +1,12 @@
 [package]
-name="vector"
-edition="2024"
+name = "vector"
+edition = "2024"
 
 [dependencies]
-reqwest={ version = "0.13.4",features = ["blocking"]}
-serde={version = "1.0", features = ["derive"]}
-serde_json="1.0"
-zip="8.6.0"
+reqwest = { version = "0.13.4", features = ["blocking", "json", "form"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+zip = "8.6.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+jsonwebtoken = "9"
+thiserror = "2"
