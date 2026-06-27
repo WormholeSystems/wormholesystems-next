@@ -8,38 +8,15 @@ use std::{fs, io, path::Path};
 
 use zip::{ZipArchive, result::ZipError};
 
-/// Anything that can go wrong while extracting an archive.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ExtractError {
-    /// Opening or reading the zip container failed.
-    Zip(ZipError),
-    /// Writing an extracted entry to disk failed.
-    Io(io::Error),
+    #[error("could not read zip archive: {0}")]
+    Zip(#[from] ZipError),
+    #[error("could not write extracted file: {0}")]
+    Io(#[from] io::Error),
     /// An entry's path escaped the output directory (a "zip slip" attempt).
+    #[error("archive entry has an unsafe path")]
     UnsafePath,
-}
-
-impl std::fmt::Display for ExtractError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ExtractError::Zip(e) => write!(f, "could not read zip archive: {e}"),
-            ExtractError::Io(e) => write!(f, "could not write extracted file: {e}"),
-            ExtractError::UnsafePath => write!(f, "archive entry has an unsafe path"),
-        }
-    }
-}
-
-impl std::error::Error for ExtractError {}
-
-impl From<ZipError> for ExtractError {
-    fn from(e: ZipError) -> Self {
-        ExtractError::Zip(e)
-    }
-}
-impl From<io::Error> for ExtractError {
-    fn from(e: io::Error) -> Self {
-        ExtractError::Io(e)
-    }
 }
 
 /// Extract every entry of `archive` into `output_dir`, creating directories as

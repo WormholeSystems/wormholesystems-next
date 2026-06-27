@@ -34,13 +34,19 @@ pub trait SdeEntity: serde::de::DeserializeOwned {
     fn id(&self) -> Self::Id;
 }
 
-/// Load a `.jsonl` file (one JSON object per line) into a `Vec<T>`.
-///
-/// Returns `Err` on the first line that fails to deserialize, so a successful
-/// result means every row in the file matched `T`. Blank lines are skipped.
+#[derive(Debug, thiserror::Error)]
+pub enum SdeError {
+    #[error("could not read SDE file: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("could not parse SDE row: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
+/// Loads one `.jsonl` file into a `Vec<T>`, erroring on the first row that doesn't
+/// match `T` (so a successful result means every row parsed). Blank lines are skipped.
 pub fn load_jsonl<T: serde::de::DeserializeOwned>(
     path: impl AsRef<std::path::Path>,
-) -> Result<Vec<T>, Box<dyn std::error::Error>> {
+) -> Result<Vec<T>, SdeError> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
 
@@ -58,13 +64,13 @@ pub fn load_jsonl<T: serde::de::DeserializeOwned>(
 
 /// Load every row of an entity's file into a `Vec`, e.g.
 /// `sde::load_all::<inventory::Type>()?`.
-pub fn load_all<T: SdeEntity>() -> Result<Vec<T>, Box<dyn std::error::Error>> {
+pub fn load_all<T: SdeEntity>() -> Result<Vec<T>, SdeError> {
     load_jsonl::<T>(Path::new(SDE_DIR).join(T::FILE))
 }
 
 /// Load every row of an entity's file into a `HashMap` keyed by `id`, e.g.
 /// `sde::load::<SolarSystem>()?`.
-pub fn load<T: SdeEntity>() -> Result<HashMap<T::Id, T>, Box<dyn std::error::Error>> {
+pub fn load<T: SdeEntity>() -> Result<HashMap<T::Id, T>, SdeError> {
     Ok(load_all::<T>()?
         .into_iter()
         .map(|row| (row.id(), row))

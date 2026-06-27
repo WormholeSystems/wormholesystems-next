@@ -16,43 +16,14 @@ const LATEST_BUILD_URL: &str =
 const DATA_URL: &str =
     "https://developers.eveonline.com/static-data/tranquility/eve-online-static-data-{}-jsonl.zip";
 
-/// Anything that can go wrong while fetching the SDE.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum DownloadError {
-    /// The HTTP request itself failed.
-    Http(reqwest::Error),
-    /// The `latest.jsonl` response didn't match [`LatestBuild`].
-    Parse(serde_json::Error),
-    /// Writing the downloaded archive to disk failed.
-    Io(io::Error),
-}
-
-impl std::fmt::Display for DownloadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DownloadError::Http(e) => write!(f, "SDE download request failed: {e}"),
-            DownloadError::Parse(e) => write!(f, "could not parse latest-build response: {e}"),
-            DownloadError::Io(e) => write!(f, "could not write SDE archive: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for DownloadError {}
-
-impl From<reqwest::Error> for DownloadError {
-    fn from(e: reqwest::Error) -> Self {
-        DownloadError::Http(e)
-    }
-}
-impl From<serde_json::Error> for DownloadError {
-    fn from(e: serde_json::Error) -> Self {
-        DownloadError::Parse(e)
-    }
-}
-impl From<io::Error> for DownloadError {
-    fn from(e: io::Error) -> Self {
-        DownloadError::Io(e)
-    }
+    #[error("SDE download request failed: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("could not parse latest-build response: {0}")]
+    Parse(#[from] serde_json::Error),
+    #[error("could not write SDE archive: {0}")]
+    Io(#[from] io::Error),
 }
 
 /// Metadata about the most recent SDE build, from `latest.jsonl`.
