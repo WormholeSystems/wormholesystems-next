@@ -1,0 +1,47 @@
+name: Format & Lint
+
+# Auto-format and apply clippy's machine-applicable fixes on every push,
+# then commit the result back to the branch. The fix-up commit is tagged
+# "[skip ci]" so it doesn't retrigger this workflow into a loop.
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    # Skip runs that are themselves the bot's fix-up commit.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + rustfmt + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      # clippy first (its fixes may leave code unformatted), then rustfmt has
+      # the final say on layout. Non-blocking so a stubborn lint can't wedge CI.
+      - name: Apply clippy fixes
+        run: cargo clippy --fix --all-targets --allow-dirty --allow-staged --allow-no-vcs || true
+
+      - name: Format
+        run: cargo fmt --all
+
+      - name: Commit changes if anything changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "style: auto-format and apply clippy fixes [skip ci]"
+            git push
+          else
+            echo "Already formatted — nothing to commit."
+          fi

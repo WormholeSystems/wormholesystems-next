@@ -1,0 +1,12 @@
+# Build output
+/target
+**/*.rs.bk
+
+# Downloaded SDE data under data/ (~660 MB, regenerated via the downloader).
+# The hand-authored static JSON that augments the SDE lives alongside in
+# data/ and IS committed — only these two regenerable paths are ignored.
+/data/sde/
+/data/sde.zip
+
+# macOS
+.DS_Store
