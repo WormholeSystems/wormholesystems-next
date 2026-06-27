@@ -17,7 +17,8 @@ create table groups (
 
 create table market_groups (
     id              bigint primary key,
-    parent_group_id bigint references market_groups (id),
+    -- self-referential; deferrable so a bulk seed needn't order parents before children
+    parent_group_id bigint references market_groups (id) deferrable initially deferred,
     name            text not null,
     has_types       boolean not null default false
 );

@@ -1,6 +1,12 @@
 #[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
+    // `vector seed` populates the reference tables from the SDE + data/static, then exits.
+    if std::env::args().any(|a| a == "seed") {
+        vector::seed::run().await.expect("seeding failed");
+        return;
+    }
+
     use std::sync::Arc;
 
     use axum::Router;

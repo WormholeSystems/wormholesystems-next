@@ -10,7 +10,7 @@ create table wormhole_types (
     max_mass_per_jump bigint,
     total_mass        bigint,
     mass_regen        bigint,
-    lifetime_hours    integer,
+    lifetime_hours    double precision,
     sibling_groups    jsonb
 );
 
@@ -54,7 +54,7 @@ create table signature_categories (
 
 create table signature_types (
     id                    bigint primary key,
-    signature             text not null,
+    signature             text,
     name                  text not null,
     signature_category_id bigint not null references signature_categories (id),
     target_class          integer,
