@@ -8,7 +8,8 @@ ESI. Part of the [database spec](./README.md).
 We materialise a *subset* of the SDE (see `src/sde/`) into Postgres so the app can join
 against it — a placed system's name and security, stargate adjacency for routing, who
 holds a system. The SDE-backed tables are **reference data**, reloaded when the SDE is
-updated; the ESI-backed tables (`structures`, `system_sovereignty`) are dynamic.
+updated (see [Seeding](./seeding.md)); the ESI-backed tables (`structures`,
+`system_sovereignty`) are dynamic.
 
 Each table notes its SDE source file. Names in the SDE are a localized string; store the
 English value (or a `jsonb` of all locales if we later localize). Ids are the SDE `_key`

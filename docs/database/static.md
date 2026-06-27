@@ -30,7 +30,7 @@ with their mass and lifetime limits.
 | `max_mass_per_jump` | bigint, null | kg per jump |
 | `total_mass` | bigint, null | kg total before collapse |
 | `mass_regen` | bigint, null | kg regenerated |
-| `lifetime_hours` | int, null | hours before natural decay |
+| `lifetime_hours` | float, null | hours before natural decay (fractional — some are e.g. 4.5) |
 | `sibling_groups` | jsonb, null | related-type groupings (rarely set) |
 
 **Invariants & expected behaviour**
@@ -116,7 +116,7 @@ the [`signatures.group`](./mapping.md#signatures) enum.
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | pk | |
-| `signature` | text | the code, e.g. `B274` |
+| `signature` | text, null | the code, e.g. `B274`; null for non-wormhole sites (data/anomaly) |
 | `name` | text | e.g. `B274 - H` |
 | `signature_category_id` | fk signature_categories | |
 | `target_class` | int, null | where it leads (`wormhole_class_id`) |

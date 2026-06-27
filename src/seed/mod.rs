@@ -5,13 +5,13 @@
 //! and corporations (which reference each other) validate at commit. Inline FKs are
 //! satisfied by insert order.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 use sqlx::{PgPool, Postgres, QueryBuilder};
 
 use crate::sde::common::LocalizedString;
-use crate::sde::{inventory, npc, universe};
+use crate::sde::{dogma, inventory, npc, universe};
 
 type BoxError = Box<dyn std::error::Error>;
 
@@ -19,27 +19,81 @@ fn en(name: &LocalizedString) -> String {
     name.en.clone().unwrap_or_default()
 }
 
-/// Chunked multi-row insert with `on conflict do nothing`, returning the row count.
+/// Chunked multi-row insert, returning the row count.
+///
+/// The four-arg form ends with `on conflict do nothing` — correct for tables whose
+/// primary key *is* the whole row (link/junction tables: nothing to update). The
+/// five-arg form takes an explicit conflict clause so entity tables can upsert
+/// (`on conflict (id) do update set …`), keeping them in sync as the SDE changes.
 macro_rules! bulk {
-    ($tx:expr, $table_cols:literal, $rows:expr, |$b:ident, $r:pat_param| $body:expr) => {{
+    ($tx:expr, $table_cols:literal, $conflict:literal, $rows:expr, |$b:ident, $r:pat_param| $body:expr) => {{
         let rows = $rows;
         for chunk in rows.chunks(1000) {
             let mut qb = QueryBuilder::<Postgres>::new(concat!("insert into ", $table_cols, " "));
             qb.push_values(chunk, |mut $b, $r| {
                 $body;
             });
-            qb.push(" on conflict do nothing");
+            qb.push(concat!(" ", $conflict));
             qb.build().execute(&mut *$tx).await?;
         }
         rows.len()
     }};
+    ($tx:expr, $table_cols:literal, $rows:expr, |$b:ident, $r:pat_param| $body:expr) => {
+        bulk!(
+            $tx,
+            $table_cols,
+            "on conflict do nothing",
+            $rows,
+            |$b, $r| $body
+        )
+    };
 }
 
+/// CLI entry point (`vector seed`): always re-seeds, regardless of the loaded build.
 pub async fn run() -> Result<(), BoxError> {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL")?;
     let pool = crate::db::connect(&url).await?;
     seed_all(&pool).await
+}
+
+/// Startup gate: seed only on first boot or when `data/sde` holds a newer build than
+/// the one already loaded. The common case (unchanged build) is a single cheap query.
+/// Returns whether a seed actually ran.
+pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
+    let bundled = bundled_build()?;
+    let loaded: Option<i64> = sqlx::query_scalar("select build_number from sde_build")
+        .fetch_optional(pool)
+        .await?;
+    if loaded == Some(bundled.build_number) {
+        return Ok(false);
+    }
+    seed_all(pool).await?;
+    Ok(true)
+}
+
+/// The SDE build currently unpacked in `data/sde` (from its `_sde.jsonl` marker).
+#[derive(Deserialize)]
+struct SdeBuild {
+    #[serde(rename = "buildNumber")]
+    build_number: i64,
+    #[serde(rename = "releaseDate")]
+    release_date: Option<String>,
+}
+
+impl SdeBuild {
+    fn release_date(&self) -> Option<chrono::DateTime<chrono::Utc>> {
+        self.release_date
+            .as_deref()
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+    }
+}
+
+fn bundled_build() -> Result<SdeBuild, BoxError> {
+    let path = std::path::Path::new(crate::sde::SDE_DIR).join("_sde.jsonl");
+    let text = std::fs::read_to_string(path)?;
+    Ok(serde_json::from_str(text.trim())?)
 }
 
 async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
@@ -56,94 +110,314 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
 
     let mut tx = pool.begin().await?;
 
-    let n = bulk!(tx, "categories (id, name, published)", &categories, |b, c| {
-        b.push_bind(c.id as i64).push_bind(en(&c.name)).push_bind(c.published)
-    });
+    let n = bulk!(
+        tx,
+        "categories (id, name, published)",
+        "on conflict (id) do update set name = excluded.name, published = excluded.published",
+        &categories,
+        |b, c| {
+            b.push_bind(c.id as i64)
+                .push_bind(en(&c.name))
+                .push_bind(c.published)
+        }
+    );
     println!("categories: {n}");
 
-    let n = bulk!(tx, "groups (id, category_id, name, published)", &groups, |b, g| {
-        b.push_bind(g.id as i64)
-            .push_bind(g.category_id as i64)
-            .push_bind(en(&g.name))
-            .push_bind(g.published)
-    });
+    let n = bulk!(
+        tx,
+        "groups (id, category_id, name, published)",
+        "on conflict (id) do update set category_id = excluded.category_id, name = excluded.name, published = excluded.published",
+        &groups,
+        |b, g| {
+            b.push_bind(g.id as i64)
+                .push_bind(g.category_id as i64)
+                .push_bind(en(&g.name))
+                .push_bind(g.published)
+        }
+    );
     println!("groups: {n}");
 
-    let n = bulk!(tx, "market_groups (id, parent_group_id, name, has_types)", &market_groups, |b, m| {
-        b.push_bind(m.id as i64)
-            .push_bind(m.parent_group_id.map(|v| v as i64))
-            .push_bind(en(&m.name))
-            .push_bind(m.has_types)
-    });
+    let n = bulk!(
+        tx,
+        "market_groups (id, parent_group_id, name, has_types)",
+        "on conflict (id) do update set parent_group_id = excluded.parent_group_id, name = excluded.name, has_types = excluded.has_types",
+        &market_groups,
+        |b, m| {
+            b.push_bind(m.id as i64)
+                .push_bind(m.parent_group_id.map(|v| v as i64))
+                .push_bind(en(&m.name))
+                .push_bind(m.has_types)
+        }
+    );
     println!("market_groups: {n}");
 
-    let n = bulk!(tx, "types (id, group_id, market_group_id, name, published, volume, mass, capacity, icon_id)", &types, |b, t| {
-        b.push_bind(t.id as i64)
-            .push_bind(t.group_id as i64)
-            .push_bind(t.market_group_id.map(|v| v as i64))
-            .push_bind(en(&t.name))
-            .push_bind(t.published)
-            .push_bind(t.volume)
-            .push_bind(t.mass)
-            .push_bind(t.capacity)
-            .push_bind(t.icon_id.map(|v| v as i64))
-    });
+    let n = bulk!(
+        tx,
+        "types (id, group_id, market_group_id, name, published, volume, mass, capacity, icon_id)",
+        "on conflict (id) do update set group_id = excluded.group_id, market_group_id = excluded.market_group_id, name = excluded.name, published = excluded.published, volume = excluded.volume, mass = excluded.mass, capacity = excluded.capacity, icon_id = excluded.icon_id",
+        &types,
+        |b, t| {
+            b.push_bind(t.id as i64)
+                .push_bind(t.group_id as i64)
+                .push_bind(t.market_group_id.map(|v| v as i64))
+                .push_bind(en(&t.name))
+                .push_bind(t.published)
+                .push_bind(t.volume)
+                .push_bind(t.mass)
+                .push_bind(t.capacity)
+                .push_bind(t.icon_id.map(|v| v as i64))
+        }
+    );
     println!("types: {n}");
 
     // factions <-> corporations form a deferred cycle; both go in this transaction.
-    let n = bulk!(tx, "factions (id, name, description, corporation_id, militia_corporation_id, home_solar_system_id, size_factor)", &factions, |b, f| {
-        b.push_bind(f.id as i64)
-            .push_bind(en(&f.name))
-            .push_bind(en(&f.description))
-            .push_bind(f.corporation_id.map(|v| v as i64))
-            .push_bind(f.militia_corporation_id.map(|v| v as i64))
-            .push_bind(f.solar_system_id as i64)
-            .push_bind(f.size_factor)
-    });
+    let n = bulk!(
+        tx,
+        "factions (id, name, description, corporation_id, militia_corporation_id, home_solar_system_id, size_factor)",
+        "on conflict (id) do update set name = excluded.name, description = excluded.description, corporation_id = excluded.corporation_id, militia_corporation_id = excluded.militia_corporation_id, home_solar_system_id = excluded.home_solar_system_id, size_factor = excluded.size_factor",
+        &factions,
+        |b, f| {
+            b.push_bind(f.id as i64)
+                .push_bind(en(&f.name))
+                .push_bind(en(&f.description))
+                .push_bind(f.corporation_id.map(|v| v as i64))
+                .push_bind(f.militia_corporation_id.map(|v| v as i64))
+                .push_bind(f.solar_system_id as i64)
+                .push_bind(f.size_factor)
+        }
+    );
     println!("factions: {n}");
 
-    let n = bulk!(tx, "corporations (id, name, ticker, faction_id, ceo_id)", &corporations, |b, c| {
-        b.push_bind(c.id as i64)
-            .push_bind(en(&c.name))
-            .push_bind(&c.ticker_name)
-            .push_bind(c.faction_id.map(|v| v as i64))
-            .push_bind(c.ceo_id.map(|v| v as i64))
-    });
+    // Only the SDE-owned columns are updated — alliance_id / member_count stay ESI-managed.
+    let n = bulk!(
+        tx,
+        "corporations (id, name, ticker, faction_id, ceo_id)",
+        "on conflict (id) do update set name = excluded.name, ticker = excluded.ticker, faction_id = excluded.faction_id, ceo_id = excluded.ceo_id",
+        &corporations,
+        |b, c| {
+            b.push_bind(c.id as i64)
+                .push_bind(en(&c.name))
+                .push_bind(&c.ticker_name)
+                .push_bind(c.faction_id.map(|v| v as i64))
+                .push_bind(c.ceo_id.map(|v| v as i64))
+        }
+    );
     println!("corporations: {n}");
 
-    let n = bulk!(tx, "regions (id, name, faction_id, wormhole_class_id)", &regions, |b, r| {
-        b.push_bind(r.id as i64)
-            .push_bind(en(&r.name))
-            .push_bind(r.faction_id.map(|v| v as i64))
-            .push_bind(r.wormhole_class_id)
-    });
+    let n = bulk!(
+        tx,
+        "regions (id, name, faction_id, wormhole_class_id)",
+        "on conflict (id) do update set name = excluded.name, faction_id = excluded.faction_id, wormhole_class_id = excluded.wormhole_class_id",
+        &regions,
+        |b, r| {
+            b.push_bind(r.id as i64)
+                .push_bind(en(&r.name))
+                .push_bind(r.faction_id.map(|v| v as i64))
+                .push_bind(r.wormhole_class_id)
+        }
+    );
     println!("regions: {n}");
 
-    let n = bulk!(tx, "constellations (id, region_id, name, faction_id)", &constellations, |b, c| {
-        b.push_bind(c.id as i64)
-            .push_bind(c.region_id as i64)
-            .push_bind(en(&c.name))
-            .push_bind(c.faction_id.map(|v| v as i64))
-    });
+    let n = bulk!(
+        tx,
+        "constellations (id, region_id, name, faction_id)",
+        "on conflict (id) do update set region_id = excluded.region_id, name = excluded.name, faction_id = excluded.faction_id",
+        &constellations,
+        |b, c| {
+            b.push_bind(c.id as i64)
+                .push_bind(c.region_id as i64)
+                .push_bind(en(&c.name))
+                .push_bind(c.faction_id.map(|v| v as i64))
+        }
+    );
     println!("constellations: {n}");
 
-    let n = bulk!(tx, "solar_systems (id, constellation_id, region_id, name, security_status, security_class, faction_id, wormhole_class_id, star_id)", &solar_systems, |b, s| {
-        b.push_bind(s.id as i64)
-            .push_bind(s.constellation_id as i64)
-            .push_bind(s.region_id as i64)
-            .push_bind(en(&s.name))
-            .push_bind(s.security_status)
-            .push_bind(s.security_class.clone())
-            .push_bind(s.faction_id.map(|v| v as i64))
-            .push_bind(s.wormhole_class_id)
-            .push_bind(s.star_id.map(|v| v as i64))
-    });
+    let n = bulk!(
+        tx,
+        "solar_systems (id, constellation_id, region_id, name, security_status, security_class, faction_id, wormhole_class_id, star_id)",
+        "on conflict (id) do update set constellation_id = excluded.constellation_id, region_id = excluded.region_id, name = excluded.name, security_status = excluded.security_status, security_class = excluded.security_class, faction_id = excluded.faction_id, wormhole_class_id = excluded.wormhole_class_id, star_id = excluded.star_id",
+        &solar_systems,
+        |b, s| {
+            b.push_bind(s.id as i64)
+                .push_bind(s.constellation_id as i64)
+                .push_bind(s.region_id as i64)
+                .push_bind(en(&s.name))
+                .push_bind(s.security_status)
+                .push_bind(s.security_class.clone())
+                .push_bind(s.faction_id.map(|v| v as i64))
+                .push_bind(s.wormhole_class_id)
+                .push_bind(s.star_id.map(|v| v as i64))
+        }
+    );
     println!("solar_systems: {n}");
 
+    seed_entities(&mut tx, &corporations).await?;
     seed_static(&mut tx, &solar_systems).await?;
 
+    // Record the loaded build so startup can skip re-seeding when nothing changed.
+    let build = bundled_build()?;
+    sqlx::query(
+        "insert into sde_build (id, build_number, release_date, loaded_at) \
+         values (true, $1, $2, now()) \
+         on conflict (id) do update set \
+         build_number = excluded.build_number, release_date = excluded.release_date, loaded_at = excluded.loaded_at",
+    )
+    .bind(build.build_number)
+    .bind(build.release_date())
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
-    println!("seeding complete.");
+    println!("seeding complete (SDE build {}).", build.build_number);
+    Ok(())
+}
+
+// ---- larger SDE entities: dogma catalogue + celestial topology ----
+//
+// Each is loaded right before its insert and dropped at the end of its scope, so the
+// big celestial files (moons is ~220 MB) don't all sit in memory at once.
+
+async fn seed_entities(
+    tx: &mut sqlx::PgConnection,
+    corporations: &[npc::NpcCorporation],
+) -> Result<(), BoxError> {
+    {
+        let units = crate::sde::load_all::<dogma::DogmaUnit>()?;
+        let n = bulk!(
+            tx,
+            "dogma_units (id, name)",
+            "on conflict (id) do update set name = excluded.name",
+            &units,
+            |b, u| { b.push_bind(u.id as i64).push_bind(&u.name) }
+        );
+        println!("dogma_units: {n}");
+    }
+    {
+        let attrs = crate::sde::load_all::<dogma::DogmaAttribute>()?;
+        let n = bulk!(
+            tx,
+            "dogma_attributes (id, name, unit_id, default_value, high_is_good, published)",
+            "on conflict (id) do update set name = excluded.name, unit_id = excluded.unit_id, default_value = excluded.default_value, high_is_good = excluded.high_is_good, published = excluded.published",
+            &attrs,
+            |b, a| {
+                b.push_bind(a.id as i64)
+                    .push_bind(&a.name)
+                    .push_bind(a.unit_id.map(|v| v as i64))
+                    .push_bind(a.default_value)
+                    .push_bind(a.high_is_good)
+                    .push_bind(a.published)
+            }
+        );
+        println!("dogma_attributes: {n}");
+    }
+    {
+        // typeDogma nests the attributes per type; flatten to (type_id, attribute_id, value).
+        let type_dogma = crate::sde::load_all::<inventory::TypeDogma>()?;
+        let mut rows = Vec::new();
+        for td in &type_dogma {
+            for a in &td.dogma_attributes {
+                rows.push((td.id as i64, a.attribute_id as i64, a.value));
+            }
+        }
+        let n = bulk!(
+            tx,
+            "type_attributes (type_id, attribute_id, value)",
+            "on conflict (type_id, attribute_id) do update set value = excluded.value",
+            &rows,
+            |b, r| { b.push_bind(r.0).push_bind(r.1).push_bind(r.2) }
+        );
+        println!("type_attributes: {n}");
+    }
+    {
+        let stargates = crate::sde::load_all::<universe::Stargate>()?;
+        let n = bulk!(
+            tx,
+            "stargates (id, solar_system_id, destination_system_id, destination_stargate_id, type_id)",
+            "on conflict (id) do update set solar_system_id = excluded.solar_system_id, destination_system_id = excluded.destination_system_id, destination_stargate_id = excluded.destination_stargate_id, type_id = excluded.type_id",
+            &stargates,
+            |b, s| {
+                b.push_bind(s.id as i64)
+                    .push_bind(s.solar_system_id as i64)
+                    .push_bind(s.destination.solar_system_id as i64)
+                    .push_bind(s.destination.stargate_id as i64)
+                    .push_bind(s.type_id as i64)
+            }
+        );
+        println!("stargates: {n}");
+    }
+    {
+        let planets = crate::sde::load_all::<universe::Planet>()?;
+        let n = bulk!(
+            tx,
+            "planets (id, solar_system_id, type_id, celestial_index, name)",
+            "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, celestial_index = excluded.celestial_index, name = excluded.name",
+            &planets,
+            |b, p| {
+                b.push_bind(p.id as i64)
+                    .push_bind(p.solar_system_id as i64)
+                    .push_bind(p.type_id as i64)
+                    .push_bind(p.celestial_index)
+                    .push_bind(p.unique_name.as_ref().map(en))
+            }
+        );
+        println!("planets: {n}");
+    }
+    {
+        let moons = crate::sde::load_all::<universe::Moon>()?;
+        let n = bulk!(
+            tx,
+            "moons (id, solar_system_id, type_id, celestial_index, name)",
+            "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, celestial_index = excluded.celestial_index, name = excluded.name",
+            &moons,
+            |b, m| {
+                b.push_bind(m.id as i64)
+                    .push_bind(m.solar_system_id as i64)
+                    .push_bind(m.type_id as i64)
+                    .push_bind(m.celestial_index)
+                    .push_bind(m.unique_name.as_ref().map(en))
+            }
+        );
+        println!("moons: {n}");
+    }
+    {
+        let belts = crate::sde::load_all::<universe::AsteroidBelt>()?;
+        let n = bulk!(
+            tx,
+            "asteroid_belts (id, solar_system_id, type_id, celestial_index, name)",
+            "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, celestial_index = excluded.celestial_index, name = excluded.name",
+            &belts,
+            |b, a| {
+                b.push_bind(a.id as i64)
+                    .push_bind(a.solar_system_id as i64)
+                    .push_bind(a.type_id as i64)
+                    .push_bind(a.celestial_index)
+                    .push_bind(a.unique_name.as_ref().map(en))
+            }
+        );
+        println!("asteroid_belts: {n}");
+    }
+    {
+        // Station owners are NPC corps; null any owner we didn't seed so the
+        // (deferred) corporations FK still validates at commit.
+        let corp_ids: HashSet<i64> = corporations.iter().map(|c| c.id as i64).collect();
+        let stations = crate::sde::load_all::<npc::NpcStation>()?;
+        let n = bulk!(
+            tx,
+            "stations (id, solar_system_id, type_id, owner_corporation_id, operation_id, name)",
+            "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, owner_corporation_id = excluded.owner_corporation_id, operation_id = excluded.operation_id, name = excluded.name",
+            &stations,
+            |b, s| {
+                let owner = Some(s.owner_id as i64).filter(|id| corp_ids.contains(id));
+                b.push_bind(s.id as i64)
+                    .push_bind(s.solar_system_id as i64)
+                    .push_bind(s.type_id as i64)
+                    .push_bind(owner)
+                    .push_bind(s.operation_id as i64)
+                    .push_bind(None::<String>)
+            }
+        );
+        println!("stations: {n}");
+    }
     Ok(())
 }
 
@@ -206,7 +480,9 @@ struct SigType {
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, BoxError> {
-    Ok(serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(path)?))?)
+    Ok(serde_json::from_reader(std::io::BufReader::new(
+        std::fs::File::open(path)?,
+    ))?)
 }
 
 async fn seed_static(
@@ -220,19 +496,40 @@ async fn seed_static(
     let mut modifiers = Vec::new();
     for (effect, kinds) in &effects {
         for (kind_name, stats) in kinds {
-            let kind = if kind_name == "Buffs" { "buff" } else { "debuff" };
+            let kind = if kind_name == "Buffs" {
+                "buff"
+            } else {
+                "debuff"
+            };
             for (stat, values) in stats {
                 for (i, value) in values.iter().enumerate() {
-                    modifiers.push((effect.clone(), kind, stat.clone(), (i + 1) as i32, value.clone()));
+                    modifiers.push((
+                        effect.clone(),
+                        kind,
+                        stat.clone(),
+                        (i + 1) as i32,
+                        value.clone(),
+                    ));
                 }
             }
         }
     }
-    let n = bulk!(tx, "wormhole_effects (name)", &effect_names, |b, name| { b.push_bind(name) });
-    println!("wormhole_effects: {n}");
-    let n = bulk!(tx, "wormhole_effect_modifiers (effect_name, kind, stat, wormhole_class_id, value)", &modifiers, |b, m| {
-        b.push_bind(&m.0).push_bind(m.1).push_bind(&m.2).push_bind(m.3).push_bind(&m.4)
+    let n = bulk!(tx, "wormhole_effects (name)", &effect_names, |b, name| {
+        b.push_bind(name)
     });
+    println!("wormhole_effects: {n}");
+    let n = bulk!(
+        tx,
+        "wormhole_effect_modifiers (effect_name, kind, stat, wormhole_class_id, value)",
+        &modifiers,
+        |b, m| {
+            b.push_bind(&m.0)
+                .push_bind(m.1)
+                .push_bind(&m.2)
+                .push_bind(m.3)
+                .push_bind(&m.4)
+        }
+    );
     println!("wormhole_effect_modifiers: {n}");
 
     // wormhole types + sources
@@ -244,39 +541,61 @@ async fn seed_static(
             sources.push((code.clone(), *src));
         }
     }
-    let n = bulk!(tx, "wormhole_types (code, type_id, dest_class, is_static, max_mass_per_jump, total_mass, mass_regen, lifetime_hours, sibling_groups)", &wh_types, |b, (code, t)| {
-        b.push_bind(code)
-            .push_bind(t.type_id)
-            .push_bind(t.dest)
-            .push_bind(t.is_static)
-            .push_bind(t.max_mass_per_jump)
-            .push_bind(t.total_mass)
-            .push_bind(t.mass_regen)
-            .push_bind(t.lifetime)
-            .push_bind(t.sibling_groups.clone())
-    });
+    let n = bulk!(
+        tx,
+        "wormhole_types (code, type_id, dest_class, is_static, max_mass_per_jump, total_mass, mass_regen, lifetime_hours, sibling_groups)",
+        &wh_types,
+        |b, (code, t)| {
+            b.push_bind(code)
+                .push_bind(t.type_id)
+                .push_bind(t.dest)
+                .push_bind(t.is_static)
+                .push_bind(t.max_mass_per_jump)
+                .push_bind(t.total_mass)
+                .push_bind(t.mass_regen)
+                .push_bind(t.lifetime)
+                .push_bind(t.sibling_groups.clone())
+        }
+    );
     println!("wormhole_types: {n}");
-    let n = bulk!(tx, "wormhole_type_sources (wormhole_code, wormhole_class_id)", &sources, |b, s| {
-        b.push_bind(&s.0).push_bind(s.1)
-    });
+    let n = bulk!(
+        tx,
+        "wormhole_type_sources (wormhole_code, wormhole_class_id)",
+        &sources,
+        |b, s| { b.push_bind(&s.0).push_bind(s.1) }
+    );
     println!("wormhole_type_sources: {n}");
 
     // wormhole systems + statics (need a real class; skip rows without one)
     let whs: WhSystemsFile = read_json("data/static/wormhole_systems.json")?;
-    let wh_systems: Vec<WhSystem> = whs.systems.into_iter().filter(|s| s.class.is_some()).collect();
+    let wh_systems: Vec<WhSystem> = whs
+        .systems
+        .into_iter()
+        .filter(|s| s.class.is_some())
+        .collect();
     let mut statics = Vec::new();
     for s in &wh_systems {
         for code in &s.statics {
             statics.push((s.id, code.clone()));
         }
     }
-    let n = bulk!(tx, "wormhole_systems (solar_system_id, wormhole_class_id, effect_name)", &wh_systems, |b, s| {
-        b.push_bind(s.id).push_bind(s.class.unwrap()).push_bind(s.effect.clone())
-    });
+    let n = bulk!(
+        tx,
+        "wormhole_systems (solar_system_id, wormhole_class_id, effect_name)",
+        &wh_systems,
+        |b, s| {
+            b.push_bind(s.id)
+                .push_bind(s.class.unwrap())
+                .push_bind(s.effect.clone())
+        }
+    );
     println!("wormhole_systems: {n}");
-    let n = bulk!(tx, "wormhole_system_statics (solar_system_id, wormhole_code)", &statics, |b, s| {
-        b.push_bind(s.0).push_bind(&s.1)
-    });
+    let n = bulk!(
+        tx,
+        "wormhole_system_statics (solar_system_id, wormhole_code)",
+        &statics,
+        |b, s| { b.push_bind(s.0).push_bind(&s.1) }
+    );
     println!("wormhole_system_statics: {n}");
 
     // signature catalogue
@@ -287,27 +606,40 @@ async fn seed_static(
             spawn_areas.push((t.id, *area));
         }
     }
-    let n = bulk!(tx, "signature_categories (id, name, code)", &sig.categories, |b, c| {
-        b.push_bind(c.id).push_bind(&c.name).push_bind(&c.code)
-    });
+    let n = bulk!(
+        tx,
+        "signature_categories (id, name, code)",
+        &sig.categories,
+        |b, c| { b.push_bind(c.id).push_bind(&c.name).push_bind(&c.code) }
+    );
     println!("signature_categories: {n}");
-    let n = bulk!(tx, "signature_types (id, signature, name, signature_category_id, target_class, extra)", &sig.types, |b, t| {
-        b.push_bind(t.id)
-            .push_bind(&t.signature)
-            .push_bind(&t.name)
-            .push_bind(t.signature_category_id)
-            .push_bind(t.target_class)
-            .push_bind(t.extra.clone())
-    });
+    let n = bulk!(
+        tx,
+        "signature_types (id, signature, name, signature_category_id, target_class, extra)",
+        &sig.types,
+        |b, t| {
+            b.push_bind(t.id)
+                .push_bind(&t.signature)
+                .push_bind(&t.name)
+                .push_bind(t.signature_category_id)
+                .push_bind(t.target_class)
+                .push_bind(t.extra.clone())
+        }
+    );
     println!("signature_types: {n}");
-    let n = bulk!(tx, "signature_type_spawn_areas (signature_type_id, wormhole_class_id)", &spawn_areas, |b, s| {
-        b.push_bind(s.0).push_bind(s.1)
-    });
+    let n = bulk!(
+        tx,
+        "signature_type_spawn_areas (signature_type_id, wormhole_class_id)",
+        &spawn_areas,
+        |b, s| { b.push_bind(s.0).push_bind(s.1) }
+    );
     println!("signature_type_spawn_areas: {n}");
 
     // jove observatories: source is region -> [system names]; resolve names to ids.
-    let by_name: HashMap<String, i64> =
-        solar_systems.iter().map(|s| (en(&s.name), s.id as i64)).collect();
+    let by_name: HashMap<String, i64> = solar_systems
+        .iter()
+        .map(|s| (en(&s.name), s.id as i64))
+        .collect();
     let jove: HashMap<String, Vec<String>> = read_json("data/static/jove_observatories.json")?;
     let mut jove_ids: Vec<i64> = jove
         .values()
@@ -316,7 +648,12 @@ async fn seed_static(
         .collect();
     jove_ids.sort_unstable();
     jove_ids.dedup();
-    let n = bulk!(tx, "jove_observatories (solar_system_id)", &jove_ids, |b, id| { b.push_bind(*id) });
+    let n = bulk!(
+        tx,
+        "jove_observatories (solar_system_id)",
+        &jove_ids,
+        |b, id| { b.push_bind(*id) }
+    );
     println!("jove_observatories: {n}");
 
     Ok(())

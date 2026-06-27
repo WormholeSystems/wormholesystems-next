@@ -30,6 +30,13 @@ async fn main() {
     let db = vector::db::connect(&config.database_url).await.expect(
         "could not connect to Postgres — is it running? start it with `docker compose up -d`",
     );
+    // Keep the reference tables in sync with the bundled SDE. Runs only on first boot
+    // or when data/sde holds a newer build; otherwise it's a single cheap query.
+    match vector::seed::ensure_seeded(&db).await {
+        Ok(true) => log!("seeded reference tables from the SDE"),
+        Ok(false) => {}
+        Err(e) => panic!("could not seed the SDE reference tables: {e}"),
+    }
     let sso = Sso::discover(reqwest::Client::new(), config.sso)
         .await
         .expect("could not reach the EVE SSO — check your network connection");

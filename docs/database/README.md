@@ -27,6 +27,8 @@ invariants and measure the implementation against them.
 - **[Custom static reference](./static.md)** — `wormhole_types`, `wormhole_effects`,
   `wormhole_systems`, `signature_categories`/`signature_types`, `jove_observatories`:
   data the SDE lacks, seeded from `data/static/`.
+- **[Seeding](./seeding.md)** — how the reference tables (SDE + custom static) are
+  populated and kept current: one transaction, upsert, and the `sde_build` startup gate.
 
 ## Conventions
 
