@@ -3,6 +3,8 @@
 pub mod app;
 
 #[cfg(feature = "ssr")]
+pub mod auth;
+#[cfg(feature = "ssr")]
 pub mod config;
 #[cfg(feature = "ssr")]
 pub mod esi;

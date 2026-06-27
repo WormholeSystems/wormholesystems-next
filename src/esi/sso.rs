@@ -83,14 +83,14 @@ impl Sso {
             .to_string()
     }
 
-    pub async fn exchange_code(&self, code: &str) -> Result<Token> {
+    pub async fn exchange_code(&self, code: &str) -> Result<(Token, jwt::Claims)> {
         let resp = self
             .token_request(&[("grant_type", "authorization_code"), ("code", code)])
             .await?;
         self.build_token(resp).await
     }
 
-    pub async fn refresh(&self, refresh_token: &str) -> Result<Token> {
+    pub async fn refresh(&self, refresh_token: &str) -> Result<(Token, jwt::Claims)> {
         let resp = self
             .token_request(&[
                 ("grant_type", "refresh_token"),
@@ -114,7 +114,7 @@ impl Sso {
             .ok_or_else(|| EsiError::Auth(format!("no token for character {character_id}")))?;
 
         if token.expires_within(Duration::from_secs(30)) {
-            token = self.refresh(&token.refresh_token).await?;
+            (token, _) = self.refresh(&token.refresh_token).await?;
             store.save(character_id, &token).await?;
         }
         if !token.has_scope(scope) {
@@ -139,7 +139,7 @@ impl Sso {
         Ok(resp.json().await?)
     }
 
-    async fn build_token(&self, resp: TokenResponse) -> Result<Token> {
+    async fn build_token(&self, resp: TokenResponse) -> Result<(Token, jwt::Claims)> {
         // Scopes come from the validated JWT, not the token response body.
         let claims = jwt::validate(
             &self.http,
@@ -149,11 +149,12 @@ impl Sso {
             &resp.access_token,
         )
         .await?;
-        Ok(Token {
+        let token = Token {
             access_token: resp.access_token,
             refresh_token: resp.refresh_token,
             expires_at: SystemTime::now() + Duration::from_secs(resp.expires_in),
-            scopes: claims.scopes,
-        })
+            scopes: claims.scopes.clone(),
+        };
+        Ok((token, claims))
     }
 }
