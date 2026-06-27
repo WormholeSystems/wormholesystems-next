@@ -34,7 +34,7 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/vector.css" />
         <Title text="Vector" />
         <Router>
-            <main>
+            <main class="mx-auto max-w-3xl p-8">
                 <Routes fallback=|| "Not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage />
                     <Route path=StaticSegment("login") view=LoginPage />
