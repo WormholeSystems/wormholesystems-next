@@ -424,13 +424,37 @@ pub async fn remove_signature(cmd: RemoveSignature) -> Result<(), ServerFnError>
 // --- Realtime WebSocket ---
 
 /// `GET /ws/map/{map_id}` — upgrade to a WebSocket and stream the map's events as JSON.
+/// Gated: the caller must have a valid session and at least Viewer access to the map (the
+/// same bar as reading it). The stream will eventually carry member-gated data like pilot
+/// movement, so subscription must be authorized, not open.
 #[cfg(feature = "ssr")]
 pub async fn map_ws(
     axum::extract::Path(map_id): axum::extract::Path<i64>,
     axum::extract::State(state): axum::extract::State<crate::auth::AppState>,
+    jar: axum_extra::extract::CookieJar,
     ws: axum::extract::ws::WebSocketUpgrade,
 ) -> axum::response::Response {
-    ws.on_upgrade(move |socket| stream_map_events(socket, state.hub, map_id))
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+
+    let actor = match jar.get(crate::session::SESSION_COOKIE) {
+        Some(cookie) => crate::session::actor_for_session(&state.db, cookie.value())
+            .await
+            .ok()
+            .flatten(),
+        None => None,
+    };
+    let Some(actor) = actor else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    // Any role (Viewer+) may watch a map's changes; finer per-event gating (e.g. member-only
+    // pilot movement) will filter inside the stream once those events exist.
+    match crate::maps::access::effective_role(&state.db, map_id, actor.user_id).await {
+        Ok(Some(_)) => ws.on_upgrade(move |socket| stream_map_events(socket, state.hub, map_id)),
+        Ok(None) => StatusCode::FORBIDDEN.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 #[cfg(feature = "ssr")]

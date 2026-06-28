@@ -8,7 +8,7 @@ pub mod api;
 pub mod components;
 pub mod pages;
 
-use api::{current_character, my_characters, switch_character};
+use api::{CharacterRef, current_character, my_characters, switch_character};
 use pages::{HomePage, LoginPage, MapPage, MapsPage, ProfilePage};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -94,22 +94,35 @@ fn redirect_to_login() {
 fn redirect_to_login() {}
 
 /// Top bar: app links plus the auth state — signed-in character + switcher + logout, or a
-/// log-in link.
+/// log-in link. One resource + one Suspense (no nested async boundary), so SSR and
+/// hydration render the same structure.
 #[component]
 fn Nav() -> impl IntoView {
-    let account = Resource::new(|| (), |_| async move { current_character().await });
+    let account = Resource::new(
+        || (),
+        |_| async move {
+            let character = current_character().await.ok().flatten();
+            let characters = if character.is_some() {
+                my_characters().await.unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            (character, characters)
+        },
+    );
 
     view! {
         <nav class="flex items-center gap-4 border-b px-6 py-3">
             <a href="/" class="font-bold">"Vector"</a>
             <a href="/maps" class="text-sm text-blue-600 hover:underline">"Maps"</a>
             <span class="ml-auto flex items-center gap-3 text-sm">
-                <Transition fallback=|| ()>
+                <Suspense fallback=|| ()>
                     {move || Suspend::new(async move {
-                        match account.await {
-                            Ok(Some(character)) => view! {
+                        let (character, characters) = account.await;
+                        match character {
+                            Some(character) => view! {
                                 <span class="text-slate-600">{character.name}</span>
-                                <CharacterSwitcher />
+                                {character_switcher(characters)}
                                 <a
                                     href="/auth/logout"
                                     rel="external"
@@ -119,7 +132,7 @@ fn Nav() -> impl IntoView {
                                 </a>
                             }
                             .into_any(),
-                            _ => view! {
+                            None => view! {
                                 <a
                                     href="/auth/login"
                                     rel="external"
@@ -131,54 +144,45 @@ fn Nav() -> impl IntoView {
                             .into_any(),
                         }
                     })}
-                </Transition>
+                </Suspense>
             </span>
         </nav>
     }
 }
 
-/// A `<select>` to change the active character; only shown when the user has more than one.
-/// Switching is a session change, so we reload to refetch everything as the new character.
-#[component]
-fn CharacterSwitcher() -> impl IntoView {
-    let characters = Resource::new(|| (), |_| async move { my_characters().await });
-
-    view! {
-        <Transition fallback=|| ()>
-            {move || Suspend::new(async move {
-                let list = characters.await.unwrap_or_default();
-                if list.len() < 2 {
-                    return ().into_any();
-                }
-                view! {
-                    <select
-                        class="border rounded text-sm px-1 py-0.5"
-                        on:change=move |ev| {
-                            if let Ok(id) = event_target_value(&ev).parse::<i64>() {
-                                spawn_local(async move {
-                                    if switch_character(id).await.is_ok() {
-                                        reload_page();
-                                    }
-                                });
-                            }
-                        }
-                    >
-                        {list
-                            .into_iter()
-                            .map(|c| {
-                                view! {
-                                    <option value=c.character_id.to_string() selected=c.is_active>
-                                        {c.name}
-                                    </option>
-                                }
-                            })
-                            .collect_view()}
-                    </select>
-                }
-                .into_any()
-            })}
-        </Transition>
+/// A `<select>` to change the active character, shown only when the user has more than one.
+/// Plain markup (no Suspense of its own) so it hydrates inside the Nav's boundary. Switching
+/// is a session change, so we reload to refetch everything as the new character.
+fn character_switcher(characters: Vec<CharacterRef>) -> AnyView {
+    if characters.len() < 2 {
+        return ().into_any();
     }
+    view! {
+        <select
+            class="border rounded text-sm px-1 py-0.5"
+            on:change=move |ev| {
+                if let Ok(id) = event_target_value(&ev).parse::<i64>() {
+                    spawn_local(async move {
+                        if switch_character(id).await.is_ok() {
+                            reload_page();
+                        }
+                    });
+                }
+            }
+        >
+            {characters
+                .into_iter()
+                .map(|c| {
+                    view! {
+                        <option value=c.character_id.to_string() selected=c.is_active>
+                            {c.name}
+                        </option>
+                    }
+                })
+                .collect_view()}
+        </select>
+    }
+    .into_any()
 }
 
 #[cfg(feature = "hydrate")]
