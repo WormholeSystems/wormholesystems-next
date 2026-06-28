@@ -138,11 +138,12 @@ pub fn MapPage() -> impl IntoView {
     let on_pointer_move = move |ev: PointerEvent| {
         let (wx, wy) = to_world(ev.client_x() as f64, ev.client_y() as f64);
         if let Some(d) = drag.get_untracked() {
-            drag.set(Some(Drag {
-                x: wx - d.off_x,
-                y: wy - d.off_y,
-                ..d
-            }));
+            // Snap to the grid live (not just on drop) and clamp to the world bounds.
+            let g = gridc();
+            let snap = |v: f64| (v / g.cell_size).round() * g.cell_size;
+            let nx = snap(wx - d.off_x).clamp(0.0, g.world_width - NODE_W);
+            let ny = snap(wy - d.off_y).clamp(0.0, g.world_height - 2.0 * g.cell_size);
+            drag.set(Some(Drag { x: nx, y: ny, ..d }));
         } else if let Some(l) = linking.get_untracked() {
             linking.set(Some(Linking { x: wx, y: wy, ..l }));
         } else if let Some((x0, y0, _, _)) = band.get_untracked() {
