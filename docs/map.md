@@ -44,8 +44,11 @@ One placed solar system on the map.
   - **Occupier** — `map_solar_system_details.occupying_group`; **manually** entered, same as the
     alias (free text the user types in). _Note: no Rust code touches
     `map_solar_system_details` yet — struct, reads, and writes are all net-new._
-- **Sovereignty** — holder name/ticker, joined from the new sovereignty table (§6.2 / §7). This
-  is distinct from the manual occupier above.
+- **Sovereignty** — the holder, joined from `system_sovereignty` (§6.2 / §7). Modeled as a
+  data-carrying enum `Sovereignty` (`Alliance`/`Corporation`/`Faction`), each variant carrying
+  the holder's **id** + **name** (+ **ticker** for alliance/corp). The variant + id let the node
+  render the holder's **icon** from the right EVE image endpoint. Distinct from the manual
+  occupier above.
 - **Security / system class** — `solar_systems.security_status` (the column is
   `security_status`, not `security`; `SystemSearchResult` aliases it `as "security!"`) plus
   `wormhole_class_id`.
