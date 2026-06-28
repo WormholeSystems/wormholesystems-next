@@ -21,6 +21,28 @@ use api::{
 };
 use pages::{HomePage, LoginPage, MapPage, MapsPage, ProfilePage};
 
+/// Map canvas geometry. Server-owned (built from env in `crate::config`), sent to the client
+/// via `GridConfigFn` so layout has a single source of truth. Cross-target so the SSR render
+/// and the wasm client share it. Node height is `2 * cell_size`; dimensions are world-space px.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct GridConfig {
+    pub cell_size: f64,
+    pub world_width: f64,
+    pub world_height: f64,
+    pub viewport_height: f64,
+}
+
+impl Default for GridConfig {
+    fn default() -> Self {
+        Self {
+            cell_size: 50.0,
+            world_width: 4000.0,
+            world_height: 2000.0,
+            viewport_height: 1400.0,
+        }
+    }
+}
+
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>

@@ -66,9 +66,11 @@ async fn main() {
     let provide_app_context = {
         let db = db.clone();
         let hub = hub.clone();
+        let grid = config.grid;
         move || {
             provide_context(db.clone());
             provide_context(hub.clone());
+            provide_context(grid);
         }
     };
 

@@ -535,6 +535,15 @@ pub async fn set_pinned(cmd: SetPinned) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+// --- Config ---
+
+/// The server-owned map canvas geometry (cell size + world/viewport dimensions). Static, so
+/// the client fetches it once; provided into context alongside the pool/hub.
+#[server(GridConfigFn)]
+pub async fn grid_config() -> Result<crate::app::GridConfig, ServerFnError> {
+    Ok(leptos::prelude::expect_context::<crate::app::GridConfig>())
+}
+
 // --- Connections ---
 
 #[server(AddConnectionFn)]
