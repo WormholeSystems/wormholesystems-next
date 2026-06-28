@@ -26,7 +26,7 @@ use crate::maps::solar_system::{
     AddSystem, ClearMap, MapSystemView, MoveSystems, RemoveSystems, SetAlias, SetHome, SetOccupier,
     SetPinned, SetStatus, Sovereignty, SystemMove,
 };
-use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus};
+use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus, WormholeSize};
 
 /// Fixed node width (px, world space). Height is `2 * grid cell` (see [`GridConfig`]).
 const NODE_W: f64 = 180.0;
@@ -548,6 +548,24 @@ fn WorldContent(
                         let (sx, sy, ex, ey) = anchors(ax, ay, bx, by, node_h);
                         let d = bezier(sx, sy, ex, ey);
                         let color = edge_color(c.mass_status, c.time_status);
+                        // Dash when the hole is degraded: reduced/critical mass, or EOL/critical
+                        // lifetime. Fresh + healthy stays solid.
+                        let degraded = matches!(c.mass_status, Some(MassStatus::Reduced) | Some(MassStatus::Critical))
+                            || matches!(c.time_status, Some(TimeStatus::Eol) | Some(TimeStatus::Critical));
+                        let dash = if degraded { "5 4" } else { "0" };
+                        let (mx, my) = ((sx + ex) / 2.0, (sy + ey) / 2.0);
+                        let size = c.size.map(size_letter);
+                        let mass_dot = match c.mass_status {
+                            Some(MassStatus::Reduced) => Some("#f59e0b"),
+                            Some(MassStatus::Critical) => Some("#ef4444"),
+                            _ => None,
+                        };
+                        let time_dot = match c.time_status {
+                            Some(TimeStatus::Eol) => Some("#a855f7"),
+                            Some(TimeStatus::Critical) => Some("#ef4444"),
+                            _ => None,
+                        };
+                        let show_badge = size.is_some() || mass_dot.is_some() || time_dot.is_some();
                         let cid = c.id;
                         Some(view! {
                             <g class="group">
@@ -566,9 +584,26 @@ fn WorldContent(
                                     }
                                 />
                                 <path
-                                    d=d fill="none" stroke=color stroke-width="2"
+                                    d=d fill="none" stroke=color stroke-width="2" stroke-dasharray=dash
                                     class="transition-[stroke-width] group-hover:[stroke-width:4]"
                                 />
+                                // Midpoint status badge: ship size + mass/time indicator dots.
+                                {show_badge.then(|| view! {
+                                    <g transform=format!("translate({mx} {my})")>
+                                        <rect x="-11" y="-6" width="22" height="12" rx="3"
+                                            fill="#18181b" stroke="#3f3f46" stroke-width="0.5" />
+                                        {size.map(|l| view! {
+                                            <text x="0" y="3" text-anchor="middle" font-size="8"
+                                                fill="#e4e4e7">{l}</text>
+                                        })}
+                                        {mass_dot.map(|c| view! {
+                                            <circle cx="-8" cy="-8" r="2.5" fill=c />
+                                        })}
+                                        {time_dot.map(|c| view! {
+                                            <circle cx="8" cy="-8" r="2.5" fill=c />
+                                        })}
+                                    </g>
+                                })}
                             </g>
                         })
                     })
@@ -1295,6 +1330,16 @@ fn status_color(status: SystemStatus) -> &'static str {
         SystemStatus::Friendly => "#34d399",  // emerald
         SystemStatus::Hostile => "#ef4444",   // red
         SystemStatus::Unknown => "#fb923c",   // orange
+    }
+}
+
+/// Short ship-size label for a connection's max mass class.
+fn size_letter(s: WormholeSize) -> &'static str {
+    match s {
+        WormholeSize::Xl => "XL",
+        WormholeSize::Large => "L",
+        WormholeSize::Medium => "M",
+        WormholeSize::Small => "S",
     }
 }
 
