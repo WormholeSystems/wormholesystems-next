@@ -60,6 +60,18 @@ async fn main() {
         user_hub: user_hub.clone(),
     };
 
+    // Server functions reach the DB + event hub through Leptos context. The same context must
+    // be provided on every path that renders <App> — both the page routes and the error/404
+    // fallback, which also renders <Nav> (and so calls DB-backed server fns during SSR).
+    let provide_app_context = {
+        let db = db.clone();
+        let hub = hub.clone();
+        move || {
+            provide_context(db.clone());
+            provide_context(hub.clone());
+        }
+    };
+
     let app = Router::new()
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
@@ -70,21 +82,16 @@ async fn main() {
         .leptos_routes_with_context(
             &state,
             routes,
-            {
-                // Server functions reach the DB + event hub through Leptos context.
-                let db = db.clone();
-                let hub = hub.clone();
-                move || {
-                    provide_context(db.clone());
-                    provide_context(hub.clone());
-                }
-            },
+            provide_app_context.clone(),
             {
                 let leptos_options = leptos_options.clone();
                 move || shell(leptos_options.clone())
             },
         )
-        .fallback(leptos_axum::file_and_error_handler::<AppState, _>(shell))
+        .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(
+            provide_app_context.clone(),
+            shell,
+        ))
         // Gate protected pages (/maps...) before rendering; redirects unauthenticated loads.
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
