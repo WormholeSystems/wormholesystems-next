@@ -663,10 +663,10 @@ fn sovereignty_view(sov: Sovereignty) -> impl IntoView {
             <span title=name><CorporationImage id=id class=img /></span>
         }
         .into_any(),
-        Sovereignty::Faction { name, .. } => view! {
-            <span class="shrink-0 text-[10px] text-muted-foreground" title=name.clone()>
-                {name.chars().take(3).collect::<String>().to_uppercase()}
-            </span>
+        // EVE's image server serves a faction's logo from the corporations endpoint keyed by
+        // the faction id, so the faction id can be used directly.
+        Sovereignty::Faction { id, name } => view! {
+            <span title=name><CorporationImage id=id class=img /></span>
         }
         .into_any(),
     }

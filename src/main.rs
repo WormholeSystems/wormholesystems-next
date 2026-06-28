@@ -97,6 +97,8 @@ async fn main() {
             provide_app_context.clone(),
             shell,
         ))
+        // Dev: stop the browser caching the wasm/JS bundle so reloads pick up rebuilds.
+        .layer(axum::middleware::from_fn(no_cache_pkg_assets))
         // Gate protected pages (/maps...) before rendering; redirects unauthenticated loads.
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -109,6 +111,29 @@ async fn main() {
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
+}
+
+/// In dev (`cargo leptos watch`) the client bundle keeps a stable filename (`/pkg/vector.wasm`),
+/// so browsers cache it and miss rebuilds on a normal reload. Mark `/pkg` assets non-cacheable.
+/// Release builds ship hashed filenames where caching is correct, so this is debug-only.
+#[cfg(feature = "ssr")]
+async fn no_cache_pkg_assets(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let is_pkg = req.uri().path().starts_with("/pkg/");
+    let res = next.run(req).await;
+    #[cfg(debug_assertions)]
+    if is_pkg {
+        let mut res = res;
+        res.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store, must-revalidate"),
+        );
+        return res;
+    }
+    let _ = is_pkg;
+    res
 }
 
 #[cfg(not(feature = "ssr"))]
