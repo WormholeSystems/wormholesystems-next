@@ -14,9 +14,11 @@ use leptos::task::spawn_local;
 use leptos_router::hooks::use_params_map;
 use web_sys::PointerEvent;
 
+use icons::{Flag, House, Lock};
+
 use crate::app::api::{
     add_connection, add_system, clear_map, fetch_map, grid_config, move_systems, remove_connection,
-    remove_systems, set_alias, set_home, set_occupier, set_pinned, set_status,
+    remove_systems, set_alias, set_home, set_occupier, set_pinned, set_rally, set_status,
     set_connection_status,
 };
 use crate::app::components::{AllianceImage, CorporationImage, SystemSearchDialog};
@@ -24,7 +26,7 @@ use crate::app::GridConfig;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MapSystemView, MoveSystems, RemoveSystems, SetAlias, SetHome, SetOccupier,
-    SetPinned, SetStatus, Sovereignty, SystemMove,
+    SetPinned, SetRally, SetStatus, Sovereignty, SystemMove,
 };
 use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus, WormholeSize};
 
@@ -712,6 +714,7 @@ fn SystemNode(
     let sov = move || node.get().sovereignty;
     let pinned = move || node.get().is_pinned;
     let home = move || node.get().is_home;
+    let rally = move || node.get().is_rally;
     let status = move || node.get().status;
 
     view! {
@@ -719,8 +722,6 @@ fn SystemNode(
             class="group absolute flex flex-col justify-center overflow-hidden border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm"
             class=("ring-2", move || selected.get())
             class=("ring-primary", move || selected.get())
-            class=("ring-1", move || home() && !selected.get())
-            class=("ring-amber-500", move || home() && !selected.get())
             style:border-color=move || status_color(status())
             style:width=format!("{NODE_W}px")
             style:height=format!("{node_h}px")
@@ -749,7 +750,9 @@ fn SystemNode(
                 <span class="truncate font-medium text-foreground">{name}</span>
                 {move || occupier().map(|o| view! { <span class="shrink-0 text-muted-foreground">{o}</span> })}
                 <span class="ml-auto flex shrink-0 items-center gap-1">
-                    {move || pinned().then(|| view! { <span class="text-amber-500" title="pinned">"📌"</span> })}
+                    {move || home().then(|| view! { <House class="size-3 text-amber-400" /> })}
+                    {move || rally().then(|| view! { <Flag class="size-3 text-rose-400" /> })}
+                    {move || pinned().then(|| view! { <Lock class="size-3 text-muted-foreground" /> })}
                     {move || sov().map(|sv| sovereignty_view(sv))}
                 </span>
             </div>
@@ -1005,6 +1008,12 @@ fn ContextMenu(
                 run(status, refetch, "home", async move { set_home(cmd).await });
                 close.run(());
             };
+            let rally = s.is_rally;
+            let toggle_rally = move |_| {
+                let cmd = SetRally { map_id: mid.get_untracked(), map_solar_system_id: id, value: !rally };
+                run(status, refetch, "rally", async move { set_rally(cmd).await });
+                close.run(());
+            };
             let pinned = s.is_pinned;
             let toggle_pin = move |_| {
                 let cmd = SetPinned { map_id: mid.get_untracked(), map_solar_system_id: id, value: !pinned };
@@ -1026,6 +1035,9 @@ fn ContextMenu(
                 <StatusItems id=id map_id=mid status=status refetch=refetch close=close />
                 <button class=item on:click=toggle_home>
                     {if home { "Unset home" } else { "Set as home" }}
+                </button>
+                <button class=item on:click=toggle_rally>
+                    {if rally { "Unset rally" } else { "Set as rally" }}
                 </button>
                 <button class=item on:click=toggle_pin>
                     {if pinned { "Unpin" } else { "Pin" }}

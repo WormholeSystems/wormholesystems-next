@@ -246,7 +246,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     let rows = sqlx::query!(
         r#"select
                mss.id, mss.map_id, mss.solar_system_id, mss.position_x, mss.position_y,
-               mss.alias, mss.is_home, mss.is_pinned,
+               mss.alias, mss.is_home, mss.is_rally, mss.is_pinned,
                coalesce(d.status, 'unscanned') as "status!: super::SystemStatus",
                d.occupying_group,
                ss.name as "name!", ss.security_status as "security_status!",
@@ -306,6 +306,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                 position_y: row.position_y,
                 alias: row.alias,
                 is_home: row.is_home,
+                is_rally: row.is_rally,
                 is_pinned: row.is_pinned,
                 status: row.status,
                 occupying_group: row.occupying_group,

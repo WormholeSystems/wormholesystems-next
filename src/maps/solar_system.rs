@@ -85,6 +85,7 @@ pub struct MapSystemView {
     pub position_y: f64,
     pub alias: Option<String>,
     pub is_home: bool,
+    pub is_rally: bool,
     pub is_pinned: bool,
     // Intel (map_solar_system_details; defaults when no row exists yet).
     pub status: super::SystemStatus,
@@ -406,6 +407,43 @@ pub async fn set_home(pool: &PgPool, actor: Actor, cmd: SetHome) -> Result<()> {
     .rows_affected();
     if updated == 0 {
         // Drop the transaction without committing — the home-clear above rolls back.
+        return Err(MapError::NotFound);
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetRally {
+    pub map_id: i64,
+    pub map_solar_system_id: i64,
+    pub value: bool,
+}
+
+/// Mark a placement as the map's rally point (or clear it). One rally per map, enforced by a
+/// partial unique index, so setting a new rally first clears the previous one.
+#[cfg(feature = "ssr")]
+pub async fn set_rally(pool: &PgPool, actor: Actor, cmd: SetRally) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let mut tx = pool.begin().await?;
+    if cmd.value {
+        sqlx::query!(
+            "update map_solar_systems set is_rally = false where map_id = $1 and is_rally",
+            cmd.map_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    let updated = sqlx::query!(
+        "update map_solar_systems set is_rally = $1 where id = $2 and map_id = $3",
+        cmd.value,
+        cmd.map_solar_system_id,
+        cmd.map_id,
+    )
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    if updated == 0 {
         return Err(MapError::NotFound);
     }
     tx.commit().await?;

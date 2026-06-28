@@ -15,7 +15,7 @@ use crate::maps::signatures::{
 };
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
-    SetOccupier, SetPinned, SetStatus,
+    SetOccupier, SetPinned, SetRally, SetStatus,
 };
 use crate::maps::{MapConnection, MapSolarSystem, MapView, Signature};
 
@@ -524,6 +524,22 @@ pub async fn set_home(cmd: SetHome) -> Result<(), ServerFnError> {
     let actor = require_actor(&pool).await?;
     let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
     crate::maps::solar_system::set_home(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SystemDetailsChanged {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(())
+}
+
+#[server(SetRallyFn)]
+pub async fn set_rally(cmd: SetRally) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
+    crate::maps::solar_system::set_rally(&pool, actor, cmd)
         .await
         .map_err(e)?;
     hub.publish(crate::maps::MapEvent::SystemDetailsChanged {

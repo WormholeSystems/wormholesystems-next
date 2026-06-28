@@ -19,9 +19,10 @@ create table map_solar_systems (
     position_x      double precision not null,
     position_y      double precision not null,
     alias           text,
-    -- A map has at most one home system (partial unique index below) but any number of
-    -- pinned systems. Pinned systems are drag-locked and survive "clear map".
+    -- A map has at most one home and at most one rally system (partial unique indexes below)
+    -- but any number of pinned systems. Pinned systems are drag-locked and survive "clear map".
     is_home         boolean not null default false,
+    is_rally        boolean not null default false,
     is_pinned       boolean not null default false,
     created_at      timestamptz not null default now(),
 
@@ -30,9 +31,11 @@ create table map_solar_systems (
     foreign key (solar_system_id) references solar_systems (id)
 );
 
--- At most one home system per map.
+-- At most one home / one rally system per map.
 create unique index map_solar_systems_one_home
     on map_solar_systems (map_id) where is_home;
+create unique index map_solar_systems_one_rally
+    on map_solar_systems (map_id) where is_rally;
 
 -- Persisted intel: survives a system being removed from the map.
 create table map_solar_system_details (
