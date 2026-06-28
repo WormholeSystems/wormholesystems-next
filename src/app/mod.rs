@@ -5,7 +5,6 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::{ParamSegment, StaticSegment};
 
 pub mod api;
-pub mod components;
 pub mod pages;
 
 use api::{
