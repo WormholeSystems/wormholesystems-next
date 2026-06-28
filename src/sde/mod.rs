@@ -21,6 +21,48 @@ pub use universe::SolarSystem;
 /// hand-authored static JSON that augments the SDE lives alongside in `data/`.
 pub const SDE_DIR: &str = "data/sde";
 
+/// Where the downloaded SDE archive lands before it's unpacked into [`SDE_DIR`].
+/// Both this and [`SDE_DIR`] are gitignored — they're regenerated from CCP.
+pub const SDE_ARCHIVE: &str = "data/sde.zip";
+
+/// The marker file CCP ships at the root of the SDE archive; its presence under
+/// [`SDE_DIR`] is what we treat as "the SDE is unpacked and ready".
+const SDE_MARKER: &str = "_sde.jsonl";
+
+#[derive(Debug, thiserror::Error)]
+pub enum EnsurePresentError {
+    #[error("could not prepare the data directory: {0}")]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Download(#[from] download::DownloadError),
+    #[error(transparent)]
+    Extract(#[from] crate::util::archive::ExtractError),
+}
+
+/// Ensure the unpacked SDE is present under [`SDE_DIR`], downloading it if not.
+///
+/// On a fresh checkout `data/sde/` is gitignored and absent, so the first launch
+/// must fetch CCP's latest build (~100 MB) into [`SDE_ARCHIVE`] and unpack it.
+/// When the marker file is already there this is a single `exists()` check.
+/// Returns whether a download actually happened (`false` = already present).
+///
+/// This does blocking network and disk I/O; call it via `spawn_blocking` when on
+/// an async runtime.
+pub fn ensure_present() -> Result<bool, EnsurePresentError> {
+    if Path::new(SDE_DIR).join(SDE_MARKER).exists() {
+        return Ok(false);
+    }
+
+    // The archive lands next to its extraction target; make sure `data/` exists.
+    if let Some(parent) = Path::new(SDE_ARCHIVE).parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    download::Downloader::new().download_latest(SDE_ARCHIVE)?;
+    crate::util::archive::extract(SDE_ARCHIVE, SDE_DIR)?;
+    Ok(true)
+}
+
 /// An SDE record type backed by one `.jsonl` file and addressable by a primary key.
 ///
 /// Implemented for every top-level type (see `entities.rs`), which is what lets

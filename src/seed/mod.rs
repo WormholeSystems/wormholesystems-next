@@ -54,13 +54,37 @@ pub async fn run() -> Result<(), BoxError> {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL")?;
     let pool = crate::db::connect(&url).await?;
+    ensure_sde_present().await?;
     seed_all(&pool).await
+}
+
+/// Make sure the unpacked SDE exists under `data/sde`, downloading it on first run.
+///
+/// [`crate::sde::ensure_present`] does blocking network + disk I/O, so it runs on a
+/// blocking thread to keep the async runtime free. Logs around a real download so a
+/// 30s+ first boot isn't silent.
+async fn ensure_sde_present() -> Result<(), BoxError> {
+    let downloaded = tokio::task::spawn_blocking(|| {
+        if !std::path::Path::new(crate::sde::SDE_DIR)
+            .join("_sde.jsonl")
+            .exists()
+        {
+            println!("SDE not found under {} — downloading the latest build (~100 MB), this can take a minute…", crate::sde::SDE_DIR);
+        }
+        crate::sde::ensure_present()
+    })
+    .await??;
+    if downloaded {
+        println!("SDE downloaded and unpacked into {}", crate::sde::SDE_DIR);
+    }
+    Ok(())
 }
 
 /// Startup gate: seed only on first boot or when `data/sde` holds a newer build than
 /// the one already loaded. The common case (unchanged build) is a single cheap query.
 /// Returns whether a seed actually ran.
 pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
+    ensure_sde_present().await?;
     let bundled = bundled_build()?;
     let loaded: Option<i64> = sqlx::query_scalar("select build_number from sde_build")
         .fetch_optional(pool)
