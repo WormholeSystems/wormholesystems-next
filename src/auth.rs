@@ -104,6 +104,6 @@ pub async fn callback(
         }
     }
 
-    let dest = reqwest::Url::parse_with_params("http://x/profile", &params).expect("valid url");
-    Redirect::to(&format!("/profile?{}", dest.query().unwrap_or_default())).into_response()
+    let query = serde_urlencoded::to_string(&params).expect("encodable params");
+    Redirect::to(&format!("/profile?{query}")).into_response()
 }

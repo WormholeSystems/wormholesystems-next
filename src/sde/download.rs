@@ -20,8 +20,6 @@ const DATA_URL: &str =
 pub enum DownloadError {
     #[error("SDE download request failed: {0}")]
     Http(#[from] reqwest::Error),
-    #[error("could not parse latest-build response: {0}")]
-    Parse(#[from] serde_json::Error),
     #[error("could not write SDE archive: {0}")]
     Io(#[from] io::Error),
 }
@@ -50,8 +48,7 @@ impl Downloader {
 
     /// Look up which build is currently the latest.
     pub fn latest_build(&self) -> Result<LatestBuild, DownloadError> {
-        let text = self.client.get(LATEST_BUILD_URL).send()?.text()?;
-        Ok(serde_json::from_str(&text)?)
+        Ok(self.client.get(LATEST_BUILD_URL).send()?.json()?)
     }
 
     /// Download a specific build's archive and write it to `dest`.

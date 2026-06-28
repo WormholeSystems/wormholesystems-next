@@ -29,8 +29,11 @@ impl PgTokenStore {
     }
 }
 
-fn store_err(e: sqlx::Error) -> EsiError {
-    EsiError::Store(e.to_string())
+// Lets the `TokenStore` impl use `?` on sqlx errors directly.
+impl From<sqlx::Error> for EsiError {
+    fn from(e: sqlx::Error) -> Self {
+        EsiError::Store(e.to_string())
+    }
 }
 
 impl TokenStore for PgTokenStore {
@@ -42,8 +45,7 @@ impl TokenStore for PgTokenStore {
             character_id
         )
         .fetch_optional(&self.pool)
-        .await
-        .map_err(store_err)?;
+        .await?;
 
         let Some(row) = row else { return Ok(None) };
 
@@ -54,8 +56,7 @@ impl TokenStore for PgTokenStore {
             row.id
         )
         .fetch_all(&self.pool)
-        .await
-        .map_err(store_err)?;
+        .await?;
 
         Ok(Some(Token {
             access_token: row.access_token.unwrap_or_default(),
@@ -72,7 +73,7 @@ impl TokenStore for PgTokenStore {
     async fn save(&self, character_id: i64, token: &Token) -> EsiResult<()> {
         let expires_at = DateTime::<Utc>::from(token.expires_at);
 
-        let mut tx = self.pool.begin().await.map_err(store_err)?;
+        let mut tx = self.pool.begin().await?;
 
         // The store keeps one token per character; replace any existing one.
         sqlx::query!(
@@ -80,8 +81,7 @@ impl TokenStore for PgTokenStore {
             character_id
         )
         .execute(&mut *tx)
-        .await
-        .map_err(store_err)?;
+        .await?;
 
         let token_id = sqlx::query_scalar!(
             "INSERT INTO esi_tokens (character_id, access_token, token_expires_at, refresh_token)
@@ -92,8 +92,7 @@ impl TokenStore for PgTokenStore {
             token.refresh_token
         )
         .fetch_one(&mut *tx)
-        .await
-        .map_err(store_err)?;
+        .await?;
 
         for scope in &token.scopes {
             let scope_id = sqlx::query_scalar!(
@@ -103,8 +102,7 @@ impl TokenStore for PgTokenStore {
                 scope
             )
             .fetch_one(&mut *tx)
-            .await
-            .map_err(store_err)?;
+            .await?;
 
             sqlx::query!(
                 "INSERT INTO esi_token_scopes (token_id, scope_id) VALUES ($1, $2)
@@ -113,11 +111,10 @@ impl TokenStore for PgTokenStore {
                 scope_id
             )
             .execute(&mut *tx)
-            .await
-            .map_err(store_err)?;
+            .await?;
         }
 
-        tx.commit().await.map_err(store_err)?;
+        tx.commit().await?;
         Ok(())
     }
 }

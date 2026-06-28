@@ -1,5 +1,4 @@
-#[allow(unused_imports)]
-use super::common::{LocalizedString, Position2D, Position3D};
+use super::common::LocalizedString;
 use serde::Deserialize;
 
 /// `icons.jsonl`

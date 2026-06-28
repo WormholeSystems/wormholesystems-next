@@ -1,25 +1,8 @@
 //! PvE-related SDE entities: missions, dungeons, epic arcs, military campaigns,
 //! mercenary tactical operations, freelance job schemas and sovereignty upgrades.
 
-#[allow(unused_imports)]
-use super::common::{LocalizedString, Position2D, Position3D};
+use super::common::LocalizedString;
 use serde::Deserialize;
-
-/// A localized string where some languages may be absent (only `en` is
-/// guaranteed for a handful of legacy rows). Used for fields where the SDE
-/// ships incomplete translations (e.g. some mission/dungeon names).
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PartialLocalizedString {
-    pub de: Option<String>,
-    pub en: Option<String>,
-    pub es: Option<String>,
-    pub fr: Option<String>,
-    pub ja: Option<String>,
-    pub ko: Option<String>,
-    pub ru: Option<String>,
-    pub zh: Option<String>,
-}
 
 // ---------------------------------------------------------------------------
 // missions.jsonl
@@ -34,7 +17,7 @@ pub struct Mission {
     pub has_standing_rewards: bool,
     pub kill_mission: Option<MissionKillMission>,
     pub messages: Option<Vec<MissionMessage>>,
-    pub name: PartialLocalizedString,
+    pub name: LocalizedString,
     pub expiration_time: Option<i32>,
     #[serde(rename = "factionID")]
     pub faction_id: Option<i32>,
@@ -70,7 +53,7 @@ pub struct MissionMessage {
     #[serde(rename = "_key")]
     pub id: String,
     #[serde(flatten)]
-    pub text: PartialLocalizedString,
+    pub text: LocalizedString,
 }
 
 /// Nested `courierMission` object on a [`Mission`].
@@ -124,10 +107,10 @@ pub struct Dungeon {
     pub allowed_ships_list: Option<Vec<i32>>,
     #[serde(rename = "archetypeID")]
     pub archetype_id: i32,
-    pub description: Option<PartialLocalizedString>,
+    pub description: Option<LocalizedString>,
     #[serde(rename = "factionID")]
     pub faction_id: Option<i32>,
-    pub name: PartialLocalizedString,
+    pub name: LocalizedString,
     pub gameplay_description: Option<LocalizedString>,
 }
 

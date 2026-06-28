@@ -12,11 +12,8 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn is_expired(&self) -> bool {
-        SystemTime::now() >= self.expires_at
-    }
-
     /// Expired, or within `leeway` of expiring (so we refresh proactively).
+    /// `expires_within(Duration::ZERO)` is "already expired".
     pub fn expires_within(&self, leeway: Duration) -> bool {
         SystemTime::now() + leeway >= self.expires_at
     }
@@ -51,8 +48,8 @@ mod tests {
     fn expiry() {
         let past = SystemTime::now() - Duration::from_secs(10);
         let future = SystemTime::now() + Duration::from_secs(3600);
-        assert!(token(&[], past).is_expired());
-        assert!(!token(&[], future).is_expired());
+        assert!(token(&[], past).expires_within(Duration::ZERO));
+        assert!(!token(&[], future).expires_within(Duration::ZERO));
         assert!(token(&[], future).expires_within(Duration::from_secs(7200)));
         assert!(!token(&[], future).expires_within(Duration::from_secs(60)));
     }

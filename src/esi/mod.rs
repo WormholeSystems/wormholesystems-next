@@ -74,7 +74,11 @@ impl EsiClient {
         req
     }
 
-    async fn parse<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T> {
+    /// Send a request, returning the response or an [`EsiError::Api`] that captures the
+    /// body on a non-success status. (`reqwest`'s `error_for_status` discards the body,
+    /// which we want.)
+    async fn send_checked(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        let resp = req.send().await?;
         let status = resp.status();
         if !status.is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -83,15 +87,14 @@ impl EsiClient {
                 body,
             });
         }
-        Ok(resp.json::<T>().await?)
+        Ok(resp)
     }
 
     async fn get_json<T: DeserializeOwned>(&self, path: &str, token: Option<&str>) -> Result<T> {
         let resp = self
-            .request(reqwest::Method::GET, path, token)
-            .send()
+            .send_checked(self.request(reqwest::Method::GET, path, token))
             .await?;
-        Self::parse(resp).await
+        Ok(resp.json().await?)
     }
 
     async fn post_json<B: Serialize, T: DeserializeOwned>(
@@ -101,11 +104,9 @@ impl EsiClient {
         token: Option<&str>,
     ) -> Result<T> {
         let resp = self
-            .request(reqwest::Method::POST, path, token)
-            .json(body)
-            .send()
+            .send_checked(self.request(reqwest::Method::POST, path, token).json(body))
             .await?;
-        Self::parse(resp).await
+        Ok(resp.json().await?)
     }
 }
 

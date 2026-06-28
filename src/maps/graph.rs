@@ -6,7 +6,7 @@ use sqlx::PgPool;
 
 use super::access::require_role;
 use super::error::{MapError, Result};
-use super::{Actor, ConnectionType, MapConnection, MapSolarSystem, Role, Validate};
+use super::{Actor, ConnectionType, MapConnection, MapSolarSystem, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddSystem {
@@ -17,12 +17,9 @@ pub struct AddSystem {
     pub alias: Option<String>,
 }
 
-impl Validate for AddSystem {}
-
 /// Place a solar system on a map. The system must exist in the SDE and not already be on
 /// the map. Adding a system does not touch its persisted details.
 pub async fn add_system(pool: &PgPool, actor: Actor, cmd: AddSystem) -> Result<MapSolarSystem> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
 
     let known = sqlx::query_scalar!(
@@ -73,12 +70,9 @@ pub struct RemoveSystem {
     pub map_solar_system_id: i64,
 }
 
-impl Validate for RemoveSystem {}
-
 /// Remove a system from a map. Cascades the system's signatures and any connections it
 /// is an endpoint of; its persisted details survive.
 pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Result<()> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
         "delete from map_solar_systems where id = $1 and map_id = $2",
@@ -102,11 +96,8 @@ pub struct MoveSystem {
     pub y: f64,
 }
 
-impl Validate for MoveSystem {}
-
 /// Move a placed system to a new position.
 pub async fn move_system(pool: &PgPool, actor: Actor, cmd: MoveSystem) -> Result<()> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
         "update map_solar_systems set position_x = $1, position_y = $2
@@ -132,11 +123,8 @@ pub struct SetAlias {
     pub alias: Option<String>,
 }
 
-impl Validate for SetAlias {}
-
 /// Set or clear a placement's ephemeral alias.
 pub async fn set_alias(pool: &PgPool, actor: Actor, cmd: SetAlias) -> Result<()> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
         "update map_solar_systems set alias = $1 where id = $2 and map_id = $3",
@@ -161,8 +149,8 @@ pub struct AddConnection {
     pub kind: ConnectionType,
 }
 
-impl Validate for AddConnection {
-    fn validate(&self) -> Result<()> {
+impl AddConnection {
+    pub fn validate(&self) -> Result<()> {
         if self.from_system == self.to_system {
             return Err(MapError::Validation(
                 "cannot connect a system to itself".into(),
@@ -237,11 +225,8 @@ pub struct RemoveConnection {
     pub connection_id: i64,
 }
 
-impl Validate for RemoveConnection {}
-
 /// Remove a connection. Linked signatures survive with their `connection_id` cleared.
 pub async fn remove_connection(pool: &PgPool, actor: Actor, cmd: RemoveConnection) -> Result<()> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
         "delete from map_connections where id = $1 and map_id = $2",

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::error::{MapError, Result};
-use super::{Actor, Role, SubjectType, Validate};
+use super::{Actor, Role, SubjectType};
 
 /// The user's effective role on a map: the highest role they match across *all* their
 /// characters (a character's own id, its corporation, or its alliance). `None` means no
@@ -68,12 +68,9 @@ pub struct SetAccess {
     pub role: Role,
 }
 
-impl Validate for SetAccess {}
-
 /// Grant `role` to a subject, or change an existing subject's role. Manager+, and you
 /// may not grant a role above your own. Never leaves the map without an owner.
 pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<()> {
-    cmd.validate()?;
     let actor_role = require_role(pool, cmd.map_id, actor.user_id, Role::Manager).await?;
     if cmd.role > actor_role {
         return Err(MapError::Forbidden);
@@ -103,11 +100,8 @@ pub struct RevokeAccess {
     pub subject_id: i64,
 }
 
-impl Validate for RevokeAccess {}
-
 /// Remove a subject's grant. Manager+. Revoking the last owner is rejected.
 pub async fn revoke_access(pool: &PgPool, actor: Actor, cmd: RevokeAccess) -> Result<()> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Manager).await?;
 
     let mut tx = pool.begin().await?;

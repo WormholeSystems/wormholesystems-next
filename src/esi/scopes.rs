@@ -1,5 +1,3 @@
-use std::fmt;
-
 /// An ESI scope the application requests at SSO consent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Scope {
@@ -28,11 +26,5 @@ impl Scope {
 
     pub fn parse(s: &str) -> Option<Scope> {
         Scope::ALL.into_iter().find(|scope| scope.as_str() == s)
-    }
-}
-
-impl fmt::Display for Scope {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }

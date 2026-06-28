@@ -53,9 +53,9 @@ add_connection(pool, actor, AddConnection { map_id, from_system, to_system, kind
 
 **Validation is split by what it needs:**
 
-- **Pure / context-free** checks (non-blank name, `from != to`) live on the command via a
-  `Validate` trait the action calls first. They depend only on the input, so the **UI can
-  reuse them** for pre-submit feedback.
+- **Pure / context-free** checks (non-blank name, `from != to`) live on the command as a
+  `validate()` method the action calls first (only the few commands with real rules have
+  one). They depend only on the input, so the **UI can reuse them** for pre-submit feedback.
 - **Stateful / referential** checks (row exists, not already placed, both endpoints on
   *this* map, last-owner, character-belongs-to-user) **stay in the action**. They depend
   on DB state that can change between check and write, so they must be atomic with it;

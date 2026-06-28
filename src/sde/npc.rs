@@ -1,5 +1,4 @@
-#[allow(unused_imports)]
-use super::common::{LocalizedString, Position2D, Position3D};
+use super::common::{LocalizedString, Position3D};
 use serde::Deserialize;
 
 /// `npcCorporations.jsonl`

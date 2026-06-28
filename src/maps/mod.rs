@@ -33,20 +33,14 @@ macro_rules! text_enum {
             }
         }
 
+        // Only `Type` + `Decode` are generated: queries bind these enums as `&str` via
+        // `as_str()`, but read them back through `as "col: Enum"` casts.
         impl sqlx::Type<sqlx::Postgres> for $name {
             fn type_info() -> sqlx::postgres::PgTypeInfo {
                 <str as sqlx::Type<sqlx::Postgres>>::type_info()
             }
             fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
                 <str as sqlx::Type<sqlx::Postgres>>::compatible(ty)
-            }
-        }
-        impl<'q> sqlx::Encode<'q, sqlx::Postgres> for $name {
-            fn encode_by_ref(
-                &self,
-                buf: &mut sqlx::postgres::PgArgumentBuffer,
-            ) -> std::result::Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
-                <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_str(), buf)
             }
         }
         impl<'r> sqlx::Decode<'r, sqlx::Postgres> for $name {
@@ -84,16 +78,6 @@ text_enum! {
     pub enum ConnectionType {
         Wormhole => "wormhole",
         Stargate => "stargate",
-    }
-}
-
-/// Context-free validation of an action's input — the pure checks that need no database
-/// (a non-blank name, a non-self connection). The UI can call this for pre-submit
-/// feedback; stateful checks (existence, uniqueness, authorization) stay in the action.
-/// The default is "nothing to check", so trivial commands opt in with an empty impl.
-pub trait Validate {
-    fn validate(&self) -> Result<()> {
-        Ok(())
     }
 }
 

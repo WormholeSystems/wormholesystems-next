@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use super::access::{owns_character, require_role};
 use super::error::{MapError, Result};
 use super::{
-    Actor, ConnectionType, Map, MapConnection, MapSolarSystem, MapView, Role, SubjectType, Validate,
+    Actor, ConnectionType, Map, MapConnection, MapSolarSystem, MapView, Role, SubjectType,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,8 +18,8 @@ pub struct CreateMap {
     pub description: Option<String>,
 }
 
-impl Validate for CreateMap {
-    fn validate(&self) -> Result<()> {
+impl CreateMap {
+    pub fn validate(&self) -> Result<()> {
         if self.name.trim().is_empty() {
             return Err(MapError::Validation("name must not be blank".into()));
         }
@@ -72,8 +72,8 @@ pub struct UpdateMap {
     pub image_url: Option<Option<String>>,
 }
 
-impl Validate for UpdateMap {
-    fn validate(&self) -> Result<()> {
+impl UpdateMap {
+    pub fn validate(&self) -> Result<()> {
         if let Some(name) = &self.name
             && name.trim().is_empty()
         {
@@ -125,12 +125,9 @@ pub struct DeleteMap {
     pub map_id: i64,
 }
 
-impl Validate for DeleteMap {}
-
 /// Delete a map. Owner only. The database cascades placements, details, connections,
 /// signatures, and access grants.
 pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<()> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
     sqlx::query!("delete from maps where id = $1", cmd.map_id)
         .execute(pool)
@@ -181,12 +178,9 @@ pub struct GetMap {
     pub map_id: i64,
 }
 
-impl Validate for GetMap {}
-
 /// Read a map's graph — the map, its placed systems, and its connections. Viewer+.
 /// Live pilot locations are not included (that's the member-gated tracking path).
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
-    cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
 
     let map = sqlx::query_as!(

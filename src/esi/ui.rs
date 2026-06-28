@@ -1,4 +1,4 @@
-use super::{EsiClient, EsiError, Result};
+use super::{EsiClient, Result};
 
 impl EsiClient {
     /// `destination_id` is a solar system, station, or structure id.
@@ -14,18 +14,9 @@ impl EsiClient {
             "/ui/autopilot/waypoint?destination_id={destination_id}\
              &add_to_beginning={add_to_beginning}&clear_other_waypoints={clear_other_waypoints}"
         );
-        let resp = self
-            .request(reqwest::Method::POST, &path, Some(token))
-            .send()
+        // The waypoint endpoint returns an empty body, so we just check the status.
+        self.send_checked(self.request(reqwest::Method::POST, &path, Some(token)))
             .await?;
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(EsiError::Api {
-                status: status.as_u16(),
-                body,
-            });
-        }
         Ok(())
     }
 }
