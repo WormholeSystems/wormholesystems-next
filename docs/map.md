@@ -42,11 +42,13 @@ One placed solar system on the map.
   - **System name** — from `solar_systems` (joined on `solar_system_id`).
   - **Alias** — `map_solar_systems.alias`; **manually** entered by the user.
   - **Occupier** — `map_solar_system_details.occupying_group`; **manually** entered, same as the
-    alias (free text the user types in).
+    alias (free text the user types in). _Note: no Rust code touches
+    `map_solar_system_details` yet — struct, reads, and writes are all net-new._
 - **Sovereignty** — holder name/ticker, joined from the new sovereignty table (§6.2 / §7). This
   is distinct from the manual occupier above.
-- **Security / system class** — `solar_systems.security`, `wormhole_class_id` (as
-  `SystemSearchResult` already exposes).
+- **Security / system class** — `solar_systems.security_status` (the column is
+  `security_status`, not `security`; `SystemSearchResult` aliases it `as "security!"`) plus
+  `wormhole_class_id`.
 - **Statics _or_ region:**
   - **Wormhole systems:** the system's **statics** and **what class each leads to** (e.g.
     → high-sec, → C4). Source: `wormhole_system_statics` → `wormhole_types.dest_class`.
@@ -172,7 +174,8 @@ Acts on `map_solar_systems` + `map_solar_system_details`:
 
 Acts on `map_connections`; values from the enums in `src/maps/mod.rs`:
 
-- **Type** — `ConnectionType`: `wormhole` | `stargate`.
+- **Type** — `ConnectionType`: `wormhole` | `stargate`. _Net-new backend: `kind`/`type` is set
+  only at insert today; `set_connection_status` touches only mass/time/size. Add a type setter._
 - **Mass status** — `MassStatus`: `stable` | `reduced` | `critical`.
 - **Time / EOL status** — `TimeStatus`: `stable` | `eol` | `critical`.
 - **Size** — `WormholeSize`: `xl` | `large` | `medium` | `small`.
@@ -204,22 +207,30 @@ create unique index map_solar_systems_one_home
 - Setting home clears any previous home for the map.
 - `is_pinned` drag-locks the node (§3.2) in addition to surviving Clear map.
 
-### 6.2 Sovereignty table — new migration
+### 6.2 Sovereignty table — ALREADY EXISTS (no new migration)
 
-Persists ESI sovereignty so nodes show human-readable holders. Proposed shape:
+> Corrected after cross-check: the table is **not** new. `system_sovereignty` already exists
+> (`migrations/0003_create_universe.sql:143`), with FKs added in `0007`:
+>
+> ```sql
+> solar_system_id   bigint primary key references solar_systems (id),
+> alliance_id       bigint,            -- FK added in 0007
+> corporation_id    bigint,            -- FK added in 0007
+> faction_id        bigint references factions (id),
+> claimed_since     timestamptz,
+> is_capital_system boolean,
+> updated_at        timestamptz not null default now()
+> ```
 
-```sql
-solar_system_id  bigint primary key references solar_systems(id),
-claim_type       text not null,          -- 'alliance' | 'faction' | 'unclaimed'
-alliance_id      bigint references alliances(id),
-corporation_id   bigint references corporations(id),
-faction_id       bigint references factions(id),
-claimed_since    timestamptz,
-updated_at       timestamptz not null default now()
-```
+So no migration is required for sovereignty storage. Notes vs. the original proposal:
 
-Holder-entity tables already exist (`factions`, `corporations`, `alliances` — migration 0003,
-each with `name`, and `ticker` for corp/alliance). Only this table is new.
+- There is **no `claim_type` column.** Derive the claim kind in the read query from which id is
+  non-null (`alliance_id` → alliance, `faction_id` → faction, else unclaimed), or add a single
+  `claim_type text` column if we prefer it explicit. _Default: derive in-query, no schema change._
+- The existing table has `is_capital_system` (ESI supplies it — `esi/sovereignty.rs`), which we
+  can keep populating.
+- Holder-entity tables (`factions`, `corporations`, `alliances`, migration 0003) already exist
+  with `name` (+ `ticker` for corp/alliance).
 
 ### 6.3 Display fields on the map fetch
 
@@ -252,14 +263,20 @@ Per tick:
 1. **Fetch** — `EsiClient::sovereignty_systems()` (`GET /sovereignty/systems`), one bulk call.
    Upsert into the sovereignty table (§6.2).
 2. **Resolve entities** — each claim references `alliance_id` + `corporation_id`, or `faction_id`.
-   For any id **not already stored**, fetch and upsert:
+   For any **corp/alliance** id not already stored, fetch and upsert:
    - `corporations` ← `EsiClient::corporation()`
    - `alliances` ← `EsiClient::alliance()`
-   - `factions` ← from the SDE; fetch only if missing.
-   Known rows are skipped (optionally refreshed on a slower cadence — §9.4).
-3. Nodes then join sovereignty → entity tables for display names/tickers.
+   - **Factions need no fetch** — they're fully seeded from the SDE (`seed/mod.rs`); there is no
+     `EsiClient::faction()`.
+   Known rows are skipped (refreshed weekly — §9.4). Upsert pattern already used in
+   `session.rs`.
+3. Nodes then join `system_sovereignty` → entity tables for display names/tickers.
 
-> The ESI endpoint already exists; only storage + the loop are new.
+> Storage already exists (`system_sovereignty`, §6.2) and so does the ESI call; only the loop is
+> new. This sync is **simpler than `tracking.rs`**: `sovereignty_systems` / `corporation` /
+> `alliance` are **public** ESI calls — no token, no scopes, no per-character logic, no
+> `UserHub`. Only the `Semaphore`/`JoinSet` bounded-concurrency helper is worth reusing; `start()`
+> needs just `pool` + `esi`.
 
 ## 8. Real-time (multiplayer)
 
