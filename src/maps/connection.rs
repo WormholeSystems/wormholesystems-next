@@ -113,6 +113,9 @@ pub async fn add_connection(
 pub struct SetConnectionStatus {
     pub map_id: i64,
     pub connection_id: i64,
+    /// `None` leaves the edge kind unchanged; `Some(k)` switches wormhole/stargate.
+    #[serde(default)]
+    pub kind: Option<ConnectionType>,
     #[serde(default)]
     pub mass_status: Option<Option<MassStatus>>,
     #[serde(default)]
@@ -146,19 +149,21 @@ pub async fn set_connection_status(
     .await?
     .ok_or(MapError::NotFound)?;
 
+    let kind = cmd.kind.unwrap_or(current.kind);
     let mass = cmd.mass_status.unwrap_or(current.mass_status);
     let time = cmd.time_status.unwrap_or(current.time_status);
     let size = cmd.size.unwrap_or(current.size);
 
     let connection = sqlx::query_as!(
         MapConnection,
-        r#"update map_connections set mass_status = $1, time_status = $2, size = $3
-           where id = $4 and map_id = $5
+        r#"update map_connections set type = $1, mass_status = $2, time_status = $3, size = $4
+           where id = $5 and map_id = $6
            returning id, map_id, from_system, to_system, type as "kind: ConnectionType",
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
                      size as "size: WormholeSize",
                      created_at, updated_at"#,
+        kind.as_str(),
         mass.map(|m| m.as_str()),
         time.map(|t| t.as_str()),
         size.map(|s| s.as_str()),

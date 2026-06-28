@@ -108,6 +108,48 @@ pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Re
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoveSystems {
+    pub map_id: i64,
+    pub map_solar_system_ids: Vec<i64>,
+}
+
+/// Remove several placed systems at once (multi-select delete). Same cascade as
+/// [`remove_system`]. Returns the number actually removed; an empty id list is a no-op.
+#[cfg(feature = "ssr")]
+pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> Result<u64> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let deleted = sqlx::query!(
+        "delete from map_solar_systems where map_id = $1 and id = any($2)",
+        cmd.map_id,
+        &cmd.map_solar_system_ids,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    Ok(deleted)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClearMap {
+    pub map_id: i64,
+}
+
+/// Remove every placed system on a map except the home system and any pinned systems.
+/// Connections to removed systems cascade. Returns the number removed.
+#[cfg(feature = "ssr")]
+pub async fn clear_map(pool: &PgPool, actor: Actor, cmd: ClearMap) -> Result<u64> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let deleted = sqlx::query!(
+        "delete from map_solar_systems where map_id = $1 and not is_home and not is_pinned",
+        cmd.map_id,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    Ok(deleted)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MoveSystem {
     pub map_id: i64,
     pub map_solar_system_id: i64,

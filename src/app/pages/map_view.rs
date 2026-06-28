@@ -149,6 +149,7 @@ pub fn MapPage() -> impl IntoView {
                 mass_status: Some(Some(mass)),
                 time_status: Some(Some(time)),
                 size: None,
+                ..Default::default()
             };
             run(status, refetch, label, async move {
                 set_connection_status(cmd).await.map(|_| ())

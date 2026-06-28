@@ -14,7 +14,8 @@ use crate::maps::signatures::{
     AddSignature, LinkSignature, RemoveSignature, UnlinkSignature, UpdateSignature,
 };
 use crate::maps::solar_system::{
-    AddSystem, MoveSystem, RemoveSystem, SetAlias, SetHome, SetOccupier, SetPinned, SetStatus,
+    AddSystem, ClearMap, MoveSystem, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetOccupier,
+    SetPinned, SetStatus,
 };
 use crate::maps::{MapConnection, MapSolarSystem, MapView, Signature};
 
@@ -418,6 +419,35 @@ pub async fn remove_system(cmd: RemoveSystem) -> Result<(), ServerFnError> {
         map_id,
         map_solar_system_id: mss,
     });
+    Ok(())
+}
+
+// Bulk removal (multi-select delete + clear map). Publishes a single coarse `MapUpdated`
+// so each viewer does one full refetch rather than reacting to a storm of per-system events.
+
+#[server(RemoveSystemsFn)]
+pub async fn remove_systems(cmd: RemoveSystems) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let map_id = cmd.map_id;
+    crate::maps::solar_system::remove_systems(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::MapUpdated { map_id });
+    Ok(())
+}
+
+#[server(ClearMapFn)]
+pub async fn clear_map(cmd: ClearMap) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let map_id = cmd.map_id;
+    crate::maps::solar_system::clear_map(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::MapUpdated { map_id });
     Ok(())
 }
 
