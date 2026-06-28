@@ -3814,6 +3814,7 @@ dependencies = [
  "futures",
  "gloo-net",
  "icons",
+ "js-sys",
  "jsonwebtoken",
  "leptos",
  "leptos_axum",

@@ -25,7 +25,10 @@ wasm-bindgen = { version = "0.2", optional = true }
 # WebSocket client for realtime map events.
 gloo-net = { version = "0.6", default-features = false, features = ["websocket"], optional = true }
 futures = { version = "0.3", optional = true }
-web-sys = { version = "0.3", features = ["Window", "Location"], optional = true }
+js-sys = { version = "0.3", optional = true }
+# Not optional: the vendored UI components reference web-sys on both targets (it compiles
+# everywhere; DOM calls only run on the client).
+web-sys = { version = "0.3", features = ["Window", "Location", "Document", "Element", "HtmlElement", "CssStyleDeclaration", "DomTokenList", "NodeList", "Node", "Storage", "MediaQueryList"] }
 
 # Domain (server only)
 reqwest = { version = "0.13.4", features = ["blocking", "json", "form"], optional = true }
@@ -65,7 +68,7 @@ hydrate = [
     # Realtime client.
     "dep:gloo-net",
     "dep:futures",
-    "dep:web-sys",
+    "dep:js-sys",
 ]
 ssr = [
     "dep:axum",

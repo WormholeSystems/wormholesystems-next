@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select s.online,\n                  ss.name as \"solar_system?\",\n                  s.ship_name,\n                  t.name as \"ship_type?\"\n           from character_status s\n           left join solar_systems ss on ss.id = s.solar_system_id\n           left join types t on t.id = s.ship_type_id\n           where s.character_id = $1",
+  "query": "select s.online,\n                  s.ship_type_id,\n                  ss.name as \"solar_system?\",\n                  s.ship_name,\n                  t.name as \"ship_type?\"\n           from character_status s\n           left join solar_systems ss on ss.id = s.solar_system_id\n           left join types t on t.id = s.ship_type_id\n           where s.character_id = $1",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,17 @@
       },
       {
         "ordinal": 1,
+        "name": "ship_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "character_status",
+            "name": "ship_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "solar_system?",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "ship_name",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "ship_type?",
         "type_info": "Text",
         "origin": {
@@ -57,8 +68,9 @@
       false,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "ecca6735404a44063174b115d1454cc4003cb7b82cb265faf31f6840edffb42d"
+  "hash": "eca2a38cb46e2ca432003bbd347d61a7d8ce2ee05ee73fa75c266e086d0a573c"
 }

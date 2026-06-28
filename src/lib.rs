@@ -35,5 +35,7 @@ pub mod util;
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
     console_error_panic_hook::set_once();
+    // Install `window.ScrollLock` (used by overlay components) before the app mounts.
+    components::hooks::use_scroll_lock::init();
     leptos::mount::hydrate_body(app::App);
 }

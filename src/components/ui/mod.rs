@@ -6,3 +6,4 @@ pub mod dropdown_menu;
 pub mod input;
 pub mod popover;
 pub mod separator;
+pub mod theme_toggle;

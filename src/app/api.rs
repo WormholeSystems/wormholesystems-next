@@ -28,6 +28,7 @@ pub struct CharacterSummary {
 pub struct CharacterStatus {
     pub online: bool,
     pub solar_system: Option<String>,
+    pub ship_type_id: Option<i64>,
     pub ship_name: Option<String>,
     pub ship_type: Option<String>,
 }
@@ -132,6 +133,7 @@ pub async fn active_character_status() -> Result<Option<CharacterStatus>, Server
     };
     let row = sqlx::query!(
         r#"select s.online,
+                  s.ship_type_id,
                   ss.name as "solar_system?",
                   s.ship_name,
                   t.name as "ship_type?"
@@ -147,6 +149,7 @@ pub async fn active_character_status() -> Result<Option<CharacterStatus>, Server
     Ok(row.map(|r| CharacterStatus {
         online: r.online,
         solar_system: r.solar_system,
+        ship_type_id: r.ship_type_id,
         ship_name: r.ship_name,
         ship_type: r.ship_type,
     }))
@@ -187,6 +190,69 @@ pub async fn switch_character(character_id: i64) -> Result<(), ServerFnError> {
     if !ok {
         return Err(ServerFnError::new("that character isn't yours"));
     }
+    Ok(())
+}
+
+/// Remove one of the user's characters. Refuses to remove the last one. If it's the active
+/// character, the session switches to another first (so the session isn't cascade-deleted).
+#[server(RemoveCharacterFn)]
+pub async fn remove_character(character_id: i64) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let Some(session_id) = session_cookie().await? else {
+        return Err(ServerFnError::new("not authenticated"));
+    };
+    let actor = require_actor(&pool).await?;
+
+    let count = sqlx::query_scalar!(
+        "select count(*) from characters where user_id = $1",
+        actor.user_id,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(e)?
+    .unwrap_or(0);
+    if count <= 1 {
+        return Err(ServerFnError::new("can't remove your only character"));
+    }
+
+    let owns = sqlx::query_scalar!(
+        "select exists(select 1 from characters where id = $1 and user_id = $2)",
+        character_id,
+        actor.user_id,
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(e)?
+    .unwrap_or(false);
+    if !owns {
+        return Err(ServerFnError::new("that character isn't yours"));
+    }
+
+    // Switch away before deleting the active one (sessions FK-cascade on the character).
+    if character_id == actor.character_id
+        && let Some(other) = sqlx::query_scalar!(
+            "select id from characters where user_id = $1 and id <> $2
+             order by is_preferred desc, id limit 1",
+            actor.user_id,
+            character_id,
+        )
+        .fetch_optional(&pool)
+        .await
+        .map_err(e)?
+    {
+        crate::session::set_active_character(&pool, &session_id, other)
+            .await
+            .map_err(e)?;
+    }
+
+    sqlx::query!(
+        "delete from characters where id = $1 and user_id = $2",
+        character_id,
+        actor.user_id,
+    )
+    .execute(&pool)
+    .await
+    .map_err(e)?;
     Ok(())
 }
 

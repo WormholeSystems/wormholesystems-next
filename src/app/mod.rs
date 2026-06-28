@@ -1,3 +1,4 @@
+use icons::{LogOut, Map, Plus, Trash2};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
@@ -5,11 +6,18 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::{ParamSegment, StaticSegment};
 
 pub mod api;
+pub mod components;
 pub mod pages;
 
+use crate::app::components::{CharacterImage, TypeImage};
+use crate::components::hooks::use_theme_mode::ThemeMode;
+use crate::components::ui::dropdown_menu::{
+    DropdownMenu, DropdownMenuAlign, DropdownMenuContent, DropdownMenuTrigger,
+};
+use crate::components::ui::theme_toggle::ThemeToggle;
 use api::{
-    CharacterRef, CharacterStatus, active_character_status, current_character, my_characters,
-    switch_character,
+    CharacterRef, CharacterStatus, CharacterSummary, active_character_status, current_character,
+    my_characters, remove_character, switch_character,
 };
 use pages::{HomePage, LoginPage, MapPage, MapsPage, ProfilePage};
 
@@ -23,8 +31,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
                 <MetaTags />
+                // Apply the saved theme before first paint to avoid a flash.
+                <script>
+                    {"(function(){try{var d=localStorage.getItem('darkmode');if(d==='true'||(d===null&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');}catch(e){}})();"}
+                </script>
             </head>
-            <body>
+            <body class="bg-background text-foreground antialiased">
                 <App />
             </body>
         </html>
@@ -34,6 +46,10 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    // Dark/light mode: provides the ThemeMode context (used by the toggle) and reflects it
+    // onto <html> so the `.dark` token overrides + `dark:` utilities apply.
+    let theme = ThemeMode::init();
+    Effect::new(move |_| apply_theme(theme.is_dark()));
     // Bumped each time the per-user socket receives an event; the navbar status resource
     // sources on it to refetch live.
     let status_version = RwSignal::new(0u32);
@@ -46,7 +62,7 @@ pub fn App() -> impl IntoView {
         <Title text="Vector" />
         <Router>
             <Nav />
-            <main class="mx-auto max-w-5xl p-6">
+            <main class="p-6">
                 <Routes fallback=|| "Not found.".into_view()>
                     <Route path=StaticSegment("") view=HomePage />
                     <Route path=StaticSegment("login") view=LoginPage />
@@ -127,101 +143,157 @@ fn Nav() -> impl IntoView {
     );
 
     view! {
-        <nav class="flex items-center gap-4 border-b px-6 py-3">
-            <a href="/" class="font-bold">"Vector"</a>
-            <a href="/maps" class="text-sm text-blue-600 hover:underline">"Maps"</a>
-            <span class="ml-auto flex items-center gap-3 text-sm">
-                <Transition fallback=|| ()>
-                    {move || Suspend::new(async move { status_badge(status.await) })}
-                </Transition>
-                <Suspense fallback=|| ()>
-                    {move || Suspend::new(async move {
-                        let (character, characters) = account.await;
-                        match character {
-                            Some(character) => view! {
-                                <span class="text-slate-600">{character.name}</span>
-                                {character_switcher(characters)}
-                                <a
-                                    href="/auth/logout"
-                                    rel="external"
-                                    class="text-blue-600 hover:underline"
-                                >
-                                    "Log out"
-                                </a>
+        <nav class="sticky top-0 z-40 border-b border-border bg-background">
+            <div class="flex h-12 items-center gap-6 px-5">
+                <a href="/" class="text-sm font-semibold tracking-[0.2em] text-foreground">
+                    "VECTOR"
+                </a>
+                <a
+                    href="/maps"
+                    class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    <Map class="size-4" />
+                    "Maps"
+                </a>
+
+                <span class="ml-auto flex items-center gap-3">
+                    <Transition fallback=|| ()>
+                        {move || Suspend::new(async move { status_badge(status.await) })}
+                    </Transition>
+                    <ThemeToggle />
+                    <Suspense fallback=|| ()>
+                        {move || Suspend::new(async move {
+                            let (character, characters) = account.await;
+                            match character {
+                                Some(character) => account_menu(character, characters),
+                                None => login_button(),
                             }
-                            .into_any(),
-                            None => view! {
-                                <a
-                                    href="/auth/login"
-                                    rel="external"
-                                    class="text-blue-600 hover:underline"
-                                >
-                                    "Log in"
-                                </a>
-                            }
-                            .into_any(),
-                        }
-                    })}
-                </Suspense>
-            </span>
+                        })}
+                    </Suspense>
+                </span>
+            </div>
         </nav>
     }
 }
 
-/// The active character's live status: an online dot, current system, and ship. Empty when
-/// not signed in or not yet tracked.
-fn status_badge(status: Option<CharacterStatus>) -> AnyView {
-    let Some(s) = status else {
-        return ().into_any();
-    };
-    let dot = if s.online { "#22c55e" } else { "#94a3b8" };
-    let system = s.solar_system.unwrap_or_else(|| "—".into());
-    let ship = s.ship_type.unwrap_or_else(|| "—".into());
+/// Minimal menu-item styling: slim, square, monochrome.
+const MENU_ITEM: &str = "flex w-full items-center gap-2 whitespace-nowrap px-2 py-1.5 text-left \
+                         text-sm text-muted-foreground transition-colors hover:bg-accent \
+                         hover:text-foreground";
+
+/// The avatar + account dropdown: switch character, add a character, remove the active one
+/// (when more than one), and log out.
+fn account_menu(active: CharacterSummary, characters: Vec<CharacterRef>) -> AnyView {
+    let active_id = active.character_id;
+    let active_name = active.name;
+    let can_remove = characters.len() > 1;
+
     view! {
-        <span class="flex items-center gap-1.5 text-slate-500">
-            <span
-                class="inline-block w-2 h-2 rounded-full"
-                style=format!("background:{dot}")
-            ></span>
-            <span>{system}</span>
-            <span class="text-slate-400">"·"</span>
-            <span>{ship}</span>
-        </span>
+        <DropdownMenu align=DropdownMenuAlign::End>
+            <DropdownMenuTrigger as_child=true>
+                <button
+                    type="button"
+                    aria-label="Account"
+                    class="block size-7 overflow-hidden border border-border transition-colors hover:border-foreground/50"
+                >
+                    <CharacterImage id=active_id class="size-7 object-cover" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                {characters
+                    .into_iter()
+                    .map(|c| {
+                        let id = c.character_id;
+                        let active_class = if c.is_active { " text-foreground" } else { "" };
+                        view! {
+                            <button
+                                type="button"
+                                class=format!("{MENU_ITEM}{active_class}")
+                                on:click=move |_| {
+                                    spawn_local(async move {
+                                        if switch_character(id).await.is_ok() {
+                                            reload_page();
+                                        }
+                                    });
+                                }
+                            >
+                                <CharacterImage id=id class="size-5 border border-border" />
+                                <span class="truncate">{c.name}</span>
+                            </button>
+                        }
+                    })
+                    .collect_view()}
+
+                <div class="my-1 h-px bg-border"></div>
+
+                <a href="/auth/login?link=true" rel="external" class=MENU_ITEM>
+                    <Plus class="size-4" />
+                    "Add character"
+                </a>
+
+                {can_remove
+                    .then(|| {
+                        view! {
+                            <button
+                                type="button"
+                                class=format!("{MENU_ITEM} hover:text-destructive")
+                                on:click=move |_| {
+                                    spawn_local(async move {
+                                        if remove_character(active_id).await.is_ok() {
+                                            reload_page();
+                                        }
+                                    });
+                                }
+                            >
+                                <Trash2 class="size-4" />
+                                {format!("Remove {active_name}")}
+                            </button>
+                        }
+                    })}
+
+                <div class="my-1 h-px bg-border"></div>
+
+                <a href="/auth/logout" rel="external" class=MENU_ITEM>
+                    <LogOut class="size-4" />
+                    "Log out"
+                </a>
+            </DropdownMenuContent>
+        </DropdownMenu>
     }
     .into_any()
 }
 
-/// A `<select>` to change the active character, shown only when the user has more than one.
-/// Plain markup (no Suspense of its own) so it hydrates inside the Nav's boundary. Switching
-/// is a session change, so we reload to refetch everything as the new character.
-fn character_switcher(characters: Vec<CharacterRef>) -> AnyView {
-    if characters.len() < 2 {
-        return ().into_any();
-    }
+fn login_button() -> AnyView {
     view! {
-        <select
-            class="border rounded text-sm px-1 py-0.5"
-            on:change=move |ev| {
-                if let Ok(id) = event_target_value(&ev).parse::<i64>() {
-                    spawn_local(async move {
-                        if switch_character(id).await.is_ok() {
-                            reload_page();
-                        }
-                    });
-                }
-            }
+        <a
+            href="/auth/login"
+            rel="external"
+            class="border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-            {characters
-                .into_iter()
-                .map(|c| {
-                    view! {
-                        <option value=c.character_id.to_string() selected=c.is_active>
-                            {c.name}
-                        </option>
-                    }
-                })
-                .collect_view()}
-        </select>
+            "Log in"
+        </a>
+    }
+    .into_any()
+}
+
+/// The active character's live status: a small online dot, ship icon, and current system.
+/// Empty when not signed in or not yet tracked.
+fn status_badge(status: Option<CharacterStatus>) -> AnyView {
+    let Some(s) = status else {
+        return ().into_any();
+    };
+    let dot = if s.online {
+        "bg-emerald-500"
+    } else {
+        "bg-muted-foreground/40"
+    };
+    let system = s.solar_system.unwrap_or_else(|| "—".into());
+    view! {
+        <span class="hidden items-center gap-2 text-xs text-muted-foreground md:flex">
+            <span class=format!("size-1.5 rounded-full {dot}")></span>
+            {s.ship_type_id.map(|id| view! { <TypeImage id=id class="size-4" /> })}
+            <span class="tracking-wide">{system}</span>
+        </span>
     }
     .into_any()
 }
@@ -235,6 +307,25 @@ fn reload_page() {
 
 #[cfg(not(feature = "hydrate"))]
 fn reload_page() {}
+
+/// Reflect the theme onto `<html>` so the `.dark` token overrides + `dark:` utilities apply.
+#[cfg(feature = "hydrate")]
+fn apply_theme(dark: bool) {
+    if let Some(root) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.document_element())
+    {
+        let classes = root.class_list();
+        let _ = if dark {
+            classes.add_1("dark")
+        } else {
+            classes.remove_1("dark")
+        };
+    }
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn apply_theme(_dark: bool) {}
 
 /// Open the per-user heartbeat WebSocket and keep it alive for the page's lifetime. The
 /// browser auto-replies to the server's pings, which refreshes `last_active_at`.

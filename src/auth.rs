@@ -41,13 +41,40 @@ impl Auth {
     }
 }
 
-/// `GET /auth/login` — record a one-time CSRF `state` and redirect to the EVE SSO.
-pub async fn login(State(state): State<AppState>) -> Response {
+#[derive(Deserialize)]
+pub struct LoginQuery {
+    /// `?link=true` adds the authenticated character to the currently signed-in user
+    /// instead of resolving/creating an account.
+    #[serde(default)]
+    link: bool,
+}
+
+/// `GET /auth/login` — record a one-time CSRF `state` and redirect to the EVE SSO. With
+/// `?link=true` and an active session, the new character links to the current user.
+pub async fn login(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Query(query): Query<LoginQuery>,
+) -> Response {
+    let link_user_id: Option<i64> = if query.link {
+        match jar.get(session::SESSION_COOKIE) {
+            Some(cookie) => session::actor_for_session(&state.db, cookie.value())
+                .await
+                .ok()
+                .flatten()
+                .map(|actor| actor.user_id),
+            None => None,
+        }
+    } else {
+        None
+    };
+
     let csrf = Uuid::new_v4().to_string();
     if let Err(err) = sqlx::query!(
-        "insert into oauth_login_flows (state, expires_at)
-         values ($1, now() + interval '10 minutes')",
+        "insert into oauth_login_flows (state, link_user_id, expires_at)
+         values ($1, $2, now() + interval '10 minutes')",
         csrf,
+        link_user_id,
     )
     .execute(&state.db)
     .await

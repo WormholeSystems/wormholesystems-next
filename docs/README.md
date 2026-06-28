@@ -24,3 +24,5 @@ with layered access control and Discord alerting.
   structure, and examples, one file per endpoint.
 - [`processes.md`](./processes.md) — background / scheduled work (e.g. affiliation
   refresh) and the data it touches.
+- [`ui-style-guide.md`](./ui-style-guide.md) — the interface design language: slim,
+  minimal, monochrome, theme tokens, and which component libraries to use.
