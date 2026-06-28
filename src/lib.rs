@@ -10,7 +10,8 @@ pub mod config;
 pub mod db;
 #[cfg(feature = "ssr")]
 pub mod esi;
-#[cfg(feature = "ssr")]
+// Compiled for both targets: the data types are shared with the client (server functions);
+// the DB actions, sqlx glue, and event hub inside are gated `ssr` (see maps/mod.rs).
 pub mod maps;
 #[cfg(feature = "ssr")]
 pub mod sde;

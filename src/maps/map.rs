@@ -5,16 +5,21 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
+#[cfg(feature = "ssr")]
 use super::access::{owns_character, require_role};
+#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
+#[cfg(feature = "ssr")]
 use super::{
     Actor, ConnectionType, MapConnection, MapSolarSystem, MapView, MassStatus, Role, SubjectType,
     TimeStatus, WormholeSize,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Map {
     pub id: i64,
     pub name: String,
@@ -29,6 +34,7 @@ pub struct CreateMap {
     pub description: Option<String>,
 }
 
+#[cfg(feature = "ssr")]
 impl CreateMap {
     pub fn validate(&self) -> Result<()> {
         if self.name.trim().is_empty() {
@@ -40,6 +46,7 @@ impl CreateMap {
 
 /// Create a map and grant ownership to the acting character. Any authenticated user may
 /// create a map.
+#[cfg(feature = "ssr")]
 pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<Map> {
     cmd.validate()?;
     if !owns_character(pool, actor.user_id, actor.character_id).await? {
@@ -83,6 +90,7 @@ pub struct UpdateMap {
     pub image_url: Option<Option<String>>,
 }
 
+#[cfg(feature = "ssr")]
 impl UpdateMap {
     pub fn validate(&self) -> Result<()> {
         if let Some(name) = &self.name
@@ -95,6 +103,7 @@ impl UpdateMap {
 }
 
 /// Rename / re-describe / re-icon a map. Owner only.
+#[cfg(feature = "ssr")]
 pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<Map> {
     cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
@@ -138,6 +147,7 @@ pub struct DeleteMap {
 
 /// Delete a map. Owner only. The database cascades placements, details, connections,
 /// signatures, and access grants.
+#[cfg(feature = "ssr")]
 pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
     sqlx::query!("delete from maps where id = $1", cmd.map_id)
@@ -147,6 +157,7 @@ pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<(
 }
 
 /// Every map the user can access, paired with their effective role on it.
+#[cfg(feature = "ssr")]
 pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> {
     let rows = sqlx::query!(
         r#"select m.id, m.name, m.description, m.image_url, m.created_at, ma.role as "role!: Role"
@@ -191,6 +202,7 @@ pub struct GetMap {
 
 /// Read a map's graph — the map, its placed systems, and its connections. Viewer+.
 /// Live pilot locations are not included (that's the member-gated tracking path).
+#[cfg(feature = "ssr")]
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
 

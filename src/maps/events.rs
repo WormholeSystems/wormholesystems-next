@@ -11,14 +11,21 @@
 //! data. The client re-reads via the read actions; on (re)connect it does a full `get_map`,
 //! so a missed event self-heals. See [`docs/features/realtime.md`](../../docs/features/realtime.md).
 
+use serde::{Deserialize, Serialize};
+
+// MapEvent is shared with the wasm client (it deserializes WS frames); the MapHub itself
+// (tokio channels) is server-only.
+#[cfg(feature = "ssr")]
 use std::collections::HashMap;
+#[cfg(feature = "ssr")]
 use std::sync::{Arc, Mutex};
 
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "ssr")]
 use tokio::sync::broadcast;
 
 /// Per-map channel depth. A receiver that lags past this gets `RecvError::Lagged`; the WS
 /// layer treats that as "you're behind" and triggers a full refetch.
+#[cfg(feature = "ssr")]
 const CHANNEL_CAPACITY: usize = 128;
 
 /// A change to a map that its viewers should react to. Carries ids, not data — consumers
@@ -64,11 +71,13 @@ impl MapEvent {
 }
 
 /// The in-process event bus. Cheaply cloneable (an `Arc` inside) — hold one in app state.
+#[cfg(feature = "ssr")]
 #[derive(Clone, Default)]
 pub struct MapHub {
     channels: Arc<Mutex<HashMap<i64, broadcast::Sender<MapEvent>>>>,
 }
 
+#[cfg(feature = "ssr")]
 impl MapHub {
     pub fn new() -> Self {
         Self::default()
@@ -97,7 +106,7 @@ impl MapHub {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ssr"))]
 mod tests {
     use super::*;
 

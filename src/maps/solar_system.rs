@@ -3,13 +3,18 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
+#[cfg(feature = "ssr")]
 use super::access::require_role;
+#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
+#[cfg(feature = "ssr")]
 use super::{Actor, Role};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapSolarSystem {
     pub id: i64,
     pub map_id: i64,
@@ -31,6 +36,7 @@ pub struct AddSystem {
 
 /// Place a solar system on a map. The system must exist in the SDE and not already be on
 /// the map. Adding a system does not touch its persisted details.
+#[cfg(feature = "ssr")]
 pub async fn add_system(pool: &PgPool, actor: Actor, cmd: AddSystem) -> Result<MapSolarSystem> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
 
@@ -84,6 +90,7 @@ pub struct RemoveSystem {
 
 /// Remove a system from a map. Cascades the system's signatures and any connections it
 /// is an endpoint of; its persisted details survive.
+#[cfg(feature = "ssr")]
 pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
@@ -109,6 +116,7 @@ pub struct MoveSystem {
 }
 
 /// Move a placed system to a new position.
+#[cfg(feature = "ssr")]
 pub async fn move_system(pool: &PgPool, actor: Actor, cmd: MoveSystem) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
@@ -136,6 +144,7 @@ pub struct SetAlias {
 }
 
 /// Set or clear a placement's ephemeral alias.
+#[cfg(feature = "ssr")]
 pub async fn set_alias(pool: &PgPool, actor: Actor, cmd: SetAlias) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(

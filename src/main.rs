@@ -42,19 +42,36 @@ async fn main() {
         .expect("could not reach the EVE SSO — check your network connection");
     let auth = Arc::new(Auth::new(sso, EsiClient::new()));
 
+    let hub = vector::maps::MapHub::new();
     let state = AppState {
         leptos_options: leptos_options.clone(),
         auth,
-        db,
+        db: db.clone(),
+        hub: hub.clone(),
     };
 
     let app = Router::new()
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
-        .leptos_routes(&state, routes, {
-            let leptos_options = leptos_options.clone();
-            move || shell(leptos_options.clone())
-        })
+        // Realtime map events: one WS per viewer, subscribed to a map's channel.
+        .route("/ws/map/{map_id}", get(vector::app::api::map_ws))
+        .leptos_routes_with_context(
+            &state,
+            routes,
+            {
+                // Server functions reach the DB + event hub through Leptos context.
+                let db = db.clone();
+                let hub = hub.clone();
+                move || {
+                    provide_context(db.clone());
+                    provide_context(hub.clone());
+                }
+            },
+            {
+                let leptos_options = leptos_options.clone();
+                move || shell(leptos_options.clone())
+            },
+        )
         .fallback(leptos_axum::file_and_error_handler::<AppState, _>(shell))
         .with_state(state);
 

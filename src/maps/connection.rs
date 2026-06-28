@@ -9,13 +9,21 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+// Used by the cross-target struct + command definitions.
+use super::{ConnectionType, MassStatus, TimeStatus, WormholeSize};
+
+#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
+#[cfg(feature = "ssr")]
 use super::access::require_role;
+#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
-use super::{Actor, ConnectionType, MassStatus, Role, TimeStatus, WormholeSize};
+#[cfg(feature = "ssr")]
+use super::{Actor, Role};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapConnection {
     pub id: i64,
     pub map_id: i64,
@@ -39,6 +47,7 @@ pub struct AddConnection {
     pub kind: ConnectionType,
 }
 
+#[cfg(feature = "ssr")]
 impl AddConnection {
     pub fn validate(&self) -> Result<()> {
         if self.from_system == self.to_system {
@@ -54,6 +63,7 @@ impl AddConnection {
 /// both on this map. The same pair may be connected more than once (e.g. two separate
 /// wormholes between the same systems), so duplicate edges are allowed. A new connection
 /// starts with unknown life-cycle state.
+#[cfg(feature = "ssr")]
 pub async fn add_connection(
     pool: &PgPool,
     actor: Actor,
@@ -113,6 +123,7 @@ pub struct SetConnectionStatus {
 
 /// Mark a connection's mass / EOL / size. Member+. Works whether or not a signature is
 /// linked; when one is, the trigger propagates the change to it (and its sibling).
+#[cfg(feature = "ssr")]
 pub async fn set_connection_status(
     pool: &PgPool,
     actor: Actor,
@@ -166,6 +177,7 @@ pub struct RemoveConnection {
 }
 
 /// Remove a connection. Linked signatures survive with their `connection_id` cleared.
+#[cfg(feature = "ssr")]
 pub async fn remove_connection(pool: &PgPool, actor: Actor, cmd: RemoveConnection) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(

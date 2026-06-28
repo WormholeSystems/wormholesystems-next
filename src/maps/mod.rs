@@ -5,8 +5,12 @@
 //! Actions are plain async functions over a `PgPool` — no HTTP/UI here — so they're
 //! driven directly from tests and later from server handlers.
 
+// Cross-target modules: each holds shared data types (compiled for ssr + wasm) plus
+// `ssr`-gated DB actions. `access` and `error` are server-only.
+#[cfg(feature = "ssr")]
 pub mod access;
 pub mod connection;
+#[cfg(feature = "ssr")]
 pub mod error;
 pub mod events;
 pub mod map;
@@ -14,8 +18,11 @@ pub mod signatures;
 pub mod solar_system;
 
 pub use connection::MapConnection;
+#[cfg(feature = "ssr")]
 pub use error::{MapError, Result};
-pub use events::{MapEvent, MapHub};
+pub use events::MapEvent;
+#[cfg(feature = "ssr")]
+pub use events::MapHub;
 pub use map::Map;
 pub use signatures::Signature;
 pub use solar_system::MapSolarSystem;
@@ -40,7 +47,9 @@ macro_rules! text_enum {
         }
 
         // Only `Type` + `Decode` are generated: queries bind these enums as `&str` via
-        // `as_str()`, but read them back through `as "col: Enum"` casts.
+        // `as_str()`, but read them back through `as "col: Enum"` casts. Server-only — the
+        // sqlx glue isn't compiled for the wasm client.
+        #[cfg(feature = "ssr")]
         impl sqlx::Type<sqlx::Postgres> for $name {
             fn type_info() -> sqlx::postgres::PgTypeInfo {
                 <str as sqlx::Type<sqlx::Postgres>>::type_info()
@@ -49,6 +58,7 @@ macro_rules! text_enum {
                 <str as sqlx::Type<sqlx::Postgres>>::compatible(ty)
             }
         }
+        #[cfg(feature = "ssr")]
         impl<'r> sqlx::Decode<'r, sqlx::Postgres> for $name {
             fn decode(
                 value: sqlx::postgres::PgValueRef<'r>,
@@ -144,14 +154,14 @@ impl Default for SignatureGroup {
 
 /// A user acting as one of their characters. `user_id` drives authorization (effective
 /// role across all their characters); `character_id` attributes ownership on creation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Actor {
     pub user_id: i64,
     pub character_id: i64,
 }
 
 /// The graph as seen by a viewer: the map plus its placed systems and connections.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MapView {
     pub map: Map,
     pub systems: Vec<MapSolarSystem>,

@@ -3,6 +3,7 @@ use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::StaticSegment;
 use leptos_router::components::{Route, Router, Routes};
 
+pub mod api;
 pub mod components;
 pub mod pages;
 

@@ -13,13 +13,21 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+// Used by the cross-target struct + command definitions.
+use super::{MassStatus, SignatureGroup, TimeStatus, WormholeSize};
+
+#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
+#[cfg(feature = "ssr")]
 use super::access::require_role;
+#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
-use super::{Actor, MassStatus, Role, SignatureGroup, TimeStatus, WormholeSize};
+#[cfg(feature = "ssr")]
+use super::{Actor, Role};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signature {
     pub id: i64,
     pub map_id: i64,
@@ -39,6 +47,7 @@ pub struct Signature {
 
 /// Whether a group is allowed to carry wormhole life-cycle state (`size`/`mass`/`time`) and
 /// a connection link.
+#[cfg(feature = "ssr")]
 fn is_wormhole(group: SignatureGroup) -> bool {
     group == SignatureGroup::Wormhole
 }
@@ -59,6 +68,7 @@ pub struct AddSignature {
     pub time_status: Option<TimeStatus>,
 }
 
+#[cfg(feature = "ssr")]
 impl AddSignature {
     pub fn validate(&self) -> Result<()> {
         if self.signature_id.trim().is_empty() {
@@ -81,6 +91,7 @@ impl AddSignature {
 /// Record a scanned signature in a placed system. The system must be on this map. A
 /// duplicate `signature_id` in the same system → `Conflict`. Linking to a connection is a
 /// separate step ([`link_signature`]).
+#[cfg(feature = "ssr")]
 pub async fn add_signature(pool: &PgPool, actor: Actor, cmd: AddSignature) -> Result<Signature> {
     cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
@@ -144,6 +155,7 @@ pub struct UpdateSignature {
     pub time_status: Option<Option<TimeStatus>>,
 }
 
+#[cfg(feature = "ssr")]
 pub async fn update_signature(
     pool: &PgPool,
     actor: Actor,
@@ -192,6 +204,7 @@ pub struct RemoveSignature {
 
 /// Delete a signature. If it was linked, the connection survives (its other end too); the
 /// hole's state simply loses this source.
+#[cfg(feature = "ssr")]
 pub async fn remove_signature(pool: &PgPool, actor: Actor, cmd: RemoveSignature) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
@@ -220,6 +233,7 @@ pub struct LinkSignature {
 /// them in lock-step). Returns the signature *after* the merge. The signature must be a
 /// `wormhole`, and the connection must be on this map and have an endpoint in the
 /// signature's system.
+#[cfg(feature = "ssr")]
 pub async fn link_signature(pool: &PgPool, actor: Actor, cmd: LinkSignature) -> Result<Signature> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let sig = fetch_signature(pool, cmd.map_id, cmd.signature_pk).await?;
@@ -272,6 +286,7 @@ pub struct UnlinkSignature {
 
 /// Detach a signature from its connection. The signature keeps its last state as a standalone
 /// scanned wormhole; the connection and any sibling signature are untouched.
+#[cfg(feature = "ssr")]
 pub async fn unlink_signature(
     pool: &PgPool,
     actor: Actor,
@@ -293,6 +308,7 @@ pub async fn unlink_signature(
 }
 
 /// Every signature on a map. Viewer+.
+#[cfg(feature = "ssr")]
 pub async fn list_signatures(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec<Signature>> {
     require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
     let sigs = sqlx::query_as!(
@@ -311,6 +327,7 @@ pub async fn list_signatures(pool: &PgPool, actor: Actor, map_id: i64) -> Result
 }
 
 /// Read one signature on a map, or `NotFound`.
+#[cfg(feature = "ssr")]
 async fn fetch_signature(pool: &PgPool, map_id: i64, signature_pk: i64) -> Result<Signature> {
     sqlx::query_as!(
         Signature,
@@ -330,6 +347,7 @@ async fn fetch_signature(pool: &PgPool, map_id: i64, signature_pk: i64) -> Resul
 
 /// `Validation` if the solar system isn't currently placed on the map (signatures hang off
 /// a placement via the `(map_id, solar_system_id)` foreign key).
+#[cfg(feature = "ssr")]
 async fn ensure_system_placed(pool: &PgPool, map_id: i64, solar_system_id: i64) -> Result<()> {
     let placed = sqlx::query_scalar!(
         "select exists(select 1 from map_solar_systems where map_id = $1 and solar_system_id = $2)",
