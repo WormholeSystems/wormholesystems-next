@@ -15,7 +15,7 @@ use leptos_router::hooks::use_params_map;
 use web_sys::PointerEvent;
 
 use crate::app::api::{
-    add_connection, add_system, clear_map, fetch_map, grid_config, move_system, remove_connection,
+    add_connection, add_system, clear_map, fetch_map, grid_config, move_systems, remove_connection,
     remove_systems, set_alias, set_home, set_occupier, set_pinned, set_status,
     set_connection_status,
 };
@@ -23,24 +23,39 @@ use crate::app::components::{AllianceImage, CorporationImage, SystemSearchDialog
 use crate::app::GridConfig;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
 use crate::maps::solar_system::{
-    AddSystem, ClearMap, MapSystemView, MoveSystem, RemoveSystems, SetAlias, SetHome, SetOccupier,
-    SetPinned, SetStatus, Sovereignty,
+    AddSystem, ClearMap, MapSystemView, MoveSystems, RemoveSystems, SetAlias, SetHome, SetOccupier,
+    SetPinned, SetStatus, Sovereignty, SystemMove,
 };
 use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus};
 
 /// Fixed node width (px, world space). Height is `2 * grid cell` (see [`GridConfig`]).
 const NODE_W: f64 = 180.0;
 
-/// A live position override for the node currently being dragged (world coords). `x`/`y` are
-/// the node's current top-left; `off_x`/`off_y` is the grab point relative to it, so the node
-/// follows the cursor without jumping on grab.
-#[derive(Clone, Copy)]
+/// A live drag. `primary` is the grabbed node; `x`/`y` is its current (snapped) top-left and
+/// `off_x`/`off_y` the grab point relative to it. `members` are all co-dragged nodes (the
+/// primary plus the rest of a multi-selection), each with its start top-left — every member
+/// moves by the same delta the primary moved.
+#[derive(Clone)]
 struct Drag {
-    id: i64,
+    primary: i64,
     x: f64,
     y: f64,
     off_x: f64,
     off_y: f64,
+    members: Vec<(i64, f64, f64)>,
+}
+
+impl Drag {
+    /// The delta the primary has moved from its start, applied to every member.
+    fn delta(&self) -> (f64, f64) {
+        let (sx, sy) = self
+            .members
+            .iter()
+            .find(|(id, _, _)| *id == self.primary)
+            .map(|&(_, x, y)| (x, y))
+            .unwrap_or((self.x, self.y));
+        (self.x - sx, self.y - sy)
+    }
 }
 
 /// An in-progress connection drag: from this placement to the current cursor (world coords).
@@ -155,22 +170,29 @@ pub fn MapPage() -> impl IntoView {
 
     let on_pointer_up = move |ev: PointerEvent| {
         let id = map_id();
-        // Finish a node drag → persist the new position.
+        // Finish a node drag → persist every dragged member's new position (one bulk move).
         if let Some(d) = drag.get_untracked() {
-            // Hand the position from the live drag to the optimistic override before clearing
-            // the drag, so the node stays put across the refetch instead of flashing back.
-            pending.update(|p| {
-                p.insert(d.id, (d.x, d.y));
-            });
             drag.set(None);
-            let cmd = MoveSystem {
-                map_id: id,
-                map_solar_system_id: d.id,
-                x: d.x,
-                y: d.y,
-            };
+            let (dx, dy) = d.delta();
+            let moves: Vec<SystemMove> = d
+                .members
+                .iter()
+                .map(|&(mid, sx, sy)| SystemMove {
+                    map_solar_system_id: mid,
+                    x: sx + dx,
+                    y: sy + dy,
+                })
+                .collect();
+            // Hand each new position to the optimistic override before clearing the drag, so
+            // nodes stay put across the refetch instead of flashing back.
+            pending.update(|p| {
+                for m in &moves {
+                    p.insert(m.map_solar_system_id, (m.x, m.y));
+                }
+            });
+            let cmd = MoveSystems { map_id: id, moves };
             run(status, refetch, "move", async move {
-                move_system(cmd).await
+                move_systems(cmd).await
             });
         }
         // Finish a connection drag → connect if released over a node.
@@ -359,7 +381,36 @@ pub fn MapPage() -> impl IntoView {
                         selected=selected drag=drag pending=pending linking=linking band=band menu=menu
                         search_open=search_open link_from=link_from
                         on_node_down=Callback::new(move |(ev, s, cur): (PointerEvent, MapSystemView, (f64, f64))| {
-                            handle_node_down(ev, s, cur, viewport, pan, zoom, drag, menu, selected);
+                            // Co-dragged members: the whole (non-pinned) selection if the grabbed
+                            // node is part of a multi-selection, else just this node. Each member's
+                            // start position comes from the optimistic override, then the data.
+                            let sel = selected.get_untracked();
+                            let data = map_data.get_untracked();
+                            let pend = pending.get_untracked();
+                            let pos_of = |id: i64| -> Option<(f64, f64)> {
+                                pend.get(&id).copied().or_else(|| {
+                                    data.as_ref().and_then(|mv| {
+                                        mv.systems
+                                            .iter()
+                                            .find(|x| x.id == id)
+                                            .map(|x| (x.position_x, x.position_y))
+                                    })
+                                })
+                            };
+                            let pinned = |id: i64| -> bool {
+                                data.as_ref()
+                                    .map(|mv| mv.systems.iter().any(|x| x.id == id && x.is_pinned))
+                                    .unwrap_or(false)
+                            };
+                            let members: Vec<(i64, f64, f64)> = if sel.contains(&s.id) && sel.len() > 1 {
+                                sel.iter()
+                                    .filter(|id| !pinned(**id))
+                                    .filter_map(|id| pos_of(*id).map(|(x, y)| (*id, x, y)))
+                                    .collect()
+                            } else {
+                                vec![(s.id, cur.0, cur.1)]
+                            };
+                            handle_node_down(ev, s, cur, members, viewport, pan, zoom, drag, menu, selected);
                         })
                         on_link_down=Callback::new(move |(ev, id): (PointerEvent, i64)| {
                             ev.stop_propagation();
@@ -444,22 +495,30 @@ fn WorldContent(
     let systems = move || data.get().map(|mv| mv.systems).unwrap_or_default();
     let connections = move || data.get().map(|mv| mv.connections).unwrap_or_default();
 
-    // Position lookup that respects an in-progress drag override. A `Memo` (Copy) so it can be
-    // read from the edge overlay and every node child without move headaches.
+    // Position lookup. A `Memo` so it can be read from the edge overlay and every node child.
     let positions = Memo::new(move |_| {
         let d = drag.get();
+        // A dragged member's live position is its start plus the primary's delta.
+        let dragged: std::collections::HashMap<i64, (f64, f64)> = match &d {
+            Some(dd) => {
+                let (dx, dy) = dd.delta();
+                dd.members
+                    .iter()
+                    .map(|&(id, sx, sy)| (id, (sx + dx, sy + dy)))
+                    .collect()
+            }
+            None => std::collections::HashMap::new(),
+        };
         let pend = pending.get();
         systems()
             .iter()
             .map(|s| {
                 // Live drag wins; then an optimistic override; then the server position.
-                let (x, y) = match d {
-                    Some(dd) if dd.id == s.id => (dd.x, dd.y),
-                    _ => pend
-                        .get(&s.id)
+                let (x, y) = dragged.get(&s.id).copied().unwrap_or_else(|| {
+                    pend.get(&s.id)
                         .copied()
-                        .unwrap_or((s.position_x, s.position_y)),
-                };
+                        .unwrap_or((s.position_x, s.position_y))
+                });
                 (s.id, (x, y))
             })
             .collect::<std::collections::HashMap<i64, (f64, f64)>>()
@@ -944,10 +1003,13 @@ fn StatusItems(
 // --- helpers ---
 
 /// Press on a node body: select it (replacing the selection) and start dragging unless pinned.
+/// `cur` is the grabbed node's current position; `members` are all co-dragged nodes (the
+/// selection when this node is part of it, else just this node), each with its start position.
 fn handle_node_down(
     ev: PointerEvent,
     s: MapSystemView,
     cur: (f64, f64),
+    members: Vec<(i64, f64, f64)>,
     viewport: NodeRef<leptos::html::Div>,
     pan: RwSignal<(f64, f64)>,
     zoom: RwSignal<f64>,
@@ -969,16 +1031,17 @@ fn handle_node_down(
     if let Some(el) = viewport.get_untracked() {
         let _ = el.set_pointer_capture(ev.pointer_id());
     }
-    // Seed the drag from the node's *current* displayed position (not the possibly-stale `s`),
-    // and record the grab offset so the node doesn't jump under the cursor.
+    // Seed from the node's *current* position (not the possibly-stale `s`), recording the grab
+    // offset so the node doesn't jump under the cursor.
     let (wx, wy) = world_of(ev, viewport, pan, zoom);
     let (nx, ny) = cur;
     drag.set(Some(Drag {
-        id: s.id,
+        primary: s.id,
         x: nx,
         y: ny,
         off_x: wx - nx,
         off_y: wy - ny,
+        members,
     }));
 }
 

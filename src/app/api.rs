@@ -14,8 +14,8 @@ use crate::maps::signatures::{
     AddSignature, LinkSignature, RemoveSignature, UnlinkSignature, UpdateSignature,
 };
 use crate::maps::solar_system::{
-    AddSystem, ClearMap, MoveSystem, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetOccupier,
-    SetPinned, SetStatus,
+    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
+    SetOccupier, SetPinned, SetStatus,
 };
 use crate::maps::{MapConnection, MapSolarSystem, MapView, Signature};
 
@@ -403,6 +403,20 @@ pub async fn move_system(cmd: MoveSystem) -> Result<(), ServerFnError> {
         map_id,
         map_solar_system_id: mss,
     });
+    Ok(())
+}
+
+#[server(MoveSystemsFn)]
+pub async fn move_systems(cmd: MoveSystems) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let map_id = cmd.map_id;
+    crate::maps::solar_system::move_systems(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    // Several systems moved at once → one coarse event rather than N SystemMoved events.
+    hub.publish(crate::maps::MapEvent::MapUpdated { map_id });
     Ok(())
 }
 

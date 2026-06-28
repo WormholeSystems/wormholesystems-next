@@ -255,6 +255,40 @@ pub async fn move_system(pool: &PgPool, actor: Actor, cmd: MoveSystem) -> Result
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemMove {
+    pub map_solar_system_id: i64,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoveSystems {
+    pub map_id: i64,
+    pub moves: Vec<SystemMove>,
+}
+
+/// Move several placed systems at once (multi-drag), in one transaction.
+#[cfg(feature = "ssr")]
+pub async fn move_systems(pool: &PgPool, actor: Actor, cmd: MoveSystems) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let mut tx = pool.begin().await?;
+    for m in &cmd.moves {
+        sqlx::query!(
+            "update map_solar_systems set position_x = $1, position_y = $2
+             where id = $3 and map_id = $4",
+            m.x,
+            m.y,
+            m.map_solar_system_id,
+            cmd.map_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetAlias {
     pub map_id: i64,
     pub map_solar_system_id: i64,
