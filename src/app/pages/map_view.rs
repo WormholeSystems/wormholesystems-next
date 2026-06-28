@@ -638,27 +638,34 @@ fn WorldContent(
             key=|s| s.id
             children=move |s| {
                 let id = s.id;
+                // Reactive per-node view: re-read this system from the data by id so edits
+                // (alias/status/occupier/…) refresh in place even though the keyed For reuses
+                // this child. Falls back to the initial value during a transient miss.
+                let initial = s.clone();
+                let node = Signal::derive(move || {
+                    data.get()
+                        .and_then(|mv| mv.systems.iter().find(|x| x.id == id).cloned())
+                        .unwrap_or_else(|| initial.clone())
+                });
                 let pos = Memo::new(move |_| {
                     positions.get().get(&id).copied().unwrap_or((0.0, 0.0))
                 });
                 let is_selected = move || selected.get().contains(&id);
-                let s_for_down = s.clone();
-                let s_node = s.clone();
                 view! {
                     <SystemNode
-                        s=s_node node_h=node_h() selected=Signal::derive(is_selected)
+                        node=node node_h=node_h() selected=Signal::derive(is_selected)
                         pos=pos.into()
                         on_down=Callback::new(move |ev: PointerEvent| {
-                            on_node_down.run((ev, s_for_down.clone(), pos.get_untracked()));
+                            on_node_down.run((ev, node.get_untracked(), pos.get_untracked()));
                         })
                         on_link=Callback::new(move |ev: PointerEvent| on_link_down.run((ev, id)))
-                        on_menu=Callback::new(move |(ev, s): (web_sys::MouseEvent, MapSystemView)| {
+                        on_menu=Callback::new(move |ev: web_sys::MouseEvent| {
                             ev.prevent_default();
                             ev.stop_propagation();
                             menu.set(Some(Menu {
                                 x: ev.client_x() as f64,
                                 y: ev.client_y() as f64,
-                                target: MenuTarget::Node(s),
+                                target: MenuTarget::Node(node.get_untracked()),
                             }));
                         })
                     />
@@ -669,55 +676,60 @@ fn WorldContent(
     .into_any()
 }
 
-/// One placed system, positioned absolutely in world space.
+/// One placed system, positioned absolutely in world space. Immutable SDE fields are read once;
+/// the editable fields (alias/occupier/status/home/pinned/sovereignty) are read reactively from
+/// `node`, so an edit refreshes the node in place.
 #[component]
 fn SystemNode(
-    s: MapSystemView,
+    node: Signal<MapSystemView>,
     node_h: f64,
     selected: Signal<bool>,
     pos: Signal<(f64, f64)>,
     on_down: Callback<PointerEvent>,
     on_link: Callback<PointerEvent>,
-    on_menu: Callback<(web_sys::MouseEvent, MapSystemView)>,
+    on_menu: Callback<web_sys::MouseEvent>,
 ) -> impl IntoView {
-    let alias = s.alias.clone();
-    let occupier = s.occupying_group.clone();
-    let name = s.name.clone();
-    let class = class_label(s.wormhole_class_id, s.security_status);
-    let class_color = security_color(s.wormhole_class_id, s.security_status);
-    let statics_or_region = if s.statics.is_empty() {
-        s.region.clone()
+    // Immutable, SDE-derived — captured once (also avoids re-creating the effect resource).
+    let s0 = node.get_untracked();
+    let name = s0.name.clone();
+    let class = class_label(s0.wormhole_class_id, s0.security_status);
+    let class_color = security_color(s0.wormhole_class_id, s0.security_status);
+    let statics_or_region = if s0.statics.is_empty() {
+        s0.region.clone()
     } else {
-        s.statics
+        s0.statics
             .iter()
             .map(|st| format!("→{}", class_label(st.dest_class, 0.0)))
             .collect::<Vec<_>>()
             .join("  ")
     };
-    let sov = s.sovereignty.clone();
-    let effect = s.effect_name.clone();
-    let wclass = s.wormhole_class_id.unwrap_or(0);
-    let pinned = s.is_pinned;
-    let home = s.is_home;
-    let status = s.status;
-    let s_menu = s.clone();
+    let effect = s0.effect_name.clone();
+    let wclass = s0.wormhole_class_id.unwrap_or(0);
+
+    // Editable — read reactively.
+    let alias = move || node.get().alias;
+    let occupier = move || node.get().occupying_group;
+    let sov = move || node.get().sovereignty;
+    let pinned = move || node.get().is_pinned;
+    let home = move || node.get().is_home;
+    let status = move || node.get().status;
 
     view! {
         <div
             class="group absolute flex flex-col justify-center overflow-hidden border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm"
             class=("ring-2", move || selected.get())
             class=("ring-primary", move || selected.get())
-            class=("ring-1", move || home && !selected.get())
-            class=("ring-amber-500", move || home && !selected.get())
-            style:border-color=status_color(status)
+            class=("ring-1", move || home() && !selected.get())
+            class=("ring-amber-500", move || home() && !selected.get())
+            style:border-color=move || status_color(status())
             style:width=format!("{NODE_W}px")
             style:height=format!("{node_h}px")
             style:left=move || format!("{}px", pos.get().0)
             style:top=move || format!("{}px", pos.get().1)
-            on:contextmenu=move |ev: web_sys::MouseEvent| on_menu.run((ev, s_menu.clone()))
+            on:contextmenu=move |ev: web_sys::MouseEvent| on_menu.run(ev)
         >
             // Drag handle (top), hover-only, hidden when pinned.
-            {(!pinned).then(|| view! {
+            {move || (!pinned()).then(|| view! {
                 <div
                     class="absolute -top-2 left-1/2 hidden h-3 w-8 -translate-x-1/2 cursor-grab rounded-sm bg-muted-foreground/60 group-hover:block"
                     on:pointerdown=move |ev: PointerEvent| { ev.stop_propagation(); on_down.run(ev); }
@@ -733,12 +745,12 @@ fn SystemNode(
             // node's right edge.
             <div class="flex items-center gap-1">
                 <span class="shrink-0 font-medium" style:color=class_color>{class}</span>
-                {alias.map(|a| view! { <span class="shrink-0 text-primary">{a}</span> })}
+                {move || alias().map(|a| view! { <span class="shrink-0 text-primary">{a}</span> })}
                 <span class="truncate font-medium text-foreground">{name}</span>
-                {occupier.map(|o| view! { <span class="shrink-0 text-muted-foreground">{o}</span> })}
+                {move || occupier().map(|o| view! { <span class="shrink-0 text-muted-foreground">{o}</span> })}
                 <span class="ml-auto flex shrink-0 items-center gap-1">
-                    {pinned.then(|| view! { <span class="text-amber-500" title="pinned">"📌"</span> })}
-                    {sov.map(|sv| sovereignty_view(sv))}
+                    {move || pinned().then(|| view! { <span class="text-amber-500" title="pinned">"📌"</span> })}
+                    {move || sov().map(|sv| sovereignty_view(sv))}
                 </span>
             </div>
 
