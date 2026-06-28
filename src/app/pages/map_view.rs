@@ -91,6 +91,9 @@ pub fn MapPage() -> impl IntoView {
     let zoom = RwSignal::new(1.0_f64);
     let selected = RwSignal::new(HashSet::<i64>::new());
     let drag = RwSignal::new(None::<Drag>);
+    // Optimistic positions held from drop until the server confirms them, so a moved node
+    // doesn't flash back to its old spot during the refetch round-trip.
+    let pending = RwSignal::new(std::collections::HashMap::<i64, (f64, f64)>::new());
     let linking = RwSignal::new(None::<Linking>);
     let band = RwSignal::new(None::<(f64, f64, f64, f64)>); // world rect: x0,y0,x1,y1
     let menu = RwSignal::new(None::<Menu>);
@@ -100,6 +103,23 @@ pub fn MapPage() -> impl IntoView {
 
     let viewport: NodeRef<leptos::html::Div> = NodeRef::new();
     let gridc = move || grid.get().unwrap_or_default();
+
+    // Reconcile optimistic overrides: drop one once the server position matches it (our move
+    // landed) or the system is gone. Reads `map` reactively, so it runs on every refetch.
+    Effect::new(move |_| {
+        if let Some(Some(mv)) = map.get() {
+            pending.update(|p| {
+                p.retain(|id, (px, py)| {
+                    match mv.systems.iter().find(|s| s.id == *id) {
+                        Some(s) => {
+                            (s.position_x - *px).abs() > 0.5 || (s.position_y - *py).abs() > 0.5
+                        }
+                        None => false,
+                    }
+                });
+            });
+        }
+    });
 
     // Connect the realtime stream once the id is known.
     Effect::new(move |prev: Option<i64>| {
@@ -141,6 +161,11 @@ pub fn MapPage() -> impl IntoView {
         let id = map_id();
         // Finish a node drag → persist the new position.
         if let Some(d) = drag.get_untracked() {
+            // Hand the position from the live drag to the optimistic override before clearing
+            // the drag, so the node stays put across the refetch instead of flashing back.
+            pending.update(|p| {
+                p.insert(d.id, (d.x, d.y));
+            });
             drag.set(None);
             let cmd = MoveSystem {
                 map_id: id,
@@ -337,7 +362,7 @@ pub fn MapPage() -> impl IntoView {
                         view! { <WorldContent
                             mv=mv g=g map_id=Signal::derive(map_id)
                             status=status refetch=refetch
-                            selected=selected drag=drag linking=linking band=band menu=menu
+                            selected=selected drag=drag pending=pending linking=linking band=band menu=menu
                             search_open=search_open link_from=link_from
                             on_node_down=Callback::new(move |(ev, s): (PointerEvent, MapSystemView)| {
                                 handle_node_down(ev, s, viewport, pan, zoom, drag, menu, selected);
@@ -397,6 +422,7 @@ fn WorldContent(
     refetch: RwSignal<u32>,
     selected: RwSignal<HashSet<i64>>,
     drag: RwSignal<Option<Drag>>,
+    pending: RwSignal<std::collections::HashMap<i64, (f64, f64)>>,
     linking: RwSignal<Option<Linking>>,
     band: RwSignal<Option<(f64, f64, f64, f64)>>,
     menu: RwSignal<Option<Menu>>,
@@ -419,12 +445,17 @@ fn WorldContent(
     let sys_for_pos = mv.systems.clone();
     let positions = Memo::new(move |_| {
         let d = drag.get();
+        let pend = pending.get();
         sys_for_pos
             .iter()
             .map(|s| {
+                // Live drag wins; then an optimistic override; then the server position.
                 let (x, y) = match d {
                     Some(dd) if dd.id == s.id => (dd.x, dd.y),
-                    _ => (s.position_x, s.position_y),
+                    _ => pend
+                        .get(&s.id)
+                        .copied()
+                        .unwrap_or((s.position_x, s.position_y)),
                 };
                 (s.id, (x, y))
             })
