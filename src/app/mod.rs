@@ -132,7 +132,9 @@ fn Nav() -> impl IntoView {
             <a href="/" class="font-bold">"Vector"</a>
             <a href="/maps" class="text-sm text-blue-600 hover:underline">"Maps"</a>
             <span class="ml-auto flex items-center gap-3 text-sm">
-                {move || status_badge(status.get().flatten())}
+                <Transition fallback=|| ()>
+                    {move || Suspend::new(async move { status_badge(status.await) })}
+                </Transition>
                 <Suspense fallback=|| ()>
                     {move || Suspend::new(async move {
                         let (character, characters) = account.await;
