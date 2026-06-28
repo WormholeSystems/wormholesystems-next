@@ -5,7 +5,7 @@
 use sqlx::PgPool;
 use vector::maps::access::SetAccess;
 use vector::maps::access::set_access;
-use vector::maps::lifecycle::{CreateMap, create_map};
+use vector::maps::map::{CreateMap, create_map};
 use vector::maps::{Actor, Role, SubjectType};
 
 // Three solar systems are seeded so systems can be placed and connected.

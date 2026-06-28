@@ -5,10 +5,11 @@ mod common;
 use common::{SYS_A, SYS_B, add_character, member_with_role, new_user, world};
 use sqlx::PgPool;
 use vector::maps::access::effective_role;
-use vector::maps::graph::{AddConnection, AddSystem, add_connection, add_system};
-use vector::maps::lifecycle::{
+use vector::maps::connection::{AddConnection, add_connection};
+use vector::maps::map::{
     CreateMap, DeleteMap, GetMap, UpdateMap, create_map, delete_map, get_map, list_maps, update_map,
 };
+use vector::maps::solar_system::{AddSystem, add_system};
 use vector::maps::{Actor, ConnectionType, MapError, Role};
 
 #[sqlx::test]

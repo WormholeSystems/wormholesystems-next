@@ -5,14 +5,20 @@
 //! Actions are plain async functions over a `PgPool` — no HTTP/UI here — so they're
 //! driven directly from tests and later from server handlers.
 
-use chrono::{DateTime, Utc};
-
 pub mod access;
+pub mod connection;
 pub mod error;
-pub mod graph;
-pub mod lifecycle;
+pub mod events;
+pub mod map;
+pub mod signatures;
+pub mod solar_system;
 
+pub use connection::MapConnection;
 pub use error::{MapError, Result};
+pub use events::{MapEvent, MapHub};
+pub use map::Map;
+pub use signatures::Signature;
+pub use solar_system::MapSolarSystem;
 
 /// A Rust enum stored as `text` (per the schema's [enum convention](../../docs/database/README.md)).
 /// Generates the variants, `as_str` / `from_db`, and the sqlx glue so the enum binds and
@@ -81,42 +87,67 @@ text_enum! {
     }
 }
 
+text_enum! {
+    /// A wormhole's remaining mass, worst last. Variant order is the severity order the
+    /// [reconcile-on-link merge](../../docs/database/mapping.md) relies on: `max` is the
+    /// worst (= "massed"). Kept in lock-step across a connection and its signatures by the
+    /// `map_*_sync` DB triggers (migration 0009).
+    pub enum MassStatus {
+        Stable => "stable",
+        Reduced => "reduced",
+        Critical => "critical",
+    }
+}
+
+text_enum! {
+    /// A wormhole's remaining lifetime, worst last. `Eol` ≈ "<4h"; `Critical` ≈ "<1h"
+    /// (super-EOL). Same severity-ordering / merge semantics as [`MassStatus`].
+    pub enum TimeStatus {
+        Stable => "stable",
+        Eol => "eol",
+        Critical => "critical",
+    }
+}
+
+text_enum! {
+    /// Max ship-mass class that can transit a wormhole. Ordered most-permissive →
+    /// most-restrictive, so `max` (= `Small`) is the "weakest"/worst — the conservative
+    /// pick when two ends disagree (they shouldn't: both ends of a hole share a size).
+    pub enum WormholeSize {
+        Xl => "xl",
+        Large => "large",
+        Medium => "medium",
+        Small => "small",
+    }
+}
+
+text_enum! {
+    /// A cosmic-signature group, mirroring [`signature_categories`](../../docs/database/static.md).
+    /// Only `Wormhole` signatures carry connection links and the wormhole life-cycle state.
+    pub enum SignatureGroup {
+        Wormhole => "wormhole",
+        Data => "data",
+        Relic => "relic",
+        Gas => "gas",
+        Combat => "combat",
+        Ore => "ore",
+        Unknown => "unknown",
+    }
+}
+
+impl Default for SignatureGroup {
+    /// An unresolved sig is `Unknown` until its group is scanned/classified.
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 /// A user acting as one of their characters. `user_id` drives authorization (effective
 /// role across all their characters); `character_id` attributes ownership on creation.
 #[derive(Debug, Clone, Copy)]
 pub struct Actor {
     pub user_id: i64,
     pub character_id: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct Map {
-    pub id: i64,
-    pub name: String,
-    pub description: Option<String>,
-    pub image_url: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MapSolarSystem {
-    pub id: i64,
-    pub map_id: i64,
-    pub solar_system_id: i64,
-    pub position_x: f64,
-    pub position_y: f64,
-    pub alias: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MapConnection {
-    pub id: i64,
-    pub map_id: i64,
-    pub from_system: i64,
-    pub to_system: i64,
-    pub kind: ConnectionType,
-    pub created_at: DateTime<Utc>,
 }
 
 /// The graph as seen by a viewer: the map plus its placed systems and connections.

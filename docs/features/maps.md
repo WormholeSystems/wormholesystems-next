@@ -10,11 +10,15 @@ clear signature, authorization rule, validation, effect, and error set — the c
 tests are derived from. UI / HTTP wiring (Leptos server functions, Axum routes) comes
 later and just calls these.
 
-In scope: map lifecycle (create / rename / delete / list / get), access grants, and
-graph editing (add / remove / move systems, add / remove connections). **Out of scope
-for now:** signatures and the scanner-paste reconciliation (own spec, has open
-questions and a DB trigger — see [mapping.md](../database/mapping.md#signatures)), live
-tracking, and routing.
+In scope: map lifecycle (create / rename / delete / list / get), access grants, graph
+editing (add / remove / move systems, add / remove connections, mark connection state),
+and signatures (per-signature CRUD + linking a wormhole sig to a connection). **Out of
+scope for now:** the scanner-**paste** reconciliation (bulk add/remove from a pasted scan
+block — own future spec), live tracking, and routing.
+
+Mutations also emit a realtime event so other viewers of the map refetch; that bus is the
+in-process [`MapHub`](../features/realtime.md) and the `publish` calls are wired at the
+(later) server-function layer — the action functions themselves stay pure.
 
 ## The actor
 
@@ -102,7 +106,7 @@ A single `MapError` (thiserror) is returned by every action:
 |-----------------------|------------------------------------------------------------------|
 | `NotFound`            | Map (or referenced row) doesn't exist, or the user has no access to it |
 | `Forbidden`          | User has access but a lower role than the action requires; or acting as a character that isn't theirs |
-| `Conflict`           | Uniqueness / idempotency violation (system already placed, connection already exists) |
+| `Conflict`           | Uniqueness / idempotency violation (system already placed) |
 | `Validation(String)` | Bad input (blank name, self-connection, endpoint not on the map, system id unknown) |
 | `LastOwner`          | The operation would leave the map with zero owners                |
 | `Db(sqlx::Error)`    | Underlying database error                                         |
@@ -236,15 +240,25 @@ invariant. Single-statement actions don't need an explicit transaction.
 - **Validates:**
   - both placements exist and belong to **this** map;
   - they are **distinct** (`from <> to`);
-  - no connection already exists between them (treated as **unordered** — A→B and B→A
-    are the same edge);
   - `type` is `wormhole` or `stargate`.
 - **Effect:** insert a `map_connections` row.
 - **Invariants:**
   - A self-connection → `Validation`; an endpoint not on the map → `Validation`.
-  - A duplicate edge (either direction) → `Conflict`.
-  - No signature state is written here; a `wormhole` connection's size/mass/time come
-    from its linked signatures (separate spec).
+  - The same pair may be connected **more than once** — parallel edges are allowed (e.g.
+    two distinct wormholes between the same systems), so a repeat is *not* a conflict.
+  - A new connection starts with **unknown** life-cycle state (all null).
+
+### `set_connection_status(actor, map_id, connection_id, { mass_status?, time_status?, size? }) -> MapConnection`
+
+Mark a connection's wormhole life-cycle state — works whether or not a signature is linked.
+
+- **Auth:** `Member`.
+- **Validates:** the connection exists on this map (else `NotFound`). Partial update:
+  `None` leaves a field unchanged, `Some(None)` clears it to unknown, `Some(Some(v))` sets it.
+- **Effect:** update the row's `mass_status` / `time_status` / `size`. If a signature is
+  linked, the DB trigger **propagates the new state to it (and its sibling) verbatim** — see
+  [the sync spec](../database/mapping.md#keeping-a-connection-and-its-signatures-consistent).
+- **Invariant:** state set here is visible on every group member; downgrades propagate.
 
 ### `remove_connection(actor, map_id, connection_id)`
 
@@ -252,6 +266,56 @@ invariant. Single-statement actions don't need an explicit transaction.
 - **Effect:** delete the `map_connections` row. Linked signatures survive with their
   `connection_id` cleared (DB `on delete set null`).
 - **Invariant:** a connection id not on this map → `NotFound`.
+
+---
+
+## Signatures
+
+Cosmic signatures scanned in a placed system. A `wormhole`-group signature carries the
+hole's `mass_status` / `time_status` / `size` from the scanner and can be **linked** to a
+connection as one of its ends; non-wormhole groups carry none of that. The bulk
+scanner-**paste** reconciliation is a separate future action — these are the structured
+per-signature operations it will build on.
+
+### `add_signature(actor, map_id, solar_system_id, signature_id, group, { name?, size?, mass_status?, time_status? }) -> Signature`
+
+- **Auth:** `Member`.
+- **Validates:** `signature_id` non-blank; the system is **placed** on this map (else
+  `Validation`); only a `wormhole` group may carry `size` / `mass` / `time` (else `Validation`).
+- **Effect:** insert a `signatures` row (unlinked — `connection_id` null).
+- **Invariants:** duplicate `signature_id` in the same `(map, system)` → `Conflict`.
+
+### `update_signature(actor, map_id, signature_pk, { name?, size?, mass_status?, time_status? }) -> Signature`
+
+- **Auth:** `Member`.
+- **Validates:** same wormhole-only rule for the state fields (against the sig's current
+  group; the group is fixed at add time — remove + re-add to change it). Partial-update
+  semantics as above.
+- **Effect:** update the row. If linked, the state edit **propagates to the connection**
+  (and sibling) verbatim via the trigger.
+
+### `link_signature(actor, map_id, signature_pk, connection_id) -> Signature`
+
+- **Auth:** `Member`.
+- **Validates:** the signature is a `wormhole` (else `Validation`); the connection is on
+  this map and **reaches the signature's system** (one of its endpoints is in that system).
+- **Effect:** set `connection_id`, which fires the **merge** — the group reconciles to the
+  worst state per field. Returns the signature *after* the merge.
+
+### `unlink_signature(actor, map_id, signature_pk) -> Signature`
+
+- **Auth:** `Member`.
+- **Effect:** clear `connection_id`. The signature keeps its last state as a standalone
+  scanned wormhole; the connection and any sibling are untouched.
+
+### `remove_signature(actor, map_id, signature_pk)`
+
+- **Auth:** `Member`. **Effect:** delete the row (a no-op on the connection if it was linked).
+  Unknown id → `NotFound`.
+
+### `list_signatures(actor, map_id) -> Vec<Signature>`
+
+- **Auth:** `Viewer`. **Effect:** read-only; every signature on the map.
 
 ---
 
@@ -266,9 +330,11 @@ resulting rows.
 The tests are split by area, each its own integration-test binary, with shared fixtures
 in `tests/common/`:
 
-- `tests/maps_lifecycle.rs` — create / update / delete / list / get
+- `tests/maps_map.rs` — create / update / delete / list / get
 - `tests/maps_access.rs` — grant / change role / revoke + the owner invariant
-- `tests/maps_graph.rs` — systems and connections
+- `tests/maps_solar_system.rs` — placing / moving / removing / aliasing systems
+- `tests/maps_connection.rs` — connecting / disconnecting + marking connection state
+- `tests/maps_signatures.rs` — signature CRUD, linking, and the connection↔signature sync
 
 Coverage targets, per action: the **happy path** asserting the exact effect (return-value
 fields *and* the resulting rows match the inputs), each **authorization** boundary (role

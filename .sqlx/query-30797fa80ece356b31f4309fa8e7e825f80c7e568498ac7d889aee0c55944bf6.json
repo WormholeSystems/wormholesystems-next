@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, map_id, solar_system_id, signature_id, \"group\" as \"group: SignatureGroup\",\n                  name, size as \"size: WormholeSize\",\n                  mass_status as \"mass_status: MassStatus\",\n                  time_status as \"time_status: TimeStatus\",\n                  connection_id, created_at, updated_at\n           from signatures where map_id = $1 order by solar_system_id, signature_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "solar_system_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "signature_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "group: SignatureGroup",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "size: WormholeSize",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "mass_status: MassStatus",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "time_status: TimeStatus",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "connection_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "30797fa80ece356b31f4309fa8e7e825f80c7e568498ac7d889aee0c55944bf6"
+}

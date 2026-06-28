@@ -18,7 +18,8 @@ with layered access control and Discord alerting.
   [custom static reference](./database/static.md)).
 - [`features/`](./features/) — application behaviour above the data model: the
   authorized, validated actions users take. ([map actions](./features/maps.md) —
-  create/rename/delete maps, manage access, edit the graph.)
+  maps, access, graph editing, connections, and signatures; [realtime](./features/realtime.md)
+  — the in-process event bus that pushes map changes to viewers.)
 - [`esi/`](./esi/) — the EVE ESI endpoints we consume: parameters, response
   structure, and examples, one file per endpoint.
 - [`processes.md`](./processes.md) — background / scheduled work (e.g. affiliation

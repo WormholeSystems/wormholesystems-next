@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select exists(\n             select 1\n             from map_connections c\n             join map_solar_systems mss on mss.id in (c.from_system, c.to_system)\n             where c.id = $1 and c.map_id = $2 and mss.solar_system_id = $3\n         )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e90e54aa1b696af5d5980d19fd0b8fefa14c19d7567b460e2c1acd1ac0f56f3d"
+}

@@ -1,16 +1,27 @@
-//! Map lifecycle actions: create, update, delete, list, and read the graph.
+//! The map entity: create, update, delete, list, and read the graph.
 //!
 //! Each mutating action takes a dedicated command struct (its future HTTP request body);
 //! `actor` stays a separate argument, injected from the session — never the payload.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::access::{owns_character, require_role};
 use super::error::{MapError, Result};
 use super::{
-    Actor, ConnectionType, Map, MapConnection, MapSolarSystem, MapView, Role, SubjectType,
+    Actor, ConnectionType, MapConnection, MapSolarSystem, MapView, MassStatus, Role, SubjectType,
+    TimeStatus, WormholeSize,
 };
+
+#[derive(Debug, Clone)]
+pub struct Map {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub image_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateMap {
@@ -203,7 +214,11 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
 
     let connections = sqlx::query_as!(
         MapConnection,
-        r#"select id, map_id, from_system, to_system, type as "kind: ConnectionType", created_at
+        r#"select id, map_id, from_system, to_system, type as "kind: ConnectionType",
+                  mass_status as "mass_status: MassStatus",
+                  time_status as "time_status: TimeStatus",
+                  size as "size: WormholeSize",
+                  created_at, updated_at
            from map_connections where map_id = $1 order by id"#,
         cmd.map_id,
     )

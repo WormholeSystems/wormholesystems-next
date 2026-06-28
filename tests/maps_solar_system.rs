@@ -1,14 +1,14 @@
-//! Graph editing: placing / moving / removing systems and connecting them.
+//! Solar systems: placing / moving / removing / aliasing systems on a map.
 
 mod common;
 
-use common::{SYS_A, SYS_B, member_with_role, world};
+use common::{SYS_A, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::graph::{
-    AddConnection, AddSystem, MoveSystem, RemoveConnection, RemoveSystem, SetAlias, add_connection,
-    add_system, move_system, remove_connection, remove_system, set_alias,
+use vector::maps::solar_system::{
+    AddSystem, MoveSystem, RemoveSystem, SetAlias, add_system, move_system, remove_system,
+    set_alias,
 };
-use vector::maps::{ConnectionType, MapError, Role};
+use vector::maps::{MapError, Role};
 
 #[sqlx::test]
 async fn add_system_returns_fields_and_persists(pool: PgPool) {
@@ -245,193 +245,6 @@ async fn move_and_alias_update_the_row(pool: PgPool) {
                 map_solar_system_id: 4242,
                 x: 1.0,
                 y: 1.0
-            }
-        )
-        .await,
-        Err(MapError::NotFound),
-    ));
-}
-
-#[sqlx::test]
-async fn add_connection_returns_fields_and_validates(pool: PgPool) {
-    let w = world(&pool).await;
-    let a = add_system(
-        &pool,
-        w.owner,
-        AddSystem {
-            map_id: w.map_id,
-            solar_system_id: SYS_A,
-            x: 0.0,
-            y: 0.0,
-            alias: None,
-        },
-    )
-    .await
-    .unwrap();
-    let b = add_system(
-        &pool,
-        w.owner,
-        AddSystem {
-            map_id: w.map_id,
-            solar_system_id: SYS_B,
-            x: 1.0,
-            y: 0.0,
-            alias: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    // Self-connection rejected (pure validation).
-    assert!(matches!(
-        add_connection(
-            &pool,
-            w.owner,
-            AddConnection {
-                map_id: w.map_id,
-                from_system: a.id,
-                to_system: a.id,
-                kind: ConnectionType::Wormhole
-            }
-        )
-        .await,
-        Err(MapError::Validation(_)),
-    ));
-    // Endpoint not on the map rejected.
-    assert!(matches!(
-        add_connection(
-            &pool,
-            w.owner,
-            AddConnection {
-                map_id: w.map_id,
-                from_system: a.id,
-                to_system: 4242,
-                kind: ConnectionType::Wormhole
-            }
-        )
-        .await,
-        Err(MapError::Validation(_)),
-    ));
-
-    let conn = add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a.id,
-            to_system: b.id,
-            kind: ConnectionType::Wormhole,
-        },
-    )
-    .await
-    .unwrap();
-    assert_eq!(conn.from_system, a.id);
-    assert_eq!(conn.to_system, b.id);
-    assert_eq!(conn.kind, ConnectionType::Wormhole);
-
-    // Duplicate, reversed direction → Conflict (edges are unordered).
-    assert!(matches!(
-        add_connection(
-            &pool,
-            w.owner,
-            AddConnection {
-                map_id: w.map_id,
-                from_system: b.id,
-                to_system: a.id,
-                kind: ConnectionType::Stargate
-            }
-        )
-        .await,
-        Err(MapError::Conflict(_)),
-    ));
-}
-
-#[sqlx::test]
-async fn remove_connection_clears_signature_link(pool: PgPool) {
-    let w = world(&pool).await;
-    let a = add_system(
-        &pool,
-        w.owner,
-        AddSystem {
-            map_id: w.map_id,
-            solar_system_id: SYS_A,
-            x: 0.0,
-            y: 0.0,
-            alias: None,
-        },
-    )
-    .await
-    .unwrap();
-    let b = add_system(
-        &pool,
-        w.owner,
-        AddSystem {
-            map_id: w.map_id,
-            solar_system_id: SYS_B,
-            x: 1.0,
-            y: 0.0,
-            alias: None,
-        },
-    )
-    .await
-    .unwrap();
-    let conn = add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a.id,
-            to_system: b.id,
-            kind: ConnectionType::Wormhole,
-        },
-    )
-    .await
-    .unwrap();
-
-    sqlx::query(
-        r#"insert into signatures (map_id, solar_system_id, signature_id, "group", connection_id)
-           values ($1, $2, 'ABC-123', 'wormhole', $3)"#,
-    )
-    .bind(w.map_id)
-    .bind(SYS_A)
-    .bind(conn.id)
-    .execute(&pool)
-    .await
-    .unwrap();
-
-    remove_connection(
-        &pool,
-        w.owner,
-        RemoveConnection {
-            map_id: w.map_id,
-            connection_id: conn.id,
-        },
-    )
-    .await
-    .unwrap();
-
-    // The signature survives, with its connection_id cleared.
-    let total: i64 = sqlx::query_scalar("select count(*) from signatures where map_id = $1")
-        .bind(w.map_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-    let linked: i64 =
-        sqlx::query_scalar("select count(*) from signatures where connection_id is not null")
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(total, 1);
-    assert_eq!(linked, 0);
-
-    // Unknown connection → NotFound.
-    assert!(matches!(
-        remove_connection(
-            &pool,
-            w.owner,
-            RemoveConnection {
-                map_id: w.map_id,
-                connection_id: 4242
             }
         )
         .await,

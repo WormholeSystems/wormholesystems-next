@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_connections set mass_status = $1, time_status = $2, size = $3\n           where id = $4 and map_id = $5\n           returning id, map_id, from_system, to_system, type as \"kind: ConnectionType\",\n                     mass_status as \"mass_status: MassStatus\",\n                     time_status as \"time_status: TimeStatus\",\n                     size as \"size: WormholeSize\",\n                     created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "from_system",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "to_system",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "kind: ConnectionType",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "mass_status: MassStatus",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "time_status: TimeStatus",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "size: WormholeSize",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "9a60d3bef2161ef17ab849c69126dec4739095b90e28d2e71a569cb12107ea0f"
+}
