@@ -22,6 +22,8 @@ pub mod session;
 #[cfg(feature = "ssr")]
 pub mod tracking;
 #[cfg(feature = "ssr")]
+pub mod user_channel;
+#[cfg(feature = "ssr")]
 pub mod util;
 
 #[cfg(feature = "hydrate")]

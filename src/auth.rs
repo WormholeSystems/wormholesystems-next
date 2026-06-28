@@ -21,6 +21,7 @@ pub struct AppState {
     pub auth: Arc<Auth>,
     pub db: sqlx::PgPool,
     pub hub: crate::maps::MapHub,
+    pub user_hub: crate::user_channel::UserHub,
 }
 
 impl FromRef<AppState> for LeptosOptions {

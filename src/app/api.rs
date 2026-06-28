@@ -23,6 +23,15 @@ pub struct CharacterSummary {
     pub name: String,
 }
 
+/// Live status of the active character, for the navbar readout.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CharacterStatus {
+    pub online: bool,
+    pub solar_system: Option<String>,
+    pub ship_name: Option<String>,
+    pub ship_type: Option<String>,
+}
+
 /// One of the user's characters, for the switcher.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CharacterRef {
@@ -111,6 +120,35 @@ pub async fn current_character() -> Result<Option<CharacterSummary>, ServerFnErr
     Ok(row.map(|r| CharacterSummary {
         character_id: actor.character_id,
         name: r.name,
+    }))
+}
+
+/// Live status of the signed-in active character (online / system / ship), for the navbar.
+#[server(ActiveCharacterStatusFn)]
+pub async fn active_character_status() -> Result<Option<CharacterStatus>, ServerFnError> {
+    let pool = pool();
+    let Some(actor) = session_actor(&pool).await? else {
+        return Ok(None);
+    };
+    let row = sqlx::query!(
+        r#"select s.online,
+                  ss.name as "solar_system?",
+                  s.ship_name,
+                  t.name as "ship_type?"
+           from character_status s
+           left join solar_systems ss on ss.id = s.solar_system_id
+           left join types t on t.id = s.ship_type_id
+           where s.character_id = $1"#,
+        actor.character_id,
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(e)?;
+    Ok(row.map(|r| CharacterStatus {
+        online: r.online,
+        solar_system: r.solar_system,
+        ship_name: r.ship_name,
+        ship_type: r.ship_type,
     }))
 }
 
@@ -477,7 +515,9 @@ pub async fn user_ws(
         None => None,
     };
     match actor {
-        Some(actor) => ws.on_upgrade(move |socket| user_heartbeat(socket, state.db, actor.user_id)),
+        Some(actor) => ws.on_upgrade(move |socket| {
+            user_heartbeat(socket, state.db, state.user_hub, actor.user_id)
+        }),
         None => StatusCode::UNAUTHORIZED.into_response(),
     }
 }
@@ -486,11 +526,13 @@ pub async fn user_ws(
 async fn user_heartbeat(
     mut socket: axum::extract::ws::WebSocket,
     pool: sqlx::PgPool,
+    users: crate::user_channel::UserHub,
     user_id: i64,
 ) {
     use std::time::{Duration, Instant};
 
     use axum::extract::ws::Message;
+    use tokio::sync::broadcast::error::RecvError;
     use tokio::time::{MissedTickBehavior, interval};
 
     // Active on connect, then again on each heartbeat (throttled) while the socket lives.
@@ -498,6 +540,7 @@ async fn user_heartbeat(
     let mut ping = interval(Duration::from_secs(30));
     ping.set_missed_tick_behavior(MissedTickBehavior::Skip);
     let mut last_bump = Instant::now();
+    let mut events = users.subscribe(user_id);
 
     loop {
         tokio::select! {
@@ -516,6 +559,18 @@ async fn user_heartbeat(
                         }
                     }
                     _ => break, // closed or errored
+                }
+            }
+            event = events.recv() => {
+                match event {
+                    Ok(event) => {
+                        let json = serde_json::to_string(&event).unwrap_or_default();
+                        if socket.send(Message::Text(json.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(RecvError::Lagged(_)) => {} // client refetches regardless
+                    Err(RecvError::Closed) => break,
                 }
             }
         }

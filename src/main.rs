@@ -45,15 +45,19 @@ async fn main() {
     let esi = EsiClient::new();
     let auth = Arc::new(Auth::new(sso.clone(), esi.clone()));
 
-    // Background: poll live character status for active users (no queue; in-process).
-    vector::tracking::start(db.clone(), sso.clone(), esi.clone());
-
     let hub = vector::maps::MapHub::new();
+    let user_hub = vector::user_channel::UserHub::new();
+
+    // Background: poll live character status for active users (no queue; in-process). Pings
+    // each user's private channel when their character's status changes.
+    vector::tracking::start(db.clone(), sso.clone(), esi.clone(), user_hub.clone());
+
     let state = AppState {
         leptos_options: leptos_options.clone(),
         auth,
         db: db.clone(),
         hub: hub.clone(),
+        user_hub: user_hub.clone(),
     };
 
     let app = Router::new()

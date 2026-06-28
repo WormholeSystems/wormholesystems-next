@@ -8,7 +8,10 @@ pub mod api;
 pub mod components;
 pub mod pages;
 
-use api::{CharacterRef, current_character, my_characters, switch_character};
+use api::{
+    CharacterRef, CharacterStatus, active_character_status, current_character, my_characters,
+    switch_character,
+};
 use pages::{HomePage, LoginPage, MapPage, MapsPage, ProfilePage};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -32,8 +35,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    // Bumped each time the per-user socket receives an event; the navbar status resource
+    // sources on it to refetch live.
+    let status_version = RwSignal::new(0u32);
+    provide_context(status_version);
     // Open the per-user heartbeat socket (client-only; a no-op / 401 when not signed in).
-    Effect::new(|_| open_user_socket());
+    Effect::new(move |_| open_user_socket(status_version));
 
     view! {
         <Stylesheet id="leptos" href="/pkg/vector.css" />
@@ -113,11 +120,19 @@ fn Nav() -> impl IntoView {
         },
     );
 
+    // Live status of the active character, refetched whenever the user socket pings.
+    let status_version = expect_context::<RwSignal<u32>>();
+    let status = Resource::new(
+        move || status_version.get(),
+        |_| async move { active_character_status().await.ok().flatten() },
+    );
+
     view! {
         <nav class="flex items-center gap-4 border-b px-6 py-3">
             <a href="/" class="font-bold">"Vector"</a>
             <a href="/maps" class="text-sm text-blue-600 hover:underline">"Maps"</a>
             <span class="ml-auto flex items-center gap-3 text-sm">
+                {move || status_badge(status.get().flatten())}
                 <Suspense fallback=|| ()>
                     {move || Suspend::new(async move {
                         let (character, characters) = account.await;
@@ -150,6 +165,29 @@ fn Nav() -> impl IntoView {
             </span>
         </nav>
     }
+}
+
+/// The active character's live status: an online dot, current system, and ship. Empty when
+/// not signed in or not yet tracked.
+fn status_badge(status: Option<CharacterStatus>) -> AnyView {
+    let Some(s) = status else {
+        return ().into_any();
+    };
+    let dot = if s.online { "#22c55e" } else { "#94a3b8" };
+    let system = s.solar_system.unwrap_or_else(|| "—".into());
+    let ship = s.ship_type.unwrap_or_else(|| "—".into());
+    view! {
+        <span class="flex items-center gap-1.5 text-slate-500">
+            <span
+                class="inline-block w-2 h-2 rounded-full"
+                style=format!("background:{dot}")
+            ></span>
+            <span>{system}</span>
+            <span class="text-slate-400">"·"</span>
+            <span>{ship}</span>
+        </span>
+    }
+    .into_any()
 }
 
 /// A `<select>` to change the active character, shown only when the user has more than one.
@@ -200,7 +238,7 @@ fn reload_page() {}
 /// Open the per-user heartbeat WebSocket and keep it alive for the page's lifetime. The
 /// browser auto-replies to the server's pings, which refreshes `last_active_at`.
 #[cfg(feature = "hydrate")]
-fn open_user_socket() {
+fn open_user_socket(version: RwSignal<u32>) {
     use futures::StreamExt;
     use gloo_net::websocket::futures::WebSocket;
 
@@ -217,10 +255,12 @@ fn open_user_socket() {
         return;
     };
     leptos::task::spawn_local(async move {
-        // Drain (ignoring frames) to keep the socket open until the page goes away.
-        while let Some(Ok(_)) = socket.next().await {}
+        // Each event means "your status changed" — bump the version so the navbar refetches.
+        while let Some(Ok(_)) = socket.next().await {
+            version.update(|n| *n += 1);
+        }
     });
 }
 
 #[cfg(not(feature = "hydrate"))]
-fn open_user_socket() {}
+fn open_user_socket(_version: RwSignal<u32>) {}

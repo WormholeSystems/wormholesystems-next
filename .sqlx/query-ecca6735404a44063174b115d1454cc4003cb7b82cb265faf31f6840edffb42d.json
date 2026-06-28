@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select s.online,\n                  ss.name as \"solar_system?\",\n                  s.ship_name,\n                  t.name as \"ship_type?\"\n           from character_status s\n           left join solar_systems ss on ss.id = s.solar_system_id\n           left join types t on t.id = s.ship_type_id\n           where s.character_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "online",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "character_status",
+            "name": "online"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "solar_system?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "ship_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "character_status",
+            "name": "ship_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ship_type?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "ecca6735404a44063174b115d1454cc4003cb7b82cb265faf31f6840edffb42d"
+}
