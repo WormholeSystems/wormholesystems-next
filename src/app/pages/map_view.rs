@@ -694,6 +694,18 @@ fn WorldContent(
                     <SystemNode
                         node=node node_h=node_h() selected=Signal::derive(is_selected)
                         pos=pos.into()
+                        on_select=Callback::new(move |ev: PointerEvent| {
+                            // Left-click the body selects this system (keeping an existing
+                            // multi-selection it's part of). Stop propagation so the background
+                            // handler doesn't clear it.
+                            if ev.button() != 0 {
+                                return;
+                            }
+                            ev.stop_propagation();
+                            if !selected.get_untracked().contains(&id) {
+                                selected.set(HashSet::from([id]));
+                            }
+                        })
                         on_down=Callback::new(move |ev: PointerEvent| {
                             on_node_down.run((ev, node.get_untracked(), pos.get_untracked()));
                         })
@@ -724,6 +736,7 @@ fn SystemNode(
     node_h: f64,
     selected: Signal<bool>,
     pos: Signal<(f64, f64)>,
+    on_select: Callback<PointerEvent>,
     on_down: Callback<PointerEvent>,
     on_link: Callback<PointerEvent>,
     on_menu: Callback<web_sys::MouseEvent>,
@@ -764,6 +777,7 @@ fn SystemNode(
             style:height=format!("{node_h}px")
             style:left=move || format!("{}px", pos.get().0)
             style:top=move || format!("{}px", pos.get().1)
+            on:pointerdown=move |ev: PointerEvent| on_select.run(ev)
             on:contextmenu=move |ev: web_sys::MouseEvent| on_menu.run(ev)
         >
             // Drag handle (top), hover-only, hidden when pinned.
