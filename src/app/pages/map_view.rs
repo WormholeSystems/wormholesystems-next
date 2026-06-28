@@ -104,6 +104,16 @@ pub fn MapPage() -> impl IntoView {
     let viewport: NodeRef<leptos::html::Div> = NodeRef::new();
     let gridc = move || grid.get().unwrap_or_default();
 
+    // Render off a plain signal rather than the resource directly: the canvas stays mounted
+    // and only its keyed nodes diff on refetch (no whole-subtree remount / flash). We keep the
+    // last good value during a refetch (the guard skips a transient `None`).
+    let data = RwSignal::new(None::<MapView>);
+    Effect::new(move |_| {
+        if let Some(Some(mv)) = map.get() {
+            data.set(Some(mv));
+        }
+    });
+
     // Reconcile optimistic overrides: drop one once the server position matches it (our move
     // landed) or the system is gone. Reads `map` reactively, so it runs on every refetch.
     Effect::new(move |_| {
@@ -355,29 +365,23 @@ pub fn MapPage() -> impl IntoView {
                     format!("translate({px}px, {py}px) scale({})", zoom.get())
                 }
             >
-                <Transition>
-                    {move || Suspend::new(async move {
-                        let mv = map.await;
-                        let g = grid.await;
-                        view! { <WorldContent
-                            mv=mv g=g map_id=Signal::derive(map_id)
-                            status=status refetch=refetch
-                            selected=selected drag=drag pending=pending linking=linking band=band menu=menu
-                            search_open=search_open link_from=link_from
-                            on_node_down=Callback::new(move |(ev, s): (PointerEvent, MapSystemView)| {
-                                handle_node_down(ev, s, viewport, pan, zoom, drag, menu, selected);
-                            })
-                            on_link_down=Callback::new(move |(ev, id): (PointerEvent, i64)| {
-                                ev.stop_propagation();
-                                if let Some(el) = viewport.get_untracked() {
-                                    let _ = el.set_pointer_capture(ev.pointer_id());
-                                }
-                                let (wx, wy) = world_of(ev, viewport, pan, zoom);
-                                linking.set(Some(Linking { from: id, x: wx, y: wy }));
-                            })
-                        /> }
-                    })}
-                </Transition>
+                <WorldContent
+                    data=data grid=Signal::derive(gridc) map_id=Signal::derive(map_id)
+                    status=status refetch=refetch
+                    selected=selected drag=drag pending=pending linking=linking band=band menu=menu
+                    search_open=search_open link_from=link_from
+                    on_node_down=Callback::new(move |(ev, s): (PointerEvent, MapSystemView)| {
+                        handle_node_down(ev, s, viewport, pan, zoom, drag, menu, selected);
+                    })
+                    on_link_down=Callback::new(move |(ev, id): (PointerEvent, i64)| {
+                        ev.stop_propagation();
+                        if let Some(el) = viewport.get_untracked() {
+                            let _ = el.set_pointer_capture(ev.pointer_id());
+                        }
+                        let (wx, wy) = world_of(ev, viewport, pan, zoom);
+                        linking.set(Some(Linking { from: id, x: wx, y: wy }));
+                    })
+                />
             </div>
 
             // Virtual scrollbars (proportional thumbs reflecting viewport over the world).
@@ -415,8 +419,8 @@ pub fn MapPage() -> impl IntoView {
 /// nested inside the persistent transformed world so pan/zoom never reset.
 #[component]
 fn WorldContent(
-    mv: Option<MapView>,
-    g: GridConfig,
+    data: RwSignal<Option<MapView>>,
+    grid: Signal<GridConfig>,
     map_id: Signal<i64>,
     status: RwSignal<String>,
     refetch: RwSignal<u32>,
@@ -432,21 +436,17 @@ fn WorldContent(
     on_link_down: Callback<(PointerEvent, i64)>,
 ) -> impl IntoView {
     let _ = (map_id, status, refetch, search_open, link_from);
-    let Some(mv) = mv else {
-        return view! { <g></g> }.into_any();
-    };
-    let node_h = 2.0 * g.cell_size;
+    let node_h = move || 2.0 * grid.get().cell_size;
 
-    let connections = mv.connections.clone();
-    let systems = mv.systems.clone();
+    let systems = move || data.get().map(|mv| mv.systems).unwrap_or_default();
+    let connections = move || data.get().map(|mv| mv.connections).unwrap_or_default();
 
     // Position lookup that respects an in-progress drag override. A `Memo` (Copy) so it can be
     // read from the edge overlay and every node child without move headaches.
-    let sys_for_pos = mv.systems.clone();
     let positions = Memo::new(move |_| {
         let d = drag.get();
         let pend = pending.get();
-        sys_for_pos
+        systems()
             .iter()
             .map(|s| {
                 // Live drag wins; then an optimistic override; then the server position.
@@ -465,13 +465,14 @@ fn WorldContent(
     view! {
         <svg
             class="absolute top-0 left-0 overflow-visible"
-            style:width=format!("{}px", g.world_width)
-            style:height=format!("{}px", g.world_height)
+            style:width=move || format!("{}px", grid.get().world_width)
+            style:height=move || format!("{}px", grid.get().world_height)
         >
             // Edges.
             {move || {
                 let pos = positions.get();
-                connections
+                let node_h = node_h();
+                connections()
                     .iter()
                     .filter_map(|c| {
                         let (ax, ay) = pos.get(&c.from_system).copied()?;
@@ -510,7 +511,7 @@ fn WorldContent(
             {move || linking.get().and_then(|l| {
                 let pos = positions.get();
                 let (ax, ay) = pos.get(&l.from).copied()?;
-                let (sx, sy, ex, ey) = anchors(ax, ay, l.x, l.y, node_h);
+                let (sx, sy, ex, ey) = anchors(ax, ay, l.x, l.y, node_h());
                 Some(view! {
                     <path d=bezier(sx, sy, ex, ey) fill="none" stroke="#9ca3af"
                         stroke-width="2" stroke-dasharray="5 4" />
@@ -530,7 +531,7 @@ fn WorldContent(
 
         // Nodes (DOM, keyed by id so refetch diffs in place).
         <For
-            each=move || systems.clone()
+            each=move || systems()
             key=|s| s.id
             children=move |s| {
                 let id = s.id;
@@ -542,7 +543,7 @@ fn WorldContent(
                 let s_node = s.clone();
                 view! {
                     <SystemNode
-                        s=s_node node_h=node_h selected=Signal::derive(is_selected)
+                        s=s_node node_h=node_h() selected=Signal::derive(is_selected)
                         pos=pos.into()
                         on_down=Callback::new(move |ev: PointerEvent| {
                             on_node_down.run((ev, s_for_down.clone()));
