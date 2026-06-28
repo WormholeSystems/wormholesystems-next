@@ -29,30 +29,21 @@ pub fn MapPage() -> impl IntoView {
             .unwrap_or(0)
     };
 
-    let map = RwSignal::new(None::<MapView>);
-    let sigs = RwSignal::new(None::<Vec<Signature>>);
     let log = RwSignal::new(Vec::<String>::new());
     let status = RwSignal::new(String::new());
     let system_input = RwSignal::new("30000142".to_string());
     let refetch = RwSignal::new(0u32);
 
-    // Load (and reload on events) the map + signatures for the routed id.
-    Effect::new(move |_| {
-        refetch.track();
-        let id = map_id();
-        if id == 0 {
-            return;
-        }
-        spawn_local(async move {
-            match fetch_map(id).await {
-                Ok(mv) => map.set(Some(mv)),
-                Err(err) => status.set(err.to_string()),
-            }
-            if let Ok(s) = list_signatures(id).await {
-                sigs.set(Some(s));
-            }
-        });
-    });
+    // The map graph + its signatures. Sourced on (id, refetch) so they reload when the route
+    // changes or a realtime event bumps `refetch`; fetched during SSR and hydrated with data.
+    let map = Resource::new(
+        move || (map_id(), refetch.get()),
+        move |(id, _)| async move { fetch_map(id).await.ok() },
+    );
+    let sigs = Resource::new(
+        move || (map_id(), refetch.get()),
+        move |(id, _)| async move { list_signatures(id).await.unwrap_or_default() },
+    );
 
     // Connect the realtime stream once the id is known.
     Effect::new(move |prev: Option<i64>| {
@@ -65,7 +56,11 @@ pub fn MapPage() -> impl IntoView {
 
     let add = move |_| {
         let id = map_id();
-        let n = map.get_untracked().map(|m| m.systems.len()).unwrap_or(0);
+        let n = map
+            .get_untracked()
+            .flatten()
+            .map(|m| m.systems.len())
+            .unwrap_or(0);
         let solar_system_id = system_input
             .get_untracked()
             .trim()
@@ -84,7 +79,7 @@ pub fn MapPage() -> impl IntoView {
     };
 
     let connect = move |_| {
-        let Some(mv) = map.get_untracked() else {
+        let Some(mv) = map.get_untracked().flatten() else {
             return;
         };
         if mv.systems.len() < 2 {
@@ -103,7 +98,7 @@ pub fn MapPage() -> impl IntoView {
     };
 
     let add_sig = move |_| {
-        let Some(mv) = map.get_untracked() else {
+        let Some(mv) = map.get_untracked().flatten() else {
             return;
         };
         let Some(s) = mv.systems.first() else {
@@ -125,7 +120,7 @@ pub fn MapPage() -> impl IntoView {
     };
 
     let link = move |_| {
-        let (Some(mv), Some(ss)) = (map.get_untracked(), sigs.get_untracked()) else {
+        let (Some(mv), Some(ss)) = (map.get_untracked().flatten(), sigs.get_untracked()) else {
             return;
         };
         let (Some(c), Some(sig)) = (mv.connections.first(), ss.first()) else {
@@ -144,7 +139,7 @@ pub fn MapPage() -> impl IntoView {
 
     let mark = move |mass: MassStatus, time: TimeStatus, label: &'static str| {
         move |_| {
-            let Some(mv) = map.get_untracked() else {
+            let Some(mv) = map.get_untracked().flatten() else {
                 return;
             };
             let Some(c) = mv.connections.first() else {
@@ -192,18 +187,29 @@ pub fn MapPage() -> impl IntoView {
         </div>
 
         <div class="mt-4 grid grid-cols-3 gap-4">
-            <div class="col-span-2">{move || map_svg(map.get())}</div>
+            <div class="col-span-2">
+                <Transition fallback=move || {
+                    view! {
+                        <div class="h-[420px] grid place-items-center text-slate-500 bg-slate-900 rounded">
+                            "Loading…"
+                        </div>
+                    }
+                }>
+                    {move || Suspend::new(async move { map_svg(map.await) })}
+                </Transition>
+            </div>
             <div class="space-y-4">
                 <div>
                     <h2 class="font-semibold text-sm">"Signatures"</h2>
                     <ul class="mt-1 text-xs font-mono space-y-0.5">
-                        {move || {
-                            sigs.get()
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|s| view! { <li>{sig_line(&s)}</li> })
-                                .collect_view()
-                        }}
+                        <Transition fallback=|| ()>
+                            {move || Suspend::new(async move {
+                                sigs.await
+                                    .into_iter()
+                                    .map(|s| view! { <li>{sig_line(&s)}</li> })
+                                    .collect_view()
+                            })}
+                        </Transition>
                     </ul>
                 </div>
                 <div>
