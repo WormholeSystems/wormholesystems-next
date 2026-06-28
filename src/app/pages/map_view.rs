@@ -17,14 +17,17 @@ use web_sys::PointerEvent;
 use icons::{Flag, House, Link2, Lock, X};
 
 use crate::app::api::{
-    add_connection, add_system, clear_map, fetch_map, grid_config, list_signatures, move_systems,
-    paste_signatures, remove_connection, remove_signature, remove_systems, set_alias, set_home,
-    set_occupier, set_pinned, set_rally, set_status, set_connection_status,
+    add_connection, add_system, clear_map, fetch_map, grid_config, link_signature, list_signatures,
+    move_systems, paste_signatures, remove_connection, remove_signature, remove_systems, set_alias,
+    set_home, set_occupier, set_pinned, set_rally, set_status, set_connection_status,
+    unlink_signature,
 };
 use crate::app::components::{AllianceImage, CorporationImage, SystemSearchDialog};
 use crate::app::GridConfig;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
-use crate::maps::signatures::{PasteSignatures, PastedSignature, RemoveSignature};
+use crate::maps::signatures::{
+    LinkSignature, PasteSignatures, PastedSignature, RemoveSignature, UnlinkSignature,
+};
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MapSystemView, MoveSystems, RemoveSystems, SetAlias, SetHome, SetOccupier,
     SetPinned, SetRally, SetStatus, Sovereignty, SystemMove,
@@ -488,7 +491,7 @@ pub fn MapPage() -> impl IntoView {
                 let sys = map_data.get()?.systems.into_iter().find(|s| s.id == id)?;
                 Some(view! {
                     <SignaturesPanel
-                        system=sys sigs=sigs map_id=Signal::derive(map_id)
+                        system=sys sigs=sigs map_data=map_data map_id=Signal::derive(map_id)
                         status=status refetch=refetch
                     />
                 })
@@ -1177,13 +1180,41 @@ fn StatusItems(
 fn SignaturesPanel(
     system: MapSystemView,
     sigs: RwSignal<Vec<Signature>>,
+    map_data: Signal<Option<MapView>>,
     map_id: Signal<i64>,
     status: RwSignal<String>,
     refetch: RwSignal<u32>,
 ) -> impl IntoView {
     let ssid = system.solar_system_id;
+    let placement_id = system.id;
     let name = system.name.clone();
     let paste_text = RwSignal::new(String::new());
+
+    // Connections with an endpoint in this system → (connection_id, other-system label).
+    let conns = move || {
+        let Some(mv) = map_data.get() else {
+            return Vec::new();
+        };
+        let label = |pid: i64| {
+            mv.systems
+                .iter()
+                .find(|s| s.id == pid)
+                .map(|s| s.alias.clone().unwrap_or_else(|| s.name.clone()))
+                .unwrap_or_else(|| "?".into())
+        };
+        mv.connections
+            .iter()
+            .filter(|c| c.from_system == placement_id || c.to_system == placement_id)
+            .map(|c| {
+                let other = if c.from_system == placement_id {
+                    c.to_system
+                } else {
+                    c.from_system
+                };
+                (c.id, format!("→ {}", label(other)))
+            })
+            .collect::<Vec<_>>()
+    };
 
     let my_sigs = move || {
         let mut v: Vec<Signature> = sigs
@@ -1240,9 +1271,21 @@ fn SignaturesPanel(
                     key=|s| s.id
                     children=move |s| {
                         let pk = s.id;
+                        let is_wh = s.group == SignatureGroup::Wormhole;
+                        let linked = s.connection_id.is_some();
                         let remove = move |_| {
                             let cmd = RemoveSignature { map_id: map_id.get_untracked(), signature_pk: pk };
                             run(status, refetch, "rm sig", async move { remove_signature(cmd).await });
+                        };
+                        let unlink = move |_| {
+                            let cmd = UnlinkSignature { map_id: map_id.get_untracked(), signature_pk: pk };
+                            run(status, refetch, "unlink", async move { unlink_signature(cmd).await.map(|_| ()) });
+                        };
+                        let on_link = move |ev: web_sys::Event| {
+                            if let Ok(connection_id) = event_target_value(&ev).parse::<i64>() {
+                                let cmd = LinkSignature { map_id: map_id.get_untracked(), signature_pk: pk, connection_id };
+                                run(status, refetch, "link", async move { link_signature(cmd).await.map(|_| ()) });
+                            }
                         };
                         view! {
                             <li class="flex items-center gap-1">
@@ -1251,8 +1294,23 @@ fn SignaturesPanel(
                                     {s.group.as_str()}
                                 </span>
                                 <span class="truncate text-foreground">{s.name.clone().unwrap_or_default()}</span>
-                                {s.connection_id.map(|_| view! {
-                                    <Link2 class="size-3 text-emerald-400" />
+                                // Wormhole link controls.
+                                {(is_wh && linked).then(|| view! {
+                                    <button class="flex items-center text-emerald-400 hover:text-emerald-300"
+                                        title="unlink" on:click=unlink>
+                                        <Link2 class="size-3" />
+                                    </button>
+                                })}
+                                {(is_wh && !linked).then(move || view! {
+                                    <select
+                                        class="ml-auto max-w-24 shrink border border-border bg-background text-[9px] outline-none"
+                                        on:change=on_link
+                                    >
+                                        <option value="" selected=true>"link…"</option>
+                                        <For each=conns key=|(id, _)| *id children=move |(id, label)| view! {
+                                            <option value=id.to_string()>{label}</option>
+                                        } />
+                                    </select>
                                 })}
                                 <button class="ml-auto text-muted-foreground hover:text-rose-400" on:click=remove>
                                     <X class="size-3" />
