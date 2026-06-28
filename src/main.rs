@@ -37,10 +37,16 @@ async fn main() {
         Ok(false) => {}
         Err(e) => panic!("could not seed the SDE reference tables: {e}"),
     }
-    let sso = Sso::discover(reqwest::Client::new(), config.sso)
-        .await
-        .expect("could not reach the EVE SSO — check your network connection");
-    let auth = Arc::new(Auth::new(sso, EsiClient::new()));
+    let sso = Arc::new(
+        Sso::discover(reqwest::Client::new(), config.sso)
+            .await
+            .expect("could not reach the EVE SSO — check your network connection"),
+    );
+    let esi = EsiClient::new();
+    let auth = Arc::new(Auth::new(sso.clone(), esi.clone()));
+
+    // Background: poll live character status for active users (no queue; in-process).
+    vector::tracking::start(db.clone(), sso.clone(), esi.clone());
 
     let hub = vector::maps::MapHub::new();
     let state = AppState {
@@ -54,8 +60,9 @@ async fn main() {
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
         .route("/auth/logout", get(auth::logout))
-        // Realtime map events: one WS per viewer, subscribed to a map's channel.
+        // Realtime: per-map event stream + the per-user private channel / activity heartbeat.
         .route("/ws/map/{map_id}", get(vector::app::api::map_ws))
+        .route("/ws/user", get(vector::app::api::user_ws))
         .leptos_routes_with_context(
             &state,
             routes,

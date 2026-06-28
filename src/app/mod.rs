@@ -32,6 +32,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    // Open the per-user heartbeat socket (client-only; a no-op / 401 when not signed in).
+    Effect::new(|_| open_user_socket());
 
     view! {
         <Stylesheet id="leptos" href="/pkg/vector.css" />
@@ -194,3 +196,31 @@ fn reload_page() {
 
 #[cfg(not(feature = "hydrate"))]
 fn reload_page() {}
+
+/// Open the per-user heartbeat WebSocket and keep it alive for the page's lifetime. The
+/// browser auto-replies to the server's pings, which refreshes `last_active_at`.
+#[cfg(feature = "hydrate")]
+fn open_user_socket() {
+    use futures::StreamExt;
+    use gloo_net::websocket::futures::WebSocket;
+
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let location = window.location();
+    let scheme = match location.protocol().as_deref() {
+        Ok("https:") => "wss",
+        _ => "ws",
+    };
+    let host = location.host().unwrap_or_default();
+    let Ok(mut socket) = WebSocket::open(&format!("{scheme}://{host}/ws/user")) else {
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        // Drain (ignoring frames) to keep the socket open until the page goes away.
+        while let Some(Ok(_)) = socket.next().await {}
+    });
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn open_user_socket() {}

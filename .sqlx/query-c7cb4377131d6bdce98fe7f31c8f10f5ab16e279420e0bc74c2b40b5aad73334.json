@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into character_status (character_id, online, last_online_at)\n         values ($1, $2, case when $2 then now() else null end)\n         on conflict (character_id) do update set\n             online = excluded.online,\n             last_online_at = case when excluded.online then now()\n                                   else character_status.last_online_at end,\n             updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c7cb4377131d6bdce98fe7f31c8f10f5ab16e279420e0bc74c2b40b5aad73334"
+}

@@ -457,6 +457,71 @@ pub async fn map_ws(
     }
 }
 
+/// `GET /ws/user` — the signed-in user's private channel. For now it's the activity
+/// heartbeat: while connected we ping the client and bump `last_active_at` on each pong,
+/// which gates the tracking poller. User-targeted pushes will ride this same socket later.
+#[cfg(feature = "ssr")]
+pub async fn user_ws(
+    axum::extract::State(state): axum::extract::State<crate::auth::AppState>,
+    jar: axum_extra::extract::CookieJar,
+    ws: axum::extract::ws::WebSocketUpgrade,
+) -> axum::response::Response {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+
+    let actor = match jar.get(crate::session::SESSION_COOKIE) {
+        Some(cookie) => crate::session::actor_for_session(&state.db, cookie.value())
+            .await
+            .ok()
+            .flatten(),
+        None => None,
+    };
+    match actor {
+        Some(actor) => ws.on_upgrade(move |socket| user_heartbeat(socket, state.db, actor.user_id)),
+        None => StatusCode::UNAUTHORIZED.into_response(),
+    }
+}
+
+#[cfg(feature = "ssr")]
+async fn user_heartbeat(
+    mut socket: axum::extract::ws::WebSocket,
+    pool: sqlx::PgPool,
+    user_id: i64,
+) {
+    use std::time::{Duration, Instant};
+
+    use axum::extract::ws::Message;
+    use tokio::time::{MissedTickBehavior, interval};
+
+    // Active on connect, then again on each heartbeat (throttled) while the socket lives.
+    let _ = crate::session::touch_activity(&pool, user_id).await;
+    let mut ping = interval(Duration::from_secs(30));
+    ping.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut last_bump = Instant::now();
+
+    loop {
+        tokio::select! {
+            _ = ping.tick() => {
+                if socket.send(Message::Ping(Vec::new().into())).await.is_err() {
+                    break; // client gone
+                }
+            }
+            frame = socket.recv() => {
+                match frame {
+                    // Any frame (pong / message) means the client is alive.
+                    Some(Ok(_)) => {
+                        if last_bump.elapsed() >= Duration::from_secs(50) {
+                            let _ = crate::session::touch_activity(&pool, user_id).await;
+                            last_bump = Instant::now();
+                        }
+                    }
+                    _ => break, // closed or errored
+                }
+            }
+        }
+    }
+}
+
 #[cfg(feature = "ssr")]
 async fn stream_map_events(
     mut socket: axum::extract::ws::WebSocket,

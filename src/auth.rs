@@ -30,12 +30,12 @@ impl FromRef<AppState> for LeptosOptions {
 }
 
 pub struct Auth {
-    sso: Sso,
+    sso: Arc<Sso>,
     esi: EsiClient,
 }
 
 impl Auth {
-    pub fn new(sso: Sso, esi: EsiClient) -> Self {
+    pub fn new(sso: Arc<Sso>, esi: EsiClient) -> Self {
         Auth { sso, esi }
     }
 }

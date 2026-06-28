@@ -62,6 +62,19 @@ pub async fn create_session(
     Ok(id)
 }
 
+/// Mark the user as active *now* — gates which characters the tracking poller polls
+/// (see [processes.md](../docs/processes.md#character-status-polling)). Driven by the
+/// per-user WebSocket heartbeat.
+pub async fn touch_activity(pool: &PgPool, user_id: i64) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "update users set last_active_at = now() where id = $1",
+        user_id,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// End a session (logout).
 pub async fn delete_session(pool: &PgPool, session_id: &str) -> Result<(), sqlx::Error> {
     sqlx::query!("delete from sessions where id = $1", session_id)

@@ -17,7 +17,7 @@ leptos_axum = { version = "0.8", optional = true }
 # Web server (ssr only)
 axum = { version = "0.8", features = ["ws"], optional = true }
 axum-extra = { version = "0.10", features = ["cookie"], optional = true }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"], optional = true }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"], optional = true }
 
 # Client / hydrate only
 console_error_panic_hook = { version = "0.1", optional = true }

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update character_status\n             set ship_type_id = $2, ship_name = $3, ship_item_id = $4,\n                 ship_updated_at = case when ship_item_id is distinct from $4 then now()\n                                        else ship_updated_at end,\n                 updated_at = now()\n             where character_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f8f15ce9ff766d945254d5ce7ec3c206855f2e99ab6d592bd047b28fccd27a60"
+}
