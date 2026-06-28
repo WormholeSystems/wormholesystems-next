@@ -89,7 +89,9 @@ fn Protected(children: ChildrenFn) -> impl IntoView {
     let account = Resource::new(|| (), |_| async move { current_character().await });
 
     view! {
-        <Suspense fallback=|| view! { <p class="text-slate-500">"Loading…"</p> }>
+        <Suspense fallback=|| {
+            view! { <p class="text-sm text-muted-foreground">"Loading…"</p> }
+        }>
             {move || {
                 let children = children.clone();
                 Suspend::new(async move {
@@ -97,7 +99,11 @@ fn Protected(children: ChildrenFn) -> impl IntoView {
                         Ok(Some(_)) => children().into_any(),
                         _ => {
                             redirect_to_login();
-                            view! { <p class="text-slate-500">"Redirecting to log in…"</p> }
+                            view! {
+                                <p class="text-sm text-muted-foreground">
+                                    "Redirecting to log in…"
+                                </p>
+                            }
                                 .into_any()
                         }
                     }

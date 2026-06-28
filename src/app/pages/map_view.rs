@@ -159,17 +159,23 @@ pub fn MapPage() -> impl IntoView {
         }
     };
 
-    let btn = "px-2.5 py-1 rounded bg-slate-700 text-slate-100 text-sm hover:bg-slate-600";
+    let btn = "border border-border bg-card px-2.5 py-1 text-sm text-muted-foreground \
+               transition-colors hover:bg-accent hover:text-foreground";
 
     view! {
         <div class="flex items-center justify-between">
-            <a href="/maps" class="text-sm text-blue-600 hover:underline">"← Maps"</a>
-            <span class="text-sm text-slate-500">{move || status.get()}</span>
+            <a
+                href="/maps"
+                class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+                "← Maps"
+            </a>
+            <span class="font-mono text-xs text-muted-foreground">{move || status.get()}</span>
         </div>
 
         <div class="mt-3 flex flex-wrap items-center gap-2">
             <input
-                class="border rounded px-2 py-1 text-sm w-32"
+                class="w-36 border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:border-foreground/40"
                 placeholder="SDE system id"
                 prop:value=move || system_input.get()
                 on:input=move |ev| system_input.set(event_target_value(&ev))
@@ -186,11 +192,11 @@ pub fn MapPage() -> impl IntoView {
             </button>
         </div>
 
-        <div class="mt-4 grid grid-cols-3 gap-4">
-            <div class="col-span-2">
+        <div class="mt-4 grid grid-cols-4 gap-4">
+            <div class="col-span-3">
                 <Transition fallback=move || {
                     view! {
-                        <div class="h-[420px] grid place-items-center text-slate-500 bg-slate-900 rounded">
+                        <div class="grid h-[480px] place-items-center border border-border bg-zinc-950 text-sm text-zinc-500">
                             "Loading…"
                         </div>
                     }
@@ -198,10 +204,12 @@ pub fn MapPage() -> impl IntoView {
                     {move || Suspend::new(async move { map_svg(map.await) })}
                 </Transition>
             </div>
-            <div class="space-y-4">
+            <div class="space-y-5">
                 <div>
-                    <h2 class="font-semibold text-sm">"Signatures"</h2>
-                    <ul class="mt-1 text-xs font-mono space-y-0.5">
+                    <h2 class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        "Signatures"
+                    </h2>
+                    <ul class="mt-2 space-y-0.5 font-mono text-xs text-foreground">
                         <Transition fallback=|| ()>
                             {move || Suspend::new(async move {
                                 sigs.await
@@ -213,8 +221,10 @@ pub fn MapPage() -> impl IntoView {
                     </ul>
                 </div>
                 <div>
-                    <h2 class="font-semibold text-sm">"Events"</h2>
-                    <ul class="mt-1 text-xs font-mono space-y-0.5 max-h-64 overflow-auto">
+                    <h2 class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        "Events"
+                    </h2>
+                    <ul class="mt-2 max-h-64 space-y-0.5 overflow-auto font-mono text-xs text-muted-foreground">
                         {move || {
                             log.get()
                                 .into_iter()
@@ -276,7 +286,7 @@ fn edge_color(mass: Option<MassStatus>, time: Option<TimeStatus>) -> &'static st
 fn map_svg(map: Option<MapView>) -> impl IntoView {
     let Some(mv) = map else {
         return view! {
-            <div class="h-[420px] grid place-items-center text-slate-500 bg-slate-900 rounded">
+            <div class="grid h-[480px] place-items-center border border-border bg-zinc-950 text-sm text-zinc-500">
                 "Loading…"
             </div>
         }
@@ -319,7 +329,7 @@ fn map_svg(map: Option<MapView>) -> impl IntoView {
         .collect_view();
 
     view! {
-        <svg viewBox="0 0 600 450" class="w-full h-[420px] bg-slate-900 rounded">
+        <svg viewBox="0 0 600 450" class="h-[480px] w-full border border-border bg-zinc-950">
             {edges}
             {nodes}
         </svg>

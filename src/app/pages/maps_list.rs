@@ -40,69 +40,80 @@ pub fn MapsPage() -> impl IntoView {
     };
 
     view! {
-        <h1 class="text-2xl font-bold">"Your maps"</h1>
-        <p class="mt-1 text-sm text-red-600">{move || error.get()}</p>
+        <div class="max-w-2xl">
+            <h1 class="text-lg font-semibold tracking-tight">"Your maps"</h1>
+            <p class="mt-1 h-4 text-sm text-destructive">{move || error.get()}</p>
 
-        <div class="mt-4 flex gap-2">
-            <input
-                class="border rounded px-2 py-1 text-sm flex-1"
-                placeholder="New map name"
-                prop:value=move || new_name.get()
-                on:input=move |ev| new_name.set(event_target_value(&ev))
-            />
-            <button class="px-3 py-1.5 rounded bg-blue-600 text-white text-sm" on:click=create>
-                "Create"
-            </button>
-        </div>
+            <div class="mt-4 flex gap-2">
+                <input
+                    class="flex-1 border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:border-foreground/40"
+                    placeholder="New map name"
+                    prop:value=move || new_name.get()
+                    on:input=move |ev| new_name.set(event_target_value(&ev))
+                    on:keydown=move |ev| if ev.key() == "Enter" { create(()) }
+                />
+                <button
+                    class="border border-border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    on:click=move |_| create(())
+                >
+                    "Create"
+                </button>
+            </div>
 
-        <Suspense fallback=|| {
-            view! { <p class="mt-4 text-slate-500">"Loading…"</p> }
-        }>
-            {move || Suspend::new(async move {
-                match maps.await {
-                    Err(_) => view! {
-                        <p class="mt-4">
-                            "Please "
-                            <a href="/auth/login" rel="external" class="text-blue-600 underline">
-                                "log in"
-                            </a> "."
-                        </p>
-                    }
-                    .into_any(),
-                    Ok(list) if list.is_empty() => {
-                        view! { <p class="mt-4 text-slate-500">"No maps yet."</p> }.into_any()
-                    }
-                    Ok(list) => {
-                        view! {
-                            <ul class="mt-4 divide-y">
-                                {list
-                                    .into_iter()
-                                    .map(|m| map_row(m, remove))
-                                    .collect_view()}
-                            </ul>
+            <Suspense fallback=|| {
+                view! { <p class="mt-6 text-sm text-muted-foreground">"Loading…"</p> }
+            }>
+                {move || Suspend::new(async move {
+                    match maps.await {
+                        Err(_) => view! {
+                            <p class="mt-6 text-sm text-muted-foreground">
+                                "Please "
+                                <a href="/auth/login" rel="external" class="text-foreground underline">
+                                    "log in"
+                                </a> "."
+                            </p>
                         }
-                        .into_any()
+                        .into_any(),
+                        Ok(list) if list.is_empty() => {
+                            view! {
+                                <p class="mt-6 text-sm text-muted-foreground">"No maps yet."</p>
+                            }
+                            .into_any()
+                        }
+                        Ok(list) => {
+                            view! {
+                                <ul class="mt-6 divide-y divide-border border-y border-border">
+                                    {list.into_iter().map(|m| map_row(m, remove)).collect_view()}
+                                </ul>
+                            }
+                            .into_any()
+                        }
                     }
-                }
-            })}
-        </Suspense>
+                })}
+            </Suspense>
+        </div>
     }
 }
 
 fn map_row(m: MapEntry, remove: impl Fn(i64) + Copy + 'static) -> impl IntoView {
     let id = m.id;
     view! {
-        <li class="flex items-center justify-between py-2">
-            <a href=format!("/maps/{id}") class="text-blue-600 hover:underline">
+        <li class="group flex items-center justify-between py-2.5">
+            <a
+                href=format!("/maps/{id}")
+                class="text-sm text-foreground transition-colors hover:text-muted-foreground"
+            >
                 {m.name}
             </a>
-            <span class="flex items-center gap-3">
-                <span class="text-xs uppercase text-slate-400">{m.role}</span>
+            <span class="flex items-center gap-4">
+                <span class="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {m.role}
+                </span>
                 <button
-                    class="text-xs text-red-600 hover:underline"
+                    class="text-xs text-muted-foreground opacity-0 transition hover:text-destructive group-hover:opacity-100"
                     on:click=move |_| remove(id)
                 >
-                    "delete"
+                    "Delete"
                 </button>
             </span>
         </li>
