@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+// Vendored Rust/UI component library (added via the `ui` CLI). Its components re-export
+// items that aren't all used yet; don't lint the generated tree.
+#[allow(unused_imports)]
+mod components;
+
 pub mod app;
 
 #[cfg(feature = "ssr")]
