@@ -29,7 +29,7 @@ use crate::maps::solar_system::{
 use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus};
 
 /// Fixed node width (px, world space). Height is `2 * grid cell` (see [`GridConfig`]).
-const NODE_W: f64 = 176.0;
+const NODE_W: f64 = 180.0;
 
 /// A live position override for the node currently being dragged (world coords). `x`/`y` are
 /// the node's current top-left; `off_x`/`off_y` is the grab point relative to it, so the node
@@ -602,7 +602,7 @@ fn SystemNode(
 
     view! {
         <div
-            class="group absolute flex flex-col justify-center gap-0.5 overflow-hidden border bg-card px-2 py-1 text-xs shadow-sm"
+            class="group absolute flex flex-col justify-center overflow-hidden border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm"
             class=("border-primary", move || selected.get())
             class=("border-border", move || !selected.get())
             class=("ring-1", move || home)

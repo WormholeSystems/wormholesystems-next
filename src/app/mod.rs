@@ -35,7 +35,8 @@ pub struct GridConfig {
 impl Default for GridConfig {
     fn default() -> Self {
         Self {
-            cell_size: 50.0,
+            // Match the legacy map: 20-unit grid cells, so the node (2 cells) is 40 tall.
+            cell_size: 20.0,
             world_width: 4000.0,
             world_height: 2000.0,
             viewport_height: 1400.0,
