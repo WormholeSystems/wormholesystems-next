@@ -31,12 +31,16 @@ use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus}
 /// Fixed node width (px, world space). Height is `2 * grid cell` (see [`GridConfig`]).
 const NODE_W: f64 = 176.0;
 
-/// A live position override for the node currently being dragged (world coords).
+/// A live position override for the node currently being dragged (world coords). `x`/`y` are
+/// the node's current top-left; `off_x`/`off_y` is the grab point relative to it, so the node
+/// follows the cursor without jumping on grab.
 #[derive(Clone, Copy)]
 struct Drag {
     id: i64,
     x: f64,
     y: f64,
+    off_x: f64,
+    off_y: f64,
 }
 
 /// An in-progress connection drag: from this placement to the current cursor (world coords).
@@ -134,7 +138,11 @@ pub fn MapPage() -> impl IntoView {
     let on_pointer_move = move |ev: PointerEvent| {
         let (wx, wy) = to_world(ev.client_x() as f64, ev.client_y() as f64);
         if let Some(d) = drag.get_untracked() {
-            drag.set(Some(Drag { x: wx, y: wy, ..d }));
+            drag.set(Some(Drag {
+                x: wx - d.off_x,
+                y: wy - d.off_y,
+                ..d
+            }));
         } else if let Some(l) = linking.get_untracked() {
             linking.set(Some(Linking { x: wx, y: wy, ..l }));
         } else if let Some((x0, y0, _, _)) = band.get_untracked() {
@@ -349,8 +357,8 @@ pub fn MapPage() -> impl IntoView {
                         status=status refetch=refetch
                         selected=selected drag=drag pending=pending linking=linking band=band menu=menu
                         search_open=search_open link_from=link_from
-                        on_node_down=Callback::new(move |(ev, s): (PointerEvent, MapSystemView)| {
-                            handle_node_down(ev, s, viewport, pan, zoom, drag, menu, selected);
+                        on_node_down=Callback::new(move |(ev, s, cur): (PointerEvent, MapSystemView, (f64, f64))| {
+                            handle_node_down(ev, s, cur, viewport, pan, zoom, drag, menu, selected);
                         })
                         on_link_down=Callback::new(move |(ev, id): (PointerEvent, i64)| {
                             ev.stop_propagation();
@@ -412,7 +420,7 @@ fn WorldContent(
     menu: RwSignal<Option<Menu>>,
     search_open: RwSignal<bool>,
     link_from: RwSignal<Option<i64>>,
-    on_node_down: Callback<(PointerEvent, MapSystemView)>,
+    on_node_down: Callback<(PointerEvent, MapSystemView, (f64, f64))>,
     on_link_down: Callback<(PointerEvent, i64)>,
 ) -> impl IntoView {
     let _ = (map_id, status, refetch, search_open, link_from);
@@ -540,7 +548,7 @@ fn WorldContent(
                         s=s_node node_h=node_h() selected=Signal::derive(is_selected)
                         pos=pos.into()
                         on_down=Callback::new(move |ev: PointerEvent| {
-                            on_node_down.run((ev, s_for_down.clone()));
+                            on_node_down.run((ev, s_for_down.clone(), pos.get_untracked()));
                         })
                         on_link=Callback::new(move |ev: PointerEvent| on_link_down.run((ev, id)))
                         on_menu=Callback::new(move |(ev, s): (web_sys::MouseEvent, MapSystemView)| {
@@ -594,7 +602,7 @@ fn SystemNode(
 
     view! {
         <div
-            class="group absolute flex flex-col border bg-card px-2 py-1 text-xs shadow-sm"
+            class="group absolute flex flex-col justify-center gap-0.5 overflow-hidden border bg-card px-2 py-1 text-xs shadow-sm"
             class=("border-primary", move || selected.get())
             class=("border-border", move || !selected.get())
             class=("ring-1", move || home)
@@ -618,50 +626,47 @@ fn SystemNode(
                 on:pointerdown=move |ev: PointerEvent| on_link.run(ev)
             />
 
-            // Name line: [alias] name [occupier].
-            <div class="flex items-center gap-1 truncate font-medium text-foreground">
-                {alias.map(|a| view! { <span class="text-primary">{a}</span> })}
-                <span class="truncate">{name}</span>
-                {occupier.map(|o| view! { <span class="text-muted-foreground">{o}</span> })}
-                {pinned.then(|| view! { <span class="text-amber-500" title="pinned">"📌"</span> })}
+            // Name row: class, then [alias] name [occupier], with the sovereignty icon at the
+            // node's right edge.
+            <div class="flex items-center gap-1">
+                <span class="shrink-0 font-medium" style:color=class_color>{class}</span>
+                {alias.map(|a| view! { <span class="shrink-0 text-primary">{a}</span> })}
+                <span class="truncate font-medium text-foreground">{name}</span>
+                {occupier.map(|o| view! { <span class="shrink-0 text-muted-foreground">{o}</span> })}
+                <span class="ml-auto flex shrink-0 items-center gap-1">
+                    {pinned.then(|| view! { <span class="text-amber-500" title="pinned">"📌"</span> })}
+                    {sov.map(|sv| sovereignty_view(sv))}
+                </span>
             </div>
 
-            // Class + security + sovereignty.
-            <div class="flex items-center gap-1 truncate text-muted-foreground">
-                <span style:color=class_color>{class}</span>
-                {sov.map(|sv| sovereignty_view(sv))}
+            // Second row: region (or statics), left-aligned; effect indicator at the right.
+            <div class="flex items-center justify-between gap-1">
+                <span class="truncate text-[10px] text-muted-foreground">{statics_or_region}</span>
+                {effect.map(|name| view! {
+                    <EffectBadge name=name wormhole_class_id=wclass />
+                })}
             </div>
-
-            // Statics or region.
-            <div class="truncate text-[10px] text-muted-foreground">{statics_or_region}</div>
-
-            // Effect indicator + popover.
-            {effect.map(|name| view! {
-                <EffectBadge name=name wormhole_class_id=wclass />
-            })}
         </div>
     }
 }
 
+/// Sovereignty holder as an icon only; the name shows on hover (title). Factions have no image
+/// endpoint, so they fall back to a small text tag.
 fn sovereignty_view(sov: Sovereignty) -> impl IntoView {
-    let img = "h-3.5 w-3.5 shrink-0";
+    let img = "h-4 w-4 shrink-0 rounded-sm";
     match sov {
-        Sovereignty::Alliance { id, name, ticker } => view! {
-            <span class="flex items-center gap-1 truncate" title=name>
-                <AllianceImage id=id class=img />
-                <span class="truncate">{ticker}</span>
-            </span>
+        Sovereignty::Alliance { id, name, .. } => view! {
+            <span title=name><AllianceImage id=id class=img /></span>
         }
         .into_any(),
-        Sovereignty::Corporation { id, name, ticker } => view! {
-            <span class="flex items-center gap-1 truncate" title=name>
-                <CorporationImage id=id class=img />
-                <span class="truncate">{ticker}</span>
-            </span>
+        Sovereignty::Corporation { id, name, .. } => view! {
+            <span title=name><CorporationImage id=id class=img /></span>
         }
         .into_any(),
-        Sovereignty::Faction { id: _, name } => view! {
-            <span class="truncate">{name}</span>
+        Sovereignty::Faction { name, .. } => view! {
+            <span class="shrink-0 text-[10px] text-muted-foreground" title=name.clone()>
+                {name.chars().take(3).collect::<String>().to_uppercase()}
+            </span>
         }
         .into_any(),
     }
@@ -680,7 +685,7 @@ fn EffectBadge(name: String, wormhole_class_id: i32) -> impl IntoView {
         },
     );
     view! {
-        <div class="group/eff absolute top-1 right-1">
+        <div class="group/eff relative shrink-0">
             <span class="block h-2.5 w-2.5 cursor-help rounded-full bg-fuchsia-500" tabindex="0" />
             <div class="invisible absolute right-0 z-20 mt-1 w-48 border border-border bg-popover p-2 text-[11px] text-popover-foreground shadow-md group-hover/eff:visible group-focus-within/eff:visible">
                 <div class="font-medium">{label}</div>
@@ -939,6 +944,7 @@ fn StatusItems(
 fn handle_node_down(
     ev: PointerEvent,
     s: MapSystemView,
+    cur: (f64, f64),
     viewport: NodeRef<leptos::html::Div>,
     pan: RwSignal<(f64, f64)>,
     zoom: RwSignal<f64>,
@@ -960,12 +966,16 @@ fn handle_node_down(
     if let Some(el) = viewport.get_untracked() {
         let _ = el.set_pointer_capture(ev.pointer_id());
     }
+    // Seed the drag from the node's *current* displayed position (not the possibly-stale `s`),
+    // and record the grab offset so the node doesn't jump under the cursor.
     let (wx, wy) = world_of(ev, viewport, pan, zoom);
-    let _ = (wx, wy);
+    let (nx, ny) = cur;
     drag.set(Some(Drag {
         id: s.id,
-        x: s.position_x,
-        y: s.position_y,
+        x: nx,
+        y: ny,
+        off_x: wx - nx,
+        off_y: wy - ny,
     }));
 }
 
