@@ -1,13 +1,18 @@
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use axum::extract::{FromRef, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
+use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use leptos::prelude::LeptosOptions;
 use serde::Deserialize;
+use uuid::Uuid;
 
+use crate::db::PgTokenStore;
+use crate::esi::token::TokenStore;
 use crate::esi::{EsiClient, Sso};
+use crate::session;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -26,28 +31,32 @@ impl FromRef<AppState> for LeptosOptions {
 pub struct Auth {
     sso: Sso,
     esi: EsiClient,
-    // In-memory CSRF states — a dev stand-in for the `oauth_login_flows` table.
-    states: Mutex<HashSet<String>>,
 }
 
 impl Auth {
     pub fn new(sso: Sso, esi: EsiClient) -> Self {
-        Auth {
-            sso,
-            esi,
-            states: Mutex::new(HashSet::new()),
-        }
+        Auth { sso, esi }
     }
+}
 
-    fn issue_state(&self) -> String {
-        let state = uuid::Uuid::new_v4().to_string();
-        self.states.lock().unwrap().insert(state.clone());
-        state
+/// `GET /auth/login` — record a one-time CSRF `state` and redirect to the EVE SSO.
+pub async fn login(State(state): State<AppState>) -> Response {
+    let csrf = Uuid::new_v4().to_string();
+    if let Err(err) = sqlx::query!(
+        "insert into oauth_login_flows (state, expires_at)
+         values ($1, now() + interval '10 minutes')",
+        csrf,
+    )
+    .execute(&state.db)
+    .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("could not start login: {err}"),
+        )
+            .into_response();
     }
-
-    fn take_state(&self, state: &str) -> bool {
-        self.states.lock().unwrap().remove(state)
-    }
+    Redirect::to(&state.auth.sso.authorize_url(&csrf)).into_response()
 }
 
 #[derive(Deserialize)]
@@ -56,55 +65,107 @@ pub struct CallbackQuery {
     state: String,
 }
 
-pub async fn login(State(state): State<AppState>) -> Response {
-    let csrf = state.auth.issue_state();
-    Redirect::to(&state.auth.sso.authorize_url(&csrf)).into_response()
-}
-
+/// `GET /auth/callback` — validate the handshake, persist the character + token, open a
+/// session, set the cookie, and redirect into the app.
 pub async fn callback(
     State(state): State<AppState>,
+    jar: CookieJar,
     Query(query): Query<CallbackQuery>,
 ) -> Response {
     let auth = &state.auth;
-    if !auth.take_state(&query.state) {
-        return (StatusCode::BAD_REQUEST, "invalid or expired state").into_response();
-    }
-    let (_token, claims) = match auth.sso.exchange_code(&query.code).await {
-        Ok(pair) => pair,
-        Err(e) => return (StatusCode::BAD_GATEWAY, format!("login failed: {e}")).into_response(),
+
+    // The `state` is single-use and short-lived: consume it, rejecting unknown/expired.
+    let flow = match sqlx::query!(
+        "delete from oauth_login_flows where state = $1 and expires_at > now()
+         returning link_user_id, redirect_to",
+        query.state,
+    )
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(flow)) => flow,
+        Ok(None) => return (StatusCode::BAD_REQUEST, "invalid or expired state").into_response(),
+        Err(err) => return server_error(err),
     };
 
-    // Resolve the character's affiliations (public endpoints) for display. No
-    // persistence yet — everything is passed to /profile via the query string.
-    let mut params: Vec<(&str, String)> = vec![
-        ("name", claims.name.clone()),
-        ("id", claims.character_id.to_string()),
-    ];
-    if !claims.scopes.is_empty() {
-        params.push(("scopes", claims.scopes.join(" ")));
-    }
-    if let Ok(Some(aff)) = auth
+    let (token, claims) = match auth.sso.exchange_code(&query.code).await {
+        Ok(pair) => pair,
+        Err(err) => {
+            return (StatusCode::BAD_GATEWAY, format!("login failed: {err}")).into_response();
+        }
+    };
+
+    // Corp/alliance drive access checks, so they're required and refreshed on every login.
+    let affiliation = auth
         .esi
         .affiliation(&[claims.character_id])
         .await
-        .map(|a| a.into_iter().next())
+        .ok()
+        .and_then(|a| a.into_iter().next());
+    let Some(affiliation) = affiliation else {
+        return (
+            StatusCode::BAD_GATEWAY,
+            "could not resolve character affiliation",
+        )
+            .into_response();
+    };
+
+    let user_id = match session::persist_identity(
+        &state.db,
+        &claims,
+        affiliation.corporation_id,
+        affiliation.alliance_id,
+        flow.link_user_id,
+    )
+    .await
     {
-        if let Ok(corp) = auth.esi.corporation(aff.corporation_id).await {
-            params.push(("corporation", format!("{} [{}]", corp.name, corp.ticker)));
-        }
-        if let Some(alliance_id) = aff.alliance_id
-            && let Ok(alliance) = auth.esi.alliance(alliance_id).await
-        {
-            params.push((
-                "alliance",
-                format!("{} [{}]", alliance.name, alliance.ticker),
-            ));
-        }
-        if let Some(faction_id) = aff.faction_id {
-            params.push(("faction", faction_id.to_string()));
-        }
+        Ok(user_id) => user_id,
+        Err(err) => return server_error(err),
+    };
+
+    // Persist the ESI token for this character (refresh token is the sensitive credential).
+    if let Err(err) = PgTokenStore::new(state.db.clone())
+        .save(claims.character_id, &token)
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("could not store token: {err}"),
+        )
+            .into_response();
     }
 
-    let query = serde_urlencoded::to_string(&params).expect("encodable params");
-    Redirect::to(&format!("/profile?{query}")).into_response()
+    let session_id = match session::create_session(&state.db, user_id, claims.character_id).await {
+        Ok(id) => id,
+        Err(err) => return server_error(err),
+    };
+
+    let cookie = Cookie::build((session::SESSION_COOKIE, session_id))
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        // TODO: `.secure(true)` once served over HTTPS (off for local http dev).
+        .build();
+    let destination = flow.redirect_to.unwrap_or_else(|| "/".to_string());
+    (jar.add(cookie), Redirect::to(&destination)).into_response()
+}
+
+/// `GET /auth/logout` — end the session and clear the cookie.
+pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
+    if let Some(cookie) = jar.get(session::SESSION_COOKIE) {
+        let _ = session::delete_session(&state.db, cookie.value()).await;
+    }
+    (
+        jar.remove(Cookie::from(session::SESSION_COOKIE)),
+        Redirect::to("/"),
+    )
+        .into_response()
+}
+
+fn server_error(err: sqlx::Error) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!("database error: {err}"),
+    )
+        .into_response()
 }

@@ -53,6 +53,7 @@ async fn main() {
     let app = Router::new()
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
+        .route("/auth/logout", get(auth::logout))
         // Realtime map events: one WS per viewer, subscribed to a map's channel.
         .route("/ws/map/{map_id}", get(vector::app::api::map_ws))
         .leptos_routes_with_context(

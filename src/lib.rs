@@ -18,6 +18,8 @@ pub mod sde;
 #[cfg(feature = "ssr")]
 pub mod seed;
 #[cfg(feature = "ssr")]
+pub mod session;
+#[cfg(feature = "ssr")]
 pub mod util;
 
 #[cfg(feature = "hydrate")]

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update characters set is_preferred = true\n         where id = $1\n           and not exists (select 1 from characters where user_id = $2 and is_preferred)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ce03ce8016e81ec887014d8ec99c454b73ccefe6e87e430655b5915129420802"
+}
