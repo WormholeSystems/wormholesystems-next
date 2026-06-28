@@ -28,7 +28,7 @@ futures = { version = "0.3", optional = true }
 js-sys = { version = "0.3", optional = true }
 # Not optional: the vendored UI components reference web-sys on both targets (it compiles
 # everywhere; DOM calls only run on the client).
-web-sys = { version = "0.3", features = ["Window", "Location", "Document", "Element", "HtmlElement", "CssStyleDeclaration", "DomTokenList", "NodeList", "Node", "Storage", "MediaQueryList"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "Document", "Element", "HtmlElement", "CssStyleDeclaration", "DomTokenList", "NodeList", "Node", "Storage", "MediaQueryList", "DomRect", "EventTarget", "AddEventListenerOptions", "PointerEvent", "MouseEvent", "WheelEvent", "KeyboardEvent"] }
 
 # Domain (server only)
 reqwest = { version = "0.13.4", features = ["blocking", "json", "form"], optional = true }
