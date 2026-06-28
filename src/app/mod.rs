@@ -110,25 +110,32 @@ pub fn App() -> impl IntoView {
 fn Protected(children: ChildrenFn) -> impl IntoView {
     let account = Resource::new(|| (), |_| async move { current_character().await });
 
+    // Redirect once we know the viewer isn't signed in (client-only; a no-op on the server,
+    // where the Axum middleware already gated the load).
+    Effect::new(move |_| {
+        if let Some(res) = account.get()
+            && !matches!(res, Ok(Some(_)))
+        {
+            redirect_to_login();
+        }
+    });
+
+    // Gate on `account` with a plain reactive read — NOT `Suspend::new(async { children() })`,
+    // which would subscribe to every signal `children` reads and remount the whole subtree on
+    // any of them. This closure only re-runs when `account` itself changes (once), so children
+    // render a single time and their own internal updates stay local.
     view! {
         <Suspense fallback=|| {
             view! { <p class="text-sm text-muted-foreground">"Loading…"</p> }
         }>
             {move || {
                 let children = children.clone();
-                Suspend::new(async move {
-                    match account.await {
-                        Ok(Some(_)) => children().into_any(),
-                        _ => {
-                            redirect_to_login();
-                            view! {
-                                <p class="text-sm text-muted-foreground">
-                                    "Redirecting to log in…"
-                                </p>
-                            }
-                                .into_any()
-                        }
+                account.get().map(move |res| match res {
+                    Ok(Some(_)) => children().into_any(),
+                    _ => view! {
+                        <p class="text-sm text-muted-foreground">"Redirecting to log in…"</p>
                     }
+                    .into_any(),
                 })
             }}
         </Suspense>

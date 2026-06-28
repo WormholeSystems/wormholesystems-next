@@ -76,12 +76,19 @@ pub fn MapPage() -> impl IntoView {
     let status = RwSignal::new(String::new());
     let refetch = RwSignal::new(0u32);
 
-    // Map data + the grid config live in plain signals, fetched manually (below) rather than via
-    // `Resource`. A Resource read here would register with the page-level `<Protected>` Suspense,
-    // so every refetch would trip its "Loading…" fallback and remount the whole page. Plain
-    // signals keep the canvas mounted; only its keyed nodes diff.
-    let data = RwSignal::new(None::<MapView>);
-    let grid_cfg = RwSignal::new(GridConfig::default());
+    // Proper resources, prefetched during SSR and hydrated. They're read only inside the local
+    // `<Transition>` below (via `map_data` in `WorldContent`), so their loading state is absorbed
+    // there and never reaches the page-level `<Protected>` Suspense — and the transition keeps
+    // the canvas mounted across refetches (no fallback flash; keyed nodes diff in place).
+    let map = Resource::new(
+        move || (map_id(), refetch.get()),
+        move |(id, _)| async move { fetch_map(id).await.ok() },
+    );
+    let grid = Resource::new(
+        || (),
+        |_| async move { grid_config().await.unwrap_or_default() },
+    );
+    let map_data = Signal::derive(move || map.get().flatten());
 
     // Interaction state — owned here, never derived from the data, so it survives refetch.
     let pan = RwSignal::new((0.0_f64, 0.0_f64));
@@ -99,48 +106,7 @@ pub fn MapPage() -> impl IntoView {
     let link_from = RwSignal::new(None::<i64>); // when set, search adds + connects to this node
 
     let viewport: NodeRef<leptos::html::Div> = NodeRef::new();
-    let gridc = move || grid_cfg.get();
-
-    // Fetch the (static) grid config once.
-    Effect::new(move |_| {
-        spawn_local(async move {
-            if let Ok(g) = grid_config().await {
-                grid_cfg.set(g);
-            }
-        });
-    });
-
-    // (Re)fetch the map whenever the route id or `refetch` changes. Manual fetch into `data`,
-    // so the load never reaches the page Suspense.
-    Effect::new(move |_| {
-        let id = map_id();
-        refetch.get();
-        if id == 0 {
-            return;
-        }
-        spawn_local(async move {
-            if let Ok(mv) = fetch_map(id).await {
-                data.set(Some(mv));
-            }
-        });
-    });
-
-    // Reconcile optimistic overrides: drop one once the server position matches it (our move
-    // landed) or the system is gone. Reads `data` reactively, so it runs on every refetch.
-    Effect::new(move |_| {
-        if let Some(mv) = data.get() {
-            pending.update(|p| {
-                p.retain(|id, (px, py)| {
-                    match mv.systems.iter().find(|s| s.id == *id) {
-                        Some(s) => {
-                            (s.position_x - *px).abs() > 0.5 || (s.position_y - *py).abs() > 0.5
-                        }
-                        None => false,
-                    }
-                });
-            });
-        }
-    });
+    let gridc = move || grid.get().unwrap_or_default();
 
     // Connect the realtime stream once the id is known.
     Effect::new(move |prev: Option<i64>| {
@@ -202,7 +168,7 @@ pub fn MapPage() -> impl IntoView {
         if let Some(l) = linking.get_untracked() {
             linking.set(None);
             let (wx, wy) = to_world(ev.client_x() as f64, ev.client_y() as f64);
-            if let Some(target) = data
+            if let Some(target) = map_data
                 .get_untracked()
                 .and_then(|mv| node_at(&mv.systems, wx, wy, gridc()))
                 && target != l.from
@@ -221,7 +187,7 @@ pub fn MapPage() -> impl IntoView {
         // Finish a rubber-band → select enclosed nodes.
         if let Some((x0, y0, x1, y1)) = band.get_untracked() {
             band.set(None);
-            if let Some(mv) = data.get_untracked() {
+            if let Some(mv) = map_data.get_untracked() {
                 let (lo_x, hi_x) = (x0.min(x1), x0.max(x1));
                 let (lo_y, hi_y) = (y0.min(y1), y0.max(y1));
                 let h = 2.0 * gridc().cell_size;
@@ -280,7 +246,7 @@ pub fn MapPage() -> impl IntoView {
         let id = map_id();
         let from = link_from.get_untracked();
         link_from.set(None);
-        let mv = data.get_untracked();
+        let mv = map_data.get_untracked();
         // Already placed?
         let existing = mv
             .as_ref()
@@ -375,23 +341,27 @@ pub fn MapPage() -> impl IntoView {
                     format!("translate({px}px, {py}px) scale({})", zoom.get())
                 }
             >
-                <WorldContent
-                    data=data grid=Signal::derive(gridc) map_id=Signal::derive(map_id)
-                    status=status refetch=refetch
-                    selected=selected drag=drag pending=pending linking=linking band=band menu=menu
-                    search_open=search_open link_from=link_from
-                    on_node_down=Callback::new(move |(ev, s): (PointerEvent, MapSystemView)| {
-                        handle_node_down(ev, s, viewport, pan, zoom, drag, menu, selected);
-                    })
-                    on_link_down=Callback::new(move |(ev, id): (PointerEvent, i64)| {
-                        ev.stop_propagation();
-                        if let Some(el) = viewport.get_untracked() {
-                            let _ = el.set_pointer_capture(ev.pointer_id());
-                        }
-                        let (wx, wy) = world_of(ev, viewport, pan, zoom);
-                        linking.set(Some(Linking { from: id, x: wx, y: wy }));
-                    })
-                />
+                // Local boundary: it absorbs the map resource's loading (so the page Suspense
+                // never sees it) and keeps the canvas mounted across refetches.
+                <Transition>
+                    <WorldContent
+                        data=map_data grid=Signal::derive(gridc) map_id=Signal::derive(map_id)
+                        status=status refetch=refetch
+                        selected=selected drag=drag pending=pending linking=linking band=band menu=menu
+                        search_open=search_open link_from=link_from
+                        on_node_down=Callback::new(move |(ev, s): (PointerEvent, MapSystemView)| {
+                            handle_node_down(ev, s, viewport, pan, zoom, drag, menu, selected);
+                        })
+                        on_link_down=Callback::new(move |(ev, id): (PointerEvent, i64)| {
+                            ev.stop_propagation();
+                            if let Some(el) = viewport.get_untracked() {
+                                let _ = el.set_pointer_capture(ev.pointer_id());
+                            }
+                            let (wx, wy) = world_of(ev, viewport, pan, zoom);
+                            linking.set(Some(Linking { from: id, x: wx, y: wy }));
+                        })
+                    />
+                </Transition>
             </div>
 
             // Virtual scrollbars (proportional thumbs reflecting viewport over the world).
@@ -429,7 +399,7 @@ pub fn MapPage() -> impl IntoView {
 /// nested inside the persistent transformed world so pan/zoom never reset.
 #[component]
 fn WorldContent(
-    data: RwSignal<Option<MapView>>,
+    data: Signal<Option<MapView>>,
     grid: Signal<GridConfig>,
     map_id: Signal<i64>,
     status: RwSignal<String>,
@@ -447,6 +417,20 @@ fn WorldContent(
 ) -> impl IntoView {
     let _ = (map_id, status, refetch, search_open, link_from);
     let node_h = move || 2.0 * grid.get().cell_size;
+
+    // Reconcile optimistic move overrides: drop one once the server position matches it (our
+    // move landed) or the system is gone. Lives here — inside the local <Transition> — so its
+    // read of the map resource registers with that boundary, not the page Suspense.
+    Effect::new(move |_| {
+        if let Some(mv) = data.get() {
+            pending.update(|p| {
+                p.retain(|id, (px, py)| match mv.systems.iter().find(|s| s.id == *id) {
+                    Some(s) => (s.position_x - *px).abs() > 0.5 || (s.position_y - *py).abs() > 0.5,
+                    None => false,
+                });
+            });
+        }
+    });
 
     let systems = move || data.get().map(|mv| mv.systems).unwrap_or_default();
     let connections = move || data.get().map(|mv| mv.connections).unwrap_or_default();
