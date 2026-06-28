@@ -1,8 +1,11 @@
 # Interactive Map — Design Document
 
-> Status: **Draft.** Dictated by the user, transcribed and grounded against the codebase.
-> Items needing a final call are collected in **§9 Open decisions** (each with a recommended
-> default). Sections marked _(required)_ are hard constraints.
+> Status: **Draft.** Dictated by the user, transcribed and grounded against the codebase, then
+> expanded for **feature parity** with the legacy WormholeSystems map (Laravel + Vue, at
+> `~/PhpstormProjects/wormholesystems`). §1–§8 are the core build; **§10 is the full parity
+> catalog** of every legacy interaction, each tagged `[have]` (works in our Rust app),
+> `[partial]`, or `[new]` (net-new). §9 holds resolved decisions. _(required)_ marks hard
+> constraints.
 
 ## 1. Overview
 
@@ -23,17 +26,25 @@ Overall feel: **modern**.
 
 ### 2.1 Grid background
 
-- The canvas has a **grid background**.
+- The canvas has a **grid background** (CSS gradient overlay; legacy uses a `bg-grid` class).
 - Grid cell size is **configurable via the config** — the single source of truth the rest of
   the layout derives from (see §9.7 for which config).
+- **Match the legacy sizing:** grid cell = **20** world-units (legacy `grid_size: 20`). So our
+  `GridConfig` default `cell_size` should be **20**, not 50.
 
 ### 2.2 System node
 
 One placed solar system on the map.
 
-- **Height:** exactly **twice the grid cell height**, so nodes align to the grid.
-- **Width:** **fixed**.
+- **Height:** exactly **twice the grid cell** = **40** units (legacy `item_height = 40`). Grows
+  to ~**60** when a pilots row is shown (§13).
+- **Width:** **fixed ~180** units — **always**, in every layout. Legacy uses content-sized width
+  in free/manual mode (only fixing 180 px in tree mode); we deliberately **diverge** and keep the
+  width **constant** so nodes align cleanly and connection anchoring is simple (confirmed — §9).
 - **Text:** **truncated within the node** (no overflow outside the node bounds).
+- **Status border:** the node's **border color encodes its status** (§10.3) rather than showing
+  status as a separate field — `active/empty/friendly/hostile/unknown/unscanned` each map to a
+  border color.
 
 #### Node content
 
@@ -67,12 +78,19 @@ One placed solar system on the map.
 
 ### 2.3 Canvas, viewport & panning
 
-- **Fixed world size:** a fixed **4000 × 2000** world. System `position_x/y` live in this space.
+- **Fixed world size:** a fixed **4000 × 2000** world (legacy `max_size`). System `position_x/y`
+  live in this space.
 - **Viewport:** **full width × 1400 px height** (for now) — a window onto the larger world.
 - **Not natively scrollable** — no browser overflow scrolling.
-- **Pan:** hold the **middle mouse button** and drag.
-- **Virtual scrollbars:** **custom** scrollbars we render, representing the viewport's position
-  in the world and draggable to move around (not native overflow).
+- **Pan:** hold the **middle mouse button** and drag (legacy: middle always pans; in tree layout
+  a plain left-drag also pans).
+- **Virtual scrollbars:** **custom** scrollbars we render (legacy `useMapScrollbars`): 8 px
+  thick, min thumb 30 px, **auto-hide after ~1.5 s** of inactivity, shown on hover. Drag the
+  thumb to scroll; **click the track** to jump (center the thumb on the click point).
+- **Anchor model (legacy, NOT adopted):** legacy stores the position as a connection anchor
+  (`item_anchor_offset = {x:40, y:20}`) and attaches connections to each node's **measured** edge
+  because node widths vary. Since our width is **fixed** (§9.10), we **don't need this** — we
+  store the top-left and compute edge anchors directly from the known fixed box.
 - Pan/scroll compose with zoom (§3.3): the visible world region is a function of pan offset and
   zoom factor.
 
@@ -106,6 +124,11 @@ generously:
 
 - Zoom is controlled by **dedicated zoom-in / zoom-out buttons** (an on-canvas control), **not**
   the mouse wheel.
+- **Range + step (match legacy):** scale **0.5 → 2.0**, step **0.1** per button press, with a
+  **"100%" indicator** showing the current scale. Legacy persists the scale to per-user map
+  settings; we persist client-side for now (§9).
+- Legacy wheel behavior (optional parity): **Ctrl/Cmd+wheel** is trapped (no zoom — buttons
+  only); **Shift+wheel** scrolls the viewport. We currently just block page-scroll on wheel.
 - Dragging **and** persistence **account for the current zoom**: screen-space pointer deltas are
   converted to world space by the active zoom factor before being applied and saved. **Stored
   coordinates are world-space, independent of zoom.** (Same applies to rubber-band selection,
@@ -347,7 +370,200 @@ All confirmed by the user:
 8. **"Copper"** — was a typo, **not** an aesthetic. The look is simply "modern" (§2). No special
    palette.
 9. **Rendering target** — **nodes = DOM/HTML, connections = one SVG overlay** (§4.2).
+10. **Node width** — **fixed/constant in every layout** (~180), diverging from legacy's
+    content-sized free-layout nodes (§2.2). Because the node box is a known fixed size, we
+    **skip the legacy's measured-edge/anchor machinery** (§2.3) and compute connection edge
+    anchors directly from the fixed box.
 
-## 10. Out of scope / future
+## 10. Feature parity with the legacy map
 
-_TBD._
+Full catalog of legacy interactions, from a code study of `~/PhpstormProjects/wormholesystems`
+(`resources/js/composables/map/*`, `components/map/*`). Tags: **`[have]`** already works in our
+Rust app, **`[partial]`** partly there, **`[new]`** net-new. §1–§8 above are the authoritative
+spec for the items they cover; this section is the completeness checklist + the legacy-specific
+details/numbers to match.
+
+### 10.1 Canvas / viewport
+
+- **`[have]` Middle-mouse pan.** Legacy also pans on plain left-drag **in tree layout** (where
+  marquee needs a modifier). Cursor → `grabbing` while panning.
+- **`[have]` Zoom buttons** 0.5–2.0, step 0.1, "100%" readout (§3.3). `[new]` persist scale.
+- **`[partial]` Custom scrollbars** — ours exist; add legacy polish: auto-hide ~1.5 s, min thumb
+  30 px, **track-click to jump**, show-on-hover (§2.3).
+- **`[partial]` Grid overlay** — ensure a visible grid (only in manual layout).
+- **`[new]` Content-sizing in tree layout** — legacy sizes the canvas to content (+240 px pad) in
+  tree mode vs. the full 4000×2000 in manual. Only relevant if we add tree layout (§10.8).
+- **`[new]` Shift+wheel scroll / Ctrl+wheel zoom-block** (optional, §3.3).
+
+### 10.2 Selection
+
+- **`[have]` Marquee** left-drag on empty canvas; live highlight; world-space hit test (§3.4).
+- **`[new]` Sticky selection set** — legacy commits the marquee to a **list of ids** (not a live
+  box), so dragging selected systems out of the box doesn't deselect them mid-drag. Adopt this.
+- **`[new]` Modifier-forced marquee** — in tree/locked layout, **Shift/Ctrl/Cmd + left-drag**
+  marquees instead of panning.
+- **`[new]` Background click (<4 px move) clears selection.**
+- **`[partial]` Selection excludes pinned + home** from the "movable/deletable" set.
+- _No select-all shortcut in legacy._
+
+### 10.3 System node — display & status
+
+- **`[have]` Node content** name/alias/occupier/class/security/sovereignty/effect/region-or-statics
+  (§2.2). Layout matches legacy: `grid-cols-[auto_1fr_auto]` = class | name(1fr) | right-cluster.
+- **`[new]` Status → border color.** Legacy statuses: **`unknown` / `friendly` / `hostile` /
+  `active` / `unscanned` / `empty`** (colored borders). **⚠ Gap:** our `SystemStatus` enum is
+  `unscanned/scanned/occupied/friendly/hostile/unknown` — **different set**. Decision (§9):
+  reconcile to the legacy six (drop `scanned`/`occupied`, add `active`/`empty`) or keep ours.
+- **`[new]` Right-cluster indicators** beyond sovereignty/effect: **home** icon, **rally** flag,
+  **pinned** lock, **signature count** (satellite icon; amber clean / rose if uncategorized;
+  tooltip "{n} signatures, {m} uncategorized"), **extra-connections badge**
+  (`wormhole_signatures_count − mapped_connections`), **threat-level ring** (if the map setting is
+  on). Many of these depend on features we don't have yet (signatures count, threat, rally).
+- **`[new]` Sovereignty / effect share the right slot** in legacy (effect is the `#fallback` when
+  no sovereignty). We currently show both in separate slots — decision (§9).
+- **`[have]` Double-click → edit popover** for alias + occupier (we do this via the context menu;
+  legacy uses an inline popover on the node — could add double-click too).
+- **`[have]` Hover outline; `[have]` pinned drag-lock.**
+
+### 10.4 System node context menu (legacy `MapSolarsystemContextMenu.vue`)
+
+Our menu (§5.2) covers the core; legacy adds a lot. Full legacy list:
+
+- **`[have]`** Pin / Unpin · Add connection · Set status · Remove.
+- **`[partial]`** Rename alias / occupier (legacy via the double-click popover, not the menu).
+- **`[new]` Set as Home** `[have]` · **`[new]` Rally point** toggle (single rally per map — needs
+  a `rally_solarsystem_id`, net-new; analogous to home).
+- **`[new]` External links:** Dotlan (system / region map / jump-range for non-WH), zKillboard
+  (system / region). Pure URL builders from system/region ids + names.
+- **`[new]` Navigation (needs online characters):** Set Destination (per-character + all chars,
+  non-WH only), Add Waypoint (same, no auto-route). Uses ESI `set waypoint`.
+- **`[new]` Route planner:** Set as Origin / Set as Destination (in-app route calc — §10.13).
+- Menu is **write-permission gated** (`[have]` — our server fns already require Member+).
+
+### 10.5 Connections
+
+- **`[have]` Create via right-edge handle drag** with live preview (§4.1). Legacy preview is a
+  straight line origin→cursor; ours is a bézier.
+- **`[new]` Auto ship-size on create** from the two systems' classes: C1 / Turnur↔J-space /
+  Thera↔high-sec → `medium`; C13 (frigate-hole) → `frigate`; else unrestricted. We default new
+  connections to `wormhole`/unset — add this inference server-side.
+- **`[have]` Add-connection dialog** (search → "new" vs "already on map" → create system+conn in
+  one go) — matches our §5.2 menu flow.
+- **Connection context menu (legacy `MapConnectionContextMenu.vue`):**
+  - **`[have]` Mass status** — legacy labels: **Fresh** (≥50%) / **Reduced** (<50%, amber) /
+    **Critical** (≤15%, red). Maps to our `MassStatus` stable/reduced/critical.
+  - **`[have]` Lifetime/EOL** — legacy: **Healthy** / **EOL** (<4 h, purple) / **Critical**
+    (<1 h, red). Maps to our `TimeStatus` stable/eol/critical. _Legacy also stores a
+    `lifetime_updated_at` timestamp — see stale-connections (§10.14)._
+  - **`[have]` Ship size** — Frigate / Medium / Large / Extra Large → our `WormholeSize`
+    small/medium/large/xl.
+  - **`[have]` Type** (wormhole/stargate) — our net-new type setter.
+  - **`[new]` Copy name** — submenu copying the connection name in various schemes (cosmetic).
+  - **`[have]` Delete.**
+- **Connection rendering (legacy `MapConnection.vue`):**
+  - **`[partial]`** stroke 4 px (1.5 px in tree); neutral color; lighter on hover.
+  - **`[new]` Dashing:** reduced-mass **or** EOL/critical → dashed (`2,6`); fresh+healthy → solid.
+    (We color by mass/time but don't dash yet.)
+  - **`[new]` Midpoint status badge** (SVG `foreignObject`): ship-size label (S/M/XL) + a weight
+    icon (amber/red) when mass≠fresh + a clock icon (purple/red) when lifetime≠healthy.
+  - **`[new]` Route highlight** (amber) and **rally route** (animated pink dashed) overlays.
+  - **`[new]` Orthogonal routing + fan-out** in tree layout (parallel-edge spreading, rounded
+    corners). Only needed with tree layout (§10.8).
+
+### 10.6 Adding systems
+
+- **`[have]` Search dialog** (`SearchSystemsFn`), "new" vs "already on map" grouping, max ~25
+  results, case-insensitive substring.
+- **`[partial]` Free placement** — legacy `getFreePosition()` scans from (100,100) by grid steps
+  for the first non-overlapping slot (boundary box around the anchor). We currently drop new
+  systems at the viewport center — adopt the scan-for-free-slot to avoid stacking.
+
+### 10.7 Bulk operations
+
+- **`[have]` Delete selected** (Delete key + menu) → bulk remove.
+- **`[have]` Clear map** — legacy requires a **confirmation dialog**; deletes all non-pinned (we
+  also keep home). Add the confirm step (`[new]`).
+- **`[new]` Organize / auto-arrange selection** — legacy "Organize" submenu with a **spacing**
+  control (0–4); stacks the selected systems **vertically**, aligned at the first system's X,
+  spacing `spacing*grid + item_height`, sorted by position then a system-comparison order. Net-new
+  (a layout action + a server bulk-move).
+
+### 10.8 Layout modes
+
+- **`[new]` Manual vs Tree (auto) layout.** Legacy toggles in `MapOptions` and persists a
+  per-user `layout_override`. **Tree layout** (`treeLayout.ts`): pinned systems are roots
+  (fallback: home), BFS attaches the rest, depth → X (`levelGap ≈ 320`), cross-axis Y centered and
+  pulled toward parent, separate components become separate trees, all grid-snapped.
+- **`[new]` Layout lock** — tree layout disables manual drag + plain-left marquee (modifiers still
+  marquee). Pinned = root anchors.
+- This is a **large net-new** area; treat as a **phase-2 feature**, not part of the core build.
+
+### 10.9 Drag — details to match
+
+- **`[have]` Drag handle** (top, hover-only, hidden when pinned/locked).
+- **`[have]` Grid snapping** on drag — legacy snaps to `grid_size` (20) and clamps to world
+  bounds. We should snap-to-grid on drop too (`[new]` — currently free-position).
+- **`[new]` Multi-drag** — dragging a selected node moves **all** selected nodes by the same delta
+  (one bulk persist on drop). Net-new (needs a bulk-move server fn).
+- **`[have]` Optimistic position** (we hold it until the server confirms).
+
+### 10.10 Keyboard shortcuts
+
+- **`[have]` Delete** — remove selected. Legacy's only explicit map hotkey (`useMagicKeys`).
+- **`[new]` Escape** closes dialogs/menus (mostly native).
+- _No search hotkey in legacy._ (Opportunity, not parity.)
+
+### 10.11 Realtime / collaboration
+
+- **`[have]` Live updates** — legacy uses Laravel Echo events (map/system/connection CRUD,
+  routes, ignored systems, pilot status, signatures). Our `MapHub` + `/ws/map` covers the map
+  graph equivalently (§8). New per-feature events (signatures, routes, pilots) come with those
+  features.
+
+### 10.12 Pilot tracking & presence `[new]`
+
+- Node grows to ~60 px and shows a **pilots row** (`SolarsystemPilots`) listing characters in the
+  system, from live `CharacterStatusUpdated` events. We already poll character status
+  (`tracking.rs`) — this is a **display + per-map "who's where"** join we don't surface yet.
+- **Auto-create connection on jump** when tracking is enabled (with an optional signature-pick
+  modal). Large net-new feature tied to the tracking pipeline.
+
+### 10.13 Routes / autopilot `[new]`
+
+- In-app **route planner** (set origin/destination, jump path), **rally route** (path to the rally
+  point, jump-count badge, animated overlay), **set waypoint / destination** via ESI for online
+  characters. Net-new subsystem.
+
+### 10.14 Signatures `[new]`
+
+- **Paste-to-import** — a global paste listener parses pasted scan results, diffs vs. existing
+  (new/updated/deleted), warns on system mismatch. Manual entry via a detail panel.
+- **Signature ↔ connection linking** already has DB support (the `map_*_sync` triggers, §5.3);
+  the **UI** (signature list, paste, link) is net-new on the new front end.
+- Per-node **signature count + uncategorized count** badge (§10.3).
+
+### 10.15 Map settings & extras `[new]`
+
+- **Per-user-per-map settings** (`map_user_settings`): `layout_override`, background image
+  (mode `grid` vs `viewport` + url, ≤8 MB upload), `is_tracking`, `suggest_alias_enabled`,
+  `show_threat_level`. Net-new settings table + UI.
+- **Background image** upload (move-with-map vs fit-to-view).
+- **Threat analysis** — per-node threat ring when enabled.
+- **Ignored systems** — toggle so tracked jumps into them don't auto-create connections.
+- **EVE Scout integration** — map EVE-Scout connection ids onto ours.
+- **Stale connections** — flagged ~1 h after going critical; a badge + "clean" action removes them.
+
+### 10.16 Parity priority (recommendation)
+
+1. **Core polish (do with the current build):** grid 20 / node 40 / width 180 (§2); status →
+   border color + reconcile the status set (§10.3); snap-to-grid + multi-drag (§10.9);
+   scrollbar polish (§2.3); free-slot placement (§10.6); clear-map confirm (§10.7); connection
+   dashing + midpoint badge (§10.5); rally point (§10.4).
+2. **Phase 2 (big subsystems):** tree/auto layout + orthogonal routing (§10.8); signatures UI
+   (§10.14); pilot tracking display + auto-connect (§10.12); routes/autopilot (§10.13).
+3. **Phase 3 (extras):** map user settings + background image (§10.15); threat analysis; ignored
+   systems; EVE Scout; stale-connection cleanup.
+
+## 11. Out of scope / future
+
+Captured under §10.16 phases 2–3. Nothing is dropped outright; the phasing is the scope plan.
