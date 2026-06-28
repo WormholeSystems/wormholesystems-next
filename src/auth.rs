@@ -96,6 +96,7 @@ pub async fn callback(
     };
 
     // Corp/alliance drive access checks, so they're required and refreshed on every login.
+    // We also cache the entity rows (name/ticker) the character's deferred FKs reference.
     let affiliation = auth
         .esi
         .affiliation(&[claims.character_id])
@@ -110,11 +111,33 @@ pub async fn callback(
             .into_response();
     };
 
+    let Ok(corp) = auth.esi.corporation(affiliation.corporation_id).await else {
+        return (StatusCode::BAD_GATEWAY, "could not resolve corporation").into_response();
+    };
+    let corporation = session::Entity {
+        id: affiliation.corporation_id,
+        name: corp.name,
+        ticker: corp.ticker,
+    };
+    let alliance = match affiliation.alliance_id {
+        Some(alliance_id) => match auth.esi.alliance(alliance_id).await {
+            Ok(a) => Some(session::Entity {
+                id: alliance_id,
+                name: a.name,
+                ticker: a.ticker,
+            }),
+            Err(_) => {
+                return (StatusCode::BAD_GATEWAY, "could not resolve alliance").into_response();
+            }
+        },
+        None => None,
+    };
+
     let user_id = match session::persist_identity(
         &state.db,
         &claims,
-        affiliation.corporation_id,
-        affiliation.alliance_id,
+        corporation,
+        alliance,
         flow.link_user_id,
     )
     .await

@@ -23,38 +23,71 @@ pub struct CharacterSummary {
     pub name: String,
 }
 
+/// One of the user's characters, for the switcher.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CharacterRef {
+    pub character_id: i64,
+    pub name: String,
+    pub is_active: bool,
+}
+
+/// A map in the user's list, with their role on it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MapEntry {
+    pub id: i64,
+    pub name: String,
+    pub role: String,
+}
+
 /// Map any action/DB error to a `ServerFnError`.
 #[cfg(feature = "ssr")]
 fn e<E: std::fmt::Display>(err: E) -> ServerFnError {
     ServerFnError::new(err.to_string())
 }
 
-/// The DB pool + event hub from the request context (provided in `main.rs`).
+// NOTE: Leptos context (`expect_context`) lives in a thread-local owner, which is lost when
+// a future resumes on another worker after an `.await`. So every server fn grabs `pool()` /
+// `hub()` **synchronously at the top, before any await**, and passes the pool into helpers.
+
+/// The DB pool from the request context. Call before any `.await`.
 #[cfg(feature = "ssr")]
-fn ctx() -> (sqlx::PgPool, crate::maps::MapHub) {
-    (expect_context(), expect_context())
+fn pool() -> sqlx::PgPool {
+    expect_context()
 }
 
-/// The acting character from the session cookie, or `None` if not signed in.
+/// The event hub from the request context. Call before any `.await`.
 #[cfg(feature = "ssr")]
-async fn session_actor() -> Result<Option<crate::maps::Actor>, ServerFnError> {
+fn hub() -> crate::maps::MapHub {
+    expect_context()
+}
+
+/// The raw session id from the cookie, if any.
+#[cfg(feature = "ssr")]
+async fn session_cookie() -> Result<Option<String>, ServerFnError> {
     use axum_extra::extract::CookieJar;
     let jar = leptos_axum::extract::<CookieJar>()
         .await
         .map_err(|err| ServerFnError::new(format!("no request context: {err}")))?;
-    let Some(cookie) = jar.get(crate::session::SESSION_COOKIE) else {
+    Ok(jar
+        .get(crate::session::SESSION_COOKIE)
+        .map(|c| c.value().to_string()))
+}
+
+/// The acting character from the session cookie, or `None` if not signed in.
+#[cfg(feature = "ssr")]
+async fn session_actor(pool: &sqlx::PgPool) -> Result<Option<crate::maps::Actor>, ServerFnError> {
+    let Some(session_id) = session_cookie().await? else {
         return Ok(None);
     };
-    let pool = expect_context::<sqlx::PgPool>();
-    crate::session::actor_for_session(&pool, cookie.value())
+    crate::session::actor_for_session(pool, &session_id)
         .await
         .map_err(e)
 }
 
 /// The auth guard: the acting character, or a `not authenticated` error.
 #[cfg(feature = "ssr")]
-async fn require_actor() -> Result<crate::maps::Actor, ServerFnError> {
-    session_actor()
+async fn require_actor(pool: &sqlx::PgPool) -> Result<crate::maps::Actor, ServerFnError> {
+    session_actor(pool)
         .await?
         .ok_or_else(|| ServerFnError::new("not authenticated"))
 }
@@ -64,10 +97,10 @@ async fn require_actor() -> Result<crate::maps::Actor, ServerFnError> {
 /// Who's signed in, if anyone — drives the auth-gated UI.
 #[server(CurrentCharacterFn)]
 pub async fn current_character() -> Result<Option<CharacterSummary>, ServerFnError> {
-    let Some(actor) = session_actor().await? else {
+    let pool = pool();
+    let Some(actor) = session_actor(&pool).await? else {
         return Ok(None);
     };
-    let pool = expect_context::<sqlx::PgPool>();
     let row = sqlx::query!(
         "select name from characters where id = $1",
         actor.character_id
@@ -81,12 +114,99 @@ pub async fn current_character() -> Result<Option<CharacterSummary>, ServerFnErr
     }))
 }
 
+/// The user's characters, marking the active one (for the switcher).
+#[server(MyCharactersFn)]
+pub async fn my_characters() -> Result<Vec<CharacterRef>, ServerFnError> {
+    let pool = pool();
+    let actor = require_actor(&pool).await?;
+    let rows = sqlx::query!(
+        "select id, name from characters where user_id = $1 order by name",
+        actor.user_id,
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(e)?;
+    Ok(rows
+        .into_iter()
+        .map(|r| CharacterRef {
+            character_id: r.id,
+            name: r.name,
+            is_active: r.id == actor.character_id,
+        })
+        .collect())
+}
+
+/// Switch the session's active character (must belong to the user).
+#[server(SwitchCharacterFn)]
+pub async fn switch_character(character_id: i64) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let Some(session_id) = session_cookie().await? else {
+        return Err(ServerFnError::new("not authenticated"));
+    };
+    let ok = crate::session::set_active_character(&pool, &session_id, character_id)
+        .await
+        .map_err(e)?;
+    if !ok {
+        return Err(ServerFnError::new("that character isn't yours"));
+    }
+    Ok(())
+}
+
+// --- Maps list ---
+
+/// Every map the signed-in character can access, with their role.
+#[server(MyMapsFn)]
+pub async fn my_maps() -> Result<Vec<MapEntry>, ServerFnError> {
+    let pool = pool();
+    let actor = require_actor(&pool).await?;
+    let maps = crate::maps::map::list_maps(&pool, actor.user_id)
+        .await
+        .map_err(e)?;
+    Ok(maps
+        .into_iter()
+        .map(|(m, role)| MapEntry {
+            id: m.id,
+            name: m.name,
+            role: role.as_str().to_string(),
+        })
+        .collect())
+}
+
+/// Create a map owned by the active character. Returns its id.
+#[server(CreateMapFn)]
+pub async fn create_map(name: String) -> Result<i64, ServerFnError> {
+    let pool = pool();
+    let actor = require_actor(&pool).await?;
+    let map = crate::maps::map::create_map(
+        &pool,
+        actor,
+        crate::maps::map::CreateMap {
+            name,
+            description: None,
+        },
+    )
+    .await
+    .map_err(e)?;
+    Ok(map.id)
+}
+
+/// Delete a map (owner only).
+#[server(DeleteMapFn)]
+pub async fn delete_map(map_id: i64) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let actor = require_actor(&pool).await?;
+    crate::maps::map::delete_map(&pool, actor, crate::maps::map::DeleteMap { map_id })
+        .await
+        .map_err(e)?;
+    Ok(())
+}
+
 // --- Reads ---
 
 #[server(FetchMapFn)]
 pub async fn fetch_map(map_id: i64) -> Result<MapView, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, _) = ctx();
+    let pool = pool();
+    let actor = require_actor(&pool).await?;
     crate::maps::map::get_map(&pool, actor, crate::maps::map::GetMap { map_id })
         .await
         .map_err(e)
@@ -94,8 +214,8 @@ pub async fn fetch_map(map_id: i64) -> Result<MapView, ServerFnError> {
 
 #[server(ListSignaturesFn)]
 pub async fn list_signatures(map_id: i64) -> Result<Vec<Signature>, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, _) = ctx();
+    let pool = pool();
+    let actor = require_actor(&pool).await?;
     crate::maps::signatures::list_signatures(&pool, actor, map_id)
         .await
         .map_err(e)
@@ -105,8 +225,9 @@ pub async fn list_signatures(map_id: i64) -> Result<Vec<Signature>, ServerFnErro
 
 #[server(AddSystemFn)]
 pub async fn add_system(cmd: AddSystem) -> Result<MapSolarSystem, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let map_id = cmd.map_id;
     let placed = crate::maps::solar_system::add_system(&pool, actor, cmd)
         .await
@@ -120,8 +241,9 @@ pub async fn add_system(cmd: AddSystem) -> Result<MapSolarSystem, ServerFnError>
 
 #[server(MoveSystemFn)]
 pub async fn move_system(cmd: MoveSystem) -> Result<(), ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
     crate::maps::solar_system::move_system(&pool, actor, cmd)
         .await
@@ -135,8 +257,9 @@ pub async fn move_system(cmd: MoveSystem) -> Result<(), ServerFnError> {
 
 #[server(RemoveSystemFn)]
 pub async fn remove_system(cmd: RemoveSystem) -> Result<(), ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
     crate::maps::solar_system::remove_system(&pool, actor, cmd)
         .await
@@ -152,8 +275,9 @@ pub async fn remove_system(cmd: RemoveSystem) -> Result<(), ServerFnError> {
 
 #[server(AddConnectionFn)]
 pub async fn add_connection(cmd: AddConnection) -> Result<MapConnection, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let map_id = cmd.map_id;
     let conn = crate::maps::connection::add_connection(&pool, actor, cmd)
         .await
@@ -169,8 +293,9 @@ pub async fn add_connection(cmd: AddConnection) -> Result<MapConnection, ServerF
 pub async fn set_connection_status(
     cmd: SetConnectionStatus,
 ) -> Result<MapConnection, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let (map_id, connection_id) = (cmd.map_id, cmd.connection_id);
     let conn = crate::maps::connection::set_connection_status(&pool, actor, cmd)
         .await
@@ -184,8 +309,9 @@ pub async fn set_connection_status(
 
 #[server(RemoveConnectionFn)]
 pub async fn remove_connection(cmd: RemoveConnection) -> Result<(), ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let (map_id, connection_id) = (cmd.map_id, cmd.connection_id);
     crate::maps::connection::remove_connection(&pool, actor, cmd)
         .await
@@ -201,8 +327,9 @@ pub async fn remove_connection(cmd: RemoveConnection) -> Result<(), ServerFnErro
 
 #[server(AddSignatureFn)]
 pub async fn add_signature(cmd: AddSignature) -> Result<Signature, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let sig = crate::maps::signatures::add_signature(&pool, actor, cmd)
         .await
         .map_err(e)?;
@@ -215,8 +342,9 @@ pub async fn add_signature(cmd: AddSignature) -> Result<Signature, ServerFnError
 
 #[server(UpdateSignatureFn)]
 pub async fn update_signature(cmd: UpdateSignature) -> Result<Signature, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let sig = crate::maps::signatures::update_signature(&pool, actor, cmd)
         .await
         .map_err(e)?;
@@ -235,8 +363,9 @@ pub async fn update_signature(cmd: UpdateSignature) -> Result<Signature, ServerF
 
 #[server(LinkSignatureFn)]
 pub async fn link_signature(cmd: LinkSignature) -> Result<Signature, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let connection_id = cmd.connection_id;
     let sig = crate::maps::signatures::link_signature(&pool, actor, cmd)
         .await
@@ -254,8 +383,9 @@ pub async fn link_signature(cmd: LinkSignature) -> Result<Signature, ServerFnErr
 
 #[server(UnlinkSignatureFn)]
 pub async fn unlink_signature(cmd: UnlinkSignature) -> Result<Signature, ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let sig = crate::maps::signatures::unlink_signature(&pool, actor, cmd)
         .await
         .map_err(e)?;
@@ -268,8 +398,9 @@ pub async fn unlink_signature(cmd: UnlinkSignature) -> Result<Signature, ServerF
 
 #[server(RemoveSignatureFn)]
 pub async fn remove_signature(cmd: RemoveSignature) -> Result<(), ServerFnError> {
-    let actor = require_actor().await?;
-    let (pool, hub) = ctx();
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
     let map_id = cmd.map_id;
     let solar_system_id: Option<i64> =
         sqlx::query_scalar("select solar_system_id from signatures where id = $1 and map_id = $2")

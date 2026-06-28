@@ -15,6 +15,14 @@ use crate::maps::Actor;
 /// Name of the cookie holding the opaque session id.
 pub const SESSION_COOKIE: &str = "vector_session";
 
+/// An ESI entity (corp/alliance) we cache so a character's deferred FKs resolve. Carries
+/// just what the entity tables require; refreshed on each login.
+pub struct Entity {
+    pub id: i64,
+    pub name: String,
+    pub ticker: String,
+}
+
 /// Resolve a session id to the acting user + their active character, or `None` if the
 /// session is unknown or expired.
 pub async fn actor_for_session(
@@ -91,12 +99,36 @@ pub async fn set_active_character(
 pub async fn persist_identity(
     pool: &PgPool,
     claims: &Claims,
-    corporation_id: i64,
-    alliance_id: Option<i64>,
+    corporation: Entity,
+    alliance: Option<Entity>,
     link_user_id: Option<i64>,
 ) -> Result<i64, sqlx::Error> {
     let character_id = claims.character_id;
+    let alliance_id = alliance.as_ref().map(|a| a.id);
     let mut tx = pool.begin().await?;
+
+    // The character's corp/alliance are deferred FKs to the ESI-cached entity tables, so
+    // ensure those rows exist (and are kept fresh) before/with the character row.
+    sqlx::query!(
+        "insert into corporations (id, name, ticker) values ($1, $2, $3)
+         on conflict (id) do update set name = excluded.name, ticker = excluded.ticker, updated_at = now()",
+        corporation.id,
+        corporation.name,
+        corporation.ticker,
+    )
+    .execute(&mut *tx)
+    .await?;
+    if let Some(alliance) = &alliance {
+        sqlx::query!(
+            "insert into alliances (id, name, ticker) values ($1, $2, $3)
+             on conflict (id) do update set name = excluded.name, ticker = excluded.ticker, updated_at = now()",
+            alliance.id,
+            alliance.name,
+            alliance.ticker,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     let existing = sqlx::query!(
         "select user_id, owner_hash from characters where id = $1",
@@ -134,7 +166,7 @@ pub async fn persist_identity(
         user_id,
         claims.name,
         claims.owner_hash,
-        corporation_id,
+        corporation.id,
         alliance_id,
     )
     .execute(&mut *tx)

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into alliances (id, name, ticker) values ($1, $2, $3)\n             on conflict (id) do update set name = excluded.name, ticker = excluded.ticker, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e3fc64b1e9e7e3d44ec6f4cd9d7cbbb494d531dddaab1ace99938ea2ea8efdca"
+}
