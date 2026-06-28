@@ -13,6 +13,7 @@ use crate::app::api::{
     add_connection, add_signature, add_system, fetch_map, link_signature, list_signatures,
     set_connection_status,
 };
+use crate::app::components::SystemSearchDialog;
 use crate::maps::connection::{AddConnection, SetConnectionStatus};
 use crate::maps::signatures::AddSignature;
 use crate::maps::solar_system::AddSystem;
@@ -31,7 +32,7 @@ pub fn MapPage() -> impl IntoView {
 
     let log = RwSignal::new(Vec::<String>::new());
     let status = RwSignal::new(String::new());
-    let system_input = RwSignal::new("30000142".to_string());
+    let add_open = RwSignal::new(false);
     let refetch = RwSignal::new(0u32);
 
     // The map graph + its signatures. Sourced on (id, refetch) so they reload when the route
@@ -54,18 +55,14 @@ pub fn MapPage() -> impl IntoView {
         id
     });
 
-    let add = move |_| {
+    // Place a system picked from the search dialog, laid out on a simple grid.
+    let place_system = move |solar_system_id: i64| {
         let id = map_id();
         let n = map
             .get_untracked()
             .flatten()
             .map(|m| m.systems.len())
             .unwrap_or(0);
-        let solar_system_id = system_input
-            .get_untracked()
-            .trim()
-            .parse::<i64>()
-            .unwrap_or(30000142);
         let cmd = AddSystem {
             map_id: id,
             solar_system_id,
@@ -173,14 +170,12 @@ pub fn MapPage() -> impl IntoView {
             <span class="font-mono text-xs text-muted-foreground">{move || status.get()}</span>
         </div>
 
+        <SystemSearchDialog open=add_open on_select=Callback::new(place_system) />
+
         <div class="mt-3 flex flex-wrap items-center gap-2">
-            <input
-                class="w-36 border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:border-foreground/40"
-                placeholder="SDE system id"
-                prop:value=move || system_input.get()
-                on:input=move |ev| system_input.set(event_target_value(&ev))
-            />
-            <button class=btn on:click=add>"Add system"</button>
+            <button class=btn on:click=move |_| add_open.set(true)>
+                "Add system"
+            </button>
             <button class=btn on:click=connect>"Connect first two"</button>
             <button class=btn on:click=add_sig>"Add wh sig"</button>
             <button class=btn on:click=link>"Link sig"</button>

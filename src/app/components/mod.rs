@@ -6,6 +6,9 @@
 
 use leptos::prelude::*;
 
+mod system_search;
+pub use system_search::SystemSearchDialog;
+
 const IMAGE_SERVER: &str = "https://images.evetech.net";
 
 /// A character portrait.

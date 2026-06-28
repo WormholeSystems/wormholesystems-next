@@ -50,6 +50,11 @@ saved choice before paint). `style/tailwind.css` defines the `.dark` token overr
 - **EVE imagery** — `crate::app::components::{CharacterImage, CorporationImage,
   AllianceImage, TypeImage}`. Pass the entity id + a `class` for size/shape (they render a
   plain `<img>` from `images.evetech.net`). Use square framing (`size-7`, `border-border`).
+- **Search palette** — `crate::app::components::SystemSearchDialog`: a command-palette modal
+  for picking a solar system (driven by an `open: RwSignal<bool>` + `on_select: Callback<i64>`).
+  It is Leptos-reactive (↑/↓/Enter/Esc, live server-side search) rather than using the
+  vendored `Command` component's static-list `<script>`, which can't drive dynamic results.
+  Reach for this pattern (signal-controlled `<Show>` overlay) for any searchable picker.
 
 ## Layout
 

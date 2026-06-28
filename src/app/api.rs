@@ -49,6 +49,16 @@ pub struct MapEntry {
     pub role: String,
 }
 
+/// A solar system matched by the "add system" search, with just enough to display and pick.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SystemSearchResult {
+    pub id: i64,
+    pub name: String,
+    pub security: f64,
+    pub region: String,
+    pub wormhole_class_id: Option<i32>,
+}
+
 /// Map any action/DB error to a `ServerFnError`.
 #[cfg(feature = "ssr")]
 fn e<E: std::fmt::Display>(err: E) -> ServerFnError {
@@ -326,6 +336,40 @@ pub async fn list_signatures(map_id: i64) -> Result<Vec<Signature>, ServerFnErro
 }
 
 // --- Systems ---
+
+/// Search the SDE solar systems by name for the "add system" picker. Prefix matches rank
+/// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
+#[server(SearchSystemsFn)]
+pub async fn search_systems(query: String) -> Result<Vec<SystemSearchResult>, ServerFnError> {
+    let pool = pool();
+    require_actor(&pool).await?;
+    let q = query.trim();
+    if q.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let contains = format!("%{q}%");
+    let prefix = format!("{q}%");
+    sqlx::query_as!(
+        SystemSearchResult,
+        r#"
+        select s.id,
+               s.name,
+               s.security_status as "security!",
+               r.name            as "region!",
+               s.wormhole_class_id
+        from solar_systems s
+        join regions r on r.id = s.region_id
+        where s.name ilike $1
+        order by (s.name ilike $2) desc, length(s.name), s.name
+        limit 30
+        "#,
+        contains,
+        prefix,
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(e)
+}
 
 #[server(AddSystemFn)]
 pub async fn add_system(cmd: AddSystem) -> Result<MapSolarSystem, ServerFnError> {
