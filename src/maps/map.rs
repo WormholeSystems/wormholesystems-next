@@ -14,9 +14,14 @@ use super::access::{owns_character, require_role};
 #[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
 #[cfg(feature = "ssr")]
+use std::collections::HashMap;
+
+#[cfg(feature = "ssr")]
+use super::solar_system::{MapSystemView, Sovereignty, Static};
+#[cfg(feature = "ssr")]
 use super::{
-    Actor, ConnectionType, MapConnection, MapSolarSystem, MapView, MassStatus, Role, SubjectType,
-    TimeStatus, WormholeSize,
+    Actor, ConnectionType, MapConnection, MapView, MassStatus, Role, SubjectType, TimeStatus,
+    WormholeSize,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,14 +220,105 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     .await?
     .ok_or(MapError::NotFound)?;
 
-    let systems = sqlx::query_as!(
-        MapSolarSystem,
-        "select id, map_id, solar_system_id, position_x, position_y, alias, created_at
-         from map_solar_systems where map_id = $1 order by id",
+    // Statics are 1-to-many, so fetch them in one query for the whole map and group by
+    // system rather than joining (which would multiply the system rows).
+    let mut statics_by_system: HashMap<i64, Vec<Static>> = HashMap::new();
+    let static_rows = sqlx::query!(
+        "select wss.solar_system_id, wt.code, wt.dest_class
+         from map_solar_systems mss
+         join wormhole_system_statics wss on wss.solar_system_id = mss.solar_system_id
+         join wormhole_types wt on wt.code = wss.wormhole_code
+         where mss.map_id = $1",
         cmd.map_id,
     )
     .fetch_all(pool)
     .await?;
+    for row in static_rows {
+        statics_by_system
+            .entry(row.solar_system_id)
+            .or_default()
+            .push(Static {
+                code: row.code,
+                dest_class: row.dest_class,
+            });
+    }
+
+    let rows = sqlx::query!(
+        r#"select
+               mss.id, mss.map_id, mss.solar_system_id, mss.position_x, mss.position_y,
+               mss.alias, mss.is_home, mss.is_pinned,
+               coalesce(d.status, 'unscanned') as "status!: super::SystemStatus",
+               d.occupying_group,
+               ss.name as "name!", ss.security_status as "security_status!",
+               ss.wormhole_class_id,
+               r.name as "region!",
+               ws.effect_name,
+               -- Sovereignty holder, alliance preferred over corp over faction.
+               case
+                   when sov.alliance_id is not null then 'alliance'
+                   when sov.corporation_id is not null then 'corporation'
+                   when sov.faction_id is not null then 'faction'
+               end as "sov_kind?",
+               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
+               coalesce(al.name, co.name, f.name) as "sov_name?",
+               coalesce(al.ticker, co.ticker) as "sov_ticker?"
+           from map_solar_systems mss
+           join solar_systems ss on ss.id = mss.solar_system_id
+           join regions r on r.id = ss.region_id
+           left join map_solar_system_details d
+               on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
+           left join wormhole_systems ws on ws.solar_system_id = ss.id
+           left join system_sovereignty sov on sov.solar_system_id = ss.id
+           left join alliances al on al.id = sov.alliance_id
+           left join corporations co on co.id = sov.corporation_id
+           left join factions f on f.id = sov.faction_id
+           where mss.map_id = $1
+           order by mss.id"#,
+        cmd.map_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let systems = rows
+        .into_iter()
+        .map(|row| {
+            // kind/id/name are present together (or all absent). Ticker exists for
+            // alliances/corps; factions have none.
+            let sovereignty = match (row.sov_kind.as_deref(), row.sov_id, row.sov_name) {
+                (Some("alliance"), Some(id), Some(name)) => Some(Sovereignty::Alliance {
+                    id,
+                    name,
+                    ticker: row.sov_ticker.unwrap_or_default(),
+                }),
+                (Some("corporation"), Some(id), Some(name)) => Some(Sovereignty::Corporation {
+                    id,
+                    name,
+                    ticker: row.sov_ticker.unwrap_or_default(),
+                }),
+                (Some("faction"), Some(id), Some(name)) => Some(Sovereignty::Faction { id, name }),
+                _ => None,
+            };
+            MapSystemView {
+                id: row.id,
+                map_id: row.map_id,
+                solar_system_id: row.solar_system_id,
+                position_x: row.position_x,
+                position_y: row.position_y,
+                alias: row.alias,
+                is_home: row.is_home,
+                is_pinned: row.is_pinned,
+                status: row.status,
+                occupying_group: row.occupying_group,
+                name: row.name,
+                security_status: row.security_status,
+                wormhole_class_id: row.wormhole_class_id,
+                region: row.region,
+                effect_name: row.effect_name,
+                statics: statics_by_system.remove(&row.solar_system_id).unwrap_or_default(),
+                sovereignty,
+            }
+        })
+        .collect();
 
     let connections = sqlx::query_as!(
         MapConnection,

@@ -25,7 +25,7 @@ pub use events::MapEvent;
 pub use events::MapHub;
 pub use map::Map;
 pub use signatures::Signature;
-pub use solar_system::MapSolarSystem;
+pub use solar_system::{MapSolarSystem, MapSystemView, Sovereignty, Static};
 
 /// A Rust enum stored as `text` (per the schema's [enum convention](../../docs/database/README.md)).
 /// Generates the variants, `as_str` / `from_db`, and the sqlx glue so the enum binds and
@@ -183,6 +183,6 @@ pub struct Actor {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MapView {
     pub map: Map,
-    pub systems: Vec<MapSolarSystem>,
+    pub systems: Vec<MapSystemView>,
     pub connections: Vec<MapConnection>,
 }

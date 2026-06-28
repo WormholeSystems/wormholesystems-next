@@ -25,6 +25,53 @@ pub struct MapSolarSystem {
     pub created_at: DateTime<Utc>,
 }
 
+/// A static wormhole a system always has, plus the class it leads to (`dest_class` is the
+/// `wormhole_class_id` encoding; `None` for the few codes with no fixed destination).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Static {
+    pub code: String,
+    pub dest_class: Option<i32>,
+}
+
+/// Who holds sovereignty in a system. The variant *is* the holder kind, so the node knows
+/// which EVE image endpoint to use for the icon; only alliances/corps carry a ticker.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Sovereignty {
+    Alliance { id: i64, name: String, ticker: String },
+    Corporation { id: i64, name: String, ticker: String },
+    Faction { id: i64, name: String },
+}
+
+/// A placed system enriched with everything a map node displays. Read-only — built by
+/// `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
+/// [`MapSolarSystem`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapSystemView {
+    // Placement (map_solar_systems).
+    pub id: i64,
+    pub map_id: i64,
+    pub solar_system_id: i64,
+    pub position_x: f64,
+    pub position_y: f64,
+    pub alias: Option<String>,
+    pub is_home: bool,
+    pub is_pinned: bool,
+    // Intel (map_solar_system_details; defaults when no row exists yet).
+    pub status: super::SystemStatus,
+    pub occupying_group: Option<String>,
+    // Reference (solar_systems / regions).
+    pub name: String,
+    pub security_status: f64,
+    pub wormhole_class_id: Option<i32>,
+    pub region: String,
+    // Wormhole reference (wormhole_systems / statics).
+    pub effect_name: Option<String>,
+    pub statics: Vec<Static>,
+    // Sovereignty (system_sovereignty → alliance/corp/faction).
+    pub sovereignty: Option<Sovereignty>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddSystem {
     pub map_id: i64,
