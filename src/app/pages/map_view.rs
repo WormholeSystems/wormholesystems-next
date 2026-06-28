@@ -349,7 +349,7 @@ pub fn MapPage() -> impl IntoView {
         <div
             node_ref=viewport
             tabindex="0"
-            class="relative mt-3 w-full overflow-hidden border border-border bg-zinc-950 outline-none select-none"
+            class="group relative mt-3 w-full overflow-hidden border border-border bg-zinc-950 outline-none select-none"
             style:height=move || format!("{}px", gridc().viewport_height)
             on:pointerdown=on_background_down
             on:pointermove=on_pointer_move
@@ -775,8 +775,9 @@ fn EffectBadge(name: String, wormhole_class_id: i32) -> impl IntoView {
     }
 }
 
-/// Custom proportional scrollbars: the thumb size/position is the viewport-over-world ratio at
-/// the current zoom; dragging it pans.
+/// Custom proportional scrollbars: thumb size/position is the viewport-over-world ratio at the
+/// current zoom. Click the track to jump, or drag to scroll (the thumb follows the cursor).
+/// Subtle by default, brighter on hover (`group-hover` from the viewport).
 #[component]
 fn Scrollbars(
     pan: RwSignal<(f64, f64)>,
@@ -784,34 +785,104 @@ fn Scrollbars(
     viewport: NodeRef<leptos::html::Div>,
     grid: Signal<GridConfig>,
 ) -> impl IntoView {
+    let h_track: NodeRef<leptos::html::Div> = NodeRef::new();
+    let v_track: NodeRef<leptos::html::Div> = NodeRef::new();
+    let h_dragging = RwSignal::new(false);
+    let v_dragging = RwSignal::new(false);
+
     // Visible world span = viewport_size / zoom. Thumb fraction = visible / world.
     let h_thumb = move || {
         let g = grid.get();
         let (vw, _) = viewport_size(viewport);
-        let visible = vw / zoom.get();
-        let frac = (visible / g.world_width).min(1.0);
+        let frac = (vw / zoom.get() / g.world_width).min(1.0);
         let start = (-pan.get().0 / zoom.get() / g.world_width).clamp(0.0, 1.0 - frac);
         (start * 100.0, frac * 100.0)
     };
     let v_thumb = move || {
         let g = grid.get();
         let (_, vh) = viewport_size(viewport);
-        let visible = vh / zoom.get();
-        let frac = (visible / g.world_height).min(1.0);
+        let frac = (vh / zoom.get() / g.world_height).min(1.0);
         let start = (-pan.get().1 / zoom.get() / g.world_height).clamp(0.0, 1.0 - frac);
         (start * 100.0, frac * 100.0)
     };
+
+    // Center the thumb at a client coordinate within its track, panning that axis.
+    let h_set = move |client_x: f64| {
+        if let Some(t) = h_track.get_untracked() {
+            let r = t.get_bounding_client_rect();
+            if r.width() <= 0.0 {
+                return;
+            }
+            let cf = ((client_x - r.left()) / r.width()).clamp(0.0, 1.0);
+            let frac = h_thumb().1 / 100.0;
+            let start = (cf - frac / 2.0).clamp(0.0, 1.0 - frac);
+            let g = grid.get_untracked();
+            pan.update(|p| p.0 = -start * zoom.get_untracked() * g.world_width);
+        }
+    };
+    let v_set = move |client_y: f64| {
+        if let Some(t) = v_track.get_untracked() {
+            let r = t.get_bounding_client_rect();
+            if r.height() <= 0.0 {
+                return;
+            }
+            let cf = ((client_y - r.top()) / r.height()).clamp(0.0, 1.0);
+            let frac = v_thumb().1 / 100.0;
+            let start = (cf - frac / 2.0).clamp(0.0, 1.0 - frac);
+            let g = grid.get_untracked();
+            pan.update(|p| p.1 = -start * zoom.get_untracked() * g.world_height);
+        }
+    };
+
+    let thumb = "absolute rounded-full bg-muted-foreground/40 transition-colors \
+                 group-hover:bg-muted-foreground/60";
     view! {
-        <div class="pointer-events-none absolute inset-x-1 bottom-1 h-1.5">
+        <div
+            node_ref=h_track
+            class="absolute inset-x-1 bottom-1 h-2 cursor-pointer"
+            on:pointerdown=move |ev: PointerEvent| {
+                ev.stop_propagation();
+                h_dragging.set(true);
+                if let Some(t) = h_track.get_untracked() {
+                    let _ = t.set_pointer_capture(ev.pointer_id());
+                }
+                h_set(ev.client_x() as f64);
+            }
+            on:pointermove=move |ev: PointerEvent| {
+                if h_dragging.get_untracked() {
+                    h_set(ev.client_x() as f64);
+                }
+            }
+            on:pointerup=move |_| h_dragging.set(false)
+        >
             <div
-                class="absolute h-full rounded-full bg-muted-foreground/40"
+                class=thumb
+                style="top:2px;bottom:2px;min-width:30px"
                 style:left=move || format!("{}%", h_thumb().0)
                 style:width=move || format!("{}%", h_thumb().1)
             />
         </div>
-        <div class="pointer-events-none absolute inset-y-1 right-1 w-1.5">
+        <div
+            node_ref=v_track
+            class="absolute inset-y-1 right-1 w-2 cursor-pointer"
+            on:pointerdown=move |ev: PointerEvent| {
+                ev.stop_propagation();
+                v_dragging.set(true);
+                if let Some(t) = v_track.get_untracked() {
+                    let _ = t.set_pointer_capture(ev.pointer_id());
+                }
+                v_set(ev.client_y() as f64);
+            }
+            on:pointermove=move |ev: PointerEvent| {
+                if v_dragging.get_untracked() {
+                    v_set(ev.client_y() as f64);
+                }
+            }
+            on:pointerup=move |_| v_dragging.set(false)
+        >
             <div
-                class="absolute w-full rounded-full bg-muted-foreground/40"
+                class=thumb
+                style="left:2px;right:2px;min-height:30px"
                 style:top=move || format!("{}%", v_thumb().0)
                 style:height=move || format!("{}%", v_thumb().1)
             />
