@@ -228,11 +228,15 @@ async fn delete_is_owner_only_and_cascades(pool: PgPool) {
         .unwrap();
     for table in ["maps", "map_solar_systems", "map_connections", "map_access"] {
         let col = if table == "maps" { "id" } else { "map_id" };
-        let n: i64 = sqlx::query_scalar(&format!("select count(*) from {table} where {col} = $1"))
-            .bind(w.map_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        // sqlx 0.9 guards runtime query strings against injection; this one is built from a
+        // hardcoded table/column list, so assert it's safe.
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "select count(*) from {table} where {col} = $1"
+        )))
+        .bind(w.map_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(n, 0, "{table} should be empty after delete");
     }
 }

@@ -1,6 +1,8 @@
 [package]
 name = "vector"
 edition = "2024"
+# sqlx 0.9 (and its CLI) require rustc >= 1.94.
+rust-version = "1.94"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -28,7 +30,7 @@ dotenvy = { version = "0.15", optional = true }
 thiserror = { version = "2", optional = true }
 uuid = { version = "1", features = ["v4"], optional = true }
 chrono = { version = "0.4", optional = true }
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9", default-features = false, features = [
     "runtime-tokio",
     "tls-rustls",
     "postgres",
