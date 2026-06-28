@@ -598,15 +598,17 @@ fn SystemNode(
     let wclass = s.wormhole_class_id.unwrap_or(0);
     let pinned = s.is_pinned;
     let home = s.is_home;
+    let status = s.status;
     let s_menu = s.clone();
 
     view! {
         <div
             class="group absolute flex flex-col justify-center overflow-hidden border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm"
-            class=("border-primary", move || selected.get())
-            class=("border-border", move || !selected.get())
-            class=("ring-1", move || home)
-            class=("ring-amber-500", move || home)
+            class=("ring-2", move || selected.get())
+            class=("ring-primary", move || selected.get())
+            class=("ring-1", move || home && !selected.get())
+            class=("ring-amber-500", move || home && !selected.get())
+            style:border-color=status_color(status)
             style:width=format!("{NODE_W}px")
             style:height=format!("{node_h}px")
             style:left=move || format!("{}px", pos.get().0)
@@ -1113,6 +1115,18 @@ fn security_color(wclass: Option<i32>, security: f64) -> &'static str {
         None if security > 0.0 => "#f59e0b",
         Some(9) | None => "#ef4444",
         Some(_) => "#60a5fa", // wormhole space
+    }
+}
+
+/// The node border color encoding a system's intel status.
+fn status_color(status: SystemStatus) -> &'static str {
+    match status {
+        SystemStatus::Unscanned => "#3f3f46", // zinc — not yet scanned (neutral default)
+        SystemStatus::Scanned => "#38bdf8",   // sky
+        SystemStatus::Occupied => "#a78bfa",  // violet
+        SystemStatus::Friendly => "#34d399",  // emerald
+        SystemStatus::Hostile => "#ef4444",   // red
+        SystemStatus::Unknown => "#fb923c",   // orange
     }
 }
 
