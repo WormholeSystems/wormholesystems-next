@@ -307,6 +307,74 @@ pub async fn unlink_signature(
     fetch_signature(pool, cmd.map_id, cmd.signature_pk).await
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PastedSignature {
+    pub signature_id: String,
+    pub group: SignatureGroup,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasteSignatures {
+    pub map_id: i64,
+    pub solar_system_id: i64,
+    pub signatures: Vec<PastedSignature>,
+}
+
+/// Reconcile a pasted in-game scan against a system's signatures: add the new ones, refresh the
+/// group/name of existing ones, and delete the ones that vanished from the scan — except linked
+/// wormholes, which are kept (removing one would drop a mapped connection's end). A wormhole's
+/// life-cycle state and connection link are never touched here.
+#[cfg(feature = "ssr")]
+pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    ensure_system_placed(pool, cmd.map_id, cmd.solar_system_id).await?;
+
+    let mut tx = pool.begin().await?;
+    let mut pasted_ids = std::collections::HashSet::new();
+    for s in &cmd.signatures {
+        let sid = s.signature_id.trim();
+        if sid.is_empty() {
+            continue;
+        }
+        pasted_ids.insert(sid.to_string());
+        sqlx::query!(
+            r#"insert into signatures (map_id, solar_system_id, signature_id, "group", name)
+               values ($1, $2, $3, $4, $5)
+               on conflict (map_id, solar_system_id, signature_id) do update
+                   set "group" = excluded."group",
+                       name = coalesce(excluded.name, signatures.name),
+                       updated_at = now()"#,
+            cmd.map_id,
+            cmd.solar_system_id,
+            sid,
+            s.group.as_str(),
+            s.name.as_deref(),
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    let existing = sqlx::query!(
+        "select id, signature_id, connection_id from signatures
+         where map_id = $1 and solar_system_id = $2",
+        cmd.map_id,
+        cmd.solar_system_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    for row in existing {
+        if !pasted_ids.contains(&row.signature_id) && row.connection_id.is_none() {
+            sqlx::query!("delete from signatures where id = $1", row.id)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
 /// Every signature on a map. Viewer+.
 #[cfg(feature = "ssr")]
 pub async fn list_signatures(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec<Signature>> {

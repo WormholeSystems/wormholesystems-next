@@ -14,21 +14,25 @@ use leptos::task::spawn_local;
 use leptos_router::hooks::use_params_map;
 use web_sys::PointerEvent;
 
-use icons::{Flag, House, Lock};
+use icons::{Flag, House, Link2, Lock, X};
 
 use crate::app::api::{
-    add_connection, add_system, clear_map, fetch_map, grid_config, move_systems, remove_connection,
-    remove_systems, set_alias, set_home, set_occupier, set_pinned, set_rally, set_status,
-    set_connection_status,
+    add_connection, add_system, clear_map, fetch_map, grid_config, list_signatures, move_systems,
+    paste_signatures, remove_connection, remove_signature, remove_systems, set_alias, set_home,
+    set_occupier, set_pinned, set_rally, set_status, set_connection_status,
 };
 use crate::app::components::{AllianceImage, CorporationImage, SystemSearchDialog};
 use crate::app::GridConfig;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use crate::maps::signatures::{PasteSignatures, PastedSignature, RemoveSignature};
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MapSystemView, MoveSystems, RemoveSystems, SetAlias, SetHome, SetOccupier,
     SetPinned, SetRally, SetStatus, Sovereignty, SystemMove,
 };
-use crate::maps::{ConnectionType, MapView, MassStatus, SystemStatus, TimeStatus, WormholeSize};
+use crate::maps::{
+    ConnectionType, MapView, MassStatus, Signature, SignatureGroup, SystemStatus, TimeStatus,
+    WormholeSize,
+};
 
 /// Fixed node width (px, world space). Height is `2 * grid cell` (see [`GridConfig`]).
 const NODE_W: f64 = 180.0;
@@ -110,6 +114,20 @@ pub fn MapPage() -> impl IntoView {
         |_| async move { grid_config().await.unwrap_or_default() },
     );
     let map_data = Signal::derive(move || map.get().flatten());
+
+    // All signatures on the map, fetched into a plain signal (keeps the page Suspense out of it).
+    // The selected-system panel filters this by solar system.
+    let sigs = RwSignal::new(Vec::<Signature>::new());
+    Effect::new(move |_| {
+        let id = map_id();
+        refetch.get();
+        if id == 0 {
+            return;
+        }
+        spawn_local(async move {
+            sigs.set(list_signatures(id).await.unwrap_or_default());
+        });
+    });
 
     // Interaction state — owned here, never derived from the data, so it survives refetch.
     let pan = RwSignal::new((0.0_f64, 0.0_f64));
@@ -459,6 +477,22 @@ pub fn MapPage() -> impl IntoView {
                     search_open=search_open link_from=link_from
                 />
             })}
+
+            // Signatures panel for the single selected system.
+            {move || {
+                let sel = selected.get();
+                if sel.len() != 1 {
+                    return None;
+                }
+                let id = *sel.iter().next()?;
+                let sys = map_data.get()?.systems.into_iter().find(|s| s.id == id)?;
+                Some(view! {
+                    <SignaturesPanel
+                        system=sys sigs=sigs map_id=Signal::derive(map_id)
+                        status=status refetch=refetch
+                    />
+                })
+            }}
         </div>
     }
 }
@@ -1136,6 +1170,152 @@ fn StatusItems(
             view! { <button class=item on:click=set>{format!("Status: {}", st.as_str())}</button> }
         })
         .collect_view()
+}
+
+/// Signature panel for the single selected system: paste-to-import + a list with remove.
+#[component]
+fn SignaturesPanel(
+    system: MapSystemView,
+    sigs: RwSignal<Vec<Signature>>,
+    map_id: Signal<i64>,
+    status: RwSignal<String>,
+    refetch: RwSignal<u32>,
+) -> impl IntoView {
+    let ssid = system.solar_system_id;
+    let name = system.name.clone();
+    let paste_text = RwSignal::new(String::new());
+
+    let my_sigs = move || {
+        let mut v: Vec<Signature> = sigs
+            .get()
+            .into_iter()
+            .filter(|s| s.solar_system_id == ssid)
+            .collect();
+        v.sort_by(|a, b| a.signature_id.cmp(&b.signature_id));
+        v
+    };
+
+    let apply_paste = move |_| {
+        let parsed = parse_scan(&paste_text.get_untracked());
+        if parsed.is_empty() {
+            status.set("no signatures parsed".into());
+            return;
+        }
+        let cmd = PasteSignatures {
+            map_id: map_id.get_untracked(),
+            solar_system_id: ssid,
+            signatures: parsed,
+        };
+        paste_text.set(String::new());
+        run(status, refetch, "paste sigs", async move {
+            paste_signatures(cmd).await
+        });
+    };
+
+    view! {
+        <div
+            class="absolute bottom-3 left-3 z-20 flex w-72 flex-col gap-2 border border-border bg-card p-2 text-xs shadow-md"
+            on:pointerdown=|ev: PointerEvent| ev.stop_propagation()
+            on:contextmenu=|ev: web_sys::MouseEvent| ev.stop_propagation()
+        >
+            <div class="flex items-center justify-between font-medium text-foreground">
+                <span>{name}" — signatures"</span>
+                <span class="text-muted-foreground">{move || my_sigs().len()}</span>
+            </div>
+            <textarea
+                class="h-16 w-full resize-none border border-border bg-background p-1 font-mono text-[10px] outline-none"
+                placeholder="Paste in-game scan results…"
+                prop:value=move || paste_text.get()
+                on:input=move |ev| paste_text.set(event_target_value(&ev))
+            />
+            <button
+                class="border border-border bg-muted px-2 py-1 text-foreground hover:bg-accent"
+                on:click=apply_paste
+            >
+                "Apply paste"
+            </button>
+            <ul class="max-h-48 space-y-0.5 overflow-auto">
+                <For
+                    each=my_sigs
+                    key=|s| s.id
+                    children=move |s| {
+                        let pk = s.id;
+                        let remove = move |_| {
+                            let cmd = RemoveSignature { map_id: map_id.get_untracked(), signature_pk: pk };
+                            run(status, refetch, "rm sig", async move { remove_signature(cmd).await });
+                        };
+                        view! {
+                            <li class="flex items-center gap-1">
+                                <span class="font-mono text-muted-foreground">{s.signature_id.clone()}</span>
+                                <span class="text-[9px] uppercase" style:color=group_color(s.group)>
+                                    {s.group.as_str()}
+                                </span>
+                                <span class="truncate text-foreground">{s.name.clone().unwrap_or_default()}</span>
+                                {s.connection_id.map(|_| view! {
+                                    <Link2 class="size-3 text-emerald-400" />
+                                })}
+                                <button class="ml-auto text-muted-foreground hover:text-rose-400" on:click=remove>
+                                    <X class="size-3" />
+                                </button>
+                            </li>
+                        }
+                    }
+                />
+            </ul>
+        </div>
+    }
+}
+
+/// Parse a pasted in-game probe scan: tab-separated rows where col 0 = signature id, col 2 =
+/// category (→ group), col 3 = type name. Blank/garbage rows are skipped.
+fn parse_scan(text: &str) -> Vec<PastedSignature> {
+    text.lines()
+        .filter_map(|line| {
+            let cols: Vec<&str> = line.split('\t').collect();
+            let sid = cols.first().map(|s| s.trim()).unwrap_or("");
+            if sid.is_empty() {
+                return None;
+            }
+            let category = cols.get(2).map(|s| s.trim()).unwrap_or("");
+            let type_name = cols.get(3).map(|s| s.trim()).unwrap_or("");
+            Some(PastedSignature {
+                signature_id: sid.to_string(),
+                group: parse_group(category),
+                name: (!type_name.is_empty()).then(|| type_name.to_string()),
+            })
+        })
+        .collect()
+}
+
+fn parse_group(category: &str) -> SignatureGroup {
+    let c = category.to_lowercase();
+    if c.contains("wormhole") {
+        SignatureGroup::Wormhole
+    } else if c.contains("data") {
+        SignatureGroup::Data
+    } else if c.contains("relic") {
+        SignatureGroup::Relic
+    } else if c.contains("gas") {
+        SignatureGroup::Gas
+    } else if c.contains("combat") {
+        SignatureGroup::Combat
+    } else if c.contains("ore") {
+        SignatureGroup::Ore
+    } else {
+        SignatureGroup::Unknown
+    }
+}
+
+fn group_color(g: SignatureGroup) -> &'static str {
+    match g {
+        SignatureGroup::Wormhole => "#a855f7",
+        SignatureGroup::Data => "#3b82f6",
+        SignatureGroup::Relic => "#f59e0b",
+        SignatureGroup::Gas => "#34d399",
+        SignatureGroup::Combat => "#ef4444",
+        SignatureGroup::Ore => "#a3a3a3",
+        SignatureGroup::Unknown => "#71717a",
+    }
 }
 
 // --- helpers ---

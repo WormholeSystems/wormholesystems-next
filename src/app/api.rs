@@ -11,7 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
 use crate::maps::signatures::{
-    AddSignature, LinkSignature, RemoveSignature, UnlinkSignature, UpdateSignature,
+    AddSignature, LinkSignature, PasteSignatures, RemoveSignature, UnlinkSignature,
+    UpdateSignature,
 };
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
@@ -654,6 +655,22 @@ pub async fn add_signature(cmd: AddSignature) -> Result<Signature, ServerFnError
         solar_system_id: sig.solar_system_id,
     });
     Ok(sig)
+}
+
+#[server(PasteSignaturesFn)]
+pub async fn paste_signatures(cmd: PasteSignatures) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, solar_system_id) = (cmd.map_id, cmd.solar_system_id);
+    crate::maps::signatures::paste_signatures(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SignatureChanged {
+        map_id,
+        solar_system_id,
+    });
+    Ok(())
 }
 
 #[server(UpdateSignatureFn)]
