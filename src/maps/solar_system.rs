@@ -33,6 +33,35 @@ pub struct Static {
     pub dest_class: Option<i32>,
 }
 
+/// One buff/debuff a wormhole effect applies, for the node's effect popover. `kind` is the
+/// effect strength tier; `stat` is what it modifies; `value` is the (already-formatted) amount.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EffectModifier {
+    pub kind: String,
+    pub stat: String,
+    pub value: String,
+}
+
+/// The modifiers a wormhole effect applies at a given class — reference data, no auth needed.
+#[cfg(feature = "ssr")]
+pub async fn effect_modifiers(
+    pool: &PgPool,
+    effect_name: &str,
+    wormhole_class_id: i32,
+) -> Result<Vec<EffectModifier>> {
+    let rows = sqlx::query_as!(
+        EffectModifier,
+        "select kind, stat, value from wormhole_effect_modifiers
+         where effect_name = $1 and wormhole_class_id = $2
+         order by stat, kind",
+        effect_name,
+        wormhole_class_id,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 /// Who holds sovereignty in a system. The variant *is* the holder kind, so the node knows
 /// which EVE image endpoint to use for the icon; only alliances/corps carry a ticker.
 #[derive(Debug, Clone, Serialize, Deserialize)]

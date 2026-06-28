@@ -544,6 +544,19 @@ pub async fn grid_config() -> Result<crate::app::GridConfig, ServerFnError> {
     Ok(leptos::prelude::expect_context::<crate::app::GridConfig>())
 }
 
+/// The buffs/debuffs a wormhole effect applies at a system's class — for the node's effect
+/// popover. Reference data, so no actor/role check.
+#[server(EffectModifiersFn)]
+pub async fn effect_modifiers(
+    effect_name: String,
+    wormhole_class_id: i32,
+) -> Result<Vec<crate::maps::EffectModifier>, ServerFnError> {
+    let pool = pool();
+    crate::maps::solar_system::effect_modifiers(&pool, &effect_name, wormhole_class_id)
+        .await
+        .map_err(e)
+}
+
 // --- Connections ---
 
 #[server(AddConnectionFn)]
