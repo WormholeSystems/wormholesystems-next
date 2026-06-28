@@ -161,3 +161,128 @@ pub async fn set_alias(pool: &PgPool, actor: Actor, cmd: SetAlias) -> Result<()>
     }
     Ok(())
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetStatus {
+    pub map_id: i64,
+    pub map_solar_system_id: i64,
+    pub status: super::SystemStatus,
+}
+
+/// Set a placed system's intel status. Upserts the persisted details row, keyed by the
+/// placement's `(map_id, solar_system_id)`.
+#[cfg(feature = "ssr")]
+pub async fn set_status(pool: &PgPool, actor: Actor, cmd: SetStatus) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let updated = sqlx::query!(
+        "insert into map_solar_system_details (map_id, solar_system_id, status)
+         select map_id, solar_system_id, $3 from map_solar_systems where id = $2 and map_id = $1
+         on conflict (map_id, solar_system_id)
+             do update set status = excluded.status, updated_at = now()",
+        cmd.map_id,
+        cmd.map_solar_system_id,
+        cmd.status.as_str(),
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        return Err(MapError::NotFound);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetOccupier {
+    pub map_id: i64,
+    pub map_solar_system_id: i64,
+    pub occupier: Option<String>,
+}
+
+/// Set or clear who occupies a placed system (free text, like the alias). Upserts the
+/// persisted details row.
+#[cfg(feature = "ssr")]
+pub async fn set_occupier(pool: &PgPool, actor: Actor, cmd: SetOccupier) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let updated = sqlx::query!(
+        "insert into map_solar_system_details (map_id, solar_system_id, occupying_group)
+         select map_id, solar_system_id, $3 from map_solar_systems where id = $2 and map_id = $1
+         on conflict (map_id, solar_system_id)
+             do update set occupying_group = excluded.occupying_group, updated_at = now()",
+        cmd.map_id,
+        cmd.map_solar_system_id,
+        cmd.occupier.as_deref(),
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        return Err(MapError::NotFound);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetHome {
+    pub map_id: i64,
+    pub map_solar_system_id: i64,
+    pub value: bool,
+}
+
+/// Mark a placement as the map's home system (or clear it). A map has at most one home (a
+/// partial unique index enforces it), so setting a new home first clears the previous one.
+#[cfg(feature = "ssr")]
+pub async fn set_home(pool: &PgPool, actor: Actor, cmd: SetHome) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let mut tx = pool.begin().await?;
+    if cmd.value {
+        sqlx::query!(
+            "update map_solar_systems set is_home = false where map_id = $1 and is_home",
+            cmd.map_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    let updated = sqlx::query!(
+        "update map_solar_systems set is_home = $1 where id = $2 and map_id = $3",
+        cmd.value,
+        cmd.map_solar_system_id,
+        cmd.map_id,
+    )
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        // Drop the transaction without committing — the home-clear above rolls back.
+        return Err(MapError::NotFound);
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetPinned {
+    pub map_id: i64,
+    pub map_solar_system_id: i64,
+    pub value: bool,
+}
+
+/// Pin or unpin a placement. Pinned systems are drag-locked client-side and survive
+/// "clear map". Any number of systems may be pinned.
+#[cfg(feature = "ssr")]
+pub async fn set_pinned(pool: &PgPool, actor: Actor, cmd: SetPinned) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let updated = sqlx::query!(
+        "update map_solar_systems set is_pinned = $1 where id = $2 and map_id = $3",
+        cmd.value,
+        cmd.map_solar_system_id,
+        cmd.map_id,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        return Err(MapError::NotFound);
+    }
+    Ok(())
+}

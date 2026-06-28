@@ -47,6 +47,12 @@ pub enum MapEvent {
         map_id: i64,
         map_solar_system_id: i64,
     },
+    /// A placed system's intel/flags changed (alias, status, occupier, home, pinned) — the
+    /// position is unchanged, but its details should be refetched.
+    SystemDetailsChanged {
+        map_id: i64,
+        map_solar_system_id: i64,
+    },
     /// A connection was added, removed, or had its state changed (incl. trigger-driven sync).
     ConnectionChanged { map_id: i64, connection_id: i64 },
     /// A signature in this system was added, edited, linked, unlinked, or removed.
@@ -63,6 +69,7 @@ impl MapEvent {
             | MapEvent::SystemAdded { map_id, .. }
             | MapEvent::SystemMoved { map_id, .. }
             | MapEvent::SystemRemoved { map_id, .. }
+            | MapEvent::SystemDetailsChanged { map_id, .. }
             | MapEvent::ConnectionChanged { map_id, .. }
             | MapEvent::SignatureChanged { map_id, .. }
             | MapEvent::AccessChanged { map_id } => map_id,

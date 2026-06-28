@@ -13,7 +13,9 @@ use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStat
 use crate::maps::signatures::{
     AddSignature, LinkSignature, RemoveSignature, UnlinkSignature, UpdateSignature,
 };
-use crate::maps::solar_system::{AddSystem, MoveSystem, RemoveSystem};
+use crate::maps::solar_system::{
+    AddSystem, MoveSystem, RemoveSystem, SetAlias, SetHome, SetOccupier, SetPinned, SetStatus,
+};
 use crate::maps::{MapConnection, MapSolarSystem, MapView, Signature};
 
 /// The signed-in character, for the UI's auth state.
@@ -413,6 +415,90 @@ pub async fn remove_system(cmd: RemoveSystem) -> Result<(), ServerFnError> {
         .await
         .map_err(e)?;
     hub.publish(crate::maps::MapEvent::SystemRemoved {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(())
+}
+
+// --- System details (alias / status / occupier / home / pinned) ---
+//
+// All five publish `SystemDetailsChanged` (position unchanged; details refetched).
+
+#[server(SetAliasFn)]
+pub async fn set_alias(cmd: SetAlias) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
+    crate::maps::solar_system::set_alias(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SystemDetailsChanged {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(())
+}
+
+#[server(SetStatusFn)]
+pub async fn set_status(cmd: SetStatus) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
+    crate::maps::solar_system::set_status(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SystemDetailsChanged {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(())
+}
+
+#[server(SetOccupierFn)]
+pub async fn set_occupier(cmd: SetOccupier) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
+    crate::maps::solar_system::set_occupier(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SystemDetailsChanged {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(())
+}
+
+#[server(SetHomeFn)]
+pub async fn set_home(cmd: SetHome) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
+    crate::maps::solar_system::set_home(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SystemDetailsChanged {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(())
+}
+
+#[server(SetPinnedFn)]
+pub async fn set_pinned(cmd: SetPinned) -> Result<(), ServerFnError> {
+    let pool = pool();
+    let hub = hub();
+    let actor = require_actor(&pool).await?;
+    let (map_id, mss) = (cmd.map_id, cmd.map_solar_system_id);
+    crate::maps::solar_system::set_pinned(&pool, actor, cmd)
+        .await
+        .map_err(e)?;
+    hub.publish(crate::maps::MapEvent::SystemDetailsChanged {
         map_id,
         map_solar_system_id: mss,
     });

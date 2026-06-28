@@ -152,6 +152,25 @@ impl Default for SignatureGroup {
     }
 }
 
+text_enum! {
+    /// A placed system's intel status (`map_solar_system_details.status`), set by users.
+    pub enum SystemStatus {
+        Unscanned => "unscanned",
+        Scanned => "scanned",
+        Occupied => "occupied",
+        Friendly => "friendly",
+        Hostile => "hostile",
+        Unknown => "unknown",
+    }
+}
+
+impl Default for SystemStatus {
+    /// A freshly placed system is `Unscanned` until someone classifies it.
+    fn default() -> Self {
+        Self::Unscanned
+    }
+}
+
 /// A user acting as one of their characters. `user_id` drives authorization (effective
 /// role across all their characters); `character_id` attributes ownership on creation.
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
