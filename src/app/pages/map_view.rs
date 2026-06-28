@@ -76,17 +76,14 @@ pub fn MapPage() -> impl IntoView {
     let status = RwSignal::new(String::new());
     let refetch = RwSignal::new(0u32);
 
-    // Map data + the (static) grid config, both prefetched during SSR and hydrated with data.
-    let map = Resource::new(
-        move || (map_id(), refetch.get()),
-        move |(id, _)| async move { fetch_map(id).await.ok() },
-    );
-    let grid = Resource::new(
-        || (),
-        |_| async move { grid_config().await.unwrap_or_default() },
-    );
+    // Map data + the grid config live in plain signals, fetched manually (below) rather than via
+    // `Resource`. A Resource read here would register with the page-level `<Protected>` Suspense,
+    // so every refetch would trip its "Loading…" fallback and remount the whole page. Plain
+    // signals keep the canvas mounted; only its keyed nodes diff.
+    let data = RwSignal::new(None::<MapView>);
+    let grid_cfg = RwSignal::new(GridConfig::default());
 
-    // Interaction state — owned here, never derived from `map`, so it survives refetch.
+    // Interaction state — owned here, never derived from the data, so it survives refetch.
     let pan = RwSignal::new((0.0_f64, 0.0_f64));
     let zoom = RwSignal::new(1.0_f64);
     let selected = RwSignal::new(HashSet::<i64>::new());
@@ -102,22 +99,36 @@ pub fn MapPage() -> impl IntoView {
     let link_from = RwSignal::new(None::<i64>); // when set, search adds + connects to this node
 
     let viewport: NodeRef<leptos::html::Div> = NodeRef::new();
-    let gridc = move || grid.get().unwrap_or_default();
+    let gridc = move || grid_cfg.get();
 
-    // Render off a plain signal rather than the resource directly: the canvas stays mounted
-    // and only its keyed nodes diff on refetch (no whole-subtree remount / flash). We keep the
-    // last good value during a refetch (the guard skips a transient `None`).
-    let data = RwSignal::new(None::<MapView>);
+    // Fetch the (static) grid config once.
     Effect::new(move |_| {
-        if let Some(Some(mv)) = map.get() {
-            data.set(Some(mv));
+        spawn_local(async move {
+            if let Ok(g) = grid_config().await {
+                grid_cfg.set(g);
+            }
+        });
+    });
+
+    // (Re)fetch the map whenever the route id or `refetch` changes. Manual fetch into `data`,
+    // so the load never reaches the page Suspense.
+    Effect::new(move |_| {
+        let id = map_id();
+        refetch.get();
+        if id == 0 {
+            return;
         }
+        spawn_local(async move {
+            if let Ok(mv) = fetch_map(id).await {
+                data.set(Some(mv));
+            }
+        });
     });
 
     // Reconcile optimistic overrides: drop one once the server position matches it (our move
-    // landed) or the system is gone. Reads `map` reactively, so it runs on every refetch.
+    // landed) or the system is gone. Reads `data` reactively, so it runs on every refetch.
     Effect::new(move |_| {
-        if let Some(Some(mv)) = map.get() {
+        if let Some(mv) = data.get() {
             pending.update(|p| {
                 p.retain(|id, (px, py)| {
                     match mv.systems.iter().find(|s| s.id == *id) {
@@ -191,9 +202,8 @@ pub fn MapPage() -> impl IntoView {
         if let Some(l) = linking.get_untracked() {
             linking.set(None);
             let (wx, wy) = to_world(ev.client_x() as f64, ev.client_y() as f64);
-            if let Some(target) = map
+            if let Some(target) = data
                 .get_untracked()
-                .flatten()
                 .and_then(|mv| node_at(&mv.systems, wx, wy, gridc()))
                 && target != l.from
             {
@@ -211,7 +221,7 @@ pub fn MapPage() -> impl IntoView {
         // Finish a rubber-band → select enclosed nodes.
         if let Some((x0, y0, x1, y1)) = band.get_untracked() {
             band.set(None);
-            if let Some(mv) = map.get_untracked().flatten() {
+            if let Some(mv) = data.get_untracked() {
                 let (lo_x, hi_x) = (x0.min(x1), x0.max(x1));
                 let (lo_y, hi_y) = (y0.min(y1), y0.max(y1));
                 let h = 2.0 * gridc().cell_size;
@@ -270,7 +280,7 @@ pub fn MapPage() -> impl IntoView {
         let id = map_id();
         let from = link_from.get_untracked();
         link_from.set(None);
-        let mv = map.get_untracked().flatten();
+        let mv = data.get_untracked();
         // Already placed?
         let existing = mv
             .as_ref()
