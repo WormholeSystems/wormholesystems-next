@@ -25,6 +25,8 @@ pub mod seed;
 #[cfg(feature = "ssr")]
 pub mod session;
 #[cfg(feature = "ssr")]
+pub mod sovereignty;
+#[cfg(feature = "ssr")]
 pub mod tracking;
 #[cfg(feature = "ssr")]
 pub mod user_channel;

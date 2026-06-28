@@ -51,7 +51,7 @@ async fn tier_one(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
         ticker.tick().await;
         match active_characters(&pool, false).await {
             Ok(due) => {
-                run_bounded(&due, |d| {
+                run_bounded(&due, CONCURRENCY, |d| {
                     poll_online(pool.clone(), sso.clone(), esi.clone(), users.clone(), d)
                 })
                 .await
@@ -69,7 +69,7 @@ async fn tier_two(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
         ticker.tick().await;
         match active_characters(&pool, true).await {
             Ok(due) => {
-                run_bounded(&due, |d| {
+                run_bounded(&due, CONCURRENCY, |d| {
                     poll_location_ship(pool.clone(), sso.clone(), esi.clone(), users.clone(), d)
                 })
                 .await
@@ -117,14 +117,14 @@ async fn active_characters(pool: &PgPool, online_only: bool) -> Result<Vec<Due>,
     Ok(rows)
 }
 
-/// Run `f` over every item with at most [`CONCURRENCY`] in flight; await the whole batch.
-async fn run_bounded<T, F, Fut>(items: &[T], f: F)
+/// Run `f` over every item with at most `concurrency` in flight; await the whole batch.
+pub(crate) async fn run_bounded<T, F, Fut>(items: &[T], concurrency: usize, f: F)
 where
     T: Copy + Send + 'static,
     F: Fn(T) -> Fut,
     Fut: Future<Output = ()> + Send + 'static,
 {
-    let permits = Arc::new(Semaphore::new(CONCURRENCY));
+    let permits = Arc::new(Semaphore::new(concurrency));
     let mut set = JoinSet::new();
     for &item in items {
         // Acquiring before spawning is the backpressure: never more than CONCURRENCY tasks.

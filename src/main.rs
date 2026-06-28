@@ -52,6 +52,9 @@ async fn main() {
     // each user's private channel when their character's status changes.
     vector::tracking::start(db.clone(), sso.clone(), esi.clone(), user_hub.clone());
 
+    // Background: keep sovereignty (and its alliance/corp entities) current for map display.
+    vector::sovereignty::start(db.clone(), esi.clone());
+
     let state = AppState {
         leptos_options: leptos_options.clone(),
         auth,
