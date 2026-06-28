@@ -283,7 +283,13 @@ pub fn MapPage() -> impl IntoView {
             .as_ref()
             .and_then(|m| m.systems.iter().find(|s| s.solar_system_id == solar_system_id))
             .map(|s| s.id);
-        let (cx, cy) = center_world(pan.get_untracked(), zoom.get_untracked(), viewport, gridc());
+        // Drop the new system at the first free grid slot near the viewport center, so systems
+        // don't stack on top of each other.
+        let base = center_world(pan.get_untracked(), zoom.get_untracked(), viewport, gridc());
+        let (cx, cy) = mv
+            .as_ref()
+            .map(|m| free_position(&m.systems, base, gridc()))
+            .unwrap_or(base);
         run(status, refetch, "add", async move {
             let placement = match existing {
                 Some(pid) => pid,
@@ -833,8 +839,10 @@ fn ContextMenu(
                 close.run(());
             };
             let clear = move |_| {
-                let cmd = ClearMap { map_id: map_id.get_untracked() };
-                run(status, refetch, "clear map", async move { clear_map(cmd).await });
+                if confirm("Clear the map? This removes all systems except home and pinned ones.") {
+                    let cmd = ClearMap { map_id: map_id.get_untracked() };
+                    run(status, refetch, "clear map", async move { clear_map(cmd).await });
+                }
                 close.run(());
             };
             view! {
@@ -1094,6 +1102,31 @@ fn center_world(
     ((w / 2.0 - pan.0) / zoom, (h / 2.0 - pan.1) / zoom)
 }
 
+/// The first free, non-overlapping, grid-snapped slot at/after `base` (scanning right then
+/// down in node-sized steps), so a newly added system doesn't land on top of another.
+fn free_position(systems: &[MapSystemView], base: (f64, f64), g: GridConfig) -> (f64, f64) {
+    let node_h = 2.0 * g.cell_size;
+    let snap = |v: f64| (v / g.cell_size).round() * g.cell_size;
+    let overlaps = |x: f64, y: f64| {
+        systems
+            .iter()
+            .any(|s| (x - s.position_x).abs() < NODE_W && (y - s.position_y).abs() < node_h)
+    };
+    let (bx, by) = (snap(base.0), snap(base.1));
+    let cols = (g.world_width / NODE_W).max(1.0) as i32;
+    let rows = (g.world_height / node_h).max(1.0) as i32;
+    for r in 0..rows {
+        for c in 0..cols {
+            let x = snap((bx + c as f64 * NODE_W).clamp(0.0, g.world_width - NODE_W));
+            let y = snap((by + r as f64 * node_h).clamp(0.0, g.world_height - node_h));
+            if !overlaps(x, y) {
+                return (x, y);
+            }
+        }
+    }
+    (bx, by)
+}
+
 /// The placement id whose node bounds contain the world point, if any.
 fn node_at(systems: &[MapSystemView], wx: f64, wy: f64, g: GridConfig) -> Option<i64> {
     let h = 2.0 * g.cell_size;
@@ -1213,6 +1246,19 @@ fn prompt(message: &str) -> Option<String> {
 #[cfg(not(feature = "hydrate"))]
 fn prompt(_message: &str) -> Option<String> {
     None
+}
+
+/// Browser `window.confirm`, hydrate-only (returns `false` on the server build).
+#[cfg(feature = "hydrate")]
+fn confirm(message: &str) -> bool {
+    web_sys::window()
+        .and_then(|w| w.confirm_with_message(message).ok())
+        .unwrap_or(false)
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn confirm(_message: &str) -> bool {
+    false
 }
 
 /// Run a server-fn call, report the outcome, and bump the local refetch (the WS event also
