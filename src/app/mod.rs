@@ -43,13 +43,55 @@ pub fn App() -> impl IntoView {
                     <Route path=StaticSegment("") view=HomePage />
                     <Route path=StaticSegment("login") view=LoginPage />
                     <Route path=StaticSegment("profile") view=ProfilePage />
-                    <Route path=StaticSegment("maps") view=MapsPage />
-                    <Route path=(StaticSegment("maps"), ParamSegment("id")) view=MapPage />
+                    <Route
+                        path=StaticSegment("maps")
+                        view=|| view! { <Protected><MapsPage /></Protected> }
+                    />
+                    <Route
+                        path=(StaticSegment("maps"), ParamSegment("id"))
+                        view=|| view! { <Protected><MapPage /></Protected> }
+                    />
                 </Routes>
             </main>
         </Router>
     }
 }
+
+/// Client-side gate: when a session-less client navigates (SPA) to a protected route, bounce
+/// to the login page. Server-side full loads are gated earlier by the Axum `require_login`
+/// middleware, so on the server this just renders the children for the (already-authed) user.
+#[component]
+fn Protected(children: ChildrenFn) -> impl IntoView {
+    let account = Resource::new(|| (), |_| async move { current_character().await });
+
+    view! {
+        <Suspense fallback=|| view! { <p class="text-slate-500">"Loading…"</p> }>
+            {move || {
+                let children = children.clone();
+                Suspend::new(async move {
+                    match account.await {
+                        Ok(Some(_)) => children().into_any(),
+                        _ => {
+                            redirect_to_login();
+                            view! { <p class="text-slate-500">"Redirecting to log in…"</p> }
+                                .into_any()
+                        }
+                    }
+                })
+            }}
+        </Suspense>
+    }
+}
+
+#[cfg(feature = "hydrate")]
+fn redirect_to_login() {
+    if let Some(window) = web_sys::window() {
+        let _ = window.location().set_href("/login");
+    }
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn redirect_to_login() {}
 
 /// Top bar: app links plus the auth state — signed-in character + switcher + logout, or a
 /// log-in link.

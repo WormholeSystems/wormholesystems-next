@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use axum::extract::{FromRef, Query, State};
+use axum::extract::{FromRef, Query, Request, State};
 use axum::http::StatusCode;
+use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, SameSite};
@@ -171,6 +172,33 @@ pub async fn callback(
         .build();
     let destination = flow.redirect_to.unwrap_or_else(|| "/".to_string());
     (jar.add(cookie), Redirect::to(&destination)).into_response()
+}
+
+/// Route guard middleware: redirect unauthenticated requests for protected paths
+/// (`/maps`, `/maps/...`) to the login page before any rendering happens. Server functions
+/// enforce auth independently; this is the page-level gate.
+pub async fn require_login(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    req: Request,
+    next: Next,
+) -> Response {
+    let path = req.uri().path();
+    let protected = path == "/maps" || path.starts_with("/maps/");
+    if protected {
+        let authed = match jar.get(session::SESSION_COOKIE) {
+            Some(cookie) => session::actor_for_session(&state.db, cookie.value())
+                .await
+                .ok()
+                .flatten()
+                .is_some(),
+            None => false,
+        };
+        if !authed {
+            return Redirect::to("/login").into_response();
+        }
+    }
+    next.run(req).await
 }
 
 /// `GET /auth/logout` — end the session and clear the cookie.

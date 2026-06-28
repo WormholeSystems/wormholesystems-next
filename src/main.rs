@@ -74,6 +74,11 @@ async fn main() {
             },
         )
         .fallback(leptos_axum::file_and_error_handler::<AppState, _>(shell))
+        // Gate protected pages (/maps...) before rendering; redirects unauthenticated loads.
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::require_login,
+        ))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
