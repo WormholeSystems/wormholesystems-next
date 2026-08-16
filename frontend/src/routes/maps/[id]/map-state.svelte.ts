@@ -12,6 +12,7 @@ import type { MapView } from '$lib/api/types/MapView';
 import type { EveScoutEdge } from '$lib/api/types/EveScoutEdge';
 import type { Signature } from '$lib/api/types/Signature';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
+import type { StaleConnection } from '$lib/api/types/StaleConnection';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 import type { SocketState } from '$lib/ws';
 import { NODE_W, clamp } from '$lib/map/helpers';
@@ -102,6 +103,8 @@ export class MapState {
 	ignoredSystems = $state<Set<number>>(new Set());
 	// The command journal, newest first, and the live socket state behind the status dot.
 	history = $state<MapEventEntry[]>([]);
+	// Connections critical for over an hour, offered for a one-click sweep.
+	stale = $state<StaleConnection[]>([]);
 	socket = $state<SocketState>('connecting');
 
 	systems = $derived(this.data?.systems ?? []);
@@ -240,6 +243,18 @@ export class MapState {
 		}
 	}
 
+	async fetchStale() {
+		try {
+			this.stale = await api.listStaleConnections(this.mapId);
+		} catch {
+			this.stale = [];
+		}
+	}
+
+	cleanStale() {
+		this.run('clean', api.cleanStaleConnections({ map_id: this.mapId }));
+	}
+
 	async fetchHistory() {
 		try {
 			this.history = await api.listMapEvents(this.mapId);
@@ -260,7 +275,8 @@ export class MapState {
 				api.fetchMap(this.mapId),
 				api.listSignatures(this.mapId),
 				api.listWatchlist(this.mapId),
-				this.fetchHistory()
+				this.fetchHistory(),
+				this.fetchStale()
 			]);
 			this.watchlist = watchlist;
 			this.data = data;

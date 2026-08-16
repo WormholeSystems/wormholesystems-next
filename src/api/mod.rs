@@ -377,6 +377,14 @@ pub fn router() -> Router<AppState> {
             get(h::list_connection_jumps),
         )
         .route(
+            "/api/maps/{id}/connections/stale",
+            get(h::list_stale_connections),
+        )
+        .route(
+            "/api/maps/{id}/connections/clean-stale",
+            post(h::clean_stale_connections),
+        )
+        .route(
             "/api/access-subjects/search",
             get(h::search_access_subjects),
         )

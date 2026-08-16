@@ -16,7 +16,9 @@ use super::{
 };
 use crate::auth::AppState;
 use crate::maps::access::{AccessEntry, RevokeAccess, SetAccess};
-use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use crate::maps::connection::{
+    AddConnection, CleanStaleConnections, RemoveConnection, SetConnectionStatus, StaleConnection,
+};
 use crate::maps::events_log::{MapEventEntry, UndoMapEvent};
 use crate::maps::jumps::{
     AddConnectionJump, ConnectionJump, RemoveConnectionJump, UpdateConnectionJump,
@@ -1527,6 +1529,32 @@ pub async fn update_map(
     let map = crate::maps::map::update_map(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(map))
+}
+
+/// `GET /api/maps/{id}/connections/stale` — edges that have been critical for over an hour.
+pub async fn list_stale_connections(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<StaleConnection>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let rows = crate::maps::connection::list_stale_connections(&state.db, actor, map_id).await?;
+    Ok(Json(rows))
+}
+
+/// `POST /api/maps/{id}/connections/clean-stale` — sweep them, and the placements they
+/// orphan, as one undoable change.
+pub async fn clean_stale_connections(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<CleanStaleConnections>,
+) -> ApiResult<u64> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let removed = crate::maps::connection::clean_stale_connections(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::HistoryChanged { map_id });
+    Ok(Json(removed))
 }
 
 // --- Access ---

@@ -1,5 +1,5 @@
 import { expect, gotoApp, test } from './fixtures';
-import { createIdentity, grantAccess } from './db';
+import { ageStaleConnections, createIdentity, grantAccess } from './db';
 
 // The map status bar: identity, the live-feed dot, the view toggles, and the undo/redo
 // pair driven by the command journal.
@@ -105,4 +105,38 @@ test('a character outside every grant is warned about limited access', async ({ 
 	await gotoApp(page, `/maps/${mapId}`);
 	// The e2e identity owns this map through its own character, so no warning.
 	await expect(page.getByText('Limited access')).toHaveCount(0);
+});
+
+test('stale connections are offered for a one-click sweep', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Stale');
+	const add = async (sys: number, x: number) => {
+		const res = await api.post(`/api/maps/${mapId}/systems/add`, {
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+		});
+		return (await res.json()).id as number;
+	};
+	const a = await add(J122515, 200);
+	const b = await add(JITA, 500);
+	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+	});
+	const connId = (await conn.json()).id as number;
+	await api.post(`/api/maps/${mapId}/connections/set-status`, {
+		data: { map_id: mapId, connection_id: connId, time_status: 'critical' }
+	});
+	await ageStaleConnections(mapId);
+
+	await gotoApp(page, `/maps/${mapId}`);
+	const badge = page.getByTestId('stale-badge');
+	await expect(badge).toHaveText(/1 stale/);
+	await badge.click();
+	await expect(page.getByTestId('stale-list')).toContainText('J122515');
+
+	await page.getByTestId('clean-stale').click();
+	// The edge and both bare endpoints go, as one undoable change.
+	await expect(page.getByTestId('system-node')).toHaveCount(0);
+	await expect(page.getByTestId('stale-badge')).toHaveCount(0);
+
+	await page.getByTestId('undo-button').click();
+	await expect(page.getByTestId('system-node')).toHaveCount(2);
 });

@@ -522,3 +522,155 @@ async fn removing_a_connection_and_undoing_it_keeps_the_endpoints(pool: PgPool) 
     assert_eq!(conns[0].kind, ConnectionType::Wormhole);
     assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 2);
 }
+
+/// The stale sweep deletes edges *and* the placements they strand, so its undo has to put
+/// both back. This is the case a placement-only inverse would get wrong: the C endpoint
+/// stays (it is pinned), but the edge into it must come back too.
+#[sqlx::test]
+async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
+    use vector::maps::connection::{CleanStaleConnections, clean_stale_connections};
+    use vector::maps::solar_system::{SetPinned, set_pinned};
+
+    let w = world(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
+    let c = place(&pool, w.owner, w.map_id, SYS_C, 200.0).await;
+    // C is pinned, so it survives the sweep while B (bare and edgeless after it) does not.
+    set_pinned(
+        &pool,
+        w.owner,
+        SetPinned {
+            map_id: w.map_id,
+            map_solar_system_id: c,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    for (from, to) in [(a, b), (a, c)] {
+        let conn = add_connection(
+            &pool,
+            w.owner,
+            AddConnection {
+                map_id: w.map_id,
+                from_system: from,
+                to_system: to,
+                kind: ConnectionType::Wormhole,
+                size: None,
+            },
+        )
+        .await
+        .unwrap();
+        set_connection_status(
+            &pool,
+            w.owner,
+            SetConnectionStatus {
+                map_id: w.map_id,
+                connection_id: conn.id,
+                kind: None,
+                mass_status: None,
+                time_status: Some(Some(vector::maps::TimeStatus::Critical)),
+                size: None,
+                preserve_mass: None,
+            },
+        )
+        .await
+        .unwrap();
+    }
+    // Age both marks past the sweep threshold.
+    sqlx::query("update map_connections set time_status_updated_at = now() - interval '2 hours' where map_id = $1")
+        .bind(w.map_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let removed =
+        clean_stale_connections(&pool, w.owner, CleanStaleConnections { map_id: w.map_id })
+            .await
+            .unwrap();
+    assert_eq!(removed, 2);
+    assert!(connections(&pool, w.owner, w.map_id).await.is_empty());
+    // A and B were bare, so they went with the edges; C is pinned and stays.
+    let left = systems(&pool, w.owner, w.map_id).await;
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].id, c);
+
+    let ev = head(&pool, w.owner, w.map_id).await;
+    assert_eq!(ev.kind, "connections.cleaned");
+    undo(
+        &pool,
+        w.owner,
+        UndoMapEvent {
+            map_id: w.map_id,
+            event_id: ev.id,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 3);
+    assert_eq!(
+        connections(&pool, w.owner, w.map_id).await.len(),
+        2,
+        "the edge into the pinned system must come back, not just the orphans' edges"
+    );
+
+    // And redoing the sweep clears them again.
+    let redo = head(&pool, w.owner, w.map_id).await;
+    undo(
+        &pool,
+        w.owner,
+        UndoMapEvent {
+            map_id: w.map_id,
+            event_id: redo.id,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(connections(&pool, w.owner, w.map_id).await.is_empty());
+    assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 1);
+}
+
+/// A fresh critical mark is not stale: sweeping must not touch a hole someone just flagged.
+#[sqlx::test]
+async fn a_freshly_critical_connection_is_not_swept(pool: PgPool) {
+    use vector::maps::connection::{CleanStaleConnections, clean_stale_connections};
+
+    let w = world(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+    set_connection_status(
+        &pool,
+        w.owner,
+        SetConnectionStatus {
+            map_id: w.map_id,
+            connection_id: conn.id,
+            kind: None,
+            mass_status: None,
+            time_status: Some(Some(vector::maps::TimeStatus::Critical)),
+            size: None,
+            preserve_mass: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let err =
+        clean_stale_connections(&pool, w.owner, CleanStaleConnections { map_id: w.map_id }).await;
+    assert!(matches!(err, Err(MapError::Conflict(_))));
+    assert_eq!(connections(&pool, w.owner, w.map_id).await.len(), 1);
+}

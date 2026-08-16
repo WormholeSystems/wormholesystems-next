@@ -143,3 +143,14 @@ export async function setThreat(
 		}
 	});
 }
+
+/** Backdate a map's critical connections so they count as stale. */
+export async function ageStaleConnections(mapId: number) {
+	await withDb(async (db) => {
+		await db.query(
+			`update map_connections set time_status_updated_at = now() - interval '2 hours'
+			 where map_id = $1 and time_status = 'critical'`,
+			[mapId]
+		);
+	});
+}

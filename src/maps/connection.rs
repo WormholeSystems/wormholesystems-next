@@ -16,6 +16,8 @@ use super::{ConnectionType, MassStatus, TimeStatus, WormholeSize};
 use sqlx::PgPool;
 
 use super::Actor;
+use super::Role;
+use super::access::require_role;
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
 use super::solar_system::unexpected;
@@ -300,4 +302,157 @@ pub(super) async fn apply_remove_connection(
         CommandOutput::None,
     )
     .undo_with(MapCommand::RestoreSystems(restore)))
+}
+
+/// How long a connection must have been marked critical before the map offers to sweep it.
+/// Legacy's rule: a critical hole is minutes from collapsing, so an hour without an update
+/// means nobody is flying it any more.
+pub const STALE_AFTER_MINUTES: i64 = 60;
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct CleanStaleConnections {
+    pub map_id: i64,
+}
+
+/// One stale edge, for the status bar's cleanup popover.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct StaleConnection {
+    pub connection_id: i64,
+    pub from_name: String,
+    pub to_name: String,
+    pub critical_since: DateTime<Utc>,
+}
+
+/// Every connection that has been critical for longer than [`STALE_AFTER_MINUTES`]. Viewer+.
+pub async fn list_stale_connections(
+    pool: &PgPool,
+    actor: Actor,
+    map_id: i64,
+) -> Result<Vec<StaleConnection>> {
+    require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
+    let rows = sqlx::query_as!(
+        StaleConnection,
+        r#"select c.id as "connection_id!",
+                  fs.name as "from_name!", ts.name as "to_name!",
+                  c.time_status_updated_at as "critical_since!"
+           from map_connections c
+           join map_solar_systems fm on fm.id = c.from_system
+           join solar_systems fs on fs.id = fm.solar_system_id
+           join map_solar_systems tm on tm.id = c.to_system
+           join solar_systems ts on ts.id = tm.solar_system_id
+           where c.map_id = $1
+             and c.time_status = 'critical'
+             and c.time_status_updated_at < now() - make_interval(mins => $2)
+           order by c.time_status_updated_at"#,
+        map_id,
+        STALE_AFTER_MINUTES as i32,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Sweep every stale connection, plus any placement they leave behind. Member+. Recorded
+/// as one entry, so a sweep that went too far is a single undo.
+pub async fn clean_stale_connections(
+    pool: &PgPool,
+    actor: Actor,
+    cmd: CleanStaleConnections,
+) -> Result<u64> {
+    match execute(pool, actor, MapCommand::CleanStaleConnections(cmd)).await? {
+        CommandOutput::Count(n) => Ok(n),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_clean_stale(
+    tx: &mut Tx<'_>,
+    cmd: CleanStaleConnections,
+) -> Result<Effect> {
+    let stale = sqlx::query!(
+        r#"select id as "id!", from_system as "from_system!", to_system as "to_system!"
+           from map_connections
+           where map_id = $1
+             and time_status = 'critical'
+             and time_status_updated_at < now() - make_interval(mins => $2)"#,
+        cmd.map_id,
+        STALE_AFTER_MINUTES as i32,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+    if stale.is_empty() {
+        return Err(MapError::Conflict("nothing to clean".into()));
+    }
+
+    // Snapshot the edges before deleting them, then the placements they orphan. Order
+    // matters: a placement only looks orphaned once its stale edges are gone.
+    let mut snapshot = super::solar_system::RestoreSystems {
+        map_id: cmd.map_id,
+        systems: Vec::new(),
+        connections: Vec::new(),
+        signatures: Vec::new(),
+    };
+    for row in &stale {
+        if let Some(one) = super::solar_system::capture_connection(tx, cmd.map_id, row.id).await? {
+            snapshot.connections.extend(one.connections);
+        }
+    }
+    let stale_ids: Vec<i64> = stale.iter().map(|r| r.id).collect();
+    sqlx::query!(
+        "delete from map_connections where map_id = $1 and id = any($2)",
+        cmd.map_id,
+        &stale_ids,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    let mut endpoints: Vec<i64> = stale
+        .iter()
+        .flat_map(|r| [r.from_system, r.to_system])
+        .collect();
+    endpoints.sort_unstable();
+    endpoints.dedup();
+
+    // Same orphan rule as the signature cascade: unpinned, unmarked, and now edgeless.
+    let orphans = sqlx::query_scalar!(
+        r#"select id as "id!" from map_solar_systems mss
+           where mss.map_id = $1 and mss.id = any($2)
+             and not mss.is_pinned and not mss.is_home and not mss.is_rally
+             and not exists (
+                 select 1 from map_connections c
+                 where c.map_id = $1 and (c.from_system = mss.id or c.to_system = mss.id)
+             )"#,
+        cmd.map_id,
+        &endpoints,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+
+    if !orphans.is_empty() {
+        let captured = super::solar_system::capture_systems(tx, cmd.map_id, &orphans).await?;
+        snapshot.systems = captured.systems;
+        snapshot.signatures = captured.signatures;
+        sqlx::query!(
+            "delete from map_solar_systems where map_id = $1 and id = any($2)",
+            cmd.map_id,
+            &orphans,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    let removed = stale.len() as u64;
+    let label = match (removed, orphans.len()) {
+        (1, 0) => "cleaned a stale connection".to_string(),
+        (n, 0) => format!("cleaned {n} stale connections"),
+        (1, m) => format!("cleaned a stale connection and {m} system(s)"),
+        (n, m) => format!("cleaned {n} stale connections and {m} system(s)"),
+    };
+    Ok(
+        Effect::new("connections.cleaned", label, CommandOutput::Count(removed))
+            .entries(removed as i64 + orphans.len() as i64)
+            .undo_with(MapCommand::RestoreSystems(snapshot)),
+    )
 }

@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::access::require_role_tx;
-use super::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use super::connection::{
+    AddConnection, CleanStaleConnections, RemoveConnection, SetConnectionStatus,
+};
 use super::error::Result;
 use super::events_log;
 use super::jumps::{AddConnectionJump, RemoveConnectionJump, UpdateConnectionJump};
@@ -22,8 +24,8 @@ use super::signatures::{
     RestoreSignatures, UnlinkSignature, UpdateSignature,
 };
 use super::solar_system::{
-    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, RestoreSystems,
-    SetAlias, SetHome, SetNotes, SetOccupier, SetPinned, SetRally, SetStatus,
+    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveRestored, RemoveSystem, RemoveSystems,
+    RestoreSystems, SetAlias, SetHome, SetNotes, SetOccupier, SetPinned, SetRally, SetStatus,
 };
 use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
 use super::{
@@ -61,6 +63,7 @@ pub enum MapCommand {
     RemoveSystem(RemoveSystem),
     RemoveSystems(RemoveSystems),
     RestoreSystems(RestoreSystems),
+    RemoveRestored(RemoveRestored),
     ClearMap(ClearMap),
     MoveSystem(MoveSystem),
     MoveSystems(MoveSystems),
@@ -74,6 +77,7 @@ pub enum MapCommand {
     AddConnection(AddConnection),
     SetConnectionStatus(SetConnectionStatus),
     RemoveConnection(RemoveConnection),
+    CleanStaleConnections(CleanStaleConnections),
     AddSignature(AddSignature),
     UpdateSignature(UpdateSignature),
     RemoveSignature(RemoveSignature),
@@ -145,6 +149,7 @@ impl MapCommand {
             MapCommand::RemoveSystem(c) => c.map_id,
             MapCommand::RemoveSystems(c) => c.map_id,
             MapCommand::RestoreSystems(c) => c.map_id,
+            MapCommand::RemoveRestored(c) => c.map_id,
             MapCommand::ClearMap(c) => c.map_id,
             MapCommand::MoveSystem(c) => c.map_id,
             MapCommand::MoveSystems(c) => c.map_id,
@@ -158,6 +163,7 @@ impl MapCommand {
             MapCommand::AddConnection(c) => c.map_id,
             MapCommand::SetConnectionStatus(c) => c.map_id,
             MapCommand::RemoveConnection(c) => c.map_id,
+            MapCommand::CleanStaleConnections(c) => c.map_id,
             MapCommand::AddSignature(c) => c.map_id,
             MapCommand::UpdateSignature(c) => c.map_id,
             MapCommand::RemoveSignature(c) => c.map_id,
@@ -187,6 +193,7 @@ impl MapCommand {
             MapCommand::RemoveSystem(c) => solar_system::apply_remove_system(tx, c).await,
             MapCommand::RemoveSystems(c) => solar_system::apply_remove_systems(tx, c).await,
             MapCommand::RestoreSystems(c) => solar_system::apply_restore_systems(tx, c).await,
+            MapCommand::RemoveRestored(c) => solar_system::apply_remove_restored(tx, c).await,
             MapCommand::ClearMap(c) => solar_system::apply_clear_map(tx, c).await,
             MapCommand::MoveSystem(c) => solar_system::apply_move_system(tx, c).await,
             MapCommand::MoveSystems(c) => solar_system::apply_move_systems(tx, c).await,
@@ -202,6 +209,7 @@ impl MapCommand {
                 connection::apply_set_connection_status(tx, c).await
             }
             MapCommand::RemoveConnection(c) => connection::apply_remove_connection(tx, c).await,
+            MapCommand::CleanStaleConnections(c) => connection::apply_clean_stale(tx, c).await,
             MapCommand::AddSignature(c) => signatures::apply_add_signature(tx, c).await,
             MapCommand::UpdateSignature(c) => signatures::apply_update_signature(tx, c).await,
             MapCommand::RemoveSignature(c) => signatures::apply_remove_signature(tx, c).await,

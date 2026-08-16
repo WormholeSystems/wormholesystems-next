@@ -216,7 +216,7 @@ pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Re
 }
 
 pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> Result<Effect> {
-    let snapshot = capture(tx, cmd.map_id, &[cmd.map_solar_system_id]).await?;
+    let snapshot = capture_systems(tx, cmd.map_id, &[cmd.map_solar_system_id]).await?;
     let deleted = sqlx::query!(
         "delete from map_solar_systems where id = $1 and map_id = $2",
         cmd.map_solar_system_id,
@@ -250,7 +250,7 @@ pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> 
 }
 
 pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) -> Result<Effect> {
-    let snapshot = capture(tx, cmd.map_id, &cmd.map_solar_system_ids).await?;
+    let snapshot = capture_systems(tx, cmd.map_id, &cmd.map_solar_system_ids).await?;
     let deleted = sqlx::query!(
         "delete from map_solar_systems where map_id = $1 and id = any($2)",
         cmd.map_id,
@@ -290,7 +290,7 @@ pub(super) async fn apply_clear_map(tx: &mut Tx<'_>, cmd: ClearMap) -> Result<Ef
     )
     .fetch_all(&mut **tx)
     .await?;
-    let snapshot = capture(tx, cmd.map_id, &doomed).await?;
+    let snapshot = capture_systems(tx, cmd.map_id, &doomed).await?;
     let deleted = sqlx::query!(
         "delete from map_solar_systems where map_id = $1 and not is_home and not is_pinned",
         cmd.map_id,
@@ -859,7 +859,11 @@ impl RestoreSystems {
 }
 
 /// Snapshot placements and their cascade so a removal can be undone.
-async fn capture(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<RestoreSystems> {
+pub(super) async fn capture_systems(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    ids: &[i64],
+) -> Result<RestoreSystems> {
     let systems: Vec<RestoredSystem> = sqlx::query_as!(
         RestoredSystem,
         "select id, solar_system_id, position_x, position_y, alias, is_home, is_rally, is_pinned
@@ -974,29 +978,68 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
         .await?;
     }
 
+    // Undoing a restore has to drop exactly what was put back, connections included:
+    // a stale-clean can restore edges whose endpoints were never removed, so cascading
+    // from the placements alone would leave them behind.
+    let inverse = MapCommand::RemoveRestored(RemoveRestored {
+        map_id: cmd.map_id,
+        system_ids: cmd.systems.iter().map(|s| s.id).collect(),
+        connection_ids: cmd.connections.iter().map(|c| c.id).collect(),
+    });
     if cmd.is_connection_only() {
-        let ids: Vec<i64> = cmd.connections.iter().map(|c| c.id).collect();
         return Ok(Effect::new(
             "connections.restored",
             "restored a connection",
             CommandOutput::None,
         )
-        .undo_with(MapCommand::RemoveConnection(
-            super::connection::RemoveConnection {
-                map_id: cmd.map_id,
-                connection_id: ids[0],
-            },
-        )));
+        .undo_with(inverse));
     }
-    let restored: Vec<i64> = cmd.systems.iter().map(|s| s.id).collect();
     let label = format!("restored {}", cmd.label());
     let count = cmd.systems.len() as i64;
     Ok(Effect::new("systems.restored", label, CommandOutput::None)
         .entries(count)
-        .undo_with(MapCommand::RemoveSystems(RemoveSystems {
-            map_id: cmd.map_id,
-            map_solar_system_ids: restored,
-        })))
+        .undo_with(inverse))
+}
+
+/// The inverse of a restore: drop exactly these placements and edges. Internal — the two
+/// commands are each other's inverse, so undo and redo cycle without drift.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoveRestored {
+    pub map_id: i64,
+    pub system_ids: Vec<i64>,
+    pub connection_ids: Vec<i64>,
+}
+
+pub(super) async fn apply_remove_restored(tx: &mut Tx<'_>, cmd: RemoveRestored) -> Result<Effect> {
+    let mut snapshot = capture_systems(tx, cmd.map_id, &cmd.system_ids).await?;
+    for id in &cmd.connection_ids {
+        if let Some(extra) = capture_connection(tx, cmd.map_id, *id).await?
+            && !snapshot.connections.iter().any(|c| c.id == *id)
+        {
+            snapshot.connections.extend(extra.connections);
+        }
+    }
+    sqlx::query!(
+        "delete from map_connections where map_id = $1 and id = any($2)",
+        cmd.map_id,
+        &cmd.connection_ids,
+    )
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query!(
+        "delete from map_solar_systems where map_id = $1 and id = any($2)",
+        cmd.map_id,
+        &cmd.system_ids,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    let count = (cmd.system_ids.len() + cmd.connection_ids.len()) as i64;
+    Ok(
+        Effect::new("systems.removed", "undid a restore", CommandOutput::None)
+            .entries(count)
+            .undo_with(MapCommand::RestoreSystems(snapshot)),
+    )
 }
 
 /// Snapshot one connection so removing it can be undone.
