@@ -99,7 +99,7 @@ pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
 
 /// Bump when the seed logic or bundled static data changes in a way that requires
 /// re-seeding an already-loaded SDE build.
-const SEED_REVISION: i32 = 3;
+const SEED_REVISION: i32 = 4;
 
 /// The SDE build currently unpacked in `data/sde` (from its `_sde.jsonl` marker).
 #[derive(Deserialize)]
@@ -446,8 +446,53 @@ async fn seed_entities(
     }
     {
         // Station owners are NPC corps; null any owner we didn't seed so the
-        // (deferred) corporations FK still validates at commit.
+        // (deferred) corporations FK still validates at commit. The SDE carries no
+        // station names, so they are synthesized the way the game builds them:
+        // "{System} {Planet} - Moon {N} - {Corp} {Operation}".
         let corp_ids: HashSet<i64> = corporations.iter().map(|c| c.id as i64).collect();
+        let corp_names: HashMap<i64, String> = corporations
+            .iter()
+            .filter_map(|c| Some((c.id as i64, c.name.en.clone()?)))
+            .collect();
+        let operations = crate::sde::load_all::<npc::StationOperation>()?;
+        let op_names: HashMap<i64, String> = operations
+            .iter()
+            .filter_map(|o| Some((o.id as i64, o.operation_name.en.clone()?)))
+            .collect();
+        let system_names: HashMap<i64, String> = sqlx::query!("select id, name from solar_systems")
+            .fetch_all(&mut *tx)
+            .await?
+            .into_iter()
+            .map(|r| (r.id, r.name))
+            .collect();
+
+        fn roman(n: i32) -> String {
+            const NUMERALS: [(i32, &str); 13] = [
+                (1000, "M"),
+                (900, "CM"),
+                (500, "D"),
+                (400, "CD"),
+                (100, "C"),
+                (90, "XC"),
+                (50, "L"),
+                (40, "XL"),
+                (10, "X"),
+                (9, "IX"),
+                (5, "V"),
+                (4, "IV"),
+                (1, "I"),
+            ];
+            let mut n = n;
+            let mut out = String::new();
+            for (value, numeral) in NUMERALS {
+                while n >= value {
+                    out.push_str(numeral);
+                    n -= value;
+                }
+            }
+            out
+        }
+
         let stations = crate::sde::load_all::<npc::NpcStation>()?;
         let n = bulk!(
             tx,
@@ -456,12 +501,33 @@ async fn seed_entities(
             &stations,
             |b, s| {
                 let owner = Some(s.owner_id as i64).filter(|id| corp_ids.contains(id));
+                let mut name = system_names
+                    .get(&(s.solar_system_id as i64))
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some(planet) = s.celestial_index.filter(|p| *p > 0) {
+                    name.push(' ');
+                    name.push_str(&roman(planet));
+                }
+                if let Some(moon) = s.orbit_index.filter(|m| *m > 0) {
+                    name.push_str(&format!(" - Moon {moon}"));
+                }
+                if let Some(corp) = corp_names.get(&(s.owner_id as i64)) {
+                    name.push_str(" - ");
+                    name.push_str(corp);
+                }
+                if s.use_operation_name
+                    && let Some(op) = op_names.get(&(s.operation_id as i64))
+                {
+                    name.push(' ');
+                    name.push_str(op);
+                }
                 b.push_bind(s.id as i64)
                     .push_bind(s.solar_system_id as i64)
                     .push_bind(s.type_id as i64)
                     .push_bind(owner)
                     .push_bind(s.operation_id as i64)
-                    .push_bind(None::<String>)
+                    .push_bind(Some(name))
             }
         );
         println!("stations: {n}");

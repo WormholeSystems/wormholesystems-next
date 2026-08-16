@@ -161,13 +161,20 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
 
-	// Station services (seeded from the SDE): Jita has repair facilities.
+	// Station services (seeded from the SDE) name the concrete stations.
 	await page.getByTestId('find-condition').selectOption({ label: 'Repair Facilities' });
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
-	// Cloning too, grouped under Station Services.
-	await page.getByTestId('find-condition').selectOption({ label: 'Cloning' });
+	const stations = page.getByTestId('find-station');
+	await expect(stations.first()).toBeVisible();
+	await expect(stations.first()).toContainText('Jita');
+
+	// Security Offices only exist on CONCORD lowsec stations (in-game quirk), so
+	// highsec Jita is never a match and every result names a CONCORD station.
+	await page.getByTestId('find-condition').selectOption({ label: 'Security Office' });
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
+	await expect(page.getByTestId('find-row').first().getByText('Jita')).toHaveCount(0);
+	await expect(page.getByTestId('find-station').first()).toContainText('CONCORD');
 });
 
 test('quick picks fill the route pickers', async ({ page, api }) => {

@@ -508,24 +508,54 @@ pub async fn routing_graph(
     let stations: Vec<i64> = sqlx::query_scalar!("select distinct solar_system_id from stations")
         .fetch_all(&state.db)
         .await?;
-    // The Find conditions offer the legacy "essential" station services.
+    // The Find conditions offer the legacy "essential" station services. Each entry
+    // carries the concrete stations, so results can name the station, not just the
+    // system. Security Offices (27) are a known quirk: only CONCORD-owned stations in
+    // lowsec actually run one, despite the operation listing the service everywhere.
     const ESSENTIAL_SERVICES: [i64; 6] = [5, 10, 13, 14, 15, 27];
-    let services = sqlx::query!(
-        r#"select ss.id, ss.name,
-                  array_agg(distinct st.solar_system_id) as "systems!"
+    const SECURITY_OFFICE: i64 = 27;
+    const CONCORD_CORPORATION: i64 = 1000125;
+    let rows = sqlx::query!(
+        r#"select ss.id as "service_id", ss.name as "service_name",
+                  st.id as "station_id", st.name as "station_name",
+                  st.solar_system_id
            from station_services ss
            join station_operation_services sos on sos.service_id = ss.id
            join stations st on st.operation_id = sos.operation_id
+           join solar_systems sys on sys.id = st.solar_system_id
            where ss.id = any($1)
-           group by ss.id
-           order by ss.name"#,
+             and (ss.id <> $2
+                  or (st.owner_corporation_id = $3
+                      and sys.security_status > 0 and sys.security_status < 0.45))
+           order by ss.name, st.name"#,
         &ESSENTIAL_SERVICES,
+        SECURITY_OFFICE,
+        CONCORD_CORPORATION,
     )
     .fetch_all(&state.db)
-    .await?
-    .into_iter()
-    .map(|r| serde_json::json!({ "id": r.id, "name": r.name, "systems": r.systems }))
-    .collect::<Vec<_>>();
+    .await?;
+    let mut services: Vec<serde_json::Value> = Vec::new();
+    let mut current: Option<(i64, String, Vec<serde_json::Value>)> = None;
+    for row in rows {
+        let station = serde_json::json!({
+            "id": row.station_id,
+            "name": row.station_name,
+            "solar_system_id": row.solar_system_id,
+        });
+        match &mut current {
+            Some((id, _, stations)) if *id == row.service_id => stations.push(station),
+            _ => {
+                if let Some((id, name, stations)) = current.take() {
+                    services
+                        .push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
+                }
+                current = Some((row.service_id, row.service_name, vec![station]));
+            }
+        }
+    }
+    if let Some((id, name, stations)) = current {
+        services.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
+    }
     Ok((
         [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
         Json(serde_json::json!({

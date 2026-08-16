@@ -14,6 +14,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
+	import BuildingIcon from '@lucide/svelte/icons/building-2';
 
 	import { browser } from '$app/environment';
 
@@ -69,7 +70,15 @@
 	let security = $state<Map<number, number>>(new Map());
 	let joveSystems = $state<Set<number>>(new Set());
 	let stationSystems = $state<Set<number>>(new Set());
-	let serviceOptions = $state<{ id: number; name: string; systems: Set<number> }[]>([]);
+	let serviceOptions = $state<
+		{
+			id: number;
+			name: string;
+			systems: Set<number>;
+			/** Concrete stations per system, so results can name the station. */
+			stationsBySystem: Map<number, string[]>;
+		}[]
+	>([]);
 	$effect(() => {
 		api
 			.routingGraph()
@@ -80,11 +89,20 @@
 				security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
 				joveSystems = new Set(g.jove ?? []);
 				stationSystems = new Set(g.stations ?? []);
-				serviceOptions = (g.services ?? []).map((svc) => ({
-					id: svc.id,
-					name: svc.name,
-					systems: new Set(svc.systems)
-				}));
+				serviceOptions = (g.services ?? []).map((svc) => {
+					const stationsBySystem = new Map<number, string[]>();
+					for (const station of svc.stations) {
+						const list = stationsBySystem.get(station.solar_system_id) ?? [];
+						list.push(station.name);
+						stationsBySystem.set(station.solar_system_id, list);
+					}
+					return {
+						id: svc.id,
+						name: svc.name,
+						systems: new Set(stationsBySystem.keys()),
+						stationsBySystem
+					};
+				});
 			})
 			.catch(() => {});
 	});
@@ -292,6 +310,10 @@
 	];
 	let condition = $state('observatories');
 	let findLimit = $state('15');
+	const activeService = $derived(
+		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null
+	);
+
 	const findResults = $derived.by(() => {
 		if (!findOpen || !graph || origin === null) return [];
 		const sec = (id: number) => security.get(id) ?? 0;
@@ -632,6 +654,17 @@
 							</span>
 						</RoutePopover>
 					</div>
+					{#if activeService}
+						{#each activeService.stationsBySystem.get(result.id) ?? [] as station (station)}
+							<div
+								class="flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-10 text-[11px] text-muted-foreground"
+								data-testid="find-station"
+							>
+								<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
+								<span class="truncate" title={station}>{station}</span>
+							</div>
+						{/each}
+					{/if}
 				{/each}
 			{/if}
 		</div>

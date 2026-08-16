@@ -127,8 +127,12 @@ export const api = {
 			security: Record<string, number>;
 			jove: number[];
 			stations: number[];
-			services: { id: number; name: string; systems: number[] }[];
-		}>('/api/routing-graph?v=2'),
+			services: {
+				id: number;
+				name: string;
+				stations: { id: number; name: string; solar_system_id: number }[];
+			}[];
+		}>('/api/routing-graph?v=3'),
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),
