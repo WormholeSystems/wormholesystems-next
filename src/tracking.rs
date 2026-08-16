@@ -5,7 +5,7 @@
 //! I/O-bound ESI calls), bounded by a [`Semaphore`] so we stay within ESI's error limit and
 //! fit each tier's time budget. Tier 1 polls online state for the characters of active users
 //! every 60s; tier 2 polls location + ship for the *online* ones every 5s. After a poll
-//! updates a character, we ping its user's private channel so their UI refetches.
+//! observes an actual change, we ping its user's private channel so their UI refetches.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -155,21 +155,30 @@ async fn poll_online(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub
     let Ok(status) = esi.character_online(&token, due.character_id).await else {
         return;
     };
-    let updated = sqlx::query!(
-        "insert into character_status (character_id, online, last_online_at)
+    // The write always runs (`updated_at` = last successful poll, `last_online_at` keeps
+    // refreshing while online), but the user is only pinged on an actual transition — the
+    // CTE snapshots the prior value so the publish can compare against it.
+    let Ok(row) = sqlx::query!(
+        r#"with prev as (
+             select online from character_status where character_id = $1
+         )
+         insert into character_status (character_id, online, last_online_at)
          values ($1, $2, case when $2 then now() else null end)
          on conflict (character_id) do update set
              online = excluded.online,
              last_online_at = case when excluded.online then now()
                                    else character_status.last_online_at end,
-             updated_at = now()",
+             updated_at = now()
+         returning (select online from prev) as "prev_online?""#,
         due.character_id,
         status.online,
     )
-    .execute(&pool)
+    .fetch_one(&pool)
     .await
-    .is_ok();
-    if updated {
+    else {
+        return;
+    };
+    if row.prev_online != Some(status.online) {
         users.publish(
             due.user_id,
             UserEvent::CharacterStatusChanged {
@@ -187,39 +196,59 @@ async fn poll_location_ship(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: 
     let id = due.character_id;
     let mut changed = false;
 
+    // As in tier 1: the writes always run (poll freshness), but `changed` compares against
+    // the prior values so the user is only pinged when something actually changed.
     if let Ok(token) = sso.access_token(&store, id, Scope::ReadLocation).await
         && let Ok(location) = esi.character_location(&token, id).await
-    {
-        changed |= sqlx::query!(
-            "update character_status
+        && let Ok(Some(row)) = sqlx::query!(
+            r#"with prev as (
+                 select solar_system_id, station_id, structure_id
+                 from character_status where character_id = $1
+             )
+             update character_status
              set solar_system_id = $2, station_id = null, structure_id = null, updated_at = now()
-             where character_id = $1",
+             where character_id = $1
+             returning (select solar_system_id from prev) as "prev_solar_system_id?",
+                       (select station_id from prev) as "prev_station_id?",
+                       (select structure_id from prev) as "prev_structure_id?""#,
             id,
             location.solar_system_id,
         )
-        .execute(&pool)
+        .fetch_optional(&pool)
         .await
-        .is_ok();
+    {
+        changed |= row.prev_solar_system_id != Some(location.solar_system_id)
+            || row.prev_station_id.is_some()
+            || row.prev_structure_id.is_some();
     }
 
     if let Ok(token) = sso.access_token(&store, id, Scope::ReadShipType).await
         && let Ok(ship) = esi.character_ship(&token, id).await
-    {
-        changed |= sqlx::query!(
-            "update character_status
+        && let Ok(Some(row)) = sqlx::query!(
+            r#"with prev as (
+                 select ship_type_id, ship_name, ship_item_id
+                 from character_status where character_id = $1
+             )
+             update character_status
              set ship_type_id = $2, ship_name = $3, ship_item_id = $4,
                  ship_updated_at = case when ship_item_id is distinct from $4 then now()
                                         else ship_updated_at end,
                  updated_at = now()
-             where character_id = $1",
+             where character_id = $1
+             returning (select ship_type_id from prev) as "prev_ship_type_id?",
+                       (select ship_name from prev) as "prev_ship_name?",
+                       (select ship_item_id from prev) as "prev_ship_item_id?""#,
             id,
             ship.ship_type_id,
             ship.ship_name,
             ship.ship_item_id,
         )
-        .execute(&pool)
+        .fetch_optional(&pool)
         .await
-        .is_ok();
+    {
+        changed |= row.prev_ship_type_id != Some(ship.ship_type_id)
+            || row.prev_ship_name.as_deref() != Some(ship.ship_name.as_str())
+            || row.prev_ship_item_id != Some(ship.ship_item_id);
     }
 
     if changed {
