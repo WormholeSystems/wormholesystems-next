@@ -71,6 +71,8 @@ pub struct SystemSearchResult {
     pub name: String,
     pub security: f64,
     pub region: String,
+    pub region_id: i64,
+    pub constellation_id: i64,
     pub wormhole_class_id: Option<i32>,
     /// Wormhole effect, for J-space rows (shown where k-space rows show sovereignty).
     pub effect_name: Option<String>,

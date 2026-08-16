@@ -4,7 +4,7 @@ import type { Sovereignty } from "./Sovereignty";
 /**
  * A solar system matched by the "add system" search, with just enough to display and pick.
  */
-export type SystemSearchResult = { id: number, name: string, security: number, region: string, wormhole_class_id: number | null, 
+export type SystemSearchResult = { id: number, name: string, security: number, region: string, region_id: number, constellation_id: number, wormhole_class_id: number | null, 
 /**
  * Wormhole effect, for J-space rows (shown where k-space rows show sovereignty).
  */
