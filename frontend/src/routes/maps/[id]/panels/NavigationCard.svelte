@@ -22,7 +22,7 @@
 		type RoutePreference
 	} from '$lib/routing/algorithm';
 	import type { MapState } from '../map-state.svelte';
-	import SystemPicker from './SystemPicker.svelte';
+	import SystemCombobox from '$lib/components/pickers/SystemCombobox.svelte';
 
 	let { map }: { map: MapState } = $props();
 
@@ -128,7 +128,7 @@
 	<MapPanelContent>
 		<div class="flex flex-col gap-2 p-3 text-xs">
 		<div class="flex items-center gap-1.5">
-			<SystemPicker
+			<SystemCombobox
 				placeholder="Origin"
 				value={map.routeFromId}
 				onpick={(id) => (map.routeFromId = id)}
@@ -136,7 +136,7 @@
 			<Button variant="ghost" size="icon-xs" aria-label="Swap" onclick={swap}>
 				<ArrowLeftRightIcon />
 			</Button>
-			<SystemPicker
+			<SystemCombobox
 				placeholder="Destination"
 				value={map.routeToId}
 				onpick={(id) => (map.routeToId = id)}

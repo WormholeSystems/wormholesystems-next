@@ -4,7 +4,7 @@
 	import { api } from '$lib/api/client';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import * as Command from '$lib/components/ui/command';
-	import { searchClassification } from '$lib/map/classes';
+	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 
 	let {
 		open = $bindable(),
@@ -57,11 +57,8 @@
 		</Command.Empty>
 		<Command.Group>
 			{#each results as s (s.id)}
-				{@const c = searchClassification(s)}
 				<Command.Item value={String(s.id)} onSelect={() => choose(s.id)}>
-					<span class="w-12 shrink-0 font-mono text-xs" style="color: var(--color-{c.token})">{c.badge}</span>
-					<span class="truncate text-foreground">{s.name}</span>
-					<span class="ml-auto truncate text-xs text-muted-foreground">{s.region}</span>
+					<SystemRow system={s} />
 				</Command.Item>
 			{/each}
 		</Command.Group>

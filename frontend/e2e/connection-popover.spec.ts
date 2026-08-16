@@ -207,8 +207,11 @@ test('manual jump flow: log, edit direction, delete', async ({ page, api }) => {
 	await log.getByTestId('log-jump').click();
 	const form = page.getByTestId('jump-form');
 	await expect(form).toBeVisible();
+	// Keyboard-driven pick: type, highlighted first result, Enter.
 	await form.getByTestId('ship-search').fill('Rifter');
-	await page.getByRole('button', { name: 'Rifter Frigate' }).click();
+	await expect(page.getByRole('option', { name: /Rifter/ }).first()).toBeVisible();
+	await form.getByTestId('ship-search').press('Enter');
+	await expect(form.getByText('Rifter', { exact: true })).toBeVisible();
 	await expect(form.getByTestId('jump-mass')).toHaveValue(/1\.?\d*/);
 	await form.getByRole('button', { name: 'Save' }).click();
 

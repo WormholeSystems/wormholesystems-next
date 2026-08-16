@@ -91,3 +91,16 @@ test('wormhole connection shortcuts the route and highlights the edge', async ({
 	await page.getByRole('button', { name: 'Clear route' }).click();
 	await expect(page.locator('path[data-on-route="true"]')).toHaveCount(0);
 });
+
+test('navigation pickers support keyboard selection', async ({ page, api }) => {
+	const res = await api.post('/api/maps', { data: { name: 'E2E PickerKeys' } });
+	const mapId = (await res.json()).id as number;
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const origin = page.getByTestId('system-picker-origin');
+	await origin.click();
+	await page.getByPlaceholder('Search…').fill('jita');
+	await expect(page.getByRole('option', { name: /Jita/ })).toBeVisible();
+	await page.getByPlaceholder('Search…').press('Enter');
+	await expect(origin).toContainText('Jita');
+});

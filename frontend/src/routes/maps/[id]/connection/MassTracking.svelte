@@ -22,6 +22,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Input } from '$lib/components/ui/input';
+	import ShipCombobox from '$lib/components/pickers/ShipCombobox.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -114,25 +115,6 @@
 	let shipTypeId = $state<number | null>(null);
 	let shipLabel = $state('');
 	let massKt = $state('');
-	let shipTerm = $state('');
-	let results = $state<ShipSearchResult[]>([]);
-	let searchTimer: ReturnType<typeof setTimeout> | undefined;
-
-	$effect(() => {
-		const term = shipTerm.trim();
-		clearTimeout(searchTimer);
-		if (!term) {
-			results = [];
-			return;
-		}
-		searchTimer = setTimeout(async () => {
-			try {
-				results = await api.searchShips(term);
-			} catch {
-				results = [];
-			}
-		}, 200);
-	});
 
 	function systemLabel(s: MapSystemView): string {
 		return s.alias ?? s.name;
@@ -149,7 +131,6 @@
 		shipTypeId = null;
 		shipLabel = '';
 		massKt = '';
-		shipTerm = '';
 		formOpen = true;
 	}
 
@@ -159,7 +140,6 @@
 		shipTypeId = jump.ship_type_id;
 		shipLabel = jump.ship_type_name ?? '';
 		massKt = String(Math.round((jump.mass / 1_000_000) * 10) / 10);
-		shipTerm = '';
 		// Deferred: the closing dropdown's focus restore would dismiss a popover
 		// opened in the same tick (legacy has the same workaround).
 		setTimeout(() => (formOpen = true));
@@ -169,8 +149,6 @@
 		shipTypeId = result.id;
 		shipLabel = result.name;
 		if (result.mass) massKt = String(Math.round((result.mass / 1_000_000) * 10) / 10);
-		shipTerm = '';
-		results = [];
 	}
 
 	const massKg = $derived.by(() => {
@@ -426,34 +404,7 @@
 									</button>
 								</div>
 							{:else}
-								<div class="rounded-md border">
-									<Input
-										bind:value={shipTerm}
-										placeholder="Search ship type…"
-										class="h-7 border-0 text-xs shadow-none focus-visible:ring-0"
-										data-testid="ship-search"
-									/>
-									{#if results.length > 0}
-										<ul class="max-h-40 overflow-y-auto border-t">
-											{#each results as result (result.id)}
-												<li>
-													<button
-														type="button"
-														class="flex w-full items-center justify-between gap-2 px-2 py-1 text-left text-xs hover:bg-accent"
-														onclick={() => pickShip(result)}
-													>
-														<span class="truncate">{result.name}</span>
-														<span class="shrink-0 text-xs text-muted-foreground">
-															{result.group_name}
-														</span>
-													</button>
-												</li>
-											{/each}
-										</ul>
-									{:else if shipTerm.trim().length > 0}
-										<div class="border-t px-2 py-1 text-xs text-muted-foreground">No matches</div>
-									{/if}
-								</div>
+								<ShipCombobox onpick={pickShip} />
 							{/if}
 
 							<div class="flex items-center gap-2">
