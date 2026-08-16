@@ -18,7 +18,6 @@
 	const cls = $derived(classMeta(system.wormhole_class_id, system.security_status));
 	const isWormhole = $derived(isWormholeClass(system.wormhole_class_id));
 	const underscore = (s: string) => s.replaceAll(' ', '_');
-	const sovKind = $derived(system.sovereignty?.kind === 'alliance' ? 'alliance' : 'corporation');
 
 	const effectColor = $derived(effectTextColor(system.effect_name));
 
@@ -136,7 +135,7 @@
 				<div class="flex flex-col gap-1.5">
 					<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Sovereignty</span>
 					<div class="flex items-center gap-2">
-						<EveImage kind={sovKind} id={system.sovereignty.id} class="size-5 rounded" />
+						<EveImage kind={system.sovereignty.kind} id={system.sovereignty.id} size={32} class="size-5 rounded" />
 						<span class="text-xs">
 							{#if 'ticker' in system.sovereignty}<span class="font-medium"
 									>[{system.sovereignty.ticker}]</span

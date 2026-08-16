@@ -3,16 +3,20 @@
 	// rows align: colored class, name, region, then the holder — sovereignty for k-space,
 	// the wormhole effect for J-space.
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import EveImage from '$lib/components/EveImage.svelte';
 	import { classMeta, effectTextColor } from '$lib/map/classes';
 
 	let { system }: { system: SystemSearchResult } = $props();
 
 	const c = $derived(classMeta(system.wormhole_class_id, system.security));
-	const sovLabel = $derived.by(() => {
-		const sov = system.sovereignty;
-		if (!sov) return null;
-		return 'ticker' in sov && sov.ticker ? `[${sov.ticker}]` : sov.name;
-	});
+	const sov = $derived(system.sovereignty);
+	const sovLabel = $derived(
+		sov === null || sov === undefined
+			? null
+			: 'ticker' in sov && sov.ticker
+				? sov.ticker
+				: sov.name
+	);
 </script>
 
 <span class="w-8 shrink-0 font-mono text-xs" style="color: var(--color-{c.token})">{c.short}</span>
@@ -25,12 +29,13 @@
 	>
 		{system.effect_name}
 	</span>
-{:else if sovLabel}
+{:else if sov && sovLabel}
 	<span
-		class="w-24 shrink-0 truncate text-right text-xs text-muted-foreground"
-		title={system.sovereignty?.name}
+		class="flex w-24 shrink-0 items-center justify-end gap-1.5 text-right text-xs text-muted-foreground"
+		title={sov.name}
 	>
-		{sovLabel}
+		<EveImage kind={sov.kind} id={sov.id} size={32} class="size-4 shrink-0 rounded-sm" />
+		<span class="truncate">{sovLabel}</span>
 	</span>
 {:else}
 	<span class="w-24 shrink-0"></span>
