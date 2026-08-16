@@ -1,0 +1,167 @@
+import { expect, gotoApp, test } from './fixtures';
+
+// Legacy node parity: displayed information, colors, tooltips, and the alias editor.
+
+const JITA = 30000142; // highsec k-space
+const J122515 = 31001882; // C5, Wolf-Rayet Star, static H296 (to C5)
+const J005482 = 31002515; // C2, shattered
+const THERA = 31000005; // class 12
+
+async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
+	const res = await api.post('/api/maps', { data: { name } });
+	expect(res.ok()).toBe(true);
+	return (await res.json()).id as number;
+}
+
+async function addSystem(
+	api: import('@playwright/test').APIRequestContext,
+	mapId: number,
+	solarSystemId: number,
+	x: number,
+	y: number,
+	alias: string | null = null
+) {
+	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias }
+	});
+	expect(res.ok()).toBe(true);
+	return (await res.json()).id as number;
+}
+
+test('node shows class, alias, occupier, statics, effect, and region per space kind', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E Visuals');
+	const wh = await addSystem(api, mapId, J122515, 200, 200, 'Home');
+	await addSystem(api, mapId, JITA, 200, 400);
+	await addSystem(api, mapId, THERA, 200, 600);
+	await api.post(`/api/maps/${mapId}/systems/set-occupier`, {
+		data: { map_id: mapId, map_solar_system_id: wh, occupier: 'LZHX' }
+	});
+
+	await gotoApp(page, `/maps/${mapId}`);
+	const whNode = page.getByTestId('system-node').filter({ hasText: 'J122515' });
+
+	// Class label with the class color token.
+	const classLabel = whNode.getByText('C5', { exact: true }).first();
+	await expect(classLabel).toBeVisible();
+	await expect(classLabel).toHaveAttribute('style', /--color-c5/);
+
+	// Alias bright, real name dimmed, occupier in parentheses.
+	await expect(whNode.getByText('Home', { exact: true })).toBeVisible();
+	await expect(whNode.getByText('(LZHX)')).toBeVisible();
+
+	// W-space second row: colored static label with a physics tooltip.
+	const staticLabel = whNode.getByTestId('static-badge');
+	await expect(staticLabel).toHaveText('C5');
+	await expect(staticLabel).toHaveAttribute('style', /--color-c5/);
+	await staticLabel.hover();
+	const tooltip = page.locator('[data-slot="tooltip-content"]');
+	await expect(tooltip.getByText('H296')).toBeVisible();
+	await expect(tooltip.getByText('Total Mass')).toBeVisible();
+	await expect(tooltip.getByText('3,300 kt')).toBeVisible();
+	await expect(tooltip.getByText('24 h')).toBeVisible();
+
+	// Effect badge letter (no sovereignty in J-space), popover lists modifiers.
+	const effect = whNode.getByLabel('Wolf-Rayet Star');
+	await expect(effect).toBeVisible();
+	await expect(effect).toHaveText('W');
+	await effect.click();
+	await expect(page.getByText('Armor HP')).toBeVisible();
+	await page.keyboard.press('Escape');
+
+	// K-space node shows the region, not statics.
+	const jita = page.getByTestId('system-node').filter({ hasText: 'Jita' });
+	await expect(jita.getByText('The Forge')).toBeVisible();
+	await expect(jita.getByText('H', { exact: true })).toHaveAttribute('style', /--color-hs/);
+
+	// Thera resolves to class 12.
+	const thera = page.getByTestId('system-node').filter({ hasText: 'Thera' });
+	await expect(thera.getByText('C12', { exact: true })).toBeVisible();
+});
+
+test('icon cluster: shattered, signatures, unmapped wormholes, home, pin', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E Icons');
+	const shattered = await addSystem(api, mapId, J005482, 200, 200);
+	await api.post(`/api/maps/${mapId}/systems/set-home`, {
+		data: { map_id: mapId, map_solar_system_id: shattered, value: true }
+	});
+	// One categorized wormhole sig (drives the fan icon: 1 wormhole sig, 0 connections)
+	// and one uncategorized sig (turns the satellite rose).
+	await api.post(`/api/maps/${mapId}/signatures/paste`, {
+		data: {
+			map_id: mapId,
+			solar_system_id: J005482,
+			signatures: [
+				{ signature_id: 'ABC-123', group: 'wormhole', name: 'K162' },
+				{ signature_id: 'DEF-456', group: 'unknown', name: null }
+			]
+		}
+	});
+
+	await gotoApp(page, `/maps/${mapId}`);
+	const node = page.getByTestId('system-node').filter({ hasText: 'J005482' });
+
+	await expect(node.getByTestId('shattered-icon')).toBeVisible();
+	await expect(node.getByTestId('sig-icon')).toBeVisible();
+	await expect(node.getByTestId('unmapped-icon')).toBeVisible();
+
+	await node.getByTestId('sig-icon').hover();
+	await expect(page.getByText('2 signatures, 1 uncategorized')).toBeVisible();
+
+	await node.getByTestId('unmapped-icon').hover();
+	await expect(page.getByText('Has 1 unmapped wormhole')).toBeVisible();
+
+	// Home icon present; pin the system and the drag handle disappears.
+	await expect(node.locator('.text-amber-400')).toBeVisible();
+	await api.post(`/api/maps/${mapId}/systems/set-pinned`, {
+		data: { map_id: mapId, map_solar_system_id: shattered, value: true }
+	});
+	await node.hover();
+	await expect(node.getByTestId('drag-handle')).toHaveCount(0);
+});
+
+test('status vocabulary drives border and icon', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Status');
+	await addSystem(api, mapId, JITA, 200, 200);
+
+	await gotoApp(page, `/maps/${mapId}`);
+	const node = page.getByTestId('system-node').filter({ hasText: 'Jita' });
+
+	await node.click({ button: 'right' });
+	await page.getByTestId('status-subtrigger').hover();
+	await page.getByTestId('status-submenu').getByRole('button', { name: 'Empty' }).click();
+	await expect(node).toHaveAttribute('data-status', 'empty');
+	await expect(node.getByLabel('empty')).toBeVisible();
+	// The status token must actually resolve to the emerald empty color at runtime
+	// (poll: border-color transitions for 200ms).
+	await expect
+		.poll(async () => node.evaluate((el) => getComputedStyle(el).borderTopColor))
+		.toBe('oklch(0.765 0.177 163.223)');
+
+	await node.click({ button: 'right' });
+	await page.getByTestId('status-subtrigger').hover();
+	await page.getByTestId('status-submenu').getByRole('button', { name: 'Active' }).click();
+	await expect(node).toHaveAttribute('data-status', 'active');
+	await expect(node.getByLabel('active')).toBeVisible();
+});
+
+test('double click opens the alias editor and saves', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Alias');
+	await addSystem(api, mapId, JITA, 200, 200);
+
+	await gotoApp(page, `/maps/${mapId}`);
+	const node = page.getByTestId('system-node').filter({ hasText: 'Jita' });
+	await node.dblclick();
+
+	await page.getByPlaceholder('Alias', { exact: true }).fill('Market');
+	await page.getByPlaceholder('Occupier alias').fill('Caldari');
+	await page.getByRole('button', { name: 'Save' }).click();
+
+	await expect(node.getByText('Market')).toBeVisible();
+	await expect(node.getByText('(Caldari)')).toBeVisible();
+});

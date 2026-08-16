@@ -15,5 +15,38 @@ services:
       timeout: 5s
       retries: 10
 
+  # The full stack (Caddy + API + frontend). `docker compose up db` still works alone for
+  # local dev, where the API and frontend run on the host instead.
+  api:
+    build: .
+    profiles: ["full"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://vector:vector@db:5432/vector
+      LISTEN_ADDR: 0.0.0.0:3000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: frontend
+    profiles: ["full"]
+    environment:
+      API_BASE: http://api:3000
+      PORT: 3001
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2
+    profiles: ["full"]
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+      - web
+
 volumes:
   pgdata:

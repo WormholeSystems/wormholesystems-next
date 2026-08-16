@@ -1,0 +1,16 @@
+# Single origin: backend paths go to Axum, everything else to SvelteKit.
+# WebSocket upgrades pass through reverse_proxy automatically.
+:80 {
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+	handle /ws/* {
+		reverse_proxy api:3000
+	}
+	handle /auth/* {
+		reverse_proxy api:3000
+	}
+	handle {
+		reverse_proxy web:3001
+	}
+}
