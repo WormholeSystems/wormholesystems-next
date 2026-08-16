@@ -10,6 +10,8 @@
 	import OrbitIcon from '@lucide/svelte/icons/orbit';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 
+	import { setContext } from 'svelte';
+
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 
@@ -48,6 +50,8 @@
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const map = $derived(new MapState(mapId));
+	// The app-wide system context menu reads the map through this getter.
+	setContext('map-state', () => map);
 
 	let viewportEl = $state<HTMLElement | null>(null);
 

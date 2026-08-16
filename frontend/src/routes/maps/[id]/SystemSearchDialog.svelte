@@ -5,6 +5,7 @@
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import * as Command from '$lib/components/ui/command';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
+	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 
 	let {
 		open = $bindable(),
@@ -58,7 +59,9 @@
 		<Command.Group>
 			{#each results as s (s.id)}
 				<Command.Item value={String(s.id)} onSelect={() => choose(s.id)}>
-					<SystemRow system={s} />
+					<SystemMenu system={s}>
+						<SystemRow system={s} />
+					</SystemMenu>
 				</Command.Item>
 			{/each}
 		</Command.Group>

@@ -6,6 +6,7 @@
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
+	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import SystemRow from './SystemRow.svelte';
 
 	let {
@@ -85,7 +86,9 @@
 				<Command.Group>
 					{#each results as s (s.id)}
 						<Command.Item value={String(s.id)} onSelect={() => choose(s)}>
-							<SystemRow system={s} />
+							<SystemMenu system={s}>
+								<SystemRow system={s} />
+							</SystemMenu>
 						</Command.Item>
 					{/each}
 				</Command.Group>
