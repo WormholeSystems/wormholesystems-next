@@ -6,6 +6,7 @@ import { createIdentity, grantAccess } from './db';
 
 const JITA = 30000142;
 const AMARR = 30002187;
+const PERIMETER = 30000144;
 const J122515 = 31001882;
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
@@ -148,7 +149,12 @@ test('route settings: preference persists; lifetime tolerance drops EOL holes', 
 
 test('find: closest systems from the unified origin', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E NavFind');
-	await addSystem(api, mapId, JITA, 200, 200);
+	const jita = await addSystem(api, mapId, JITA, 200, 200);
+	// A mapped neighbour, so route highlighting has an edge to light up.
+	const perimeter = await addSystem(api, mapId, PERIMETER, 560, 200);
+	await api.post(`/api/maps/${mapId}/connections/add`, {
+		data: { map_id: mapId, from_system: jita, to_system: perimeter, kind: 'wormhole' }
+	});
 	await gotoApp(page, `/maps/${mapId}`);
 	await page.getByTestId('system-node').filter({ hasText: 'Jita' }).click();
 
@@ -189,6 +195,22 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toHaveCount(0);
 	await page.getByTestId('find-row').first().click();
 	await expect(page.getByTestId('find-station').first()).toContainText('CONCORD');
+
+	// Hovering a station keeps its system's route highlighted on the canvas (the
+	// station belongs to that system, so the highlight must not drop). Perimeter is
+	// one mapped jump away, so its route lights up the connection.
+	await page.getByTestId('find-condition').selectOption({ label: 'Repair Facilities' });
+	const perimeterRow = page.getByTestId('find-row').filter({ hasText: 'Perimeter' });
+	await perimeterRow.hover();
+	const onRoute = page.locator('path[data-on-route="true"]');
+	await expect(onRoute).toHaveCount(1);
+	await perimeterRow.click();
+	// Only this row is expanded, so its stations are the visible ones.
+	await page.getByTestId('find-station').first().hover();
+	await expect(onRoute).toHaveCount(1);
+	// Leaving the list entirely clears it again.
+	await page.getByTestId('find-condition').hover();
+	await expect(onRoute).toHaveCount(0);
 
 	// A station row can be right-clicked to set it as the in-game destination.
 	await page.getByTestId('find-station').first().click({ button: 'right' });

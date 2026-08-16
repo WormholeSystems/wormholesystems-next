@@ -714,9 +714,14 @@
 						{#each stations as station (station.id)}
 							<!-- Right-click a station to set it as the in-game destination. -->
 							<DestinationMenu destinationId={station.id} class="col-span-full">
+								<!-- A station belongs to its system: hovering it keeps that
+								     system's route highlighted on the canvas. -->
 								<div
 									class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
 									data-testid="find-station"
+									role="listitem"
+									onmouseenter={() => (hoverPath = result.route.map((step) => step.id))}
+									onmouseleave={() => (hoverPath = null)}
 								>
 									<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
 									<span class="truncate" title={station.name}>{station.name}</span>
