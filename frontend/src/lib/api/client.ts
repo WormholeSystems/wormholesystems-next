@@ -11,6 +11,7 @@ import type { CharacterStatus } from './types/CharacterStatus';
 import type { CharacterSummary } from './types/CharacterSummary';
 import type { ClearMap } from './types/ClearMap';
 import type { EffectModifier } from './types/EffectModifier';
+import type { EveScoutEdge } from './types/EveScoutEdge';
 import type { GridConfig } from './types/GridConfig';
 import type { LinkSignature } from './types/LinkSignature';
 import type { Map } from './types/Map';
@@ -40,7 +41,11 @@ import type { SetWaypointBody } from './types/SetWaypointBody';
 import type { Signature } from './types/Signature';
 import type { ShipSearchResult } from './types/ShipSearchResult';
 import type { SignatureCatalog } from './types/SignatureCatalog';
+import type { AddWatchlistEntry } from './types/AddWatchlistEntry';
+import type { RemoveWatchlistEntry } from './types/RemoveWatchlistEntry';
+import type { SetWatchlistPinned } from './types/SetWatchlistPinned';
 import type { SystemDetails } from './types/SystemDetails';
+import type { WatchlistEntry } from './types/WatchlistEntry';
 import type { ThreatAnalysis } from './types/ThreatAnalysis';
 import type { SystemSearchResult } from './types/SystemSearchResult';
 import type { UnlinkSignature } from './types/UnlinkSignature';
@@ -115,9 +120,12 @@ export const api = {
 	threatAnalysis: (solarSystemId: number) =>
 		get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
 	routingGraph: () =>
-		get<{ adjacency: Record<string, number[]>; security: Record<string, number> }>(
-			'/api/routing-graph'
-		),
+		get<{
+			adjacency: Record<string, number[]>;
+			security: Record<string, number>;
+			jove: number[];
+			stations: number[];
+		}>('/api/routing-graph'),
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),
@@ -165,6 +173,16 @@ export const api = {
 		post<null>(`/api/maps/${cmd.map_id}/connections/jumps/remove`, cmd),
 	searchShips: (query: string) =>
 		get<ShipSearchResult[]>(`/api/ships/search?q=${encodeURIComponent(query)}`),
+
+	// Navigation
+	eveScout: () => get<EveScoutEdge[]>('/api/evescout'),
+	listWatchlist: (mapId: number) => get<WatchlistEntry[]>(`/api/maps/${mapId}/watchlist`),
+	addWatchlistEntry: (cmd: AddWatchlistEntry) =>
+		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/add`, cmd),
+	setWatchlistPinned: (cmd: SetWatchlistPinned) =>
+		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/set-pinned`, cmd),
+	removeWatchlistEntry: (cmd: RemoveWatchlistEntry) =>
+		post<null>(`/api/maps/${cmd.map_id}/watchlist/remove`, cmd),
 
 	// Signatures
 	signatureCatalog: () => get<SignatureCatalog>('/api/signature-types'),

@@ -2,15 +2,20 @@
 	// An ordered jump route: numbered rows rendered with the shared SystemRow
 	// (class letter, name, region, sovereignty logo or effect), plus an amber WH
 	// marker on wormhole hops. Resolves its own display data from the ids.
+	import XIcon from '@lucide/svelte/icons/x';
+
 	import { api } from '$lib/api/client';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 
 	let {
-		steps
+		steps,
+		onignore
 	}: {
-		steps: { id: number; via?: 'stargate' | 'wormhole' | null }[];
+		steps: { id: number; via?: 'stargate' | 'wormhole' | 'evescout' | null }[];
+		/** When set, middle hops get an X to route around that system. */
+		onignore?: (id: number) => void;
 	} = $props();
 
 	let resolved = $state<Map<number, SystemSearchResult>>(new Map());
@@ -38,9 +43,21 @@
 					<span class="w-6 shrink-0 text-center">
 						{#if step.via === 'wormhole'}
 							<span class="text-amber-500" title="Take wormhole">WH</span>
+						{:else if step.via === 'evescout'}
+							<span class="text-blue-400" title="EVE Scout connection">ES</span>
 						{/if}
 					</span>
 					<SystemRow system={r} />
+					{#if onignore && i > 0 && i < steps.length - 1}
+						<button
+							class="shrink-0 text-muted-foreground/50 hover:text-destructive"
+							title="Route around this system"
+							aria-label="Ignore {r.name}"
+							onclick={() => onignore(step.id)}
+						>
+							<XIcon class="size-3" />
+						</button>
+					{/if}
 				</SystemMenu>
 			{:else}
 				<span class="w-5 shrink-0 text-right text-muted-foreground">{i}</span>

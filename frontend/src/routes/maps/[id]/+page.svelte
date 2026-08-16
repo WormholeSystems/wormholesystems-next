@@ -100,6 +100,7 @@
 		});
 		s.loadUserSettings();
 		s.loadMyCharacters();
+		s.loadIgnored();
 		s.fetchCharacters();
 		// Presence has no realtime push yet; poll while the page is open.
 		const presence = setInterval(() => s.fetchCharacters(), 15_000);

@@ -9,7 +9,9 @@ import type { MapCharacter } from '$lib/api/types/MapCharacter';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
+import type { EveScoutEdge } from '$lib/api/types/EveScoutEdge';
 import type { Signature } from '$lib/api/types/Signature';
+import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 import { NODE_W, clamp } from '$lib/map/helpers';
 
 /**
@@ -60,6 +62,8 @@ export class MapState {
 	data = $state<MapView | null>(null);
 	grid = $state<GridConfig>(defaultGrid);
 	sigs = $state<Signature[]>([]);
+	watchlist = $state<WatchlistEntry[]>([]);
+	eveScout = $state<EveScoutEdge[]>([]);
 	characters = $state<MapCharacter[]>([]);
 	myCharacters = $state<CharacterRef[]>([]);
 	userSettings = $state<MapUserSettings | null>(null);
@@ -92,9 +96,53 @@ export class MapState {
 	routeFromId = $state<number | null>(null);
 	routeToId = $state<number | null>(null);
 	routePath = $state<number[]>([]);
+	// Systems the router steers around (per map, persisted locally).
+	ignoredSystems = $state<Set<number>>(new Set());
 
 	systems = $derived(this.data?.systems ?? []);
 	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
+	/** One origin for watchlist/find distances: route From, else the active system,
+	 *  else the tracked character's location. */
+	routeOrigin = $derived(
+		this.routeFromId ??
+			this.activeSystem?.solar_system_id ??
+			this.myCharacters.find((c) => c.is_active && c.online)?.solar_system_id ??
+			this.myCharacters.find((c) => c.online && c.solar_system_id !== null)?.solar_system_id ??
+			null
+	);
+
+	private ignoreStorageKey(): string {
+		return `route-ignored-${this.mapId}`;
+	}
+
+	loadIgnored() {
+		try {
+			const raw = localStorage.getItem(this.ignoreStorageKey());
+			this.ignoredSystems = new Set(raw ? (JSON.parse(raw) as number[]) : []);
+		} catch {
+			this.ignoredSystems = new Set();
+		}
+	}
+
+	ignoreSystem(id: number) {
+		const next = new Set(this.ignoredSystems);
+		next.add(id);
+		this.ignoredSystems = next;
+		localStorage.setItem(this.ignoreStorageKey(), JSON.stringify([...next]));
+	}
+
+	clearIgnored() {
+		this.ignoredSystems = new Set();
+		localStorage.removeItem(this.ignoreStorageKey());
+	}
+
+	async loadEveScout() {
+		try {
+			this.eveScout = await api.eveScout();
+		} catch {
+			this.eveScout = [];
+		}
+	}
 	connections = $derived(this.data?.connections ?? []);
 	nodeH = $derived(2 * this.grid.cell_size);
 
@@ -173,10 +221,12 @@ export class MapState {
 
 	async refetch() {
 		try {
-			const [data, sigs] = await Promise.all([
+			const [data, sigs, watchlist] = await Promise.all([
 				api.fetchMap(this.mapId),
-				api.listSignatures(this.mapId)
+				api.listSignatures(this.mapId),
+				api.listWatchlist(this.mapId)
 			]);
+			this.watchlist = watchlist;
 			this.data = data;
 			this.sigs = sigs;
 			// Reconcile optimistic move overrides: drop one once the server position matches

@@ -1494,7 +1494,8 @@ pub(crate) fn eve_scout_edge(sig: &serde_json::Value) -> Option<EveScoutEdge> {
 pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScoutEdge>> {
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
-    static CACHE: OnceLock<Mutex<Option<(Instant, Vec<EveScoutEdge>)>>> = OnceLock::new();
+    type Cached = Option<(Instant, Vec<EveScoutEdge>)>;
+    static CACHE: OnceLock<Mutex<Cached>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(None));
 
     if let Some((at, edges)) = cache.lock().expect("cache lock").as_ref()

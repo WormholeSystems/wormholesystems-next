@@ -13,6 +13,7 @@
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import NavigationIcon from '@lucide/svelte/icons/navigation';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import EyeIcon from '@lucide/svelte/icons/eye';
 	import RouteIcon from '@lucide/svelte/icons/route';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { getContext, type Snippet } from 'svelte';
@@ -49,6 +50,9 @@
 		map?.systems.find((s) => s.solar_system_id === system.id) ?? null
 	);
 	const onlineCharacters = $derived(map?.myCharacters.filter((c) => c.online) ?? []);
+	const watched = $derived(
+		map?.watchlist.some((w) => w.solar_system_id === system.id) ?? false
+	);
 
 	const LABEL = 'text-[0.65rem] font-semibold tracking-wider text-muted-foreground uppercase';
 
@@ -65,6 +69,13 @@
 				y: spot.y,
 				alias: null
 			})
+		);
+	}
+
+	function addToWatchlist() {
+		map?.run(
+			'watch',
+			api.addWatchlistEntry({ map_id: map.mapId, solar_system_id: system.id })
 		);
 	}
 
@@ -124,11 +135,19 @@
 		{@render children()}
 	</ContextMenu.Trigger>
 	<ContextMenu.Content class="w-52" data-testid="system-menu">
-		{#if map !== undefined && canWrite && placement === null}
-			<ContextMenu.Item onclick={addToMap} data-testid="menu-add-to-map">
-				<PlusIcon class="size-4" />
-				Add to map
-			</ContextMenu.Item>
+		{#if map !== undefined && canWrite && (placement === null || !watched)}
+			{#if placement === null}
+				<ContextMenu.Item onclick={addToMap} data-testid="menu-add-to-map">
+					<PlusIcon class="size-4" />
+					Add to map
+				</ContextMenu.Item>
+			{/if}
+			{#if !watched}
+				<ContextMenu.Item onclick={addToWatchlist} data-testid="menu-add-to-watchlist">
+					<EyeIcon class="size-4" />
+					Add to watchlist
+				</ContextMenu.Item>
+			{/if}
 			<ContextMenu.Separator />
 		{/if}
 
