@@ -53,6 +53,7 @@ fn map_event_round_trips_and_reports_its_map() {
             solar_system_id: 30000142,
         },
         MapEvent::AccessChanged { map_id: 5 },
+        MapEvent::WatchlistChanged { map_id: 6 },
     ];
     for ev in events {
         let json = serde_json::to_string(&ev).unwrap();

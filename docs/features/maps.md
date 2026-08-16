@@ -372,3 +372,24 @@ fields *and* the resulting rows match the inputs), each **authorization** bounda
 just-too-low rejected, minimum role accepted), and each **invariant/error** bullet above
 (e.g. duplicate add → `Conflict`, last-owner revoke → `LastOwner`, system round-trip
 preserves details). The bullet lists in this doc are the test checklist.
+
+---
+
+## Navigation
+
+The navigation panel is client-routed (Dijkstra over the stargate graph plus the
+map's live wormhole edges, and optionally EVE Scout's public Thera/Turnur edges from
+`GET /api/evescout`, proxied + cached 60s). One origin drives everything: the route
+"From" when set, else the active system, else the tracked character's location.
+
+- **Watchlist** (`map_watchlist`): `list/add/set_pinned/remove` (Member+ mutations,
+  Viewer+ reads). Jump counts, colors, and route popovers are client-side.
+- **Route settings** live on `map_user_settings` per user per map:
+  `route_preference` (`shorter`/`safer`/`less_secure`), `security_penalty` (0-100),
+  `route_allow_time_status` (`stable`/`eol`/`critical` = worst lifetime still
+  traversed), `route_allow_mass_status` (`stable`/`reduced`/`critical`), and
+  `route_use_evescout`.
+- The ignore list (route-around systems) is client-side per map, deliberately not
+  server state.
+- `GET /api/routing-graph` also carries `jove` and `stations` system-id sets for the
+  Find (closest systems) conditions.

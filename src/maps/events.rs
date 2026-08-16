@@ -56,6 +56,8 @@ pub enum MapEvent {
     SignatureChanged { map_id: i64, solar_system_id: i64 },
     /// An access grant changed (membership/roles).
     AccessChanged { map_id: i64 },
+    /// The navigation watchlist changed (entry added/pinned/removed).
+    WatchlistChanged { map_id: i64 },
 }
 
 impl MapEvent {
@@ -69,7 +71,8 @@ impl MapEvent {
             | MapEvent::SystemDetailsChanged { map_id, .. }
             | MapEvent::ConnectionChanged { map_id, .. }
             | MapEvent::SignatureChanged { map_id, .. }
-            | MapEvent::AccessChanged { map_id } => map_id,
+            | MapEvent::AccessChanged { map_id }
+            | MapEvent::WatchlistChanged { map_id } => map_id,
         }
     }
 }

@@ -8,10 +8,10 @@ use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 
 use super::{
-    ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, MapCharacter, MapEntry,
-    MapUserSettings, ShipSearchResult, SignatureCatalog, SignatureCategoryInfo, SignatureTypeInfo,
-    SystemSearchResult, ThreatAnalysis, ThreatEntity, UpdateMapUserSettings, check_map_id,
-    require_actor, session_actor, session_id,
+    ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, EveScoutEdge,
+    MapCharacter, MapEntry, MapUserSettings, ShipSearchResult, SignatureCatalog,
+    SignatureCategoryInfo, SignatureTypeInfo, SystemSearchResult, ThreatAnalysis, ThreatEntity,
+    UpdateMapUserSettings, check_map_id, require_actor, session_actor, session_id,
 };
 use crate::auth::AppState;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
@@ -25,6 +25,9 @@ use crate::maps::signatures::{
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
     SetNotes, SetOccupier, SetPinned, SetRally, SetStatus, SystemDetails,
+};
+use crate::maps::watchlist::{
+    AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned, WatchlistEntry,
 };
 use crate::maps::{
     EffectModifier, GridConfig, Map, MapConnection, MapEvent, MapSolarSystem, MapView, Signature,
@@ -499,9 +502,20 @@ pub async fn routing_graph(
             .into_iter()
             .map(|r| (r.id, r.security_status))
             .collect();
+    let jove: Vec<i64> = sqlx::query_scalar!("select solar_system_id from jove_observatories")
+        .fetch_all(&state.db)
+        .await?;
+    let stations: Vec<i64> = sqlx::query_scalar!("select distinct solar_system_id from stations")
+        .fetch_all(&state.db)
+        .await?;
     Ok((
         [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
-        Json(serde_json::json!({ "adjacency": adjacency, "security": security })),
+        Json(serde_json::json!({
+            "adjacency": adjacency,
+            "security": security,
+            "jove": jove,
+            "stations": stations,
+        })),
     ))
 }
 
@@ -720,7 +734,9 @@ pub async fn map_user_settings(
         return Err(ApiError::from(crate::maps::MapError::NotFound));
     }
     let row = sqlx::query!(
-        "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first
+        "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first,
+                route_preference, security_penalty, route_allow_time_status,
+                route_allow_mass_status, route_use_evescout
          from map_user_settings where map_id = $1 and user_id = $2",
         map_id,
         actor.user_id,
@@ -733,12 +749,22 @@ pub async fn map_user_settings(
             show_threat_level: r.show_threat_level,
             compact_signature_list: r.compact_signature_list,
             show_statics_first: r.show_statics_first,
+            route_preference: r.route_preference,
+            security_penalty: r.security_penalty,
+            route_allow_time_status: r.route_allow_time_status,
+            route_allow_mass_status: r.route_allow_mass_status,
+            route_use_evescout: r.route_use_evescout,
         },
         None => MapUserSettings {
             tracking_allowed: false,
             show_threat_level: true,
             compact_signature_list: false,
             show_statics_first: false,
+            route_preference: "shorter".into(),
+            security_penalty: 50,
+            route_allow_time_status: "critical".into(),
+            route_allow_mass_status: "reduced".into(),
+            route_use_evescout: false,
         },
     }))
 }
@@ -758,25 +784,61 @@ pub async fn update_map_user_settings(
     {
         return Err(ApiError::from(crate::maps::MapError::NotFound));
     }
+    if let Some(p) = body.route_preference.as_deref()
+        && !matches!(p, "shorter" | "safer" | "less_secure")
+    {
+        return Err(ApiError::bad_request("invalid route preference"));
+    }
+    if let Some(p) = body.security_penalty
+        && !(0..=100).contains(&p)
+    {
+        return Err(ApiError::bad_request("security penalty must be 0-100"));
+    }
+    if let Some(t) = body.route_allow_time_status.as_deref()
+        && !matches!(t, "stable" | "eol" | "critical")
+    {
+        return Err(ApiError::bad_request("invalid lifetime tolerance"));
+    }
+    if let Some(m) = body.route_allow_mass_status.as_deref()
+        && !matches!(m, "stable" | "reduced" | "critical")
+    {
+        return Err(ApiError::bad_request("invalid mass tolerance"));
+    }
     let row = sqlx::query!(
         "insert into map_user_settings
              (map_id, user_id, tracking_allowed, show_threat_level,
-              compact_signature_list, show_statics_first)
+              compact_signature_list, show_statics_first,
+              route_preference, security_penalty, route_allow_time_status,
+              route_allow_mass_status, route_use_evescout)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
-                 coalesce($5, false), coalesce($6, false))
+                 coalesce($5, false), coalesce($6, false),
+                 coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
+                 coalesce($10, 'reduced'), coalesce($11, false))
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
              compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),
              show_statics_first = coalesce($6, map_user_settings.show_statics_first),
+             route_preference = coalesce($7, map_user_settings.route_preference),
+             security_penalty = coalesce($8, map_user_settings.security_penalty),
+             route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),
+             route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),
+             route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),
              updated_at = now()
-         returning tracking_allowed, show_threat_level, compact_signature_list, show_statics_first",
+         returning tracking_allowed, show_threat_level, compact_signature_list,
+                   show_statics_first, route_preference, security_penalty,
+                   route_allow_time_status, route_allow_mass_status, route_use_evescout",
         map_id,
         actor.user_id,
         body.tracking_allowed,
         body.show_threat_level,
         body.compact_signature_list,
         body.show_statics_first,
+        body.route_preference,
+        body.security_penalty,
+        body.route_allow_time_status,
+        body.route_allow_mass_status,
+        body.route_use_evescout,
     )
     .fetch_one(&state.db)
     .await?;
@@ -785,6 +847,11 @@ pub async fn update_map_user_settings(
         show_threat_level: row.show_threat_level,
         compact_signature_list: row.compact_signature_list,
         show_statics_first: row.show_statics_first,
+        route_preference: row.route_preference,
+        security_penalty: row.security_penalty,
+        route_allow_time_status: row.route_allow_time_status,
+        route_allow_mass_status: row.route_allow_mass_status,
+        route_use_evescout: row.route_use_evescout,
     }))
 }
 
@@ -1337,4 +1404,156 @@ pub async fn remove_connection_jump(
         });
     }
     Ok(Json(()))
+}
+
+// --- Watchlist ---
+
+/// `GET /api/maps/{id}/watchlist` — the map's tracked destinations.
+pub async fn list_watchlist(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<WatchlistEntry>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let entries = crate::maps::watchlist::list_watchlist(&state.db, actor, map_id).await?;
+    Ok(Json(entries))
+}
+
+pub async fn add_watchlist_entry(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<AddWatchlistEntry>,
+) -> ApiResult<WatchlistEntry> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let entry = crate::maps::watchlist::add_watchlist_entry(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::WatchlistChanged { map_id });
+    Ok(Json(entry))
+}
+
+pub async fn set_watchlist_pinned(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<SetWatchlistPinned>,
+) -> ApiResult<WatchlistEntry> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let entry = crate::maps::watchlist::set_watchlist_pinned(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::WatchlistChanged { map_id });
+    Ok(Json(entry))
+}
+
+pub async fn remove_watchlist_entry(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveWatchlistEntry>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::watchlist::remove_watchlist_entry(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::WatchlistChanged { map_id });
+    Ok(Json(()))
+}
+
+// --- EVE Scout ---
+
+/// Normalize one EVE Scout signature into a router edge. Tolerant of shape drift:
+/// unknown fields default to healthy/fresh, missing endpoints drop the row.
+pub(crate) fn eve_scout_edge(sig: &serde_json::Value) -> Option<EveScoutEdge> {
+    let from = sig.get("in_system_id")?.as_i64()?;
+    let to = sig.get("out_system_id")?.as_i64()?;
+    let mass = match sig.get("mass").and_then(|v| v.as_str()).unwrap_or("") {
+        m if m.contains("crit") => "critical",
+        m if m.contains("reduced") || m.contains("destab") => "reduced",
+        _ => "stable",
+    };
+    let time = match sig.get("life").and_then(|v| v.as_str()) {
+        Some(l) if l.contains("crit") => "critical",
+        Some(l) if l.contains("eol") => "eol",
+        Some(_) => "stable",
+        // No life field: derive from the remaining lifetime when present.
+        None => match sig.get("remaining_hours").and_then(|v| v.as_f64()) {
+            Some(h) if h < 1.0 => "critical",
+            Some(h) if h < 4.0 => "eol",
+            _ => "stable",
+        },
+    };
+    Some(EveScoutEdge {
+        from_solar_system_id: from,
+        to_solar_system_id: to,
+        mass_status: mass.into(),
+        time_status: time.into(),
+    })
+}
+
+/// `GET /api/evescout` — public Thera/Turnur connections, proxied and cached for 60s.
+/// Upstream failures degrade to an empty list.
+pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScoutEdge>> {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    static CACHE: OnceLock<Mutex<Option<(Instant, Vec<EveScoutEdge>)>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(None));
+
+    if let Some((at, edges)) = cache.lock().expect("cache lock").as_ref()
+        && at.elapsed() < Duration::from_secs(60)
+    {
+        return Ok(Json(edges.clone()));
+    }
+
+    let edges = fetch_eve_scout().await.unwrap_or_default();
+    *cache.lock().expect("cache lock") = Some((Instant::now(), edges.clone()));
+    Ok(Json(edges))
+}
+
+async fn fetch_eve_scout() -> Option<Vec<EveScoutEdge>> {
+    let client = reqwest::Client::builder()
+        .user_agent(concat!(
+            "vector-wormhole-mapper/",
+            env!("CARGO_PKG_VERSION"),
+            " (tim.kunze4@gmail.com)"
+        ))
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
+    let body: serde_json::Value = client
+        .get("https://api.eve-scout.com/v2/public/signatures")
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    Some(body.as_array()?.iter().filter_map(eve_scout_edge).collect())
+}
+
+#[cfg(test)]
+mod eve_scout_tests {
+    use super::eve_scout_edge;
+
+    #[test]
+    fn normalizes_statuses_and_drops_incomplete_rows() {
+        let sig = serde_json::json!({
+            "in_system_id": 30000142, "out_system_id": 31000005,
+            "mass": "destab", "life": "eol"
+        });
+        let edge = eve_scout_edge(&sig).unwrap();
+        assert_eq!(edge.mass_status, "reduced");
+        assert_eq!(edge.time_status, "eol");
+
+        let sig = serde_json::json!({
+            "in_system_id": 30000142, "out_system_id": 31000005,
+            "remaining_hours": 0.5
+        });
+        let edge = eve_scout_edge(&sig).unwrap();
+        assert_eq!(edge.mass_status, "stable");
+        assert_eq!(edge.time_status, "critical");
+
+        let sig = serde_json::json!({ "in_system_id": 30000142 });
+        assert!(eve_scout_edge(&sig).is_none());
+    }
 }

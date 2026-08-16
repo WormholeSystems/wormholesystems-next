@@ -87,6 +87,15 @@ pub struct MapUserSettings {
     pub show_threat_level: bool,
     pub compact_signature_list: bool,
     pub show_statics_first: bool,
+    /// `shorter` / `safer` / `less_secure`.
+    pub route_preference: String,
+    /// 0-100, weight of the security preference (legacy `exp(0.15 * penalty)`).
+    pub security_penalty: i32,
+    /// Worst wormhole lifetime still routed through: `stable` / `eol` / `critical`.
+    pub route_allow_time_status: String,
+    /// Worst wormhole mass still routed through: `stable` / `reduced` / `critical`.
+    pub route_allow_mass_status: String,
+    pub route_use_evescout: bool,
 }
 
 /// Partial update of [`MapUserSettings`]; absent fields stay unchanged.
@@ -105,6 +114,32 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub show_statics_first: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub route_preference: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub security_penalty: Option<i32>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub route_allow_time_status: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub route_allow_mass_status: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub route_use_evescout: Option<bool>,
+}
+
+/// A public Thera/Turnur wormhole edge from EVE Scout, normalized to Vector's status
+/// vocabulary for the client-side router.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct EveScoutEdge {
+    pub from_solar_system_id: i64,
+    pub to_solar_system_id: i64,
+    pub mass_status: String,
+    pub time_status: String,
 }
 
 /// A cosmic-signature category from the seeded catalog.
@@ -288,6 +323,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/effects", get(h::effect_modifiers))
         .route("/api/signature-types", get(h::signature_catalog))
         .route("/api/ships/search", get(h::search_ships))
+        .route("/api/evescout", get(h::eve_scout))
         .route("/api/systems/search", get(h::search_systems))
         .route("/api/routing-graph", get(h::routing_graph))
         .route("/api/threat/{solar_system_id}", get(h::threat_analysis))
@@ -329,6 +365,16 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/maps/{id}/connections/{cid}/jumps",
             get(h::list_connection_jumps),
+        )
+        .route("/api/maps/{id}/watchlist", get(h::list_watchlist))
+        .route("/api/maps/{id}/watchlist/add", post(h::add_watchlist_entry))
+        .route(
+            "/api/maps/{id}/watchlist/set-pinned",
+            post(h::set_watchlist_pinned),
+        )
+        .route(
+            "/api/maps/{id}/watchlist/remove",
+            post(h::remove_watchlist_entry),
         )
         .route(
             "/api/maps/{id}/connections/jumps/add",

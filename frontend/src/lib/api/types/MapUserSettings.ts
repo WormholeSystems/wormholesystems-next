@@ -3,4 +3,20 @@
 /**
  * A user's per-map preferences.
  */
-export type MapUserSettings = { tracking_allowed: boolean, show_threat_level: boolean, compact_signature_list: boolean, show_statics_first: boolean, };
+export type MapUserSettings = { tracking_allowed: boolean, show_threat_level: boolean, compact_signature_list: boolean, show_statics_first: boolean, 
+/**
+ * `shorter` / `safer` / `less_secure`.
+ */
+route_preference: string, 
+/**
+ * 0-100, weight of the security preference (legacy `exp(0.15 * penalty)`).
+ */
+security_penalty: number, 
+/**
+ * Worst wormhole lifetime still routed through: `stable` / `eol` / `critical`.
+ */
+route_allow_time_status: string, 
+/**
+ * Worst wormhole mass still routed through: `stable` / `reduced` / `critical`.
+ */
+route_allow_mass_status: string, route_use_evescout: boolean, };

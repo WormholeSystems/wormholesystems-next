@@ -166,6 +166,24 @@ Unlinking needs no sync: the remaining members keep their state, and the detache
 keeps its last state as a standalone scanned wormhole. The relationship itself — at most
 two signatures per connection, one per endpoint — is an invariant, not synchronized data.
 
+## `map_watchlist`
+
+Systems whose jump distance the navigation panel tracks (legacy
+`map_route_solarsystems`). Map-scoped and shared; jump counts are computed
+client-side, so the row is just membership plus the pin flag.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | pk | |
+| `map_id` | fk maps | cascade |
+| `solar_system_id` | fk solar_systems | unique per map |
+| `is_pinned` | bool | pinned entries surface as route quick-picks |
+
+Mutations are Member+, reads Viewer+; every change publishes
+`MapEvent::WatchlistChanged`.
+
+---
+
 ## `map_connection_jumps`
 
 Every observed or manually logged transit through a wormhole connection, with the

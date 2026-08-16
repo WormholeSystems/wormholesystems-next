@@ -15,6 +15,7 @@ pub mod jumps;
 pub mod map;
 pub mod signatures;
 pub mod solar_system;
+pub mod watchlist;
 
 pub use connection::MapConnection;
 pub use error::{MapError, Result};
