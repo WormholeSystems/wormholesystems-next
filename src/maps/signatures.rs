@@ -202,22 +202,26 @@ pub async fn add_signature(pool: &PgPool, actor: Actor, cmd: AddSignature) -> Re
 pub struct UpdateSignature {
     pub map_id: i64,
     pub signature_pk: i64,
+    /// `Some` renames the scanner id (7 chars; duplicate in the system → `Conflict`).
+    #[serde(default)]
+    #[ts(optional)]
+    pub signature_id: Option<String>,
     #[serde(default)]
     #[ts(optional)]
     pub group: Option<SignatureGroup>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub signature_type_id: Option<Option<i64>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub name: Option<Option<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub size: Option<Option<WormholeSize>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub mass_status: Option<Option<MassStatus>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub time_status: Option<Option<TimeStatus>>,
 }
@@ -229,6 +233,32 @@ pub async fn update_signature(
 ) -> Result<Signature> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let current = fetch_signature(pool, cmd.map_id, cmd.signature_pk).await?;
+
+    let signature_id = match &cmd.signature_id {
+        Some(v) => {
+            let v = v.trim();
+            validate_signature_id(v)?;
+            if v != current.signature_id {
+                let taken = sqlx::query_scalar!(
+                    "select exists(
+                         select 1 from signatures
+                         where map_id = $1 and solar_system_id = $2 and signature_id = $3
+                     )",
+                    cmd.map_id,
+                    current.solar_system_id,
+                    v,
+                )
+                .fetch_one(pool)
+                .await?
+                .unwrap_or(false);
+                if taken {
+                    return Err(MapError::Conflict("signature already scanned here".into()));
+                }
+            }
+            v.to_string()
+        }
+        None => current.signature_id.clone(),
+    };
 
     let group = cmd.group.unwrap_or(current.group);
     let group_changed = group != current.group;
@@ -267,14 +297,15 @@ pub async fn update_signature(
     let sig = sqlx::query_as!(
         Signature,
         r#"update signatures
-           set "group" = $1, signature_type_id = $2, name = $3, size = $4,
-               mass_status = $5, time_status = $6, connection_id = $7, updated_at = now()
-           where id = $8 and map_id = $9
+           set signature_id = $1, "group" = $2, signature_type_id = $3, name = $4, size = $5,
+               mass_status = $6, time_status = $7, connection_id = $8, updated_at = now()
+           where id = $9 and map_id = $10
            returning id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
                      signature_type_id, name, size as "size: WormholeSize",
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
                      time_status_updated_at, connection_id, created_at, updated_at"#,
+        signature_id,
         group.as_str(),
         type_id,
         name.as_deref(),

@@ -93,6 +93,21 @@ fn partial_update_command_preserves_leave_vs_clear_vs_set() {
         a.contains(r#""time_status":null"#),
         "clear must serialize as null: {a}"
     );
+
+    // The deserialization side of the same contract: JSON null = clear (Some(None)),
+    // absent = leave (None). Plain serde would collapse null to the outer None.
+    let parsed: SetConnectionStatus =
+        serde_json::from_str(r#"{"map_id":1,"connection_id":2,"time_status":null}"#).unwrap();
+    assert_eq!(parsed.time_status, Some(None), "null must mean clear");
+    assert_eq!(parsed.mass_status, None, "absent must mean leave");
+
+    let parsed: vector::maps::signatures::UpdateSignature = serde_json::from_str(
+        r#"{"map_id":1,"signature_pk":2,"signature_type_id":null,"name":"x"}"#,
+    )
+    .unwrap();
+    assert_eq!(parsed.signature_type_id, Some(None));
+    assert_eq!(parsed.name, Some(Some("x".into())));
+    assert_eq!(parsed.size, None);
 }
 
 #[test]

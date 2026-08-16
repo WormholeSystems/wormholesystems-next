@@ -85,10 +85,10 @@ pub struct UpdateMap {
     #[serde(default)]
     #[ts(optional)]
     pub name: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub description: Option<Option<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub image_url: Option<Option<String>>,
 }

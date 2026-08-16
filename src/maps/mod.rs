@@ -23,6 +23,18 @@ pub use map::Map;
 pub use signatures::Signature;
 pub use solar_system::{EffectModifier, MapSolarSystem, MapSystemView, Sovereignty, Static};
 
+/// Deserializer for `Option<Option<T>>` "absent = leave, null = clear" fields: a present
+/// field (including `null`) becomes `Some(inner)`; pair with `#[serde(default)]` so an
+/// absent field stays `None`. Without this, serde collapses JSON `null` to the *outer*
+/// `None` and a clear silently becomes a no-op.
+pub fn double_option<'de, T, D>(de: D) -> std::result::Result<Option<Option<T>>, D::Error>
+where
+    T: serde::Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(de).map(Some)
+}
+
 /// A Rust enum stored as `text` (per the schema's [enum convention](../../docs/database/README.md)).
 /// Generates the variants, `as_str` / `from_db`, and the sqlx glue so the enum binds and
 /// decodes directly in queries. Variant order is the `Ord` order — used for `Role`.

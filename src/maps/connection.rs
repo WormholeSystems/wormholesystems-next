@@ -124,13 +124,13 @@ pub struct SetConnectionStatus {
     #[serde(default)]
     #[ts(optional)]
     pub kind: Option<ConnectionType>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub mass_status: Option<Option<MassStatus>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub time_status: Option<Option<TimeStatus>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub size: Option<Option<WormholeSize>>,
     /// `None` leaves the preserve-mass flag unchanged.

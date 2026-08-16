@@ -299,12 +299,21 @@ The panel itself is visible to viewers (Notes is not).
 
 ## 9. Differences from Vector today
 
-Vector's current panel is a paste textarea + Apply button and a flat list with
-link/unlink and delete. Missing relative to legacy: the column table with sorting,
-compact mode, category vocabulary/icons/filters, per-row category+type selects backed by
-the type catalog (`signatures.json` equivalent), inline ID editing, the paste diff with
-new/updated/missing tints and lazy delete, the clipboard paste flow (window paste +
-clipboard button, no textarea), the system-mismatch dialog, age display with
-lifetime/mass color coding, mass/lifetime/preserve-mass row menu, copy bookmark, and the
-paste upsert semantics (currently Vector's paste replaces naively). Vector already has
-the connection link/unlink and the DB-level worst-wins sync (migration 0009).
+Ported in full as of the signatures-panel rebuild: column table with sorting, compact
+mode, category vocabulary/icons/filters, catalog-backed category+type selects (served by
+`/api/signature-types`), inline ID editing, the clipboard paste flow (window paste +
+clipboard button, no textarea), the paste diff with new/updated/missing tints and lazy
+delete (with the legacy connection + orphan-endpoint cascade), the system-mismatch
+dialog, age cells with lifetime/mass color coding and pulse states, the
+mass/lifetime/preserve-mass row menu, copy bookmark, and viewer read-only gating.
+
+Deliberate divergences:
+
+- Sort preference persists in localStorage, not a cookie.
+- No Factional Warfare category (absent from Vector's catalog data; combined FW labels
+  fall back to their site segment via the parser's segment rule).
+- The paste selection does not clear on other users' signature events (Vector's WS layer
+  refetches without parsing frames); it clears on system change, Unselect, and delete.
+- A wormhole row's raw scanner name is preserved rather than nulled on repaste.
+- `preserve_mass` is stored and toggleable but unused until jump-mass tracking exists.
+- No toasts; mutations report through the map status line.
