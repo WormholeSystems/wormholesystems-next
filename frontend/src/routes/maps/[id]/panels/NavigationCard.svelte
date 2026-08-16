@@ -8,13 +8,12 @@
 	import { browser } from '$app/environment';
 
 	import { api } from '$lib/api/client';
-	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import { Button } from '$lib/components/ui/button';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import RouteList from '$lib/components/map/RouteList.svelte';
 	import * as Select from '$lib/components/ui/select';
-	import { searchClassification } from '$lib/map/classes';
 	import {
 		buildAdjacency,
 		findRoute,
@@ -78,21 +77,6 @@
 	// Publish the path for the canvas highlight.
 	$effect(() => {
 		map.routePath = result?.route.map((s) => s.id) ?? [];
-	});
-
-	// Resolve display data for the route rows.
-	let resolved = $state<Map<number, SystemSearchResult>>(new Map());
-	$effect(() => {
-		const ids = (result?.route ?? []).map((s) => s.id).filter((id) => !resolved.has(id));
-		if (ids.length === 0) return;
-		api
-			.resolveSystems(ids)
-			.then((rows) => {
-				const next = new Map(resolved);
-				for (const r of rows) next.set(r.id, r);
-				resolved = next;
-			})
-			.catch(() => {});
 	});
 
 	const jumpTone = $derived.by(() => {
@@ -160,29 +144,7 @@
 			<div class="flex items-center justify-between font-medium">
 				<span class={jumpTone} data-testid="route-jumps">{result.jumps} jumps</span>
 			</div>
-			<ol class="flex max-h-64 flex-col gap-0.5 overflow-auto" data-testid="route-list">
-				{#each result.route as step, i (step.id)}
-					{@const r = resolved.get(step.id)}
-					<li class="flex items-center gap-1.5">
-						<span class="w-5 shrink-0 text-right text-muted-foreground">{i}</span>
-						{#if r}
-							{@const c = searchClassification(r)}
-							<span class="w-9 shrink-0 font-mono" style="color: var(--color-{c.token})">
-								{c.badge}
-							</span>
-							<span class="truncate">{r.name}</span>
-							<span class="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground">
-								{r.region}
-								{#if step.via === 'wormhole'}
-									<span class="text-amber-500" title="Take wormhole">WH</span>
-								{/if}
-							</span>
-						{:else}
-							<span class="text-muted-foreground">{step.id}</span>
-						{/if}
-					</li>
-				{/each}
-			</ol>
+			<RouteList steps={result.route} />
 			<Button
 				variant="ghost"
 				size="xs"

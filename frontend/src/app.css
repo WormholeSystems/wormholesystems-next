@@ -8,6 +8,12 @@
 /* Class-based dark mode: the theme toggle sets `.dark` on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Thin, theme-colored scrollbars for every scrollable pane. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
 :root {
   --radius: 0rem;
   --background: oklch(1 0 0);
