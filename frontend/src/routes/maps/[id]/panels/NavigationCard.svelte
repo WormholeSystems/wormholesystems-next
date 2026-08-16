@@ -78,9 +78,9 @@
 					Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]])
 				);
 				security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
-				joveSystems = new Set(g.jove);
-				stationSystems = new Set(g.stations);
-				serviceOptions = g.services.map((svc) => ({
+				joveSystems = new Set(g.jove ?? []);
+				stationSystems = new Set(g.stations ?? []);
+				serviceOptions = (g.services ?? []).map((svc) => ({
 					id: svc.id,
 					name: svc.name,
 					systems: new Set(svc.systems)

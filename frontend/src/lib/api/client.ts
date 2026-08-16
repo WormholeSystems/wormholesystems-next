@@ -119,6 +119,8 @@ export const api = {
 		get<SystemSearchResult[]>(`/api/systems/resolve?ids=${ids.join(',')}`),
 	threatAnalysis: (solarSystemId: number) =>
 		get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
+	// The response is cached for a day; the version param busts browser caches when
+	// the payload shape grows.
 	routingGraph: () =>
 		get<{
 			adjacency: Record<string, number[]>;
@@ -126,7 +128,7 @@ export const api = {
 			jove: number[];
 			stations: number[];
 			services: { id: number; name: string; systems: number[] }[];
-		}>('/api/routing-graph'),
+		}>('/api/routing-graph?v=2'),
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),
