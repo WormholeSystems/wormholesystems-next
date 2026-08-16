@@ -2,9 +2,11 @@
 // dev proxy / Caddy route them); server-side loads go through `$lib/server/api` instead.
 
 import type { AddConnection } from './types/AddConnection';
+import type { AddConnectionJump } from './types/AddConnectionJump';
 import type { AddSignature } from './types/AddSignature';
 import type { AddSystem } from './types/AddSystem';
 import type { CharacterRef } from './types/CharacterRef';
+import type { ConnectionJump } from './types/ConnectionJump';
 import type { CharacterStatus } from './types/CharacterStatus';
 import type { CharacterSummary } from './types/CharacterSummary';
 import type { ClearMap } from './types/ClearMap';
@@ -21,6 +23,7 @@ import type { MapView } from './types/MapView';
 import type { MoveSystems } from './types/MoveSystems';
 import type { PasteSignatures } from './types/PasteSignatures';
 import type { RemoveConnection } from './types/RemoveConnection';
+import type { RemoveConnectionJump } from './types/RemoveConnectionJump';
 import type { RemoveSignature } from './types/RemoveSignature';
 import type { RemoveSignatures } from './types/RemoveSignatures';
 import type { RemoveSystems } from './types/RemoveSystems';
@@ -35,11 +38,13 @@ import type { SetStatus } from './types/SetStatus';
 import type { SetWaypointAllBody } from './types/SetWaypointAllBody';
 import type { SetWaypointBody } from './types/SetWaypointBody';
 import type { Signature } from './types/Signature';
+import type { ShipSearchResult } from './types/ShipSearchResult';
 import type { SignatureCatalog } from './types/SignatureCatalog';
 import type { SystemDetails } from './types/SystemDetails';
 import type { ThreatAnalysis } from './types/ThreatAnalysis';
 import type { SystemSearchResult } from './types/SystemSearchResult';
 import type { UnlinkSignature } from './types/UnlinkSignature';
+import type { UpdateConnectionJump } from './types/UpdateConnectionJump';
 import type { UpdateSignature } from './types/UpdateSignature';
 import type { UpdateMapUserSettings } from './types/UpdateMapUserSettings';
 
@@ -150,6 +155,16 @@ export const api = {
 		post<MapConnection>(`/api/maps/${cmd.map_id}/connections/set-status`, cmd),
 	removeConnection: (cmd: RemoveConnection) =>
 		post<null>(`/api/maps/${cmd.map_id}/connections/remove`, cmd),
+	listConnectionJumps: (mapId: number, connectionId: number) =>
+		get<ConnectionJump[]>(`/api/maps/${mapId}/connections/${connectionId}/jumps`),
+	addConnectionJump: (cmd: AddConnectionJump) =>
+		post<ConnectionJump>(`/api/maps/${cmd.map_id}/connections/jumps/add`, cmd),
+	updateConnectionJump: (cmd: UpdateConnectionJump) =>
+		post<ConnectionJump>(`/api/maps/${cmd.map_id}/connections/jumps/update`, cmd),
+	removeConnectionJump: (cmd: RemoveConnectionJump) =>
+		post<null>(`/api/maps/${cmd.map_id}/connections/jumps/remove`, cmd),
+	searchShips: (query: string) =>
+		get<ShipSearchResult[]>(`/api/ships/search?q=${encodeURIComponent(query)}`),
 
 	// Signatures
 	signatureCatalog: () => get<SignatureCatalog>('/api/signature-types'),

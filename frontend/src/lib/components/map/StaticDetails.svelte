@@ -2,6 +2,7 @@
 	// Wormhole physics for one static, the tooltip/popover body (legacy StaticDetails).
 	import type { Static } from '$lib/api/types/Static';
 	import { destClassMeta } from '$lib/map/classes';
+	import { formatKt, shipSizeLetter } from '$lib/map/helpers';
 
 	let { static: st }: { static: Static } = $props();
 
@@ -10,18 +11,7 @@
 	const destFull = $derived(dest.isKnownSpace ? dest.token.toUpperCase() : dest.short);
 
 	function kt(kg: number | null): string {
-		if (kg === null) return '—';
-		return `${(kg / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 1 })} kt`;
-	}
-
-	// Legacy ship-size classes by max jump mass (millions of kg).
-	function shipSize(kg: number | null): string {
-		if (kg === null) return '—';
-		const m = kg / 1_000_000;
-		if (m >= 1000) return 'XL';
-		if (m >= 62) return 'L';
-		if (m >= 5) return 'M';
-		return 'S';
+		return kg === null ? '—' : `${formatKt(kg)} kt`;
 	}
 </script>
 
@@ -43,7 +33,7 @@
 		</div>
 		<div class="flex justify-between gap-4">
 			<span class="text-muted-foreground">Ship Size</span>
-			<span>{shipSize(st.max_jump_mass)}</span>
+			<span>{shipSizeLetter(st.max_jump_mass)}</span>
 		</div>
 		<div class="flex justify-between gap-4">
 			<span class="text-muted-foreground">Lifetime</span>

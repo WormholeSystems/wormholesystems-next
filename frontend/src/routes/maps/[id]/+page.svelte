@@ -30,6 +30,7 @@
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { isWormholeClass } from '$lib/map/classes';
 	import { openMapSocket } from '$lib/ws';
+	import ConnectionPopover from './ConnectionPopover.svelte';
 	import ContextMenu from './ContextMenu.svelte';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
@@ -430,7 +431,10 @@
 
 <svelte:window
 	onkeydown={(ev) => {
-		if (ev.key === 'Escape') map.closeMenu();
+		if (ev.key === 'Escape') {
+			map.closeMenu();
+			map.connectionPopover = null;
+		}
 	}}
 />
 
@@ -585,9 +589,18 @@
 							stroke-width="24"
 							style="cursor:pointer"
 							role="presentation"
+							data-testid="edge-hit"
+							data-connection-id={c.id}
+							onpointerdown={(ev) => ev.stopPropagation()}
+							onclick={(ev) => {
+								ev.stopPropagation();
+								map.closeMenu();
+								map.connectionPopover = { id: c.id, x: ev.clientX, y: ev.clientY };
+							}}
 							oncontextmenu={(ev) => {
 								ev.preventDefault();
 								ev.stopPropagation();
+								map.connectionPopover = null;
 								map.openMenu(ev.clientX, ev.clientY, { kind: 'connection', id: c.id });
 							}}
 						/>
@@ -682,6 +695,7 @@
 	{#if map.menu}
 		<ContextMenu {map} menu={map.menu} />
 	{/if}
+	<ConnectionPopover {map} />
 </div>
 
 <!-- Side panels for the active system (legacy layout): flush-stacked, hairline-merged. -->

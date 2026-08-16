@@ -10,6 +10,21 @@ import type { WormholeSize } from '$lib/api/types/WormholeSize';
 /** Fixed node width (px, world space). Height is `2 * grid cell`. */
 export const NODE_W = 180;
 
+/** kg → kilotons, `en-US` grouping, one decimal, no unit suffix (legacy formatKilotons). */
+export function formatKt(kg: number): string {
+	return (kg / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 1 });
+}
+
+/** Legacy ship-size letter by max jump mass (kg). */
+export function shipSizeLetter(kg: number | null): string {
+	if (kg === null || kg <= 0) return '—';
+	const m = kg / 1_000_000;
+	if (m >= 1000) return 'XL';
+	if (m >= 62) return 'L';
+	if (m >= 5) return 'M';
+	return 'S';
+}
+
 /** World coords of the viewport center (where a freshly-added system lands). */
 export function centerWorld(
 	pan: { x: number; y: number },
