@@ -10,11 +10,11 @@
 
 	const c = $derived(classMeta(system.wormhole_class_id, system.security));
 	const sov = $derived(system.sovereignty);
-	const sovLabel = $derived(
+	const sovTitle = $derived(
 		sov === null || sov === undefined
-			? null
+			? undefined
 			: 'ticker' in sov && sov.ticker
-				? sov.ticker
+				? `[${sov.ticker}] ${sov.name}`
 				: sov.name
 	);
 </script>
@@ -29,13 +29,10 @@
 	>
 		{system.effect_name}
 	</span>
-{:else if sov && sovLabel}
-	<span
-		class="flex w-24 shrink-0 items-center justify-end gap-1.5 text-right text-xs text-muted-foreground"
-		title={sov.name}
-	>
-		<EveImage kind={sov.kind} id={sov.id} size={32} class="size-4 shrink-0 rounded-sm" />
-		<span class="truncate">{sovLabel}</span>
+{:else if sov}
+	<!-- Logo only; the holder's ticker and name live in the hover tooltip. -->
+	<span class="flex w-24 shrink-0 items-center justify-end">
+		<EveImage kind={sov.kind} id={sov.id} size={32} class="size-4 shrink-0 rounded-sm" title={sovTitle} />
 	</span>
 {:else}
 	<span class="w-24 shrink-0"></span>
