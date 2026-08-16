@@ -1,17 +1,15 @@
 <script lang="ts">
-	// The System Info card for the active system (legacy SystemInfo port): hero with class,
-	// alias, effect, shattered badge, occupier and region; external links; statics with
-	// physics popovers; effect modifiers; sovereignty.
-	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-
+	// The System Info panel for the active system (legacy SystemInfo port): hero with class,
+	// alias, effect, shattered chip, occupier and region/links line; then bordered blocks
+	// for statics (physics popovers), effect modifiers, and sovereignty.
 	import { api } from '$lib/api/client';
 	import type { EffectModifier } from '$lib/api/types/EffectModifier';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
-	import { Badge } from '$lib/components/ui/badge';
-	import * as Card from '$lib/components/ui/card';
 	import * as Popover from '$lib/components/ui/popover';
 	import EveImage from '$lib/components/EveImage.svelte';
+	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
+	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
+	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
 	import { classMeta, destClassMeta, isWormholeClass } from '$lib/map/classes';
 
@@ -20,8 +18,19 @@
 	const cls = $derived(classMeta(system.wormhole_class_id, system.security_status));
 	const isWormhole = $derived(isWormholeClass(system.wormhole_class_id));
 	const underscore = (s: string) => s.replaceAll(' ', '_');
-	const effectToken = $derived(system.effect_name?.toLowerCase().replaceAll(' ', '-'));
 	const sovKind = $derived(system.sovereignty?.kind === 'alliance' ? 'alliance' : 'corporation');
+
+	// Legacy keyword map: color the effect name by star type.
+	const effectColor = $derived.by(() => {
+		const name = system.effect_name?.toLowerCase() ?? '';
+		if (name.includes('pulsar')) return 'text-blue-400';
+		if (name.includes('magnetar')) return 'text-pink-400';
+		if (name.includes('wolf')) return 'text-amber-600';
+		if (name.includes('black')) return 'text-neutral-400';
+		if (name.includes('cataclysmic')) return 'text-yellow-400';
+		if (name.includes('red giant')) return 'text-red-400';
+		return 'text-muted-foreground';
+	});
 
 	let mods = $state<EffectModifier[]>([]);
 	$effect(() => {
@@ -41,99 +50,112 @@
 	);
 </script>
 
-<Card.Root data-testid="system-info">
-	<Card.Header>
-		<Card.Title class="flex items-center gap-2">
-			<span class="font-medium" style="color: var(--color-{cls.token})">{cls.short}</span>
-			{#if system.alias}
-				{system.alias}
-				<span class="text-xs font-normal text-muted-foreground">({system.name})</span>
-			{:else}
-				{system.name}
-			{/if}
-			{#if system.is_shattered}
-				<Badge variant="outline" class="text-amber-500">Shattered</Badge>
-			{/if}
-		</Card.Title>
-		<Card.Description class="flex flex-col gap-0.5">
-			{#if system.effect_name}
-				<span style="color: var(--color-{effectToken})">{system.effect_name}</span>
-			{/if}
+<MapPanel testid="system-info">
+	<MapPanelHeader>System</MapPanelHeader>
+	<MapPanelContent>
+		<div class="border-b border-border/50 px-3 py-3">
+			<div class="flex items-center gap-2">
+				<span style:color="var(--color-{cls.token})">{cls.short}</span>
+				<span class="truncate text-sm font-medium">
+					{#if system.alias}
+						{system.alias} <span class="text-muted-foreground">({system.name})</span>
+					{:else}
+						{system.name}
+					{/if}
+				</span>
+				{#if system.effect_name}
+					<span class="shrink-0 text-[10px] {effectColor}">{system.effect_name}</span>
+				{/if}
+				{#if system.is_shattered}
+					<span class="shrink-0 text-[10px] text-amber-500">Shattered</span>
+				{/if}
+			</div>
 			{#if system.occupying_group}
-				<span>Occupied by {system.occupying_group}</span>
+				<div class="mt-1 text-[11px] text-muted-foreground">
+					Occupied by <span class="font-medium text-foreground">{system.occupying_group}</span>
+				</div>
 			{/if}
-			<span>{system.region} · {system.constellation}</span>
-		</Card.Description>
-	</Card.Header>
-	<Card.Content class="flex flex-col gap-3 text-xs">
-		<div class="flex gap-3">
-			<a
-				class="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-				href="https://zkillboard.com/system/{system.solar_system_id}/"
-				target="_blank"
-				rel="noopener">zKill</a
-			>
-			<a
-				class="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-				href={dotlanUrl}
-				target="_blank"
-				rel="noopener">Dotlan</a
-			>
-			{#if isWormhole}
+			<div class="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+				<span>{system.region}</span>
+				{#if system.constellation}
+					<span>· {system.constellation}</span>
+				{/if}
+				<span class="text-border">·</span>
 				<a
-					class="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-					href="https://anoik.is/systems/{system.name}"
+					class="transition-colors hover:text-foreground"
+					href="https://zkillboard.com/system/{system.solar_system_id}/"
 					target="_blank"
-					rel="noopener">Anoik</a
+					rel="noopener">zKill</a
 				>
-			{/if}
+				<a class="transition-colors hover:text-foreground" href={dotlanUrl} target="_blank" rel="noopener"
+					>Dotlan</a
+				>
+				{#if isWormhole}
+					<a
+						class="transition-colors hover:text-foreground"
+						href="https://anoik.is/systems/{system.name}"
+						target="_blank"
+						rel="noopener">Anoik</a
+					>
+				{/if}
+			</div>
 		</div>
 
 		{#if system.statics.length > 0}
-			<div class="flex flex-wrap gap-1.5">
-				{#each system.statics as st (st.code)}
-					{@const dest = destClassMeta(st.dest_class)}
-					<Popover.Root>
-						<Popover.Trigger
-							class="flex items-center gap-1 border border-border px-1.5 py-0.5 hover:bg-accent"
-						>
-							{st.code}
-							<span style="color: var(--color-{dest.token})">{dest.short}</span>
-						</Popover.Trigger>
-						<Popover.Content class="w-auto p-0">
-							<StaticDetails static={st} />
-						</Popover.Content>
-					</Popover.Root>
-				{/each}
+			<div class="border-b border-border/50 px-3 py-2">
+				<div class="flex items-center gap-2">
+					<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Statics</span>
+					<div class="flex gap-1.5">
+						{#each system.statics as st (st.code)}
+							{@const dest = destClassMeta(st.dest_class)}
+							<Popover.Root>
+								<Popover.Trigger
+									class="font-mono text-xs font-medium transition-opacity hover:opacity-70"
+									style="color: var(--color-{dest.token})"
+								>
+									{st.code} <span class="uppercase opacity-60">{dest.short}</span>
+								</Popover.Trigger>
+								<Popover.Content class="w-48 p-0" align="start">
+									<StaticDetails static={st} />
+								</Popover.Content>
+							</Popover.Root>
+						{/each}
+					</div>
+				</div>
 			</div>
 		{/if}
 
 		{#if mods.length > 0}
-			<div class="flex flex-col gap-0.5">
-				{#each mods as m (m.stat + m.kind)}
-					<div class="flex items-center justify-between gap-2">
-						<span class="text-muted-foreground">{m.stat}</span>
-						<span class="flex items-center gap-0.5">
-							{m.value}
-							{#if m.kind === 'buff'}
-								<ArrowUpIcon class="size-3 text-green-500" />
-							{:else}
-								<ArrowDownIcon class="size-3 text-red-500" />
-							{/if}
-						</span>
+			<div class="border-b border-border/50 px-3 py-2">
+				<div class="flex flex-col gap-1">
+					<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Effect</span>
+					<div class="grid grid-cols-2 gap-x-4 gap-y-0.5">
+						{#each mods as m (m.stat + m.kind)}
+							<div class="flex items-center justify-between text-[11px]">
+								<span class="truncate text-muted-foreground">{m.stat}</span>
+								<span class={m.kind === 'buff' ? 'text-green-400' : 'text-red-400'}>{m.value}</span>
+							</div>
+						{/each}
 					</div>
-				{/each}
+				</div>
 			</div>
 		{/if}
 
 		{#if system.sovereignty}
-			<div class="flex items-center gap-2">
-				<EveImage kind={sovKind} id={system.sovereignty.id} class="size-6 rounded-sm" />
-				<span>
-					{#if 'ticker' in system.sovereignty}[{system.sovereignty.ticker}]{/if}
-					{system.sovereignty.name}
-				</span>
+			<div class="px-3 py-2">
+				<div class="flex flex-col gap-1.5">
+					<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Sovereignty</span>
+					<div class="flex items-center gap-2">
+						<EveImage kind={sovKind} id={system.sovereignty.id} class="size-5 rounded" />
+						<span class="text-xs">
+							{#if 'ticker' in system.sovereignty}<span class="font-medium"
+									>[{system.sovereignty.ticker}]</span
+								>
+							{/if}{system.sovereignty.name}
+						</span>
+					</div>
+				</div>
 			</div>
 		{/if}
-	</Card.Content>
-</Card.Root>
+	</MapPanelContent>
+</MapPanel>

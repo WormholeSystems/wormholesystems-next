@@ -7,7 +7,9 @@
 	import { api } from '$lib/api/client';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
+	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
+	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
+	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { groupColor, parseScan } from '$lib/map/helpers';
@@ -70,14 +72,15 @@
 	}
 </script>
 
-<Card.Root data-testid="signatures-card">
-	<Card.Header>
-		<Card.Title class="flex items-center justify-between">
-			Signatures
-			<span class="text-muted-foreground">{mySigs.length}</span>
-		</Card.Title>
-	</Card.Header>
-	<Card.Content class="flex flex-col gap-2 text-xs">
+<MapPanel testid="signatures-card">
+	<MapPanelHeader>
+		Signatures
+		{#if mySigs.length > 0}
+			<span class="ml-1 text-amber-400">{mySigs.length}</span>
+		{/if}
+	</MapPanelHeader>
+	<MapPanelContent>
+		<div class="flex flex-col gap-2 p-3 text-xs">
 	<Textarea
 		class="h-16 min-h-16 resize-none font-mono text-[10px]"
 		placeholder="Paste in-game scan results…"
@@ -126,5 +129,6 @@
 			</li>
 		{/each}
 		</ul>
-	</Card.Content>
-</Card.Root>
+		</div>
+	</MapPanelContent>
+</MapPanel>

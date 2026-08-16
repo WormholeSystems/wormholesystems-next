@@ -61,7 +61,7 @@ test('node shows class, alias, occupier, statics, effect, and region per space k
 	await expect(tooltip.getByText('H296')).toBeVisible();
 	await expect(tooltip.getByText('Total Mass')).toBeVisible();
 	await expect(tooltip.getByText('3,300 kt')).toBeVisible();
-	await expect(tooltip.getByText('24 h')).toBeVisible();
+	await expect(tooltip.getByText('24h')).toBeVisible();
 
 	// Effect badge letter (no sovereignty in J-space), popover lists modifiers.
 	const effect = whNode.getByLabel('Wolf-Rayet Star');

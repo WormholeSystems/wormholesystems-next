@@ -8,7 +8,9 @@
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { ThreatAnalysis } from '$lib/api/types/ThreatAnalysis';
 	import { Badge } from '$lib/components/ui/badge';
-	import * as Card from '$lib/components/ui/card';
+	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
+	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
+	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { isWormholeClass } from '$lib/map/classes';
 
@@ -47,18 +49,19 @@
 </script>
 
 {#if isWormholeClass(system.wormhole_class_id)}
-	<Card.Root data-testid="threat-card">
-		<Card.Header>
-			<Card.Title class="flex items-center justify-between">
-				Threat Analysis
+	<MapPanel testid="threat-card">
+		<MapPanelHeader>
+			Threat Analysis
+			{#snippet actions()}
 				{#if analysis}
 					<Badge variant="secondary" class={badgeClass} data-testid="threat-badge">
 						{analysis.threat_level[0].toUpperCase() + analysis.threat_level.slice(1)}
 					</Badge>
 				{/if}
-			</Card.Title>
-		</Card.Header>
-		<Card.Content class="flex flex-col gap-2 text-xs">
+			{/snippet}
+		</MapPanelHeader>
+		<MapPanelContent>
+			<div class="flex flex-col gap-2 p-3 text-xs">
 			{#if !analysis}
 				<p class="text-muted-foreground">No threat data available for this system.</p>
 			{:else if analysis.entities.length === 0}
@@ -109,6 +112,7 @@
 			>
 				zKillboard
 			</a>
-		</Card.Content>
-	</Card.Root>
+			</div>
+		</MapPanelContent>
+	</MapPanel>
 {/if}

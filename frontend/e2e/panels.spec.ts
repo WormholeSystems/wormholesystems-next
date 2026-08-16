@@ -69,7 +69,7 @@ test('notes round-trip with markdown rendering', async ({ page, api }) => {
 	await expect(card.getByText('No notes')).toBeVisible();
 
 	await card.getByLabel('Edit notes').click();
-	await card.getByPlaceholder('Notes (markdown)…').fill('**Danger**: hostile Astrahus');
+	await card.getByPlaceholder('Add notes...').fill('**Danger**: hostile Astrahus');
 	await card.getByRole('button', { name: 'Save' }).click();
 
 	await expect(card.locator('strong', { hasText: 'Danger' })).toBeVisible();

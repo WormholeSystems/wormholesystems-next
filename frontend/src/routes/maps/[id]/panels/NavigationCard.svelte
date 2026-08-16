@@ -10,7 +10,9 @@
 	import { api } from '$lib/api/client';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import { Button } from '$lib/components/ui/button';
-	import * as Card from '$lib/components/ui/card';
+	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
+	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
+	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import { searchClassification } from '$lib/map/classes';
 	import {
@@ -105,10 +107,10 @@
 	}
 </script>
 
-<Card.Root data-testid="navigation-card">
-	<Card.Header>
-		<Card.Title class="flex items-center justify-between">
-			Navigation
+<MapPanel testid="navigation-card">
+	<MapPanelHeader>
+		Navigation
+		{#snippet actions()}
 			<Select.Root type="single" bind:value={preference}>
 				<Select.Trigger size="sm" data-testid="route-preference">
 					{PREFS.find((p) => p.value === preference)?.label}
@@ -121,9 +123,10 @@
 					</Select.Group>
 				</Select.Content>
 			</Select.Root>
-		</Card.Title>
-	</Card.Header>
-	<Card.Content class="flex flex-col gap-2 text-xs">
+		{/snippet}
+	</MapPanelHeader>
+	<MapPanelContent>
+		<div class="flex flex-col gap-2 p-3 text-xs">
 		<div class="flex items-center gap-1.5">
 			<SystemPicker
 				placeholder="Origin"
@@ -193,5 +196,6 @@
 				Clear route
 			</Button>
 		{/if}
-	</Card.Content>
-</Card.Root>
+		</div>
+	</MapPanelContent>
+</MapPanel>

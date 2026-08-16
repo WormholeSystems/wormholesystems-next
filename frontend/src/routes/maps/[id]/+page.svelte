@@ -31,6 +31,9 @@
 	import { isWormholeClass } from '$lib/map/classes';
 	import { openMapSocket } from '$lib/ws';
 	import ContextMenu from './ContextMenu.svelte';
+	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
+	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
+	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import NavigationCard from './panels/NavigationCard.svelte';
 	import ThreatCard from './panels/ThreatCard.svelte';
 	import NotesCard from './panels/NotesCard.svelte';
@@ -666,8 +669,8 @@
 	{/if}
 </div>
 
-<!-- Side panels for the active system (legacy layout). -->
-<aside class="flex flex-col gap-3">
+<!-- Side panels for the active system (legacy layout): flush-stacked, hairline-merged. -->
+<aside class="flex flex-col">
 	<NavigationCard {map} />
 	{#if map.activeSystem}
 		<SystemInfoCard system={map.activeSystem} />
@@ -675,12 +678,16 @@
 		<SignaturesPanel {map} system={map.activeSystem} />
 		<NotesCard {map} system={map.activeSystem} />
 	{:else}
-		<div
-			class="border border-border bg-card p-4 text-center text-xs text-muted-foreground"
-			data-testid="system-info-empty"
-		>
-			Select a system
-		</div>
+		<MapPanel testid="system-info-empty">
+			<MapPanelHeader>System</MapPanelHeader>
+			<MapPanelContent>
+				<div class="flex flex-col items-center justify-center gap-2 p-4">
+					<p class="font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase">
+						Select a system
+					</p>
+				</div>
+			</MapPanelContent>
+		</MapPanel>
 	{/if}
 </aside>
 </div>
