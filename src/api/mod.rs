@@ -49,6 +49,9 @@ pub struct CharacterRef {
     pub name: String,
     pub is_active: bool,
     pub online: bool,
+    /// Where the character is right now, when online and tracked. Drives the paste
+    /// system-mismatch warning.
+    pub solar_system_id: Option<i64>,
 }
 
 /// A map in the user's list, with their role on it.
@@ -77,6 +80,8 @@ pub struct SystemSearchResult {
 pub struct MapUserSettings {
     pub tracking_allowed: bool,
     pub show_threat_level: bool,
+    pub compact_signature_list: bool,
+    pub show_statics_first: bool,
 }
 
 /// Partial update of [`MapUserSettings`]; absent fields stay unchanged.
@@ -89,6 +94,44 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub show_threat_level: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub compact_signature_list: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub show_statics_first: Option<bool>,
+}
+
+/// A cosmic-signature category from the seeded catalog.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SignatureCategoryInfo {
+    pub id: i64,
+    pub name: String,
+    pub code: String,
+}
+
+/// A cosmic-signature type from the seeded catalog. `signature` is the wormhole code
+/// (wormhole types only); `target_class` its destination class; `spawn_areas` the system
+/// classes this type can appear in.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SignatureTypeInfo {
+    pub id: i64,
+    pub signature: Option<String>,
+    pub name: String,
+    pub signature_category_id: i64,
+    pub target_class: Option<i32>,
+    pub extra: Option<String>,
+    pub spawn_areas: Vec<i32>,
+}
+
+/// The full signature catalog, served once and cached client-side.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SignatureCatalog {
+    pub categories: Vec<SignatureCategoryInfo>,
+    pub types: Vec<SignatureTypeInfo>,
 }
 
 /// An online, tracked character on the map (presence), for the node pilot rows.
@@ -222,6 +265,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/waypoints/all", post(h::set_waypoint_all))
         .route("/api/grid-config", get(h::grid_config))
         .route("/api/effects", get(h::effect_modifiers))
+        .route("/api/signature-types", get(h::signature_catalog))
         .route("/api/systems/search", get(h::search_systems))
         .route("/api/routing-graph", get(h::routing_graph))
         .route("/api/threat/{solar_system_id}", get(h::threat_analysis))
@@ -274,5 +318,9 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/maps/{id}/signatures/remove",
             post(h::remove_signature),
+        )
+        .route(
+            "/api/maps/{id}/signatures/remove-bulk",
+            post(h::remove_signatures_bulk),
         )
 }

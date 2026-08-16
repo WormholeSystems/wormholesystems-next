@@ -32,6 +32,10 @@ pub struct MapConnection {
     pub mass_status: Option<MassStatus>,
     pub time_status: Option<TimeStatus>,
     pub size: Option<WormholeSize>,
+    /// Exclude this hole from mass bookkeeping (legacy flag; stored, not yet consumed).
+    pub preserve_mass: bool,
+    /// When `time_status` last changed (DB trigger), for "EOL since" displays.
+    pub time_status_updated_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -96,7 +100,7 @@ pub async fn add_connection(
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
                      size as "size: WormholeSize",
-                     created_at, updated_at"#,
+                     preserve_mass, time_status_updated_at, created_at, updated_at"#,
         cmd.map_id,
         cmd.from_system,
         cmd.to_system,
@@ -129,6 +133,10 @@ pub struct SetConnectionStatus {
     #[serde(default)]
     #[ts(optional)]
     pub size: Option<Option<WormholeSize>>,
+    /// `None` leaves the preserve-mass flag unchanged.
+    #[serde(default)]
+    #[ts(optional)]
+    pub preserve_mass: Option<bool>,
 }
 
 /// Mark a connection's mass / EOL / size. Member+. Works whether or not a signature is
@@ -146,7 +154,7 @@ pub async fn set_connection_status(
                   mass_status as "mass_status: MassStatus",
                   time_status as "time_status: TimeStatus",
                   size as "size: WormholeSize",
-                  created_at, updated_at
+                  preserve_mass, time_status_updated_at, created_at, updated_at
            from map_connections where id = $1 and map_id = $2"#,
         cmd.connection_id,
         cmd.map_id,
@@ -159,20 +167,23 @@ pub async fn set_connection_status(
     let mass = cmd.mass_status.unwrap_or(current.mass_status);
     let time = cmd.time_status.unwrap_or(current.time_status);
     let size = cmd.size.unwrap_or(current.size);
+    let preserve = cmd.preserve_mass.unwrap_or(current.preserve_mass);
 
     let connection = sqlx::query_as!(
         MapConnection,
-        r#"update map_connections set type = $1, mass_status = $2, time_status = $3, size = $4
-           where id = $5 and map_id = $6
+        r#"update map_connections
+           set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5
+           where id = $6 and map_id = $7
            returning id, map_id, from_system, to_system, type as "kind: ConnectionType",
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
                      size as "size: WormholeSize",
-                     created_at, updated_at"#,
+                     preserve_mass, time_status_updated_at, created_at, updated_at"#,
         kind.as_str(),
         mass.map(|m| m.as_str()),
         time.map(|t| t.as_str()),
         size.map(|s| s.as_str()),
+        preserve,
         cmd.connection_id,
         cmd.map_id,
     )

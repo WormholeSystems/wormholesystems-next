@@ -4,4 +4,4 @@
  * A cosmic-signature group, mirroring [`signature_categories`](../../docs/database/static.md).
  * Only `Wormhole` signatures carry connection links and the wormhole life-cycle state.
  */
-export type SignatureGroup = "wormhole" | "data" | "relic" | "gas" | "combat" | "ore" | "unknown";
+export type SignatureGroup = "wormhole" | "data" | "relic" | "gas" | "combat" | "ore" | "homefront" | "unknown";

@@ -9,4 +9,12 @@ export type MapConnection = { id: number, map_id: number, from_system: number, t
  * Wormhole life-cycle state. `None` = unknown; ignored for stargate edges. Synced with
  * linked signatures by the DB triggers, so reads here already reflect the merged state.
  */
-mass_status: MassStatus | null, time_status: TimeStatus | null, size: WormholeSize | null, created_at: string, updated_at: string, };
+mass_status: MassStatus | null, time_status: TimeStatus | null, size: WormholeSize | null, 
+/**
+ * Exclude this hole from mass bookkeeping (legacy flag; stored, not yet consumed).
+ */
+preserve_mass: boolean, 
+/**
+ * When `time_status` last changed (DB trigger), for "EOL since" displays.
+ */
+time_status_updated_at: string | null, created_at: string, updated_at: string, };

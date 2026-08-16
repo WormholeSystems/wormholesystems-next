@@ -3,4 +3,4 @@
 /**
  * Partial update of [`MapUserSettings`]; absent fields stay unchanged.
  */
-export type UpdateMapUserSettings = { tracking_allowed?: boolean, show_threat_level?: boolean, };
+export type UpdateMapUserSettings = { tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, };

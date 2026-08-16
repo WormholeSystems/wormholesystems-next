@@ -204,7 +204,7 @@ pub struct GetMap {
 /// Read a map's graph — the map, its placed systems, and its connections. Viewer+.
 /// Live pilot locations are not included (that's the member-gated tracking path).
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
+    let role = require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
 
     let map = sqlx::query_as!(
         Map,
@@ -338,7 +338,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                   mass_status as "mass_status: MassStatus",
                   time_status as "time_status: TimeStatus",
                   size as "size: WormholeSize",
-                  created_at, updated_at
+                  preserve_mass, time_status_updated_at, created_at, updated_at
            from map_connections where map_id = $1 order by id"#,
         cmd.map_id,
     )
@@ -347,6 +347,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
 
     Ok(MapView {
         map,
+        role,
         systems,
         connections,
     })

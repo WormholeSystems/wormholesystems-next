@@ -136,6 +136,7 @@ text_enum! {
         Gas => "gas",
         Combat => "combat",
         Ore => "ore",
+        Homefront => "homefront",
         Unknown => "unknown",
     }
 }
@@ -191,6 +192,8 @@ pub struct Actor {
 #[ts(export)]
 pub struct MapView {
     pub map: Map,
+    /// The caller's effective role on this map, for client-side permission gating.
+    pub role: Role,
     pub systems: Vec<MapSystemView>,
     pub connections: Vec<MapConnection>,
 }

@@ -1,0 +1,605 @@
+//! Paste reconciliation (legacy upsert semantics), the delete cascades, and expiry.
+
+mod common;
+
+use common::{SYS_A, SYS_B, world};
+use sqlx::PgPool;
+use vector::maps::connection::{AddConnection, add_connection};
+use vector::maps::signatures::{
+    AddSignature, LinkSignature, PasteSignatures, PastedSignature, RemoveSignature,
+    RemoveSignatures, Signature, UpdateSignature, add_signature, expire_signatures, link_signature,
+    list_signatures, paste_signatures, remove_signature, remove_signatures, update_signature,
+};
+use vector::maps::solar_system::{AddSystem, add_system};
+use vector::maps::{Actor, ConnectionType, MapError, SignatureGroup};
+
+async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
+    add_system(
+        pool,
+        actor,
+        AddSystem {
+            map_id,
+            solar_system_id: system,
+            x: 0.0,
+            y: 0.0,
+            alias: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
+}
+
+/// A minimal signature catalog: category 1 = Wormhole with one type, 2 = Data with one.
+async fn seed_catalog(pool: &PgPool) {
+    for (id, name, code) in [(1, "Wormhole", "wormhole"), (2, "Data Site", "data")] {
+        sqlx::query("insert into signature_categories (id, name, code) values ($1, $2, $3)")
+            .bind(id as i64)
+            .bind(name)
+            .bind(code)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    sqlx::query(
+        "insert into signature_types (id, signature, name, signature_category_id, target_class)
+         values (500, 'K162', 'K162 - Unknown', 1, null),
+                (600, null, 'Unsecured Frontier Enclave Relay', 2, null)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn sig_by_id(pool: &PgPool, actor: Actor, map_id: i64, sid: &str) -> Option<Signature> {
+    list_signatures(pool, actor, map_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|s| s.signature_id == sid)
+}
+
+#[sqlx::test]
+async fn paste_upserts_without_deleting(pool: PgPool) {
+    let w = world(&pool).await;
+    seed_catalog(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+
+    // An existing typed wormhole sig, plus a stray one the next paste won't mention.
+    add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "WHX-001".into(),
+            group: SignatureGroup::Wormhole,
+            signature_type_id: Some(500),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "OLD-001".into(),
+            group: SignatureGroup::Combat,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    paste_signatures(
+        &pool,
+        w.owner,
+        PasteSignatures {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signatures: vec![
+                // Repaste of the wormhole: no type from the scanner, name present.
+                PastedSignature {
+                    signature_id: "WHX-001".into(),
+                    group: Some(SignatureGroup::Wormhole),
+                    signature_type_id: None,
+                    name: Some("Unstable Wormhole".into()),
+                },
+                // New site with a matched catalog type.
+                PastedSignature {
+                    signature_id: "DAT-001".into(),
+                    group: Some(SignatureGroup::Data),
+                    signature_type_id: Some(600),
+                    name: None,
+                },
+                // Unclassified row: no group at all.
+                PastedSignature {
+                    signature_id: "UNK-001".into(),
+                    group: None,
+                    signature_type_id: None,
+                    name: None,
+                },
+            ],
+        },
+    )
+    .await
+    .unwrap();
+
+    // The wormhole kept its manually chosen type; the stray sig was NOT deleted.
+    let wh = sig_by_id(&pool, w.owner, w.map_id, "WHX-001")
+        .await
+        .unwrap();
+    assert_eq!(wh.signature_type_id, Some(500));
+    assert!(
+        sig_by_id(&pool, w.owner, w.map_id, "OLD-001")
+            .await
+            .is_some()
+    );
+    let dat = sig_by_id(&pool, w.owner, w.map_id, "DAT-001")
+        .await
+        .unwrap();
+    assert_eq!(dat.signature_type_id, Some(600));
+    let unk = sig_by_id(&pool, w.owner, w.map_id, "UNK-001")
+        .await
+        .unwrap();
+    assert_eq!(unk.group, SignatureGroup::Unknown);
+
+    // A later classified repaste of the unknown row keeps working; an unclassified
+    // repaste of a classified row keeps the existing group.
+    paste_signatures(
+        &pool,
+        w.owner,
+        PasteSignatures {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signatures: vec![PastedSignature {
+                signature_id: "DAT-001".into(),
+                group: None,
+                signature_type_id: None,
+                name: None,
+            }],
+        },
+    )
+    .await
+    .unwrap();
+    let dat = sig_by_id(&pool, w.owner, w.map_id, "DAT-001")
+        .await
+        .unwrap();
+    assert_eq!(dat.group, SignatureGroup::Data);
+    assert_eq!(dat.signature_type_id, Some(600));
+}
+
+#[sqlx::test]
+async fn paste_recategorize_clears_link_and_validates_ids(pool: PgPool) {
+    let w = world(&pool).await;
+    seed_catalog(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let sig = add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "WHX-002".into(),
+            group: SignatureGroup::Wormhole,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    link_signature(
+        &pool,
+        w.owner,
+        LinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            connection_id: conn.id,
+        },
+    )
+    .await
+    .unwrap();
+
+    // The scanner now says it's a data site: link dropped, connection itself survives.
+    paste_signatures(
+        &pool,
+        w.owner,
+        PasteSignatures {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signatures: vec![PastedSignature {
+                signature_id: "WHX-002".into(),
+                group: Some(SignatureGroup::Data),
+                signature_type_id: None,
+                name: Some("Some Data Site".into()),
+            }],
+        },
+    )
+    .await
+    .unwrap();
+    let sig = sig_by_id(&pool, w.owner, w.map_id, "WHX-002")
+        .await
+        .unwrap();
+    assert_eq!(sig.group, SignatureGroup::Data);
+    assert_eq!(sig.connection_id, None);
+    assert_eq!(sig.name.as_deref(), Some("Some Data Site"));
+    let conn_exists: bool =
+        sqlx::query_scalar("select exists(select 1 from map_connections where id = $1)")
+            .bind(conn.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(conn_exists);
+
+    // Malformed scanner ids are rejected.
+    let err = paste_signatures(
+        &pool,
+        w.owner,
+        PasteSignatures {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signatures: vec![PastedSignature {
+                signature_id: "TOOLONG-123".into(),
+                group: None,
+                signature_type_id: None,
+                name: None,
+            }],
+        },
+    )
+    .await;
+    assert!(matches!(err, Err(MapError::Validation(_))));
+}
+
+#[sqlx::test]
+async fn update_group_change_clears_type_link_and_state(pool: PgPool) {
+    let w = world(&pool).await;
+    seed_catalog(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+    let sig = add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "WHX-003".into(),
+            group: SignatureGroup::Wormhole,
+            signature_type_id: Some(500),
+            time_status: Some(vector::maps::TimeStatus::Eol),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    link_signature(
+        &pool,
+        w.owner,
+        LinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            connection_id: conn.id,
+        },
+    )
+    .await
+    .unwrap();
+
+    let updated = update_signature(
+        &pool,
+        w.owner,
+        UpdateSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            group: Some(SignatureGroup::Relic),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.group, SignatureGroup::Relic);
+    assert_eq!(updated.signature_type_id, None);
+    assert_eq!(updated.connection_id, None);
+    assert_eq!(updated.time_status, None);
+
+    // A type from the wrong category is rejected.
+    let err = update_signature(
+        &pool,
+        w.owner,
+        UpdateSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            signature_type_id: Some(Some(500)),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(matches!(err, Err(MapError::Validation(_))));
+}
+
+#[sqlx::test]
+async fn remove_cascades_connection_unless_side_survivor(pool: PgPool) {
+    let w = world(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut pks = Vec::new();
+    for sid in ["WHX-004", "WHX-005"] {
+        let sig = add_signature(
+            &pool,
+            w.owner,
+            AddSignature {
+                map_id: w.map_id,
+                solar_system_id: SYS_A,
+                signature_id: sid.into(),
+                group: SignatureGroup::Wormhole,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        link_signature(
+            &pool,
+            w.owner,
+            LinkSignature {
+                map_id: w.map_id,
+                signature_pk: sig.id,
+                connection_id: conn.id,
+            },
+        )
+        .await
+        .unwrap();
+        pks.push(sig.id);
+    }
+
+    // First delete: a same-side sibling still references the connection → it survives.
+    let out = remove_signature(
+        &pool,
+        w.owner,
+        RemoveSignature {
+            map_id: w.map_id,
+            signature_pk: pks[0],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.removed_connection_id, None);
+
+    // Second delete: last same-side sig → connection goes.
+    let out = remove_signature(
+        &pool,
+        w.owner,
+        RemoveSignature {
+            map_id: w.map_id,
+            signature_pk: pks[1],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.removed_connection_id, Some(conn.id));
+    let conn_exists: bool =
+        sqlx::query_scalar("select exists(select 1 from map_connections where id = $1)")
+            .bind(conn.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(!conn_exists);
+}
+
+#[sqlx::test]
+async fn bulk_remove_cascades_and_cleans_orphan_endpoints(pool: PgPool) {
+    let w = world(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+    // Pin the near end so only the far end is orphan-eligible.
+    sqlx::query("update map_solar_systems set is_pinned = true where id = $1")
+        .bind(a)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let sig = add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "WHX-006".into(),
+            group: SignatureGroup::Wormhole,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    link_signature(
+        &pool,
+        w.owner,
+        LinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            connection_id: conn.id,
+        },
+    )
+    .await
+    .unwrap();
+
+    let out = remove_signatures(
+        &pool,
+        w.owner,
+        RemoveSignatures {
+            map_id: w.map_id,
+            signature_pks: vec![sig.id],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(out.systems, vec![SYS_A]);
+    assert_eq!(out.removed_connection_ids, vec![conn.id]);
+    assert_eq!(out.removed_placement_ids, vec![b]);
+
+    let a_exists: bool =
+        sqlx::query_scalar("select exists(select 1 from map_solar_systems where id = $1)")
+            .bind(a)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let b_exists: bool =
+        sqlx::query_scalar("select exists(select 1 from map_solar_systems where id = $1)")
+            .bind(b)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(a_exists, "pinned endpoint must survive");
+    assert!(!b_exists, "orphaned endpoint must be removed");
+}
+
+#[sqlx::test]
+async fn expiry_purges_stale_unlinked_signatures(pool: PgPool) {
+    let w = world(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    for (sid, group) in [
+        ("WHX-OLD", SignatureGroup::Wormhole),
+        ("WHX-LNK", SignatureGroup::Wormhole),
+        ("SIT-OLD", SignatureGroup::Data),
+        ("SIT-NEW", SignatureGroup::Data),
+    ] {
+        add_signature(
+            &pool,
+            w.owner,
+            AddSignature {
+                map_id: w.map_id,
+                solar_system_id: SYS_A,
+                signature_id: sid.into(),
+                group,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    }
+    let linked = sig_by_id(&pool, w.owner, w.map_id, "WHX-LNK")
+        .await
+        .unwrap();
+    link_signature(
+        &pool,
+        w.owner,
+        LinkSignature {
+            map_id: w.map_id,
+            signature_pk: linked.id,
+            connection_id: conn.id,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Age everything past the wormhole cutoff, and the old site past the site cutoff.
+    sqlx::query(
+        "update signatures set created_at = now() - interval '4 days',
+                               updated_at = now() - interval '4 days'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "update signatures set updated_at = now() - interval '8 days'
+         where signature_id = 'SIT-OLD'",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let pairs = expire_signatures(&pool).await.unwrap();
+    assert_eq!(pairs, vec![(w.map_id, SYS_A)]);
+
+    assert!(
+        sig_by_id(&pool, w.owner, w.map_id, "WHX-OLD")
+            .await
+            .is_none()
+    );
+    assert!(
+        sig_by_id(&pool, w.owner, w.map_id, "SIT-OLD")
+            .await
+            .is_none()
+    );
+    assert!(
+        sig_by_id(&pool, w.owner, w.map_id, "WHX-LNK")
+            .await
+            .is_some(),
+        "linked wormholes never expire"
+    );
+    assert!(
+        sig_by_id(&pool, w.owner, w.map_id, "SIT-NEW")
+            .await
+            .is_some(),
+        "sites under 7 days stay"
+    );
+}

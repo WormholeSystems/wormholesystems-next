@@ -9,13 +9,15 @@ use serde::Deserialize;
 
 use super::{
     ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, MapCharacter, MapEntry,
-    MapUserSettings, SystemSearchResult, ThreatAnalysis, ThreatEntity, UpdateMapUserSettings,
-    check_map_id, require_actor, session_actor, session_id,
+    MapUserSettings, SignatureCatalog, SignatureCategoryInfo, SignatureTypeInfo,
+    SystemSearchResult, ThreatAnalysis, ThreatEntity, UpdateMapUserSettings, check_map_id,
+    require_actor, session_actor, session_id,
 };
 use crate::auth::AppState;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
 use crate::maps::signatures::{
-    AddSignature, LinkSignature, PasteSignatures, RemoveSignature, UnlinkSignature, UpdateSignature,
+    AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
+    UnlinkSignature, UpdateSignature,
 };
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
@@ -85,7 +87,8 @@ pub async fn my_characters(
 ) -> ApiResult<Vec<CharacterRef>> {
     let actor = require_actor(&state.db, &jar).await?;
     let rows = sqlx::query!(
-        r#"select c.id, c.name, coalesce(s.online, false) as "online!"
+        r#"select c.id, c.name, coalesce(s.online, false) as "online!",
+                  case when s.online then s.solar_system_id end as "solar_system_id?"
            from characters c
            left join character_status s on s.character_id = c.id
            where c.user_id = $1 order by c.name"#,
@@ -100,6 +103,7 @@ pub async fn my_characters(
                 name: r.name,
                 is_active: r.id == actor.character_id,
                 online: r.online,
+                solar_system_id: r.solar_system_id,
             })
             .collect(),
     ))
@@ -607,8 +611,8 @@ pub async fn map_user_settings(
         return Err(ApiError::from(crate::maps::MapError::NotFound));
     }
     let row = sqlx::query!(
-        "select tracking_allowed, show_threat_level from map_user_settings
-         where map_id = $1 and user_id = $2",
+        "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first
+         from map_user_settings where map_id = $1 and user_id = $2",
         map_id,
         actor.user_id,
     )
@@ -618,10 +622,14 @@ pub async fn map_user_settings(
         Some(r) => MapUserSettings {
             tracking_allowed: r.tracking_allowed,
             show_threat_level: r.show_threat_level,
+            compact_signature_list: r.compact_signature_list,
+            show_statics_first: r.show_statics_first,
         },
         None => MapUserSettings {
             tracking_allowed: false,
             show_threat_level: true,
+            compact_signature_list: false,
+            show_statics_first: false,
         },
     }))
 }
@@ -642,23 +650,32 @@ pub async fn update_map_user_settings(
         return Err(ApiError::from(crate::maps::MapError::NotFound));
     }
     let row = sqlx::query!(
-        "insert into map_user_settings (map_id, user_id, tracking_allowed, show_threat_level)
-         values ($1, $2, coalesce($3, false), coalesce($4, true))
+        "insert into map_user_settings
+             (map_id, user_id, tracking_allowed, show_threat_level,
+              compact_signature_list, show_statics_first)
+         values ($1, $2, coalesce($3, false), coalesce($4, true),
+                 coalesce($5, false), coalesce($6, false))
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
+             compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),
+             show_statics_first = coalesce($6, map_user_settings.show_statics_first),
              updated_at = now()
-         returning tracking_allowed, show_threat_level",
+         returning tracking_allowed, show_threat_level, compact_signature_list, show_statics_first",
         map_id,
         actor.user_id,
         body.tracking_allowed,
         body.show_threat_level,
+        body.compact_signature_list,
+        body.show_statics_first,
     )
     .fetch_one(&state.db)
     .await?;
     Ok(Json(MapUserSettings {
         tracking_allowed: row.tracking_allowed,
         show_threat_level: row.show_threat_level,
+        compact_signature_list: row.compact_signature_list,
+        show_statics_first: row.show_statics_first,
     }))
 }
 
@@ -1025,18 +1042,88 @@ pub async fn remove_signature(
 ) -> ApiResult<()> {
     check_map_id(map_id, cmd.map_id)?;
     let actor = require_actor(&state.db, &jar).await?;
-    let solar_system_id: Option<i64> =
-        sqlx::query_scalar("select solar_system_id from signatures where id = $1 and map_id = $2")
-            .bind(cmd.signature_pk)
-            .bind(map_id)
-            .fetch_optional(&state.db)
-            .await?;
-    crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
-    if let Some(solar_system_id) = solar_system_id {
+    let outcome = crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SignatureChanged {
+        map_id,
+        solar_system_id: outcome.solar_system_id,
+    });
+    if let Some(connection_id) = outcome.removed_connection_id {
+        state.hub.publish(MapEvent::ConnectionChanged {
+            map_id,
+            connection_id,
+        });
+    }
+    Ok(Json(()))
+}
+
+/// `POST /api/maps/{id}/signatures/remove-bulk` — the panel's "delete missing
+/// signatures" path, with the legacy connection + orphan-endpoint cascade.
+pub async fn remove_signatures_bulk(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveSignatures>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let outcome = crate::maps::signatures::remove_signatures(&state.db, actor, cmd).await?;
+    for solar_system_id in outcome.systems {
         state.hub.publish(MapEvent::SignatureChanged {
             map_id,
             solar_system_id,
         });
     }
+    for connection_id in outcome.removed_connection_ids {
+        state.hub.publish(MapEvent::ConnectionChanged {
+            map_id,
+            connection_id,
+        });
+    }
+    for map_solar_system_id in outcome.removed_placement_ids {
+        state.hub.publish(MapEvent::SystemRemoved {
+            map_id,
+            map_solar_system_id,
+        });
+    }
     Ok(Json(()))
+}
+
+/// `GET /api/signature-types` — the seeded signature catalog (categories + types with
+/// spawn areas). Reference data, so no actor/role check; cacheable for a day.
+pub async fn signature_catalog(
+    State(state): State<AppState>,
+) -> Result<impl axum::response::IntoResponse, ApiError> {
+    let categories = sqlx::query_as!(
+        SignatureCategoryInfo,
+        "select id, name, code from signature_categories order by id",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let types = sqlx::query!(
+        r#"select st.id, st.signature, st.name, st.signature_category_id, st.target_class,
+                  st.extra,
+                  coalesce(array_agg(sa.wormhole_class_id order by sa.wormhole_class_id)
+                           filter (where sa.wormhole_class_id is not null), '{}') as "spawn_areas!"
+           from signature_types st
+           left join signature_type_spawn_areas sa on sa.signature_type_id = st.id
+           group by st.id
+           order by st.id"#,
+    )
+    .fetch_all(&state.db)
+    .await?
+    .into_iter()
+    .map(|r| SignatureTypeInfo {
+        id: r.id,
+        signature: r.signature,
+        name: r.name,
+        signature_category_id: r.signature_category_id,
+        target_class: r.target_class,
+        extra: r.extra,
+        spawn_areas: r.spawn_areas,
+    })
+    .collect();
+    Ok((
+        [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
+        Json(SignatureCatalog { categories, types }),
+    ))
 }

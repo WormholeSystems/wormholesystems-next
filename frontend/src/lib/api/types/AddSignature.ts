@@ -4,4 +4,4 @@ import type { SignatureGroup } from "./SignatureGroup";
 import type { TimeStatus } from "./TimeStatus";
 import type { WormholeSize } from "./WormholeSize";
 
-export type AddSignature = { map_id: number, solar_system_id: number, signature_id: string, group: SignatureGroup, name?: string, size?: WormholeSize, mass_status?: MassStatus, time_status?: TimeStatus, };
+export type AddSignature = { map_id: number, solar_system_id: number, signature_id: string, group: SignatureGroup, signature_type_id?: number, name?: string, size?: WormholeSize, mass_status?: MassStatus, time_status?: TimeStatus, };

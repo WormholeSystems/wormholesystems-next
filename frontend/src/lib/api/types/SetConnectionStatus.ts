@@ -13,4 +13,8 @@ export type SetConnectionStatus = { map_id: number, connection_id: number,
 /**
  * `None` leaves the edge kind unchanged; `Some(k)` switches wormhole/stargate.
  */
-kind?: ConnectionType, mass_status?: MassStatus | null, time_status?: TimeStatus | null, size?: WormholeSize | null, };
+kind?: ConnectionType, mass_status?: MassStatus | null, time_status?: TimeStatus | null, size?: WormholeSize | null, 
+/**
+ * `None` leaves the preserve-mass flag unchanged.
+ */
+preserve_mass?: boolean, };

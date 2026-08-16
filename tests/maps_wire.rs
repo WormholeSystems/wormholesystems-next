@@ -84,6 +84,7 @@ fn partial_update_command_preserves_leave_vs_clear_vs_set() {
         mass_status: Some(Some(MassStatus::Critical)),
         time_status: Some(None),
         size: None,
+        preserve_mass: None,
     };
     let (a, b) = reserialize(&cmd);
     assert_eq!(a, b);
@@ -101,6 +102,7 @@ fn add_signature_command_round_trips() {
         solar_system_id: 30000142,
         signature_id: "ABC-123".into(),
         group: SignatureGroup::Wormhole,
+        signature_type_id: None,
         name: Some("C247".into()),
         size: Some(WormholeSize::Large),
         mass_status: Some(MassStatus::Reduced),
@@ -120,6 +122,7 @@ fn map_view_round_trips() {
             image_url: None,
             created_at: ts(),
         },
+        role: vector::maps::Role::Member,
         systems: vec![MapSystemView {
             id: 10,
             map_id: 1,
@@ -161,6 +164,8 @@ fn map_view_round_trips() {
             mass_status: Some(MassStatus::Critical),
             time_status: Some(TimeStatus::Eol),
             size: None,
+            preserve_mass: false,
+            time_status_updated_at: None,
             created_at: ts(),
             updated_at: ts(),
         }],

@@ -60,6 +60,9 @@ async fn main() {
     // Background: killmail ingest + daily threat analysis (gated by ZKB_LISTEN=1).
     vector::killmails::start(db.clone(), esi.clone());
 
+    // Background: purge stale signatures (legacy expiry: 3d wormholes, 7d sites).
+    vector::maps::signatures::start_expiry(db.clone(), hub.clone());
+
     let state = AppState {
         auth,
         db,

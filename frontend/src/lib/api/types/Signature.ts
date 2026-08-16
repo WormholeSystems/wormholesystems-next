@@ -8,7 +8,19 @@ export type Signature = { id: number, map_id: number, solar_system_id: number,
 /**
  * The in-game scanner id, e.g. `ABC-123`. Unique per `(map, system)`.
  */
-signature_id: string, group: SignatureGroup, name: string | null, size: WormholeSize | null, mass_status: MassStatus | null, time_status: TimeStatus | null, 
+signature_id: string, group: SignatureGroup, 
+/**
+ * The matched catalog type ([`signature_types`](../../docs/database/static.md)).
+ */
+signature_type_id: number | null, 
+/**
+ * The raw scanner type name when no catalog type matched.
+ */
+name: string | null, size: WormholeSize | null, mass_status: MassStatus | null, time_status: TimeStatus | null, 
+/**
+ * When `time_status` last changed (DB trigger), for "EOL since" displays.
+ */
+time_status_updated_at: string | null, 
 /**
  * The connection this signature is one end of, if linked. Only `wormhole` sigs.
  */

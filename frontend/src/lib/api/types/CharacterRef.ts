@@ -3,4 +3,9 @@
 /**
  * One of the user's characters, for the switcher.
  */
-export type CharacterRef = { character_id: number, name: string, is_active: boolean, online: boolean, };
+export type CharacterRef = { character_id: number, name: string, is_active: boolean, online: boolean, 
+/**
+ * Where the character is right now, when online and tracked. Drives the paste
+ * system-mismatch warning.
+ */
+solar_system_id: number | null, };

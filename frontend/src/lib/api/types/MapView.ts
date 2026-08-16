@@ -2,8 +2,13 @@
 import type { Map } from "./Map";
 import type { MapConnection } from "./MapConnection";
 import type { MapSystemView } from "./MapSystemView";
+import type { Role } from "./Role";
 
 /**
  * The graph as seen by a viewer: the map plus its placed systems and connections.
  */
-export type MapView = { map: Map, systems: Array<MapSystemView>, connections: Array<MapConnection>, };
+export type MapView = { map: Map, 
+/**
+ * The caller's effective role on this map, for client-side permission gating.
+ */
+role: Role, systems: Array<MapSystemView>, connections: Array<MapConnection>, };

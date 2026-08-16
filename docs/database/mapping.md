@@ -96,11 +96,13 @@ catalogue of signature groups and known wormhole types is
 | `map_id`          | fk maps          |                                                             |
 | `solar_system_id` | int              | SDE `_key` — the system the sig is in                       |
 | `signature_id`    | text             | in-game id, e.g. `ABC-123`                                  |
-| `group`           | enum             | `wormhole`, `data`, `relic`, `gas`, `combat`, `ore`, `unknown` |
-| `name`            | text, null       | resolved wormhole type / site name when known               |
+| `group`           | enum             | `wormhole`, `data`, `relic`, `gas`, `combat`, `ore`, `homefront`, `unknown` |
+| `signature_type_id` | fk signature_types, null | the matched catalog type ([static reference](./static.md)) |
+| `name`            | text, null       | raw scanner type name when no catalog type matched          |
 | `size`            | enum, null       | `xl`, `large`, `medium`, `small` (wormholes)                |
 | `mass_status`     | enum, null       | `stable`, `reduced`, `critical` ("massed")                  |
 | `time_status`     | enum, null       | `stable`, `eol`, `critical` (≈ < 1h, "super EOL")           |
+| `time_status_updated_at` | timestamptz, null | when `time_status` last changed (trigger-maintained) |
 | `connection_id`   | fk map_connections, null | set when this sig is linked as one end of a hole      |
 | `created_at`      | timestamptz      |                                                             |
 | `updated_at`      | timestamptz      |                                                             |
@@ -114,8 +116,20 @@ catalogue of signature groups and known wormhole types is
   columns are `null`/ignored for non-wormhole groups.
 - **Ephemeral:** when a system is removed from the map, its signatures are deleted
   along with the placement (scan data goes stale; we do not persist it).
-- Paste-from-scanner reconciliation (future spec): a paste adds new sigs, removes
-  sigs no longer present, and preserves connection assignments where the id matches.
+- `signature_id` is exactly 7 characters (`ABC-123`), enforced on add and paste.
+- **Paste is upsert-only** (legacy semantics): it adds new sigs and refreshes existing
+  ones (`group` = pasted else keep; an existing wormhole `signature_type_id` always
+  survives; a site row takes the pasted catalog match or is cleared when only an
+  unmatched raw name was pasted; recategorizing a hole to a site drops the link).
+  It never deletes, and never touches `size` / `mass_status` / `time_status` /
+  `created_at`. Rows missing from a scan are removed explicitly via the bulk delete.
+- **Delete cascade** (legacy): deleting a signature also deletes its linked connection
+  unless another signature *in the same system* still references it. The bulk delete
+  additionally removes endpoint placements that are not pinned / home / rally and have
+  no remaining connections.
+- **Expiry:** a background loop purges unlinked wormhole sigs older than 3 days and
+  other sigs untouched for 7 days (a paste refreshes `updated_at`, keeping live sites
+  alive). Linked sigs never expire.
 
 ### Keeping a connection and its signatures consistent
 
@@ -169,6 +183,8 @@ above; a stargate edge is just a known gate.
 | `mass_status`   | enum, null           | `stable`, `reduced` ("massed"), `critical`               |
 | `time_status`   | enum, null           | `stable`, `eol` (≈ <4h), `critical` (≈ <1h, "super EOL") |
 | `size`          | enum, null           | `xl`, `large`, `medium`, `small` (max-jumpable class)    |
+| `preserve_mass` | bool                 | exclude from mass bookkeeping (legacy flag; stored only) |
+| `time_status_updated_at` | timestamptz, null | when `time_status` last changed (trigger-maintained) |
 | `created_at`    | timestamptz          |                                                          |
 | `updated_at`    | timestamptz          | bumped by edits and by the sync trigger                  |
 

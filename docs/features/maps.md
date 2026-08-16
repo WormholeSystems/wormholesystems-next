@@ -273,26 +273,28 @@ Mark a connection's wormhole life-cycle state — works whether or not a signatu
 
 Cosmic signatures scanned in a placed system. A `wormhole`-group signature carries the
 hole's `mass_status` / `time_status` / `size` from the scanner and can be **linked** to a
-connection as one of its ends; non-wormhole groups carry none of that. The bulk
-scanner-**paste** reconciliation is a separate future action — these are the structured
-per-signature operations it will build on.
+connection as one of its ends; non-wormhole groups carry none of that. A signature may
+reference a catalog type (`signature_type_id`); `name` holds the raw scanner type name
+when nothing matched.
 
-### `add_signature(actor, map_id, solar_system_id, signature_id, group, { name?, size?, mass_status?, time_status? }) -> Signature`
+### `add_signature(actor, map_id, solar_system_id, signature_id, group, { signature_type_id?, name?, size?, mass_status?, time_status? }) -> Signature`
 
 - **Auth:** `Member`.
-- **Validates:** `signature_id` non-blank; the system is **placed** on this map (else
-  `Validation`); only a `wormhole` group may carry `size` / `mass` / `time` (else `Validation`).
+- **Validates:** `signature_id` is 7 chars; the system is **placed** on this map (else
+  `Validation`); only a `wormhole` group may carry `size` / `mass` / `time` (else
+  `Validation`); a catalog type must belong to the group's category.
 - **Effect:** insert a `signatures` row (unlinked — `connection_id` null).
 - **Invariants:** duplicate `signature_id` in the same `(map, system)` → `Conflict`.
 
-### `update_signature(actor, map_id, signature_pk, { name?, size?, mass_status?, time_status? }) -> Signature`
+### `update_signature(actor, map_id, signature_pk, { group?, signature_type_id?, name?, size?, mass_status?, time_status? }) -> Signature`
 
 - **Auth:** `Member`.
-- **Validates:** same wormhole-only rule for the state fields (against the sig's current
-  group; the group is fixed at add time — remove + re-add to change it). Partial-update
-  semantics as above.
-- **Effect:** update the row. If linked, the state edit **propagates to the connection**
-  (and sibling) verbatim via the trigger.
+- **Validates:** wormhole-only rule for the state fields; a catalog type must belong to
+  the (new) group's category. Partial-update semantics as above.
+- **Effect:** update the row. **Changing the group clears the catalog type, the
+  connection link, and any wormhole state** (the legacy category-select behavior),
+  unless a new type comes in the same call. If linked, a state edit **propagates to the
+  connection** (and sibling) verbatim via the trigger.
 
 ### `link_signature(actor, map_id, signature_pk, connection_id) -> Signature`
 
@@ -310,8 +312,25 @@ per-signature operations it will build on.
 
 ### `remove_signature(actor, map_id, signature_pk)`
 
-- **Auth:** `Member`. **Effect:** delete the row (a no-op on the connection if it was linked).
-  Unknown id → `NotFound`.
+- **Auth:** `Member`. **Effect:** delete the row. Legacy cascade: if it was the last
+  signature on its side of a linked connection, the connection is deleted too (the other
+  end's signature is unlinked by the FK). Unknown id → `NotFound`.
+
+### `remove_signatures(actor, map_id, signature_pks)`
+
+- **Auth:** `Member`. The panel's "delete missing signatures" path.
+- **Effect:** bulk delete with the full cascade: each linked connection whose side is
+  left without signatures is deleted, and endpoint placements that are not pinned /
+  home / rally and have no remaining connections are removed from the map.
+
+### `paste_signatures(actor, map_id, solar_system_id, signatures)`
+
+- **Auth:** `Member`. Rows are `{signature_id, group?, signature_type_id?, name?}`.
+- **Validates:** the system is placed; every `signature_id` is 7 chars.
+- **Effect:** upsert-only reconciliation (see the
+  [invariants](../database/mapping.md#signatures)): adds new rows, refreshes existing
+  ones, preserves wormhole types and links, never deletes, never touches life-cycle
+  state. Deleting vanished rows is the client's explicit `remove_signatures` call.
 
 ### `list_signatures(actor, map_id) -> Vec<Signature>`
 
