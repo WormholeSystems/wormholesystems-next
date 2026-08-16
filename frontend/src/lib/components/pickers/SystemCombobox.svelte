@@ -86,7 +86,10 @@
 				<Command.Group>
 					{#each results as s (s.id)}
 						<Command.Item value={String(s.id)} onSelect={() => choose(s)}>
-							<SystemMenu system={s}>
+							<SystemMenu
+								system={s}
+								class="grid w-full grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content] items-center gap-x-2"
+							>
 								<SystemRow system={s} />
 							</SystemMenu>
 						</Command.Item>

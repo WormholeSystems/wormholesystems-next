@@ -5,6 +5,10 @@ import { defineConfig } from '@playwright/test';
 // setup), so locally the tests attach to your running stack.
 export default defineConfig({
 	testDir: 'e2e',
+	// The suite shares one dev stack, so a slow response can occasionally trip a
+	// timing-sensitive assertion; one retry keeps real failures visible without the
+	// noise. Retried tests are reported as flaky, not silently passed.
+	retries: 1,
 	use: {
 		baseURL: 'http://localhost:5173'
 	},

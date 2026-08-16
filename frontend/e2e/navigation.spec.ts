@@ -161,20 +161,33 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
 
-	// Station services (seeded from the SDE) name the concrete stations.
+	// Station services (seeded from the SDE) name the concrete stations, collapsed
+	// behind a per-row toggle so long lists stay scannable.
 	await page.getByTestId('find-condition').selectOption({ label: 'Repair Facilities' });
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
+	await expect(page.getByTestId('find-station')).toHaveCount(0);
+	await page.getByTestId('find-stations-toggle').first().click();
 	const stations = page.getByTestId('find-station');
 	await expect(stations.first()).toBeVisible();
 	await expect(stations.first()).toContainText('Jita');
+	// Collapsing hides them again.
+	await page.getByTestId('find-stations-toggle').first().click();
+	await expect(page.getByTestId('find-station')).toHaveCount(0);
 
 	// Security Offices only exist on CONCORD lowsec stations (in-game quirk), so
 	// highsec Jita is never a match and every result names a CONCORD station.
 	await page.getByTestId('find-condition').selectOption({ label: 'Security Office' });
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toHaveCount(0);
+	await page.getByTestId('find-stations-toggle').first().click();
 	await expect(page.getByTestId('find-station').first()).toContainText('CONCORD');
+
+	// A station row can be right-clicked to set it as the in-game destination.
+	await page.getByTestId('find-station').first().click({ button: 'right' });
+	await expect(page.getByTestId('destination-menu')).toBeVisible();
+	await expect(page.getByTestId('destination-menu').getByTestId('menu-set-destination')).toBeVisible();
+	await page.keyboard.press('Escape');
 });
 
 test('quick picks fill the route pickers', async ({ page, api }) => {

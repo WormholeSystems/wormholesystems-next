@@ -1,7 +1,8 @@
 <script lang="ts">
-	// An ordered jump route: numbered rows rendered with the shared SystemRow
-	// (class letter, name, region, sovereignty logo or effect), plus an amber WH
-	// marker on wormhole hops. Resolves its own display data from the ids.
+	// An ordered jump route: numbered rows rendered with the shared SystemRow (class,
+	// name, region, sovereignty or effect), plus the hop marker and an optional ignore
+	// button. One grid owns the tracks; rows are subgrids, so every column lines up and
+	// resizes with the container.
 	import XIcon from '@lucide/svelte/icons/x';
 
 	import { api } from '$lib/api/client';
@@ -31,16 +32,22 @@
 			})
 			.catch(() => {});
 	});
+
 </script>
 
-<ol class="flex max-h-64 flex-col gap-0.5 overflow-y-auto" data-testid="route-list">
+<!-- Tracks: index, hop marker, then the shared system columns (class / name / region /
+     holder), then the ignore slot. Rows are subgrids of these tracks. -->
+<ol
+	class="grid max-h-64 grid-cols-[min-content_min-content_min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2 overflow-y-auto"
+	data-testid="route-list"
+>
 	{#each steps as step, i (i)}
 		{@const r = resolved.get(step.id)}
-		<li class="flex items-center gap-2 text-xs">
+		<li class="col-span-full grid grid-cols-subgrid items-center gap-x-2 text-xs">
 			{#if r}
-				<SystemMenu system={r}>
-					<span class="w-5 shrink-0 text-right text-muted-foreground">{i}</span>
-					<span class="w-6 shrink-0 text-center">
+				<SystemMenu system={r} class="col-span-full grid grid-cols-subgrid items-center gap-x-2">
+					<span class="text-right text-muted-foreground">{i}</span>
+					<span class="text-center">
 						{#if step.via === 'wormhole'}
 							<span class="text-amber-500" title="Take wormhole">WH</span>
 						{:else if step.via === 'evescout'}
@@ -48,21 +55,26 @@
 						{/if}
 					</span>
 					<SystemRow system={r} />
-					{#if onignore && i > 0 && i < steps.length - 1}
-						<button
-							class="shrink-0 text-muted-foreground/50 hover:text-destructive"
-							title="Route around this system"
-							aria-label="Ignore {r.name}"
-							onclick={() => onignore(step.id)}
-						>
-							<XIcon class="size-3" />
-						</button>
+					{#if onignore}
+						{#if i > 0 && i < steps.length - 1}
+							<button
+								class="text-muted-foreground/50 hover:text-destructive"
+								title="Route around this system"
+								aria-label="Ignore {r.name}"
+								onclick={() => onignore(step.id)}
+							>
+								<XIcon class="size-3" />
+							</button>
+						{:else}
+							<span></span>
+						{/if}
 					{/if}
 				</SystemMenu>
 			{:else}
-				<span class="w-5 shrink-0 text-right text-muted-foreground">{i}</span>
-				<span class="w-6 shrink-0 text-center"></span>
-				<span class="text-muted-foreground">{step.id}</span>
+				<span class="text-right text-muted-foreground">{i}</span>
+				<span></span>
+				<span class="col-span-4 truncate text-muted-foreground">{step.id}</span>
+				{#if onignore}<span></span>{/if}
 			{/if}
 		</li>
 	{/each}

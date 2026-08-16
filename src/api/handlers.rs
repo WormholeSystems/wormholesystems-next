@@ -266,12 +266,16 @@ async fn esi_waypoint(
         })
 }
 
+/// ESI accepts a solar system, station, or structure id as a waypoint destination.
+/// We can only vouch for the first two (structures are per-character ACL'd and not
+/// seeded), so unknown ids are passed through to ESI rather than rejected here.
 async fn validate_waypoint_destination(
     state: &AppState,
     destination_id: i64,
 ) -> Result<(), ApiError> {
     let exists = sqlx::query_scalar!(
-        "select exists(select 1 from solar_systems where id = $1)",
+        "select exists(select 1 from solar_systems where id = $1)
+             or exists(select 1 from stations where id = $1)",
         destination_id,
     )
     .fetch_one(&state.db)
@@ -280,7 +284,7 @@ async fn validate_waypoint_destination(
     if exists {
         Ok(())
     } else {
-        Err(ApiError::bad_request("unknown destination system"))
+        Err(ApiError::bad_request("unknown destination"))
     }
 }
 

@@ -31,6 +31,7 @@
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import RouteList from '$lib/components/map/RouteList.svelte';
 	import SystemCombobox from '$lib/components/pickers/SystemCombobox.svelte';
+	import DestinationMenu from '$lib/components/system-menu/DestinationMenu.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 	import { classMeta } from '$lib/map/classes';
@@ -75,8 +76,8 @@
 			id: number;
 			name: string;
 			systems: Set<number>;
-			/** Concrete stations per system, so results can name the station. */
-			stationsBySystem: Map<number, string[]>;
+			/** Concrete stations per system, so results can name (and target) the station. */
+			stationsBySystem: Map<number, { id: number; name: string }[]>;
 		}[]
 	>([]);
 	$effect(() => {
@@ -90,10 +91,10 @@
 				joveSystems = new Set(g.jove ?? []);
 				stationSystems = new Set(g.stations ?? []);
 				serviceOptions = (g.services ?? []).map((svc) => {
-					const stationsBySystem = new Map<number, string[]>();
+					const stationsBySystem = new Map<number, { id: number; name: string }[]>();
 					for (const station of svc.stations) {
 						const list = stationsBySystem.get(station.solar_system_id) ?? [];
-						list.push(station.name);
+						list.push({ id: station.id, name: station.name });
 						stationsBySystem.set(station.solar_system_id, list);
 					}
 					return {
@@ -313,6 +314,19 @@
 	const activeService = $derived(
 		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null
 	);
+	// Station lists collapse by default: a service can match a dozen stations per
+	// system, which would bury the jump-ordered results.
+	let expandedFind = $state<Set<number>>(new Set());
+	$effect(() => {
+		void condition;
+		void origin;
+		expandedFind = new Set();
+	});
+	function toggleFindRow(id: number) {
+		const next = new Set(expandedFind);
+		if (!next.delete(id)) next.add(id);
+		expandedFind = next;
+	}
 
 	const findResults = $derived.by(() => {
 		if (!findOpen || !graph || origin === null) return [];
@@ -374,7 +388,11 @@
 								</Command.Empty>
 								<Command.Group>
 									{#each addResults as s (s.id)}
-										<Command.Item value={String(s.id)} onSelect={() => addToWatchlist(s.id)}>
+										<Command.Item
+											value={String(s.id)}
+											onSelect={() => addToWatchlist(s.id)}
+											class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content] items-center gap-x-2"
+										>
 											<SystemRow system={s} />
 										</Command.Item>
 									{/each}
@@ -466,7 +484,7 @@
 		<!-- Watchlist -->
 		<div class="flex flex-col">
 			<div
-				class="flex items-center gap-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
+				class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
 			>
 				{#snippet arrow(column: SortColumn)}
 					{#if sort.column === column}
@@ -478,7 +496,7 @@
 					{/if}
 				{/snippet}
 				<button
-					class="flex min-w-0 flex-1 items-center gap-1 hover:text-foreground"
+					class="col-span-2 flex min-w-0 items-center gap-1 hover:text-foreground"
 					onclick={() => handleSort('system')}
 				>
 					<span class="truncate">
@@ -487,14 +505,15 @@
 					{@render arrow('system')}
 				</button>
 				<button
-					class="flex w-20 shrink-0 items-center gap-1 hover:text-foreground"
+					class="flex min-w-0 items-center gap-1 hover:text-foreground"
 					onclick={() => handleSort('region')}>Region {@render arrow('region')}</button
 				>
+				<span></span>
 				<button
-					class="flex w-8 shrink-0 items-center justify-end gap-1 hover:text-foreground"
+					class="flex items-center justify-end gap-1 hover:text-foreground"
 					onclick={() => handleSort('jumps')}>J {@render arrow('jumps')}</button
 				>
-				{#if canWrite}<span class="w-10 shrink-0"></span>{/if}
+				<span></span>
 			</div>
 
 			{#if sortedWatchlist.length === 0}
@@ -508,18 +527,18 @@
 				{@const r = resolved.get(entry.solar_system_id)}
 				{@const route = watchRoutes.get(entry.solar_system_id)}
 				<div
-					class="flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
+					class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
 					data-testid="watchlist-row"
 					role="listitem"
 					onmouseenter={() => (hoverPath = route?.route.map((s) => s.id) ?? null)}
 					onmouseleave={() => (hoverPath = null)}
 				>
 					{#if r}
-						<SystemMenu system={r}>
+						<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
 							<SystemRow system={r} />
 						</SystemMenu>
 					{:else}
-						<span class="min-w-0 flex-1 truncate text-muted-foreground">
+						<span class="col-span-4 truncate text-muted-foreground">
 							{entry.solar_system_id}
 						</span>
 					{/if}
@@ -533,7 +552,7 @@
 						<span class="font-mono text-[10px] text-muted-foreground/60">--</span>
 					{/if}
 					{#if canWrite}
-						<span class="flex w-10 shrink-0 items-center justify-end gap-1">
+						<span class="flex items-center justify-end gap-1">
 							<button
 								class="text-muted-foreground hover:text-foreground {entry.is_pinned
 									? 'text-amber-400 hover:text-amber-400'
@@ -565,6 +584,8 @@
 								<Trash2Icon class="size-3" />
 							</button>
 						</span>
+					{:else}
+						<span></span>
 					{/if}
 				</div>
 			{/each}
@@ -635,34 +656,57 @@
 				{#each findResults as result (result.id)}
 					{@const r = resolved.get(result.id)}
 					<div
-						class="flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
+						class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
 						data-testid="find-row"
 						role="listitem"
 						onmouseenter={() => (hoverPath = result.route.map((s) => s.id))}
 						onmouseleave={() => (hoverPath = null)}
 					>
 						{#if r}
-							<SystemMenu system={r}>
+							<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
 								<SystemRow system={r} />
 							</SystemMenu>
 						{:else}
-							<span class="min-w-0 flex-1 truncate text-muted-foreground">{result.id}</span>
+							<span class="col-span-4 truncate text-muted-foreground">{result.id}</span>
 						{/if}
 						<RoutePopover {map} steps={result.route}>
 							<span class="cursor-pointer font-mono text-xs font-medium {badgeTone(result.jumps)}">
 								{result.jumps}j
 							</span>
 						</RoutePopover>
-					</div>
-					{#if activeService}
-						{#each activeService.stationsBySystem.get(result.id) ?? [] as station (station)}
-							<div
-								class="flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-10 text-[11px] text-muted-foreground"
-								data-testid="find-station"
+						{#if activeService}
+							{@const stations = activeService.stationsBySystem.get(result.id) ?? []}
+							<button
+								class="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+								title={expandedFind.has(result.id) ? 'Hide stations' : 'Show stations'}
+								aria-label="Toggle stations in {r?.name ?? result.id}"
+								aria-expanded={expandedFind.has(result.id)}
+								data-testid="find-stations-toggle"
+								onclick={() => toggleFindRow(result.id)}
 							>
-								<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
-								<span class="truncate" title={station}>{station}</span>
-							</div>
+								{#if expandedFind.has(result.id)}
+									<ChevronDownIcon class="size-3" />
+								{:else}
+									<ChevronRightIcon class="size-3" />
+								{/if}
+								{stations.length}
+							</button>
+						{:else}
+							<span></span>
+						{/if}
+					</div>
+					{#if activeService && expandedFind.has(result.id)}
+						{#each activeService.stationsBySystem.get(result.id) ?? [] as station (station.id)}
+							<!-- Right-click a station to set it as the in-game destination. -->
+							<DestinationMenu destinationId={station.id}>
+								<div
+									class="flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-10 text-[11px] text-muted-foreground hover:bg-muted/20"
+									data-testid="find-station"
+								>
+									<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
+									<span class="truncate" title={station.name}>{station.name}</span>
+								</div>
+							</DestinationMenu>
 						{/each}
 					{/if}
 				{/each}

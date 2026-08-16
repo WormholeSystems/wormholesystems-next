@@ -64,6 +64,13 @@ test('waypoint endpoint validation', async ({ api }) => {
 	});
 	expect(badDest.status()).toBe(400);
 
+	// Stations are valid ESI destinations too (Jita 4-4), so they pass validation and
+	// fail later on the missing scope rather than being rejected as unknown.
+	const stationDest = await api.post('/api/waypoints', {
+		data: { character_id: E2E_CHARACTER_ID, destination_id: 60003760 }
+	});
+	expect(stationDest.status()).not.toBe(400);
+
 	// Valid request fails on the token/scope step (no real ESI token in tests): the
 	// fixture token has no scopes, so the API answers 409 "missing scope".
 	await setCharacterPresence(E2E_CHARACTER_ID, JITA, true);
