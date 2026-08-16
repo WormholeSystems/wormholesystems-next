@@ -508,6 +508,24 @@ pub async fn routing_graph(
     let stations: Vec<i64> = sqlx::query_scalar!("select distinct solar_system_id from stations")
         .fetch_all(&state.db)
         .await?;
+    // The Find conditions offer the legacy "essential" station services.
+    const ESSENTIAL_SERVICES: [i64; 6] = [5, 10, 13, 14, 15, 27];
+    let services = sqlx::query!(
+        r#"select ss.id, ss.name,
+                  array_agg(distinct st.solar_system_id) as "systems!"
+           from station_services ss
+           join station_operation_services sos on sos.service_id = ss.id
+           join stations st on st.operation_id = sos.operation_id
+           where ss.id = any($1)
+           group by ss.id
+           order by ss.name"#,
+        &ESSENTIAL_SERVICES,
+    )
+    .fetch_all(&state.db)
+    .await?
+    .into_iter()
+    .map(|r| serde_json::json!({ "id": r.id, "name": r.name, "systems": r.systems }))
+    .collect::<Vec<_>>();
     Ok((
         [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
         Json(serde_json::json!({
@@ -515,6 +533,7 @@ pub async fn routing_graph(
             "security": security,
             "jove": jove,
             "stations": stations,
+            "services": services,
         })),
     ))
 }

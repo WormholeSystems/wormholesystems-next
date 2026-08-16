@@ -160,6 +160,14 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await page.getByTestId('find-condition').selectOption('npc_stations');
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
+
+	// Station services (seeded from the SDE): Jita has repair facilities.
+	await page.getByTestId('find-condition').selectOption({ label: 'Repair Facilities' });
+	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
+	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
+	// Cloning too, grouped under Station Services.
+	await page.getByTestId('find-condition').selectOption({ label: 'Cloning' });
+	await expect(page.getByTestId('find-row').first()).toBeVisible();
 });
 
 test('quick picks fill the route pickers', async ({ page, api }) => {

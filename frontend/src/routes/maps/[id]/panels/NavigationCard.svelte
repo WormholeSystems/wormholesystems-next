@@ -69,6 +69,7 @@
 	let security = $state<Map<number, number>>(new Map());
 	let joveSystems = $state<Set<number>>(new Set());
 	let stationSystems = $state<Set<number>>(new Set());
+	let serviceOptions = $state<{ id: number; name: string; systems: Set<number> }[]>([]);
 	$effect(() => {
 		api
 			.routingGraph()
@@ -79,6 +80,11 @@
 				security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
 				joveSystems = new Set(g.jove);
 				stationSystems = new Set(g.stations);
+				serviceOptions = g.services.map((svc) => ({
+					id: svc.id,
+					name: svc.name,
+					systems: new Set(svc.systems)
+				}));
 			})
 			.catch(() => {});
 	});
@@ -296,6 +302,9 @@
 			lowsec: (id) => sec(id) >= 0.1 && sec(id) <= 0.4,
 			nullsec: (id) => sec(id) <= 0
 		};
+		for (const svc of serviceOptions) {
+			matchers[`service_${svc.id}`] = (id) => svc.systems.has(id);
+		}
 		return findClosestSystems(
 			graph,
 			origin,
@@ -560,9 +569,23 @@
 						class="h-7 flex-1 rounded-md border border-input bg-muted/30 px-2 text-xs"
 						data-testid="find-condition"
 					>
-						{#each CONDITIONS as c (c.value)}
-							<option value={c.value}>{c.label}</option>
-						{/each}
+						<optgroup label="Features">
+							{#each CONDITIONS.slice(0, 2) as c (c.value)}
+								<option value={c.value}>{c.label}</option>
+							{/each}
+						</optgroup>
+						<optgroup label="Security">
+							{#each CONDITIONS.slice(2) as c (c.value)}
+								<option value={c.value}>{c.label}</option>
+							{/each}
+						</optgroup>
+						{#if serviceOptions.length > 0}
+							<optgroup label="Station Services">
+								{#each serviceOptions as svc (svc.id)}
+									<option value="service_{svc.id}">{svc.name}</option>
+								{/each}
+							</optgroup>
+						{/if}
 					</select>
 					<select
 						bind:value={findLimit}

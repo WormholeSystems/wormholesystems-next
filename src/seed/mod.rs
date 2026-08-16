@@ -99,7 +99,7 @@ pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
 
 /// Bump when the seed logic or bundled static data changes in a way that requires
 /// re-seeding an already-loaded SDE build.
-const SEED_REVISION: i32 = 2;
+const SEED_REVISION: i32 = 3;
 
 /// The SDE build currently unpacked in `data/sde` (from its `_sde.jsonl` marker).
 #[derive(Deserialize)]
@@ -465,6 +465,43 @@ async fn seed_entities(
             }
         );
         println!("stations: {n}");
+    }
+    {
+        // Station services and the per-operation service sets, for the navigation
+        // Find ("nearest repair / cloning / ..." lookups).
+        let services = crate::sde::load_all::<npc::StationService>()?;
+        let n = bulk!(
+            tx,
+            "station_services (id, name)",
+            "on conflict (id) do update set name = excluded.name",
+            &services,
+            |b, s| {
+                b.push_bind(s.id as i64)
+                    .push_bind(s.service_name.en.clone().unwrap_or_default())
+            }
+        );
+        println!("station_services: {n}");
+
+        let operations = crate::sde::load_all::<npc::StationOperation>()?;
+        let service_ids: HashSet<i64> = services.iter().map(|s| s.id as i64).collect();
+        let pairs: Vec<(i64, i64)> = operations
+            .iter()
+            .flat_map(|op| {
+                op.services
+                    .iter()
+                    .map(|svc| (op.id as i64, *svc as i64))
+                    .filter(|(_, svc)| service_ids.contains(svc))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let n = bulk!(
+            tx,
+            "station_operation_services (operation_id, service_id)",
+            "on conflict (operation_id, service_id) do nothing",
+            &pairs,
+            |b, (op, svc)| { b.push_bind(op).push_bind(svc) }
+        );
+        println!("station_operation_services: {n}");
     }
     Ok(())
 }

@@ -125,6 +125,7 @@ export const api = {
 			security: Record<string, number>;
 			jove: number[];
 			stations: number[];
+			services: { id: number; name: string; systems: number[] }[];
 		}>('/api/routing-graph'),
 
 	// Maps
