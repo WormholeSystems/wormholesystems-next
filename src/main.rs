@@ -52,7 +52,13 @@ async fn main() {
 
     // Background: poll live character status for active users (no queue; in-process). Pings
     // each user's private channel when their character's status changes.
-    vector::tracking::start(db.clone(), sso.clone(), esi.clone(), user_hub.clone());
+    vector::tracking::start(
+        db.clone(),
+        sso.clone(),
+        esi.clone(),
+        user_hub.clone(),
+        hub.clone(),
+    );
 
     // Background: keep sovereignty (and its alliance/corp entities) current for map display.
     vector::sovereignty::start(db.clone(), esi.clone());
@@ -62,6 +68,9 @@ async fn main() {
 
     // Background: purge stale signatures (legacy expiry: 3d wormholes, 7d sites).
     vector::maps::signatures::start_expiry(db.clone(), hub.clone());
+
+    // Background: prune unclaimed connection-jump observations.
+    vector::maps::jumps::start_prune(db.clone());
 
     let state = AppState {
         auth,

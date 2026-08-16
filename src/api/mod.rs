@@ -124,6 +124,22 @@ pub struct SignatureTypeInfo {
     pub target_class: Option<i32>,
     pub extra: Option<String>,
     pub spawn_areas: Vec<i32>,
+    /// Wormhole physics (joined from `wormhole_types` by code; wormhole types only).
+    pub total_mass: Option<i64>,
+    pub max_jump_mass: Option<i64>,
+    pub lifetime_hours: Option<f64>,
+    pub signature_strength: Option<f64>,
+}
+
+/// A ship type matched by the manual-jump ship search.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct ShipSearchResult {
+    pub id: i64,
+    pub name: String,
+    pub group_name: String,
+    /// Hull mass in kg.
+    pub mass: Option<f64>,
 }
 
 /// The full signature catalog, served once and cached client-side.
@@ -266,6 +282,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/grid-config", get(h::grid_config))
         .route("/api/effects", get(h::effect_modifiers))
         .route("/api/signature-types", get(h::signature_catalog))
+        .route("/api/ships/search", get(h::search_ships))
         .route("/api/systems/search", get(h::search_systems))
         .route("/api/routing-graph", get(h::routing_graph))
         .route("/api/threat/{solar_system_id}", get(h::threat_analysis))
@@ -303,6 +320,22 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/maps/{id}/connections/remove",
             post(h::remove_connection),
+        )
+        .route(
+            "/api/maps/{id}/connections/{cid}/jumps",
+            get(h::list_connection_jumps),
+        )
+        .route(
+            "/api/maps/{id}/connections/jumps/add",
+            post(h::add_connection_jump),
+        )
+        .route(
+            "/api/maps/{id}/connections/jumps/update",
+            post(h::update_connection_jump),
+        )
+        .route(
+            "/api/maps/{id}/connections/jumps/remove",
+            post(h::remove_connection_jump),
         )
         .route("/api/maps/{id}/signatures/add", post(h::add_signature))
         .route("/api/maps/{id}/signatures/paste", post(h::paste_signatures))

@@ -19,6 +19,7 @@ use tokio::time::{MissedTickBehavior, interval};
 use crate::db::PgTokenStore;
 use crate::esi::scopes::Scope;
 use crate::esi::{EsiClient, Sso};
+use crate::maps::MapHub;
 use crate::user_channel::{UserEvent, UserHub};
 
 /// Max ESI requests in flight per tick — the one tuning knob. Raise to fit more characters
@@ -33,14 +34,15 @@ struct Due {
 }
 
 /// Spawn the polling loops. Returns immediately; the loops run for the process lifetime.
-pub fn start(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
+/// `maps` receives `ConnectionChanged` events when a transit lands on a mapped hole.
+pub fn start(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub, maps: MapHub) {
     tokio::spawn(tier_one(
         pool.clone(),
         sso.clone(),
         esi.clone(),
         users.clone(),
     ));
-    tokio::spawn(tier_two(pool, sso, esi, users));
+    tokio::spawn(tier_two(pool, sso, esi, users, maps));
 }
 
 /// Tier 1: online state, every 60s, for every character of an active user.
@@ -62,7 +64,7 @@ async fn tier_one(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
 }
 
 /// Tier 2: location + ship, every 5s, for currently-online characters of active users.
-async fn tier_two(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
+async fn tier_two(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub, maps: MapHub) {
     let mut ticker = interval(Duration::from_secs(5));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
@@ -70,7 +72,14 @@ async fn tier_two(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
         match active_characters(&pool, true).await {
             Ok(due) => {
                 run_bounded(&due, CONCURRENCY, |d| {
-                    poll_location_ship(pool.clone(), sso.clone(), esi.clone(), users.clone(), d)
+                    poll_location_ship(
+                        pool.clone(),
+                        sso.clone(),
+                        esi.clone(),
+                        users.clone(),
+                        maps.clone(),
+                        d,
+                    )
                 })
                 .await
             }
@@ -191,7 +200,14 @@ async fn poll_online(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub
 /// Poll one character's location + ship (tier 2). Location and ship use independent scopes,
 /// so a missing one skips just that field. Docking (station/structure) is left null until we
 /// cache those entities — see the module note.
-async fn poll_location_ship(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub, due: Due) {
+async fn poll_location_ship(
+    pool: PgPool,
+    sso: Arc<Sso>,
+    esi: EsiClient,
+    users: UserHub,
+    maps: MapHub,
+    due: Due,
+) {
     let store = PgTokenStore::new(pool.clone());
     let id = due.character_id;
     let mut changed = false;
@@ -220,6 +236,17 @@ async fn poll_location_ship(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: 
         changed |= row.prev_solar_system_id != Some(location.solar_system_id)
             || row.prev_station_id.is_some()
             || row.prev_structure_id.is_some();
+
+        // A system change is a potential wormhole transit — jump capture must never
+        // break polling, so failures are logged and dropped.
+        if let Some(prev) = row.prev_solar_system_id
+            && prev != location.solar_system_id
+            && let Err(err) =
+                crate::maps::jumps::record_transit(&pool, &maps, id, prev, location.solar_system_id)
+                    .await
+        {
+            eprintln!("jump capture failed for character {id}: {err}");
+        }
     }
 
     if let Ok(token) = sso.access_token(&store, id, Scope::ReadShipType).await

@@ -17,4 +17,8 @@ preserve_mass: boolean,
 /**
  * When `time_status` last changed (DB trigger), for "EOL since" displays.
  */
-time_status_updated_at: string | null, created_at: string, updated_at: string, };
+time_status_updated_at: string | null, 
+/**
+ * Full jump-log aggregates (the log itself is fetched separately, capped at 10).
+ */
+jumps_count: number, jumps_mass_sum: number, created_at: string, updated_at: string, };

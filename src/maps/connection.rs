@@ -36,6 +36,9 @@ pub struct MapConnection {
     pub preserve_mass: bool,
     /// When `time_status` last changed (DB trigger), for "EOL since" displays.
     pub time_status_updated_at: Option<DateTime<Utc>>,
+    /// Full jump-log aggregates (the log itself is fetched separately, capped at 10).
+    pub jumps_count: i64,
+    pub jumps_mass_sum: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -100,6 +103,10 @@ pub async fn add_connection(
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
                      size as "size: WormholeSize",
+                     (select count(*) from map_connection_jumps j
+                      where j.connection_id = map_connections.id) as "jumps_count!",
+                     coalesce((select sum(j.mass) from map_connection_jumps j
+                               where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
                      preserve_mass, time_status_updated_at, created_at, updated_at"#,
         cmd.map_id,
         cmd.from_system,
@@ -109,6 +116,27 @@ pub async fn add_connection(
     )
     .fetch_one(pool)
     .await?;
+
+    // A hole often gets jumped moments before it's mapped: adopt those observations.
+    if connection.kind == ConnectionType::Wormhole {
+        let endpoints = sqlx::query!(
+            "select f.solar_system_id as from_sys, t.solar_system_id as to_sys
+             from map_solar_systems f, map_solar_systems t
+             where f.id = $1 and t.id = $2",
+            connection.from_system,
+            connection.to_system,
+        )
+        .fetch_one(pool)
+        .await?;
+        super::jumps::claim_pending(
+            pool,
+            connection.map_id,
+            connection.id,
+            endpoints.from_sys,
+            endpoints.to_sys,
+        )
+        .await?;
+    }
     Ok(connection)
 }
 
@@ -154,6 +182,10 @@ pub async fn set_connection_status(
                   mass_status as "mass_status: MassStatus",
                   time_status as "time_status: TimeStatus",
                   size as "size: WormholeSize",
+                  (select count(*) from map_connection_jumps j
+                   where j.connection_id = map_connections.id) as "jumps_count!",
+                  coalesce((select sum(j.mass) from map_connection_jumps j
+                            where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
                   preserve_mass, time_status_updated_at, created_at, updated_at
            from map_connections where id = $1 and map_id = $2"#,
         cmd.connection_id,
@@ -178,6 +210,10 @@ pub async fn set_connection_status(
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
                      size as "size: WormholeSize",
+                     (select count(*) from map_connection_jumps j
+                      where j.connection_id = map_connections.id) as "jumps_count!",
+                     coalesce((select sum(j.mass) from map_connection_jumps j
+                               where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
                      preserve_mass, time_status_updated_at, created_at, updated_at"#,
         kind.as_str(),
         mass.map(|m| m.as_str()),

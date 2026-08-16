@@ -5,4 +5,8 @@
  * (wormhole types only); `target_class` its destination class; `spawn_areas` the system
  * classes this type can appear in.
  */
-export type SignatureTypeInfo = { id: number, signature: string | null, name: string, signature_category_id: number, target_class: number | null, extra: string | null, spawn_areas: Array<number>, };
+export type SignatureTypeInfo = { id: number, signature: string | null, name: string, signature_category_id: number, target_class: number | null, extra: string | null, spawn_areas: Array<number>, 
+/**
+ * Wormhole physics (joined from `wormhole_types` by code; wormhole types only).
+ */
+total_mass: number | null, max_jump_mass: number | null, lifetime_hours: number | null, signature_strength: number | null, };

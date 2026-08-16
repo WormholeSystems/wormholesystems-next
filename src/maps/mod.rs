@@ -11,6 +11,7 @@ pub mod access;
 pub mod connection;
 pub mod error;
 pub mod events;
+pub mod jumps;
 pub mod map;
 pub mod signatures;
 pub mod solar_system;

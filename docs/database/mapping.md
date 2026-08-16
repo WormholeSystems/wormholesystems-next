@@ -166,6 +166,40 @@ Unlinking needs no sync: the remaining members keep their state, and the detache
 keeps its last state as a standalone scanned wormhole. The relationship itself — at most
 two signatures per connection, one per endpoint — is an invariant, not synchronized data.
 
+## `map_connection_jumps`
+
+Every observed or manually logged transit through a wormhole connection, with the
+ship's hull mass — the ledger behind the connection's mass-remaining estimate
+(`jumps_count` / `jumps_mass_sum` aggregates on the connection payload).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | pk | |
+| `map_id` | fk maps | cascade |
+| `connection_id` | fk map_connections, null | null = pending (observed before the hole was mapped); cascade |
+| `character_id` | fk characters, null | set null on character delete (the ledger survives) |
+| `from_solar_system_id` / `to_solar_system_id` | fk solar_systems | transit direction |
+| `ship_type_id` | fk types, null | set null |
+| `ship_name` | text, null | |
+| `mass` | bigint | hull mass in kg (`types.mass`); ±10% in game |
+| `is_manual` | bool | manual entries; tracked jumps stay false even when corrected |
+
+**Capture rules** (`src/maps/jumps.rs::record_transit`, called from the location
+poller on every system change of a tracked character):
+
+- Stargate pairs (per the `stargates` table) are never logged.
+- Only maps where the character's user opted in (`map_user_settings.tracking_allowed`)
+  and holds Member+ participate.
+- A matching `wormhole` connection (either direction) claims the row immediately; a
+  lone `stargate` edge means gate travel on that map → skip; no edge at all leaves a
+  **pending** row (`connection_id` null) when the origin system is placed.
+- A wormhole connection created within **120 s** claims matching pending rows;
+  unclaimed rows are pruned after **10 minutes**. Claimed rows live until the
+  connection (or map) dies, via cascade.
+- The jump log endpoint returns the **latest 10** rows; the aggregates are full sums.
+- The mass estimate is independent of the manual `mass_status` flag, and
+  `preserve_mass` does not affect the math (display-only, matching legacy).
+
 ---
 
 ## `map_connections`

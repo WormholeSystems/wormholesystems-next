@@ -260,6 +260,18 @@ Mark a connection's wormhole life-cycle state — works whether or not a signatu
   [the sync spec](../database/mapping.md#keeping-a-connection-and-its-signatures-consistent).
 - **Invariant:** state set here is visible on every group member; downgrades propagate.
 
+### Connection jumps (`add_jump` / `update_jump` / `remove_jump` / `list_jumps`)
+
+- **Auth:** mutations `Member`, list `Viewer`.
+- `add_jump(map_id, connection_id, direction, { ship_type_id?, mass? })`: manual log
+  entry; needs a mass or a ship type (hull mass derived); `direction`
+  outbound/inbound resolves the endpoints from the connection; `is_manual = true`.
+- `update_jump`: partial edit; a changed ship type without an explicit mass
+  re-derives the hull mass; `is_manual` never flips.
+- `list_jumps`: the latest 10, newest first (aggregates ride on the connection).
+- Automatic capture and claiming/pruning are documented in
+  [the table spec](../database/mapping.md#map_connection_jumps).
+
 ### `remove_connection(actor, map_id, connection_id)`
 
 - **Auth:** `Member`.

@@ -338,6 +338,10 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                   mass_status as "mass_status: MassStatus",
                   time_status as "time_status: TimeStatus",
                   size as "size: WormholeSize",
+                  (select count(*) from map_connection_jumps j
+                   where j.connection_id = map_connections.id) as "jumps_count!",
+                  coalesce((select sum(j.mass) from map_connection_jumps j
+                            where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
                   preserve_mass, time_status_updated_at, created_at, updated_at
            from map_connections where map_id = $1 order by id"#,
         cmd.map_id,

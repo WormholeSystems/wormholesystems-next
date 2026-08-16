@@ -9,12 +9,15 @@ use serde::Deserialize;
 
 use super::{
     ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, MapCharacter, MapEntry,
-    MapUserSettings, SignatureCatalog, SignatureCategoryInfo, SignatureTypeInfo,
+    MapUserSettings, ShipSearchResult, SignatureCatalog, SignatureCategoryInfo, SignatureTypeInfo,
     SystemSearchResult, ThreatAnalysis, ThreatEntity, UpdateMapUserSettings, check_map_id,
     require_actor, session_actor, session_id,
 };
 use crate::auth::AppState;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use crate::maps::jumps::{
+    AddConnectionJump, ConnectionJump, RemoveConnectionJump, UpdateConnectionJump,
+};
 use crate::maps::signatures::{
     AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
     UnlinkSignature, UpdateSignature,
@@ -1103,10 +1106,12 @@ pub async fn signature_catalog(
         r#"select st.id, st.signature, st.name, st.signature_category_id, st.target_class,
                   st.extra,
                   coalesce(array_agg(sa.wormhole_class_id order by sa.wormhole_class_id)
-                           filter (where sa.wormhole_class_id is not null), '{}') as "spawn_areas!"
+                           filter (where sa.wormhole_class_id is not null), '{}') as "spawn_areas!",
+                  wt.total_mass, wt.max_mass_per_jump, wt.lifetime_hours, wt.signature_strength
            from signature_types st
+           left join wormhole_types wt on wt.code = st.signature
            left join signature_type_spawn_areas sa on sa.signature_type_id = st.id
-           group by st.id
+           group by st.id, wt.code
            order by st.id"#,
     )
     .fetch_all(&state.db)
@@ -1120,10 +1125,110 @@ pub async fn signature_catalog(
         target_class: r.target_class,
         extra: r.extra,
         spawn_areas: r.spawn_areas,
+        total_mass: r.total_mass,
+        max_jump_mass: r.max_mass_per_jump,
+        lifetime_hours: r.lifetime_hours,
+        signature_strength: r.signature_strength,
     })
     .collect();
     Ok((
         [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
         Json(SignatureCatalog { categories, types }),
     ))
+}
+
+#[derive(Deserialize)]
+pub struct ShipSearchQuery {
+    pub q: String,
+}
+
+/// `GET /api/ships/search?q=` — published ship types (SDE category 6) by name, with
+/// hull mass for the manual-jump form. Reference data, no actor check.
+pub async fn search_ships(
+    State(state): State<AppState>,
+    Query(query): Query<ShipSearchQuery>,
+) -> ApiResult<Vec<ShipSearchResult>> {
+    let q = query.q.trim();
+    if q.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    let results = sqlx::query_as!(
+        ShipSearchResult,
+        r#"select t.id, t.name, g.name as group_name, t.mass
+           from types t
+           join groups g on g.id = t.group_id
+           where g.category_id = 6 and t.published and t.name ilike '%' || $1 || '%'
+           order by t.name limit 25"#,
+        q,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(results))
+}
+
+// --- Connection jumps ---
+
+/// `GET /api/maps/{id}/connections/{cid}/jumps` — the latest 10 jump-log rows.
+pub async fn list_connection_jumps(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path((map_id, connection_id)): Path<(i64, i64)>,
+) -> ApiResult<Vec<ConnectionJump>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let jumps = crate::maps::jumps::list_jumps(&state.db, actor, map_id, connection_id).await?;
+    Ok(Json(jumps))
+}
+
+pub async fn add_connection_jump(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<AddConnectionJump>,
+) -> ApiResult<ConnectionJump> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let jump = crate::maps::jumps::add_jump(&state.db, actor, cmd).await?;
+    if let Some(connection_id) = jump.connection_id {
+        state.hub.publish(MapEvent::ConnectionChanged {
+            map_id,
+            connection_id,
+        });
+    }
+    Ok(Json(jump))
+}
+
+pub async fn update_connection_jump(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<UpdateConnectionJump>,
+) -> ApiResult<ConnectionJump> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let jump = crate::maps::jumps::update_jump(&state.db, actor, cmd).await?;
+    if let Some(connection_id) = jump.connection_id {
+        state.hub.publish(MapEvent::ConnectionChanged {
+            map_id,
+            connection_id,
+        });
+    }
+    Ok(Json(jump))
+}
+
+pub async fn remove_connection_jump(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveConnectionJump>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let connection_id = crate::maps::jumps::remove_jump(&state.db, actor, cmd).await?;
+    if let Some(connection_id) = connection_id {
+        state.hub.publish(MapEvent::ConnectionChanged {
+            map_id,
+            connection_id,
+        });
+    }
+    Ok(Json(()))
 }
