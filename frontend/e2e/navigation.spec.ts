@@ -167,12 +167,19 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
 	await expect(page.getByTestId('find-station')).toHaveCount(0);
-	await page.getByTestId('find-stations-toggle').first().click();
+	// Clicking anywhere on the row expands it (the count chevron is only an indicator).
+	await page.getByTestId('find-row').first().click();
 	const stations = page.getByTestId('find-station');
 	await expect(stations.first()).toBeVisible();
 	await expect(stations.first()).toContainText('Jita');
-	// Collapsing hides them again.
-	await page.getByTestId('find-stations-toggle').first().click();
+	await expect(page.getByTestId('find-row').first()).toHaveAttribute('aria-expanded', 'true');
+	// The jump badge opens the hop popover without collapsing the row.
+	await page.getByTestId('find-row').first().getByTestId('jump-badge').click();
+	await expect(page.getByTestId('route-popover')).toBeVisible();
+	await expect(page.getByTestId('find-row').first()).toHaveAttribute('aria-expanded', 'true');
+	await page.keyboard.press('Escape');
+	// Clicking the row again collapses it.
+	await page.getByTestId('find-row').first().click();
 	await expect(page.getByTestId('find-station')).toHaveCount(0);
 
 	// Security Offices only exist on CONCORD lowsec stations (in-game quirk), so
@@ -180,7 +187,7 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await page.getByTestId('find-condition').selectOption({ label: 'Security Office' });
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toHaveCount(0);
-	await page.getByTestId('find-stations-toggle').first().click();
+	await page.getByTestId('find-row').first().click();
 	await expect(page.getByTestId('find-station').first()).toContainText('CONCORD');
 
 	// A station row can be right-clicked to set it as the in-game destination.

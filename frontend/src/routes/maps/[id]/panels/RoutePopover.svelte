@@ -30,7 +30,11 @@
 </script>
 
 <Popover.Root>
-	<Popover.Trigger class="justify-self-end" data-testid="jump-badge">
+	<Popover.Trigger
+		class="justify-self-end"
+		data-testid="jump-badge"
+		onclick={(ev: MouseEvent) => ev.stopPropagation()}
+	>
 		{@render children()}
 	</Popover.Trigger>
 	<Popover.Content class="w-[26rem] p-0" align="end" data-testid="route-popover">

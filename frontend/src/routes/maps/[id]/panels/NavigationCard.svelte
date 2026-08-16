@@ -481,10 +481,11 @@
 			{/if}
 		</div>
 
-		<!-- Watchlist -->
-		<div class="flex flex-col">
+		<!-- Watchlist. One grid owns the tracks so every row (and the header) shares the
+		     same column widths via subgrid. -->
+		<div class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2">
 			<div
-				class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
+				class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
 			>
 				{#snippet arrow(column: SortColumn)}
 					{#if sort.column === column}
@@ -518,7 +519,7 @@
 
 			{#if sortedWatchlist.length === 0}
 				<p
-					class="p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
+					class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
 				>
 					Watchlist empty
 				</p>
@@ -527,7 +528,7 @@
 				{@const r = resolved.get(entry.solar_system_id)}
 				{@const route = watchRoutes.get(entry.solar_system_id)}
 				<div
-					class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
+					class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
 					data-testid="watchlist-row"
 					role="listitem"
 					onmouseenter={() => (hoverPath = route?.route.map((s) => s.id) ?? null)}
@@ -606,7 +607,8 @@
 				Find
 			</button>
 			{#if findOpen}
-				<div class="flex items-center gap-1.5 border-b border-border/30 p-2">
+				<div class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2">
+				<div class="col-span-full flex items-center gap-1.5 border-b border-border/30 p-2">
 					<select
 						bind:value={condition}
 						class="h-7 flex-1 rounded-md border border-input bg-muted/30 px-2 text-xs"
@@ -642,23 +644,41 @@
 				</div>
 				{#if origin === null}
 					<p
-						class="p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
+						class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
 					>
 						Select an origin
 					</p>
 				{:else if findResults.length === 0}
 					<p
-						class="p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
+						class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
 					>
 						No systems found
 					</p>
 				{/if}
 				{#each findResults as result (result.id)}
 					{@const r = resolved.get(result.id)}
+					{@const stations = activeService?.stationsBySystem.get(result.id) ?? []}
+					{@const expandable = stations.length > 0}
+					<!-- The whole row toggles its station list; the jump badge stops its own
+					     click from bubbling, and right-click still opens the system menu.
+					     The role/tabindex pair is conditional (button only when there is
+					     something to expand), which the static a11y check can't follow. -->
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
-						class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
+						class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30 {expandable
+							? 'cursor-pointer'
+							: ''}"
 						data-testid="find-row"
-						role="listitem"
+						role={expandable ? 'button' : 'listitem'}
+						tabindex={expandable ? 0 : undefined}
+						aria-expanded={expandable ? expandedFind.has(result.id) : undefined}
+						onclick={() => expandable && toggleFindRow(result.id)}
+						onkeydown={(ev) => {
+							if (expandable && (ev.key === 'Enter' || ev.key === ' ')) {
+								ev.preventDefault();
+								toggleFindRow(result.id);
+							}
+						}}
 						onmouseenter={() => (hoverPath = result.route.map((s) => s.id))}
 						onmouseleave={() => (hoverPath = null)}
 					>
@@ -674,15 +694,10 @@
 								{result.jumps}j
 							</span>
 						</RoutePopover>
-						{#if activeService}
-							{@const stations = activeService.stationsBySystem.get(result.id) ?? []}
-							<button
-								class="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground"
-								title={expandedFind.has(result.id) ? 'Hide stations' : 'Show stations'}
-								aria-label="Toggle stations in {r?.name ?? result.id}"
-								aria-expanded={expandedFind.has(result.id)}
-								data-testid="find-stations-toggle"
-								onclick={() => toggleFindRow(result.id)}
+						{#if expandable}
+							<span
+								class="flex items-center gap-0.5 text-[10px] text-muted-foreground"
+								data-testid="find-stations-indicator"
 							>
 								{#if expandedFind.has(result.id)}
 									<ChevronDownIcon class="size-3" />
@@ -690,17 +705,17 @@
 									<ChevronRightIcon class="size-3" />
 								{/if}
 								{stations.length}
-							</button>
+							</span>
 						{:else}
 							<span></span>
 						{/if}
 					</div>
-					{#if activeService && expandedFind.has(result.id)}
-						{#each activeService.stationsBySystem.get(result.id) ?? [] as station (station.id)}
+					{#if expandedFind.has(result.id)}
+						{#each stations as station (station.id)}
 							<!-- Right-click a station to set it as the in-game destination. -->
-							<DestinationMenu destinationId={station.id}>
+							<DestinationMenu destinationId={station.id} class="col-span-full">
 								<div
-									class="flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-10 text-[11px] text-muted-foreground hover:bg-muted/20"
+									class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
 									data-testid="find-station"
 								>
 									<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
@@ -710,6 +725,7 @@
 						{/each}
 					{/if}
 				{/each}
+				</div>
 			{/if}
 		</div>
 	</MapPanelContent>
