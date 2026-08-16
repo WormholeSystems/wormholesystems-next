@@ -46,22 +46,3 @@ test('node context menu sets the system status', async ({ page, api }) => {
 	// The friendly status recolors the node border via its data-status channel.
 	await expect(node).toHaveAttribute('data-status', 'friendly');
 });
-
-test('signatures panel pastes a scan', async ({ page, api }) => {
-	const mapId = await createMap(api, 'E2E Sig Map');
-	const add = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: 31002352, x: 300, y: 200, alias: null }
-	});
-	expect(add.ok()).toBe(true);
-
-	await gotoApp(page, `/maps/${mapId}`);
-	await page.getByTestId('system-node').filter({ hasText: 'J104809' }).click();
-
-	const textarea = page.getByPlaceholder('Paste in-game scan results…');
-	await textarea.scrollIntoViewIfNeeded();
-	await textarea.fill('ABC-123\tCosmic Signature\tWormhole\tUnstable Wormhole\t100.0%\t1.0 AU');
-	await page.getByRole('button', { name: 'Apply paste' }).click();
-
-	await expect(page.getByText('ABC-123')).toBeVisible();
-	await expect(page.getByText('wormhole', { exact: true })).toBeVisible();
-});

@@ -400,6 +400,13 @@
 			.catch(() => {});
 	}
 
+	function setStaticsFirst(value: boolean) {
+		api
+			.updateMapUserSettings(map.mapId, { show_statics_first: value })
+			.then((s) => (map.userSettings = s))
+			.catch(() => {});
+	}
+
 	const connCountByPlacement = $derived.by(() => {
 		const out = new Map<number, number>();
 		for (const c of map.connections) {
@@ -449,6 +456,14 @@
 				/>
 				Threat rings
 			</label>
+			<label class="flex items-center gap-1.5 text-xs text-muted-foreground">
+				<Switch
+					checked={map.userSettings.show_statics_first}
+					onCheckedChange={setStaticsFirst}
+					data-testid="statics-first-toggle"
+				/>
+				Statics first
+			</label>
 		{/if}
 		<span class="font-mono text-xs text-muted-foreground">{map.statusLine}</span>
 	</span>
@@ -456,7 +471,7 @@
 
 <SystemSearchDialog bind:open={map.searchOpen} onpick={onSearchPick} />
 
-<div class="mt-3 grid grid-cols-[1fr_320px] items-start gap-4">
+<div class="mt-3 grid grid-cols-[1fr_420px] items-start gap-4">
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
 <div
 	bind:this={viewportEl}
