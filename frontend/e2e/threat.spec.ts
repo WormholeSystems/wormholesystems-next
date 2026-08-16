@@ -30,6 +30,17 @@ test('threat ring, setting toggle, and threat card', async ({ page, api }) => {
 	const node = page.getByTestId('system-node').filter({ hasText: 'J122515' });
 	await expect(node).toHaveAttribute('data-threat', 'critical');
 
+	// The ring must actually render in the threat-critical color, not a fallback.
+	const { expected, shadow } = await node.evaluate((el) => {
+		const probe = document.createElement('div');
+		probe.style.color = 'var(--color-threat-critical)';
+		document.body.appendChild(probe);
+		const color = getComputedStyle(probe).color;
+		probe.remove();
+		return { expected: color, shadow: getComputedStyle(el).boxShadow };
+	});
+	expect(shadow).toContain(expected);
+
 	// Toggling the setting off removes the ring.
 	await page.getByTestId('threat-toggle').click();
 	await expect(node).not.toHaveAttribute('data-threat', 'critical');

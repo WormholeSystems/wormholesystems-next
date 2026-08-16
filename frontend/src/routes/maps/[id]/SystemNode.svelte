@@ -115,9 +115,9 @@
 		class="group/node absolute flex flex-col justify-center rounded border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm transition-colors duration-200
 			{selected ? 'bg-amber-100 dark:bg-amber-900' : ''}
 			{active ? 'z-10 ring-2 ring-amber-500 ring-offset-2 ring-offset-background' : ''}
-			{threatRing === 'critical' ? 'ring-2 ring-threat-critical' : ''}
-			{threatRing === 'high' ? 'ring-2 ring-threat-high' : ''}
+			{threatRing ? 'ring-2' : ''}
 			hover:z-20 hover:outline-2 hover:outline-yellow-500"
+		style:--tw-ring-color={threatRing ? `var(--color-threat-${threatRing})` : null}
 		style:border-color={statusColor(node.status)}
 		style:width="{NODE_W}px"
 		style:height="{pilots.length > 0 ? nodeH + 20 : nodeH}px"
