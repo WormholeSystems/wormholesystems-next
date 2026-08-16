@@ -91,7 +91,50 @@ pub(super) async fn owns_character(pool: &PgPool, user_id: i64, character_id: i6
     Ok(exists.unwrap_or(false))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// One grant, with the subject's name resolved for display. `name` is `None` when the
+/// subject is an entity we have never cached (a corp nobody on this map belongs to).
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct AccessEntry {
+    pub subject_type: SubjectType,
+    pub subject_id: i64,
+    pub name: Option<String>,
+    pub role: Role,
+}
+
+/// Every grant on the map, owners first. Viewer+: knowing who can see a chain is part of
+/// deciding what to put on it.
+pub async fn list_access(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec<AccessEntry>> {
+    require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
+    let entries = sqlx::query_as!(
+        AccessEntry,
+        r#"select a.subject_type as "subject_type!: SubjectType",
+                  a.subject_id,
+                  coalesce(c.name, corp.name, al.name) as "name?",
+                  a.role as "role!: Role"
+           from map_access a
+           left join characters c
+             on a.subject_type = 'character' and c.id = a.subject_id
+           left join corporations corp
+             on a.subject_type = 'corporation' and corp.id = a.subject_id
+           left join alliances al
+             on a.subject_type = 'alliance' and al.id = a.subject_id
+           where a.map_id = $1
+           order by
+             case a.role
+               when 'owner' then 0 when 'manager' then 1
+               when 'member' then 2 else 3
+             end,
+             coalesce(c.name, corp.name, al.name)"#,
+        map_id,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(entries)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetAccess {
     pub map_id: i64,
     pub subject_type: SubjectType,
@@ -125,7 +168,8 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct RevokeAccess {
     pub map_id: i64,
     pub subject_id: i64,

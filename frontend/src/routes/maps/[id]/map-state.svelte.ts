@@ -11,7 +11,9 @@ import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
 import type { EveScoutEdge } from '$lib/api/types/EveScoutEdge';
 import type { Signature } from '$lib/api/types/Signature';
+import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
+import type { SocketState } from '$lib/ws';
 import { NODE_W, clamp } from '$lib/map/helpers';
 
 /**
@@ -98,6 +100,9 @@ export class MapState {
 	routePath = $state<number[]>([]);
 	// Systems the router steers around (per map, persisted locally).
 	ignoredSystems = $state<Set<number>>(new Set());
+	// The command journal, newest first, and the live socket state behind the status dot.
+	history = $state<MapEventEntry[]>([]);
+	socket = $state<SocketState>('connecting');
 
 	systems = $derived(this.data?.systems ?? []);
 	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
@@ -110,6 +115,22 @@ export class MapState {
 			this.myCharacters.find((c) => c.online && c.solar_system_id !== null)?.solar_system_id ??
 			null
 	);
+
+	/**
+	 * Undo and redo both revert a journal entry; they differ only in which entry they aim
+	 * at. A plain change is undone by the Undo button, and the entry the undo itself
+	 * recorded is what Redo reverts, which puts the change back. Both are restricted to
+	 * the acting character's own entries, matching what the server will accept.
+	 */
+	private myEntries = $derived(
+		this.history.filter(
+			(e) =>
+				e.undoable &&
+				e.character_id === this.myCharacters.find((c) => c.is_active)?.character_id
+		)
+	);
+	undoTarget = $derived(this.myEntries.find((e) => e.reverts_id === null) ?? null);
+	redoTarget = $derived(this.myEntries.find((e) => e.reverts_id !== null) ?? null);
 
 	private ignoreStorageKey(): string {
 		return `route-ignored-${this.mapId}`;
@@ -219,12 +240,27 @@ export class MapState {
 		}
 	}
 
+	async fetchHistory() {
+		try {
+			this.history = await api.listMapEvents(this.mapId);
+		} catch {
+			this.history = [];
+		}
+	}
+
+	/** Revert one journal entry. The server records the reversal as its own entry, so the
+	 *  refetch is what makes the button flip between undo and redo. */
+	undoEvent(eventId: number) {
+		this.run('undo', api.undoMapEvent({ map_id: this.mapId, event_id: eventId }));
+	}
+
 	async refetch() {
 		try {
 			const [data, sigs, watchlist] = await Promise.all([
 				api.fetchMap(this.mapId),
 				api.listSignatures(this.mapId),
-				api.listWatchlist(this.mapId)
+				api.listWatchlist(this.mapId),
+				this.fetchHistory()
 			]);
 			this.watchlist = watchlist;
 			this.data = data;

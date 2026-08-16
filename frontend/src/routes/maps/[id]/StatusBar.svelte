@@ -1,0 +1,279 @@
+<script lang="ts">
+	// The map's chrome strip: identity on the left, warnings in the middle, and the
+	// controls that act on the whole map on the right. Everything here is either about
+	// the map as a whole or about the viewer, never about one system.
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import EyeIcon from '@lucide/svelte/icons/eye';
+	import HistoryIcon from '@lucide/svelte/icons/history';
+	import LayersIcon from '@lucide/svelte/icons/layers';
+	import RadarIcon from '@lucide/svelte/icons/radar';
+	import Redo2Icon from '@lucide/svelte/icons/redo-2';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import Undo2Icon from '@lucide/svelte/icons/undo-2';
+
+	import { api } from '$lib/api/client';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
+	import { Separator } from '$lib/components/ui/separator';
+	import * as Popover from '$lib/components/ui/popover';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { classMeta } from '$lib/map/classes';
+	import { cn } from '$lib/utils';
+	import type { MapState } from './map-state.svelte';
+
+	let { map }: { map: MapState } = $props();
+
+	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
+
+	// Where the acting pilot is, resolved against the map's own systems so we can show the
+	// class chip. A pilot outside the mapped chain still gets their system id.
+	const pilot = $derived(map.myCharacters.find((c) => c.is_active) ?? null);
+	const pilotSystem = $derived(
+		map.systems.find((s) => s.solar_system_id === pilot?.solar_system_id) ?? null
+	);
+
+	const socketLabel: Record<typeof map.socket, string> = {
+		connecting: 'Connecting to the live feed',
+		open: 'Live: changes from other pilots arrive automatically',
+		reconnecting: 'Disconnected. Retrying, the map may be out of date'
+	};
+
+	function toggleSetting(key: 'tracking_allowed' | 'show_threat_level' | 'show_statics_first') {
+		const current = map.userSettings;
+		if (!current) return;
+		api
+			.updateMapUserSettings(map.mapId, { [key]: !current[key] })
+			.then((s) => {
+				map.userSettings = s;
+				if (key === 'tracking_allowed') map.fetchCharacters();
+			})
+			.catch(() => {});
+	}
+
+	function relative(iso: string): string {
+		const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+		if (secs < 60) return 'just now';
+		if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+		if (secs < 86_400) return `${Math.floor(secs / 3600)}h ago`;
+		return `${Math.floor(secs / 86_400)}d ago`;
+	}
+</script>
+
+{#snippet toggle(
+	label: string,
+	on: boolean,
+	Icon: typeof EyeIcon,
+	key: 'tracking_allowed' | 'show_threat_level' | 'show_statics_first',
+	testid: string
+)}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="ghost"
+					size="icon"
+					class={cn('size-7', on ? 'text-foreground' : 'text-muted-foreground/50')}
+					aria-pressed={on}
+					data-testid={testid}
+					onclick={() => toggleSetting(key)}
+				>
+					<Icon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content>{label}: {on ? 'on' : 'off'}</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
+<Tooltip.Provider delayDuration={300}>
+<div
+	class="flex h-10 items-center gap-2 border-b border-border/50 bg-muted/30 px-3"
+	data-testid="status-bar"
+>
+	<a
+		href="/maps"
+		class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+	>
+		<ArrowLeftIcon class="size-4" />
+		Maps
+	</a>
+	<Separator orientation="vertical" class="h-4" />
+	<span class="truncate text-sm font-medium" data-testid="status-bar-name">
+		{map.data?.map.name ?? '...'}
+	</span>
+
+	<div class="flex flex-1 items-center justify-center gap-2">
+		{#if map.data && !map.data.character_has_access}
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Badge {...props} variant="outline" class="gap-1 border-amber-600/40 text-amber-500">
+							<TriangleAlertIcon />
+							Limited access
+						</Badge>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content class="max-w-64">
+					You can see this map through another of your characters, but {pilot?.name ??
+						'the active character'} has no access of its own. Location sharing and waypoints will not work
+					for them.
+				</Tooltip.Content>
+			</Tooltip.Root>
+		{/if}
+	</div>
+
+	{#if pilot?.online && pilot.solar_system_id !== null}
+		<span class="hidden items-center gap-1.5 text-xs text-muted-foreground lg:flex">
+			{#if pilotSystem}
+				{@const meta = classMeta(pilotSystem.wormhole_class_id, pilotSystem.security_status)}
+				<span class={cn('font-mono', meta.token)}>{meta.short}</span>
+				<span class="text-foreground">{pilotSystem.name}</span>
+			{:else}
+				<span>Outside the chain</span>
+			{/if}
+		</span>
+	{/if}
+
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<span
+					{...props}
+					data-testid="socket-dot"
+					data-state={map.socket}
+					class={cn(
+						'size-2 rounded-full',
+						map.socket === 'open' && 'bg-emerald-500',
+						map.socket === 'connecting' && 'bg-amber-500',
+						map.socket === 'reconnecting' && 'animate-pulse bg-red-500'
+					)}
+				></span>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content>{socketLabel[map.socket]}</Tooltip.Content>
+	</Tooltip.Root>
+
+	<Separator orientation="vertical" class="h-4" />
+
+	{#if map.userSettings}
+		{@render toggle(
+			'Share location',
+			map.userSettings.tracking_allowed,
+			EyeIcon,
+			'tracking_allowed',
+			'tracking-toggle'
+		)}
+		{@render toggle(
+			'Threat rings',
+			map.userSettings.show_threat_level,
+			RadarIcon,
+			'show_threat_level',
+			'threat-toggle'
+		)}
+		{@render toggle(
+			'Statics first',
+			map.userSettings.show_statics_first,
+			LayersIcon,
+			'show_statics_first',
+			'statics-first-toggle'
+		)}
+	{/if}
+
+	{#if canWrite}
+		<Separator orientation="vertical" class="h-4" />
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon"
+						class="size-7"
+						data-testid="undo-button"
+						disabled={!map.undoTarget}
+						onclick={() => map.undoTarget && map.undoEvent(map.undoTarget.id)}
+					>
+						<Undo2Icon />
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content>
+				{map.undoTarget ? `Undo: you ${map.undoTarget.label}` : 'Nothing of yours to undo'}
+			</Tooltip.Content>
+		</Tooltip.Root>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon"
+						class="size-7"
+						data-testid="redo-button"
+						disabled={!map.redoTarget}
+						onclick={() => map.redoTarget && map.undoEvent(map.redoTarget.id)}
+					>
+						<Redo2Icon />
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content>
+				{map.redoTarget ? `Redo: put back what you ${map.redoTarget.label}` : 'Nothing to redo'}
+			</Tooltip.Content>
+		</Tooltip.Root>
+	{/if}
+
+	<Popover.Root>
+		<Popover.Trigger>
+			{#snippet child({ props })}
+				<Button {...props} variant="ghost" size="icon" class="size-7" data-testid="history-button">
+					<HistoryIcon />
+				</Button>
+			{/snippet}
+		</Popover.Trigger>
+		<Popover.Content class="w-80 p-0" align="end">
+			<div class="border-b border-border/50 px-3 py-2 text-xs font-medium">Recent changes</div>
+			{#if map.history.length === 0}
+				<p class="px-3 py-6 text-center text-xs text-muted-foreground">Nothing yet.</p>
+			{:else}
+				<ul class="max-h-80 overflow-y-auto py-1" data-testid="history-list">
+					{#each map.history as entry (entry.id)}
+						<li
+							class={cn(
+								'flex items-baseline gap-2 px-3 py-1.5 text-xs',
+								entry.undone_at && 'text-muted-foreground line-through'
+							)}
+						>
+							<span class="flex-1 truncate">
+								<span class="text-muted-foreground">{entry.character_name ?? 'Vector'}</span>
+								{entry.label}
+							</span>
+							<span class="shrink-0 text-muted-foreground">{relative(entry.created_at)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</Popover.Content>
+	</Popover.Root>
+
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					href="/maps/{map.mapId}/settings"
+					variant="ghost"
+					size="icon"
+					class="size-7"
+					data-testid="settings-link"
+				>
+					<SettingsIcon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content>Map settings</Tooltip.Content>
+	</Tooltip.Root>
+</div>
+</Tooltip.Provider>

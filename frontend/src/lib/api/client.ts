@@ -45,6 +45,13 @@ import type { AddWatchlistEntry } from './types/AddWatchlistEntry';
 import type { RemoveWatchlistEntry } from './types/RemoveWatchlistEntry';
 import type { SetWatchlistPinned } from './types/SetWatchlistPinned';
 import type { SystemDetails } from './types/SystemDetails';
+import type { AccessEntry } from './types/AccessEntry';
+import type { AccessSubject } from './types/AccessSubject';
+import type { SetAccess } from './types/SetAccess';
+import type { RevokeAccess } from './types/RevokeAccess';
+import type { UpdateMap } from './types/UpdateMap';
+import type { MapEventEntry } from './types/MapEventEntry';
+import type { UndoMapEvent } from './types/UndoMapEvent';
 import type { WatchlistEntry } from './types/WatchlistEntry';
 import type { ThreatAnalysis } from './types/ThreatAnalysis';
 import type { SystemSearchResult } from './types/SystemSearchResult';
@@ -190,6 +197,18 @@ export const api = {
 		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/set-pinned`, cmd),
 	removeWatchlistEntry: (cmd: RemoveWatchlistEntry) =>
 		post<null>(`/api/maps/${cmd.map_id}/watchlist/remove`, cmd),
+
+	// Access / settings
+	updateMap: (cmd: UpdateMap) => post<Map>(`/api/maps/${cmd.map_id}/update`, cmd),
+	listAccess: (mapId: number) => get<AccessEntry[]>(`/api/maps/${mapId}/access`),
+	searchAccessSubjects: (query: string) =>
+		get<AccessSubject[]>(`/api/access-subjects/search?q=${encodeURIComponent(query)}`),
+	setAccess: (cmd: SetAccess) => post<null>(`/api/maps/${cmd.map_id}/access/set`, cmd),
+	revokeAccess: (cmd: RevokeAccess) => post<null>(`/api/maps/${cmd.map_id}/access/revoke`, cmd),
+
+	// History
+	listMapEvents: (mapId: number) => get<MapEventEntry[]>(`/api/maps/${mapId}/events`),
+	undoMapEvent: (cmd: UndoMapEvent) => post<null>(`/api/maps/${cmd.map_id}/events/undo`, cmd),
 
 	// Signatures
 	signatureCatalog: () => get<SignatureCatalog>('/api/signature-types'),

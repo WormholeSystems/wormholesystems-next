@@ -222,6 +222,16 @@ pub struct ThreatAnalysis {
     pub entities: Vec<ThreatEntity>,
 }
 
+/// A grantable subject from the access-subject search.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct AccessSubject {
+    pub subject_type: crate::maps::SubjectType,
+    pub subject_id: i64,
+    pub name: String,
+    pub ticker: Option<String>,
+}
+
 /// An API error: a status code plus a message, rendered as `{"error": "..."}`.
 #[derive(Debug)]
 pub struct ApiError {
@@ -366,6 +376,14 @@ pub fn router() -> Router<AppState> {
             "/api/maps/{id}/connections/{cid}/jumps",
             get(h::list_connection_jumps),
         )
+        .route(
+            "/api/access-subjects/search",
+            get(h::search_access_subjects),
+        )
+        .route("/api/maps/{id}/update", post(h::update_map))
+        .route("/api/maps/{id}/access", get(h::list_access))
+        .route("/api/maps/{id}/access/set", post(h::set_access))
+        .route("/api/maps/{id}/access/revoke", post(h::revoke_access))
         .route("/api/maps/{id}/events", get(h::list_map_events))
         .route("/api/maps/{id}/events/undo", post(h::undo_map_event))
         .route("/api/maps/{id}/watchlist", get(h::list_watchlist))

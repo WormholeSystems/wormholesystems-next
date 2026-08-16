@@ -45,8 +45,8 @@
 	import Scrollbars from './Scrollbars.svelte';
 	import SignaturesPanel from './SignaturesPanel.svelte';
 	import SystemNode from './SystemNode.svelte';
+	import StatusBar from './StatusBar.svelte';
 	import SystemSearchDialog from './SystemSearchDialog.svelte';
-	import { Switch } from '$lib/components/ui/switch';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const map = $derived(new MapState(mapId));
@@ -104,7 +104,11 @@
 		s.fetchCharacters();
 		// Presence has no realtime push yet; poll while the page is open.
 		const presence = setInterval(() => s.fetchCharacters(), 15_000);
-		const closeWs = openMapSocket(s.mapId, () => s.refetch());
+		const closeWs = openMapSocket(
+			s.mapId,
+			() => s.refetch(),
+			(state) => (s.socket = state)
+		);
 		return () => {
 			clearInterval(presence);
 			closeWs();
@@ -389,30 +393,6 @@
 		return out;
 	});
 
-	function setTracking(value: boolean) {
-		api
-			.updateMapUserSettings(map.mapId, { tracking_allowed: value })
-			.then((s) => {
-				map.userSettings = s;
-				map.fetchCharacters();
-			})
-			.catch(() => {});
-	}
-
-	function setShowThreat(value: boolean) {
-		api
-			.updateMapUserSettings(map.mapId, { show_threat_level: value })
-			.then((s) => (map.userSettings = s))
-			.catch(() => {});
-	}
-
-	function setStaticsFirst(value: boolean) {
-		api
-			.updateMapUserSettings(map.mapId, { show_statics_first: value })
-			.then((s) => (map.userSettings = s))
-			.catch(() => {});
-	}
-
 	const connCountByPlacement = $derived.by(() => {
 		const out = new Map<number, number>();
 		for (const c of map.connections) {
@@ -443,40 +423,7 @@
 	}}
 />
 
-<div class="flex items-center justify-between">
-	<a href="/maps" class="text-sm text-muted-foreground transition-colors hover:text-foreground">
-		← Maps
-	</a>
-	<span class="flex items-center gap-4">
-		{#if map.userSettings}
-			<label class="flex items-center gap-1.5 text-xs text-muted-foreground">
-				<Switch
-					checked={map.userSettings.tracking_allowed}
-					onCheckedChange={setTracking}
-					data-testid="tracking-toggle"
-				/>
-				Share location
-			</label>
-			<label class="flex items-center gap-1.5 text-xs text-muted-foreground">
-				<Switch
-					checked={map.userSettings.show_threat_level}
-					onCheckedChange={setShowThreat}
-					data-testid="threat-toggle"
-				/>
-				Threat rings
-			</label>
-			<label class="flex items-center gap-1.5 text-xs text-muted-foreground">
-				<Switch
-					checked={map.userSettings.show_statics_first}
-					onCheckedChange={setStaticsFirst}
-					data-testid="statics-first-toggle"
-				/>
-				Statics first
-			</label>
-		{/if}
-		<span class="font-mono text-xs text-muted-foreground">{map.statusLine}</span>
-	</span>
-</div>
+<StatusBar {map} />
 
 <SystemSearchDialog bind:open={map.searchOpen} onpick={onSearchPick} />
 

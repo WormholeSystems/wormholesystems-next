@@ -7,6 +7,7 @@ use axum::extract::{Path, Query, State};
 use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 
+use super::AccessSubject;
 use super::{
     ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, EveScoutEdge,
     MapCharacter, MapEntry, MapUserSettings, ShipSearchResult, SignatureCatalog,
@@ -14,11 +15,13 @@ use super::{
     UpdateMapUserSettings, check_map_id, require_actor, session_actor, session_id,
 };
 use crate::auth::AppState;
+use crate::maps::access::{AccessEntry, RevokeAccess, SetAccess};
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
 use crate::maps::events_log::{MapEventEntry, UndoMapEvent};
 use crate::maps::jumps::{
     AddConnectionJump, ConnectionJump, RemoveConnectionJump, UpdateConnectionJump,
 };
+use crate::maps::map::UpdateMap;
 use crate::maps::signatures::{
     AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
     UnlinkSignature, UpdateSignature,
@@ -1509,6 +1512,107 @@ pub async fn remove_watchlist_entry(
     let actor = require_actor(&state.db, &jar).await?;
     crate::maps::watchlist::remove_watchlist_entry(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::WatchlistChanged { map_id });
+    Ok(Json(()))
+}
+
+/// `POST /api/maps/{id}/update` — rename a map or change its description/image. Manager+.
+pub async fn update_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<UpdateMap>,
+) -> ApiResult<Map> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let map = crate::maps::map::update_map(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::MapUpdated { map_id });
+    Ok(Json(map))
+}
+
+// --- Access ---
+
+/// `GET /api/access-subjects/search?q=` — characters, corporations and alliances that can
+/// be granted access. Only entities Vector has already cached are searchable (a character
+/// who has signed in, or a corp/alliance one of them belongs to), which is why the UI also
+/// accepts a raw EVE id.
+pub async fn search_access_subjects(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Query(query): Query<SearchQuery>,
+) -> ApiResult<Vec<AccessSubject>> {
+    require_actor(&state.db, &jar).await?;
+    let q = query.q.trim();
+    if q.len() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    let contains = format!("%{q}%");
+    let prefix = format!("{q}%");
+    let rows = sqlx::query!(
+        // The `!` overrides restate what the source tables guarantee: sqlx cannot see
+        // through the union and widens every column to nullable.
+        r#"select id as "id!", name as "name!",
+                  kind as "kind!: crate::maps::SubjectType", ticker
+           from (
+               select id, name, 'character' as kind, null::text as ticker from characters
+               union all
+               select id, name, 'corporation', ticker from corporations
+               union all
+               select id, name, 'alliance', ticker from alliances
+           ) s
+           where s.name ilike $1 or s.ticker ilike $1
+           order by (s.name ilike $2) desc, length(s.name), s.name
+           limit 20"#,
+        contains,
+        prefix,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| AccessSubject {
+                subject_type: r.kind,
+                subject_id: r.id,
+                name: r.name,
+                ticker: r.ticker,
+            })
+            .collect(),
+    ))
+}
+
+/// `GET /api/maps/{id}/access` — who can see this map, and at what role. Viewer+.
+pub async fn list_access(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<AccessEntry>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let entries = crate::maps::access::list_access(&state.db, actor, map_id).await?;
+    Ok(Json(entries))
+}
+
+pub async fn set_access(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<SetAccess>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::access::set_access(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::AccessChanged { map_id });
+    Ok(Json(()))
+}
+
+pub async fn revoke_access(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RevokeAccess>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::access::revoke_access(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
 }
 

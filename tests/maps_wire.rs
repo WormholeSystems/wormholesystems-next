@@ -140,6 +140,7 @@ fn map_view_round_trips() {
             created_at: ts(),
         },
         role: vector::maps::Role::Member,
+        character_has_access: true,
         systems: vec![MapSystemView {
             id: 10,
             map_id: 1,

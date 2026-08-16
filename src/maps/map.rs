@@ -349,9 +349,23 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     .fetch_all(pool)
     .await?;
 
+    let character_has_access = sqlx::query_scalar!(
+        r#"select exists(
+               select 1 from map_access a
+               join characters c on c.id = $2
+               where a.map_id = $1
+                 and a.subject_id in (c.id, c.corporation_id, c.alliance_id)
+           ) as "has!""#,
+        cmd.map_id,
+        actor.character_id,
+    )
+    .fetch_one(pool)
+    .await?;
+
     Ok(MapView {
         map,
         role,
+        character_has_access,
         systems,
         connections,
     })

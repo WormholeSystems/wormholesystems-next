@@ -11,4 +11,11 @@ export type MapView = { map: Map,
 /**
  * The caller's effective role on this map, for client-side permission gating.
  */
-role: Role, systems: Array<MapSystemView>, connections: Array<MapConnection>, };
+role: Role, 
+/**
+ * Whether the *active* character is itself covered by a grant. Access is per-user
+ * (any of their characters), so this can be false while `role` is set: the map is
+ * readable through a different character, but anything tied to the active one
+ * (tracking, waypoints) will not behave as the pilot expects.
+ */
+character_has_access: boolean, systems: Array<MapSystemView>, connections: Array<MapConnection>, };

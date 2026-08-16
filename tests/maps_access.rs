@@ -206,3 +206,52 @@ async fn access_via_corporation_grant(pool: PgPool) {
     add_character(&pool, other, 1003, 6000, None).await;
     assert_eq!(effective_role(&pool, w.map_id, other).await.unwrap(), None);
 }
+
+/// Access is granted per user (across all their characters), but tracking and waypoints
+/// act as the *active* character. A user can therefore read a map through one character
+/// while the one they are flying is not covered by any grant, which is what the map's
+/// limited-access warning is about.
+#[sqlx::test]
+async fn map_view_flags_an_active_character_without_its_own_grant(pool: PgPool) {
+    use vector::maps::Actor;
+    use vector::maps::map::{GetMap, get_map};
+
+    let w = world(&pool).await;
+    let user = new_user(&pool).await;
+    add_character(&pool, user, 1002, 2002, None).await;
+    add_character(&pool, user, 1003, 3003, None).await;
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1002,
+            role: Role::Member,
+        },
+    )
+    .await
+    .unwrap();
+
+    let granted = Actor {
+        user_id: user,
+        character_id: 1002,
+    };
+    let view = get_map(&pool, granted, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.role, Role::Member);
+    assert!(view.character_has_access);
+
+    // The user's other character sees the same map at the same role, but is itself
+    // outside every grant.
+    let flying = Actor {
+        user_id: user,
+        character_id: 1003,
+    };
+    let view = get_map(&pool, flying, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.role, Role::Member);
+    assert!(!view.character_has_access);
+}
