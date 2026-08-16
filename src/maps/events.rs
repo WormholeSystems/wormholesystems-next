@@ -58,6 +58,9 @@ pub enum MapEvent {
     AccessChanged { map_id: i64 },
     /// The navigation watchlist changed (entry added/pinned/removed).
     WatchlistChanged { map_id: i64 },
+    /// The command journal grew or an entry was undone, so open clients should refetch
+    /// the history (and, after an undo, the map itself).
+    HistoryChanged { map_id: i64 },
 }
 
 impl MapEvent {
@@ -72,7 +75,8 @@ impl MapEvent {
             | MapEvent::ConnectionChanged { map_id, .. }
             | MapEvent::SignatureChanged { map_id, .. }
             | MapEvent::AccessChanged { map_id }
-            | MapEvent::WatchlistChanged { map_id } => map_id,
+            | MapEvent::WatchlistChanged { map_id }
+            | MapEvent::HistoryChanged { map_id } => map_id,
         }
     }
 }

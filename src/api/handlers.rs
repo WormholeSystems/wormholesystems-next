@@ -15,6 +15,7 @@ use super::{
 };
 use crate::auth::AppState;
 use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use crate::maps::events_log::{MapEventEntry, UndoMapEvent};
 use crate::maps::jumps::{
     AddConnectionJump, ConnectionJump, RemoveConnectionJump, UpdateConnectionJump,
 };
@@ -1508,6 +1509,35 @@ pub async fn remove_watchlist_entry(
     let actor = require_actor(&state.db, &jar).await?;
     crate::maps::watchlist::remove_watchlist_entry(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::WatchlistChanged { map_id });
+    Ok(Json(()))
+}
+
+// --- History ---
+
+/// `GET /api/maps/{id}/events` — the map's recent command journal. Viewer+.
+pub async fn list_map_events(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<MapEventEntry>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let entries = crate::maps::events_log::list_events(&state.db, actor, map_id).await?;
+    Ok(Json(entries))
+}
+
+/// `POST /api/maps/{id}/events/undo` — revert one journal entry. Member+, own entries only.
+/// An undo can touch anything the original command did, so it publishes `HistoryChanged`
+/// and clients refetch the map rather than trying to reconstruct a targeted event.
+pub async fn undo_map_event(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<UndoMapEvent>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::events_log::undo(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
 }
 

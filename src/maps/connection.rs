@@ -15,9 +15,10 @@ use super::{ConnectionType, MassStatus, TimeStatus, WormholeSize};
 
 use sqlx::PgPool;
 
-use super::access::require_role;
+use super::Actor;
+use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::{Actor, Role};
+use super::solar_system::unexpected;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -77,8 +78,14 @@ pub async fn add_connection(
     actor: Actor,
     cmd: AddConnection,
 ) -> Result<MapConnection> {
+    match execute(pool, actor, MapCommand::AddConnection(cmd)).await? {
+        CommandOutput::Connection(c) => Ok(*c),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) -> Result<Effect> {
     cmd.validate()?;
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
 
     let on_map = sqlx::query_scalar!(
         "select count(*) from map_solar_systems where map_id = $1 and (id = $2 or id = $3)",
@@ -86,7 +93,7 @@ pub async fn add_connection(
         cmd.from_system,
         cmd.to_system,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?
     .unwrap_or(0);
     if on_map != 2 {
@@ -114,7 +121,7 @@ pub async fn add_connection(
         cmd.kind.as_str(),
         cmd.size.map(|s| s.as_str()),
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?;
 
     // A hole often gets jumped moments before it's mapped: adopt those observations.
@@ -126,10 +133,10 @@ pub async fn add_connection(
             connection.from_system,
             connection.to_system,
         )
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await?;
-        super::jumps::claim_pending(
-            pool,
+        super::jumps::claim_pending_tx(
+            tx,
             connection.map_id,
             connection.id,
             endpoints.from_sys,
@@ -137,7 +144,16 @@ pub async fn add_connection(
         )
         .await?;
     }
-    Ok(connection)
+    let inverse = MapCommand::RemoveConnection(RemoveConnection {
+        map_id: connection.map_id,
+        connection_id: connection.id,
+    });
+    Ok(Effect::new(
+        "connections.added",
+        "mapped a connection",
+        CommandOutput::Connection(Box::new(connection)),
+    )
+    .undo_with(inverse))
 }
 
 /// A partial update of a connection's wormhole state. `None` leaves a field unchanged;
@@ -174,8 +190,16 @@ pub async fn set_connection_status(
     actor: Actor,
     cmd: SetConnectionStatus,
 ) -> Result<MapConnection> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    match execute(pool, actor, MapCommand::SetConnectionStatus(cmd)).await? {
+        CommandOutput::Connection(c) => Ok(*c),
+        other => Err(unexpected(other)),
+    }
+}
 
+pub(super) async fn apply_set_connection_status(
+    tx: &mut Tx<'_>,
+    cmd: SetConnectionStatus,
+) -> Result<Effect> {
     let current = sqlx::query_as!(
         MapConnection,
         r#"select id, map_id, from_system, to_system, type as "kind: ConnectionType",
@@ -191,7 +215,7 @@ pub async fn set_connection_status(
         cmd.connection_id,
         cmd.map_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
 
@@ -223,9 +247,24 @@ pub async fn set_connection_status(
         cmd.connection_id,
         cmd.map_id,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?;
-    Ok(connection)
+    // Undo restores every field, since the sync triggers may have moved more than one.
+    let inverse = MapCommand::SetConnectionStatus(SetConnectionStatus {
+        map_id: cmd.map_id,
+        connection_id: cmd.connection_id,
+        kind: Some(current.kind),
+        mass_status: Some(current.mass_status),
+        time_status: Some(current.time_status),
+        size: Some(current.size),
+        preserve_mass: Some(current.preserve_mass),
+    });
+    Ok(Effect::new(
+        "connections.updated",
+        "updated a connection",
+        CommandOutput::Connection(Box::new(connection)),
+    )
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -237,17 +276,28 @@ pub struct RemoveConnection {
 
 /// Remove a connection. Linked signatures survive with their `connection_id` cleared.
 pub async fn remove_connection(pool: &PgPool, actor: Actor, cmd: RemoveConnection) -> Result<()> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let deleted = sqlx::query!(
+    execute(pool, actor, MapCommand::RemoveConnection(cmd)).await?;
+    Ok(())
+}
+
+pub(super) async fn apply_remove_connection(
+    tx: &mut Tx<'_>,
+    cmd: RemoveConnection,
+) -> Result<Effect> {
+    let restore = super::solar_system::capture_connection(tx, cmd.map_id, cmd.connection_id)
+        .await?
+        .ok_or(MapError::NotFound)?;
+    sqlx::query!(
         "delete from map_connections where id = $1 and map_id = $2",
         cmd.connection_id,
         cmd.map_id,
     )
-    .execute(pool)
-    .await?
-    .rows_affected();
-    if deleted == 0 {
-        return Err(MapError::NotFound);
-    }
-    Ok(())
+    .execute(&mut **tx)
+    .await?;
+    Ok(Effect::new(
+        "connections.removed",
+        "removed a connection",
+        CommandOutput::None,
+    )
+    .undo_with(MapCommand::RestoreSystems(restore)))
 }

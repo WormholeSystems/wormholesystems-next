@@ -15,7 +15,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::access::{effective_role, require_role};
+use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
+use super::solar_system::unexpected;
 use super::{Actor, MapEvent, MapHub, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -47,7 +49,7 @@ pub enum JumpDirection {
 
 /// A connection's endpoint solar systems, in `from_system` → `to_system` order.
 async fn connection_endpoints(
-    pool: &PgPool,
+    tx: &mut Tx<'_>,
     map_id: i64,
     connection_id: i64,
 ) -> Result<(i64, i64)> {
@@ -60,16 +62,23 @@ async fn connection_endpoints(
         connection_id,
         map_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
     Ok((row.from_sys, row.to_sys))
 }
 
 /// A ship type's hull mass (kg, rounded), or `NotFound`-flavored validation.
-async fn ship_mass(pool: &PgPool, ship_type_id: i64) -> Result<i64> {
+async fn ship_mass_tx(tx: &mut Tx<'_>, ship_type_id: i64) -> Result<i64> {
+    ship_mass(&mut **tx, ship_type_id).await
+}
+
+async fn ship_mass<'e, E>(executor: E, ship_type_id: i64) -> Result<i64>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
     let mass = sqlx::query_scalar!("select mass from types where id = $1", ship_type_id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await?
         .ok_or_else(|| MapError::Validation("unknown ship type".into()))?;
     Ok(mass.unwrap_or(0.0).round() as i64)
@@ -96,7 +105,13 @@ pub async fn add_jump(
     actor: Actor,
     cmd: AddConnectionJump,
 ) -> Result<ConnectionJump> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    match execute(pool, actor, MapCommand::AddConnectionJump(cmd)).await? {
+        CommandOutput::Jump(j) => Ok(*j),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_add_jump(tx: &mut Tx<'_>, cmd: AddConnectionJump) -> Result<Effect> {
     if cmd.mass.is_none() && cmd.ship_type_id.is_none() {
         return Err(MapError::Validation(
             "enter a mass or pick a ship type".into(),
@@ -105,14 +120,14 @@ pub async fn add_jump(
     if cmd.mass.is_some_and(|m| m < 0) {
         return Err(MapError::Validation("mass must not be negative".into()));
     }
-    let (from_sys, to_sys) = connection_endpoints(pool, cmd.map_id, cmd.connection_id).await?;
+    let (from_sys, to_sys) = connection_endpoints(tx, cmd.map_id, cmd.connection_id).await?;
     let (from, to) = match cmd.direction {
         JumpDirection::Outbound => (from_sys, to_sys),
         JumpDirection::Inbound => (to_sys, from_sys),
     };
     let mass = match cmd.mass {
         Some(m) => m,
-        None => ship_mass(pool, cmd.ship_type_id.expect("checked above")).await?,
+        None => ship_mass_tx(tx, cmd.ship_type_id.expect("checked above")).await?,
     };
 
     let id = sqlx::query_scalar!(
@@ -128,9 +143,19 @@ pub async fn add_jump(
         cmd.ship_type_id,
         mass,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?;
-    fetch_jump(pool, cmd.map_id, id).await
+    let jump = fetch_jump_tx(tx, cmd.map_id, id).await?;
+    let inverse = MapCommand::RemoveConnectionJump(RemoveConnectionJump {
+        map_id: cmd.map_id,
+        jump_pk: id,
+    });
+    Ok(Effect::new(
+        "jumps.logged",
+        "logged a jump",
+        CommandOutput::Jump(Box::new(jump)),
+    )
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -157,8 +182,17 @@ pub async fn update_jump(
     actor: Actor,
     cmd: UpdateConnectionJump,
 ) -> Result<ConnectionJump> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let current = fetch_jump(pool, cmd.map_id, cmd.jump_pk).await?;
+    match execute(pool, actor, MapCommand::UpdateConnectionJump(cmd)).await? {
+        CommandOutput::Jump(j) => Ok(*j),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_update_jump(
+    tx: &mut Tx<'_>,
+    cmd: UpdateConnectionJump,
+) -> Result<Effect> {
+    let current = fetch_jump_tx(tx, cmd.map_id, cmd.jump_pk).await?;
     let Some(connection_id) = current.connection_id else {
         return Err(MapError::NotFound);
     };
@@ -166,7 +200,7 @@ pub async fn update_jump(
         return Err(MapError::Validation("mass must not be negative".into()));
     }
 
-    let (from_sys, to_sys) = connection_endpoints(pool, cmd.map_id, connection_id).await?;
+    let (from_sys, to_sys) = connection_endpoints(tx, cmd.map_id, connection_id).await?;
     let direction = cmd
         .direction
         .unwrap_or(if current.from_solar_system_id == from_sys {
@@ -183,7 +217,7 @@ pub async fn update_jump(
         Some(m) => m,
         // A changed ship type without an explicit mass re-derives from the hull.
         None if cmd.ship_type_id.is_some() => match ship_type_id {
-            Some(t) => ship_mass(pool, t).await?,
+            Some(t) => ship_mass_tx(tx, t).await?,
             None => current.mass,
         },
         None => current.mass,
@@ -201,9 +235,27 @@ pub async fn update_jump(
         cmd.jump_pk,
         cmd.map_id,
     )
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
-    fetch_jump(pool, cmd.map_id, cmd.jump_pk).await
+    let jump = fetch_jump_tx(tx, cmd.map_id, cmd.jump_pk).await?;
+    let was_outbound = current.from_solar_system_id == from_sys;
+    let inverse = MapCommand::UpdateConnectionJump(UpdateConnectionJump {
+        map_id: cmd.map_id,
+        jump_pk: cmd.jump_pk,
+        direction: Some(if was_outbound {
+            JumpDirection::Outbound
+        } else {
+            JumpDirection::Inbound
+        }),
+        ship_type_id: Some(current.ship_type_id),
+        mass: Some(current.mass),
+    });
+    Ok(Effect::new(
+        "jumps.updated",
+        "edited a jump",
+        CommandOutput::Jump(Box::new(jump)),
+    )
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -219,17 +271,30 @@ pub async fn remove_jump(
     actor: Actor,
     cmd: RemoveConnectionJump,
 ) -> Result<Option<i64>> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    match execute(pool, actor, MapCommand::RemoveConnectionJump(cmd)).await? {
+        CommandOutput::Count(n) => Ok((n != 0).then_some(n as i64)),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_remove_jump(
+    tx: &mut Tx<'_>,
+    cmd: RemoveConnectionJump,
+) -> Result<Effect> {
     let row = sqlx::query!(
         "delete from map_connection_jumps where id = $1 and map_id = $2
          returning connection_id",
         cmd.jump_pk,
         cmd.map_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
-    Ok(row.connection_id)
+    Ok(Effect::new(
+        "jumps.removed",
+        "removed a jump",
+        CommandOutput::Count(row.connection_id.unwrap_or(0) as u64),
+    ))
 }
 
 /// The latest 10 jumps of a connection, newest first (the counts on the connection are
@@ -260,13 +325,19 @@ pub async fn list_jumps(
     Ok(jumps)
 }
 
-async fn fetch_jump(pool: &PgPool, map_id: i64, jump_pk: i64) -> Result<ConnectionJump> {
+/// Read one jump inside the applying transaction, or `NotFound`.
+async fn fetch_jump_tx(tx: &mut Tx<'_>, map_id: i64, jump_pk: i64) -> Result<ConnectionJump> {
     sqlx::query_as!(
         ConnectionJump,
-        r#"select j.id, j.map_id, j.connection_id, j.character_id,
-                  c.name as "character_name?", j.ship_type_id, t.name as "ship_type_name?",
-                  j.mass, j.is_manual, j.from_solar_system_id, j.to_solar_system_id,
-                  j.created_at
+        // The `!` overrides restate what the schema already guarantees: sqlx widens
+        // the driving table's columns to nullable across this join chain.
+        r#"select j.id as "id!", j.map_id as "map_id!", j.connection_id,
+                  j.character_id, c.name as "character_name?",
+                  j.ship_type_id, t.name as "ship_type_name?",
+                  j.mass as "mass!", j.is_manual as "is_manual!",
+                  j.from_solar_system_id as "from_solar_system_id!",
+                  j.to_solar_system_id as "to_solar_system_id!",
+                  j.created_at as "created_at!"
            from map_connection_jumps j
            left join characters c on c.id = j.character_id
            left join types t on t.id = j.ship_type_id
@@ -274,7 +345,7 @@ async fn fetch_jump(pool: &PgPool, map_id: i64, jump_pk: i64) -> Result<Connecti
         jump_pk,
         map_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)
 }
@@ -412,6 +483,23 @@ pub async fn record_transit(
 
 /// Claim pending transits for a freshly created wormhole connection: rows in the same
 /// map matching either direction of the endpoint pair within the claim window.
+pub(super) async fn claim_pending_tx(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    connection_id: i64,
+    from_solar_system_id: i64,
+    to_solar_system_id: i64,
+) -> Result<u64> {
+    claim_pending_inner(
+        &mut **tx,
+        map_id,
+        connection_id,
+        from_solar_system_id,
+        to_solar_system_id,
+    )
+    .await
+}
+
 pub async fn claim_pending(
     pool: &PgPool,
     map_id: i64,
@@ -419,6 +507,26 @@ pub async fn claim_pending(
     from_solar_system_id: i64,
     to_solar_system_id: i64,
 ) -> Result<u64> {
+    claim_pending_inner(
+        pool,
+        map_id,
+        connection_id,
+        from_solar_system_id,
+        to_solar_system_id,
+    )
+    .await
+}
+
+async fn claim_pending_inner<'e, E>(
+    executor: E,
+    map_id: i64,
+    connection_id: i64,
+    from_solar_system_id: i64,
+    to_solar_system_id: i64,
+) -> Result<u64>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
     let claimed = sqlx::query!(
         "update map_connection_jumps
          set connection_id = $1, updated_at = now()
@@ -432,7 +540,7 @@ pub async fn claim_pending(
         to_solar_system_id,
         f64::from(CLAIM_WINDOW_SECONDS),
     )
-    .execute(pool)
+    .execute(executor)
     .await?
     .rows_affected();
     Ok(claimed)

@@ -54,6 +54,7 @@ fn map_event_round_trips_and_reports_its_map() {
         },
         MapEvent::AccessChanged { map_id: 5 },
         MapEvent::WatchlistChanged { map_id: 6 },
+        MapEvent::HistoryChanged { map_id: 7 },
     ];
     for ev in events {
         let json = serde_json::to_string(&ev).unwrap();
@@ -191,4 +192,50 @@ fn map_view_round_trips() {
     let (a, b) = reserialize(&view);
     assert_eq!(a, b);
     assert!(a.contains(r#""kind":"wormhole""#), "got {a}");
+}
+
+/// Undo stores an inverse `MapCommand` as jsonb and replays it later, so a variant that
+/// does not survive serde is an undo that silently fails at read time — long after the
+/// change it was meant to protect.
+#[test]
+fn map_command_inverses_round_trip_through_json() {
+    use vector::maps::MapCommand;
+    use vector::maps::connection::{RemoveConnection, SetConnectionStatus};
+    use vector::maps::solar_system::{RemoveSystem, SetAlias};
+
+    let commands = [
+        MapCommand::SetAlias(SetAlias {
+            map_id: 1,
+            map_solar_system_id: 10,
+            alias: None,
+        }),
+        MapCommand::RemoveSystem(RemoveSystem {
+            map_id: 1,
+            map_solar_system_id: 10,
+        }),
+        MapCommand::RemoveConnection(RemoveConnection {
+            map_id: 1,
+            connection_id: 20,
+        }),
+        // The clear-vs-leave distinction has to survive, or undoing a status change
+        // restores nothing instead of restoring "unknown".
+        MapCommand::SetConnectionStatus(SetConnectionStatus {
+            map_id: 1,
+            connection_id: 20,
+            kind: None,
+            mass_status: Some(None),
+            time_status: Some(Some(TimeStatus::Eol)),
+            size: None,
+            preserve_mass: Some(true),
+        }),
+    ];
+    for cmd in commands {
+        let value = serde_json::to_value(&cmd).unwrap();
+        assert!(
+            value.get("command").is_some(),
+            "the variant tag is what dispatch matches on: {value}"
+        );
+        let back: MapCommand = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&back).unwrap(), value);
+    }
 }

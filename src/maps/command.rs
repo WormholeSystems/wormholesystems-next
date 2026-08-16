@@ -1,0 +1,256 @@
+//! The single entry point for changing a map.
+//!
+//! Every mutation is a [`MapCommand`] variant applied through [`execute`], which opens
+//! one transaction, authorizes, applies, and records a [`map_events`] row before
+//! committing. The per-command `apply_*` functions are `pub(super)`, so the API layer
+//! cannot reach them: mutating a map without an audit entry is unrepresentable, and
+//! authorization lives in exactly one place instead of being repeated per action.
+//!
+//! Because an [`Effect`]'s `inverse` is itself a `MapCommand`, undo is just another
+//! execution (see [`super::events_log`]) and redo is undoing the undo row.
+
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+
+use super::access::require_role_tx;
+use super::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use super::error::Result;
+use super::events_log;
+use super::jumps::{AddConnectionJump, RemoveConnectionJump, UpdateConnectionJump};
+use super::signatures::{
+    AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
+    RestoreSignatures, UnlinkSignature, UpdateSignature,
+};
+use super::solar_system::{
+    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, RestoreSystems,
+    SetAlias, SetHome, SetNotes, SetOccupier, SetPinned, SetRally, SetStatus,
+};
+use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
+use super::{
+    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, jumps, signatures,
+    solar_system, watchlist,
+};
+
+/// An open transaction, threaded through every `apply_*` so the write and its audit
+/// row commit together.
+pub(super) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+
+/// Who applied a command. Background tasks record without a character and are never
+/// undoable.
+#[derive(Debug, Clone, Copy)]
+pub enum EventActor {
+    Character(Actor),
+    System,
+}
+
+impl EventActor {
+    pub(super) fn character_id(self) -> Option<i64> {
+        match self {
+            EventActor::Character(actor) => Some(actor.character_id),
+            EventActor::System => None,
+        }
+    }
+}
+
+/// Every way a map can change. Variants prefixed `Restore` are compensating commands:
+/// they exist only as the inverse of a removal and are not routed by the API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "command", rename_all = "snake_case")]
+pub enum MapCommand {
+    AddSystem(AddSystem),
+    RemoveSystem(RemoveSystem),
+    RemoveSystems(RemoveSystems),
+    RestoreSystems(RestoreSystems),
+    ClearMap(ClearMap),
+    MoveSystem(MoveSystem),
+    MoveSystems(MoveSystems),
+    SetAlias(SetAlias),
+    SetStatus(SetStatus),
+    SetOccupier(SetOccupier),
+    SetNotes(SetNotes),
+    SetHome(SetHome),
+    SetRally(SetRally),
+    SetPinned(SetPinned),
+    AddConnection(AddConnection),
+    SetConnectionStatus(SetConnectionStatus),
+    RemoveConnection(RemoveConnection),
+    AddSignature(AddSignature),
+    UpdateSignature(UpdateSignature),
+    RemoveSignature(RemoveSignature),
+    RemoveSignatures(RemoveSignatures),
+    RestoreSignatures(RestoreSignatures),
+    PasteSignatures(PasteSignatures),
+    LinkSignature(LinkSignature),
+    UnlinkSignature(UnlinkSignature),
+    AddConnectionJump(AddConnectionJump),
+    UpdateConnectionJump(UpdateConnectionJump),
+    RemoveConnectionJump(RemoveConnectionJump),
+    AddWatchlistEntry(AddWatchlistEntry),
+    SetWatchlistPinned(SetWatchlistPinned),
+    RemoveWatchlistEntry(RemoveWatchlistEntry),
+}
+
+/// What a command hands back to its caller.
+#[derive(Debug, Clone)]
+pub enum CommandOutput {
+    None,
+    Count(u64),
+    System(Box<MapSolarSystem>),
+    Connection(Box<MapConnection>),
+    Signature(Box<Signature>),
+    Jump(Box<super::jumps::ConnectionJump>),
+    Watchlist(Box<super::watchlist::WatchlistEntry>),
+    Removal(Box<super::signatures::RemovedSignature>),
+    BulkRemoval(Box<super::signatures::BulkRemoveOutcome>),
+}
+
+/// The audit record a command produces, plus its return value.
+pub(super) struct Effect {
+    /// Dotted group kind, e.g. `systems.added`.
+    pub kind: &'static str,
+    /// Human sentence without the actor, e.g. `added Jita`.
+    pub label: String,
+    pub entries: i64,
+    /// `None` marks the change as not undoable.
+    pub inverse: Option<MapCommand>,
+    pub output: CommandOutput,
+}
+
+impl Effect {
+    pub(super) fn new(kind: &'static str, label: impl Into<String>, output: CommandOutput) -> Self {
+        Self {
+            kind,
+            label: label.into(),
+            entries: 1,
+            inverse: None,
+            output,
+        }
+    }
+
+    pub(super) fn entries(mut self, entries: i64) -> Self {
+        self.entries = entries;
+        self
+    }
+
+    pub(super) fn undo_with(mut self, inverse: MapCommand) -> Self {
+        self.inverse = Some(inverse);
+        self
+    }
+}
+
+impl MapCommand {
+    pub(super) fn map_id(&self) -> i64 {
+        match self {
+            MapCommand::AddSystem(c) => c.map_id,
+            MapCommand::RemoveSystem(c) => c.map_id,
+            MapCommand::RemoveSystems(c) => c.map_id,
+            MapCommand::RestoreSystems(c) => c.map_id,
+            MapCommand::ClearMap(c) => c.map_id,
+            MapCommand::MoveSystem(c) => c.map_id,
+            MapCommand::MoveSystems(c) => c.map_id,
+            MapCommand::SetAlias(c) => c.map_id,
+            MapCommand::SetStatus(c) => c.map_id,
+            MapCommand::SetOccupier(c) => c.map_id,
+            MapCommand::SetNotes(c) => c.map_id,
+            MapCommand::SetHome(c) => c.map_id,
+            MapCommand::SetRally(c) => c.map_id,
+            MapCommand::SetPinned(c) => c.map_id,
+            MapCommand::AddConnection(c) => c.map_id,
+            MapCommand::SetConnectionStatus(c) => c.map_id,
+            MapCommand::RemoveConnection(c) => c.map_id,
+            MapCommand::AddSignature(c) => c.map_id,
+            MapCommand::UpdateSignature(c) => c.map_id,
+            MapCommand::RemoveSignature(c) => c.map_id,
+            MapCommand::RemoveSignatures(c) => c.map_id,
+            MapCommand::RestoreSignatures(c) => c.map_id,
+            MapCommand::PasteSignatures(c) => c.map_id,
+            MapCommand::LinkSignature(c) => c.map_id,
+            MapCommand::UnlinkSignature(c) => c.map_id,
+            MapCommand::AddConnectionJump(c) => c.map_id,
+            MapCommand::UpdateConnectionJump(c) => c.map_id,
+            MapCommand::RemoveConnectionJump(c) => c.map_id,
+            MapCommand::AddWatchlistEntry(c) => c.map_id,
+            MapCommand::SetWatchlistPinned(c) => c.map_id,
+            MapCommand::RemoveWatchlistEntry(c) => c.map_id,
+        }
+    }
+
+    /// Every map mutation is Member+ today; the ceiling lives here so a new command
+    /// cannot forget its check.
+    pub(super) fn required_role(&self) -> Role {
+        Role::Member
+    }
+
+    pub(super) async fn apply(self, tx: &mut Tx<'_>, actor: EventActor) -> Result<Effect> {
+        match self {
+            MapCommand::AddSystem(c) => solar_system::apply_add_system(tx, c).await,
+            MapCommand::RemoveSystem(c) => solar_system::apply_remove_system(tx, c).await,
+            MapCommand::RemoveSystems(c) => solar_system::apply_remove_systems(tx, c).await,
+            MapCommand::RestoreSystems(c) => solar_system::apply_restore_systems(tx, c).await,
+            MapCommand::ClearMap(c) => solar_system::apply_clear_map(tx, c).await,
+            MapCommand::MoveSystem(c) => solar_system::apply_move_system(tx, c).await,
+            MapCommand::MoveSystems(c) => solar_system::apply_move_systems(tx, c).await,
+            MapCommand::SetAlias(c) => solar_system::apply_set_alias(tx, c).await,
+            MapCommand::SetStatus(c) => solar_system::apply_set_status(tx, c).await,
+            MapCommand::SetOccupier(c) => solar_system::apply_set_occupier(tx, c).await,
+            MapCommand::SetNotes(c) => solar_system::apply_set_notes(tx, c).await,
+            MapCommand::SetHome(c) => solar_system::apply_set_home(tx, c).await,
+            MapCommand::SetRally(c) => solar_system::apply_set_rally(tx, c).await,
+            MapCommand::SetPinned(c) => solar_system::apply_set_pinned(tx, c).await,
+            MapCommand::AddConnection(c) => connection::apply_add_connection(tx, c).await,
+            MapCommand::SetConnectionStatus(c) => {
+                connection::apply_set_connection_status(tx, c).await
+            }
+            MapCommand::RemoveConnection(c) => connection::apply_remove_connection(tx, c).await,
+            MapCommand::AddSignature(c) => signatures::apply_add_signature(tx, c).await,
+            MapCommand::UpdateSignature(c) => signatures::apply_update_signature(tx, c).await,
+            MapCommand::RemoveSignature(c) => signatures::apply_remove_signature(tx, c).await,
+            MapCommand::RemoveSignatures(c) => signatures::apply_remove_signatures(tx, c).await,
+            MapCommand::RestoreSignatures(c) => signatures::apply_restore_signatures(tx, c).await,
+            MapCommand::PasteSignatures(c) => signatures::apply_paste_signatures(tx, c).await,
+            MapCommand::LinkSignature(c) => signatures::apply_link_signature(tx, c).await,
+            MapCommand::UnlinkSignature(c) => signatures::apply_unlink_signature(tx, c).await,
+            MapCommand::AddConnectionJump(c) => jumps::apply_add_jump(tx, c).await,
+            MapCommand::UpdateConnectionJump(c) => jumps::apply_update_jump(tx, c).await,
+            MapCommand::RemoveConnectionJump(c) => jumps::apply_remove_jump(tx, c).await,
+            MapCommand::AddWatchlistEntry(c) => watchlist::apply_add_entry(tx, c).await,
+            MapCommand::SetWatchlistPinned(c) => watchlist::apply_set_pinned(tx, c).await,
+            MapCommand::RemoveWatchlistEntry(c) => watchlist::apply_remove_entry(tx, c).await,
+        }
+        .map(|effect| {
+            // Background writers never offer an undo.
+            if matches!(actor, EventActor::System) {
+                Effect {
+                    inverse: None,
+                    ..effect
+                }
+            } else {
+                effect
+            }
+        })
+    }
+}
+
+/// Apply a command: authorize, mutate, and record — all in one transaction.
+pub async fn execute(pool: &PgPool, actor: Actor, cmd: MapCommand) -> Result<CommandOutput> {
+    execute_as(pool, EventActor::Character(actor), cmd, None).await
+}
+
+/// As [`execute`], for background tasks and for undo (which links the new row back to
+/// the row it reverts).
+pub(super) async fn execute_as(
+    pool: &PgPool,
+    actor: EventActor,
+    cmd: MapCommand,
+    reverts_id: Option<i64>,
+) -> Result<CommandOutput> {
+    let map_id = cmd.map_id();
+    let mut tx = pool.begin().await?;
+    if let EventActor::Character(character) = actor {
+        require_role_tx(&mut tx, map_id, character.user_id, cmd.required_role()).await?;
+    }
+    let effect = cmd.apply(&mut tx, actor).await?;
+    events_log::record(&mut tx, map_id, actor, &effect, reverts_id).await?;
+    tx.commit().await?;
+    Ok(effect.output)
+}

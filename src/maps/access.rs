@@ -48,6 +48,37 @@ pub(super) async fn require_role(
     }
 }
 
+/// As [`require_role`], but inside an open transaction so the check and the write it
+/// guards commit (or roll back) together. Used by the command dispatcher.
+pub(super) async fn require_role_tx(
+    tx: &mut super::command::Tx<'_>,
+    map_id: i64,
+    user_id: i64,
+    min: Role,
+) -> Result<Role> {
+    let roles = sqlx::query_scalar!(
+        r#"select role as "role!: Role"
+           from map_access
+           where map_id = $1
+             and subject_id in (
+                 select id from characters where user_id = $2
+                 union all
+                 select corporation_id from characters where user_id = $2
+                 union all
+                 select alliance_id from characters where user_id = $2 and alliance_id is not null
+             )"#,
+        map_id,
+        user_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+    match roles.into_iter().max() {
+        None => Err(MapError::NotFound),
+        Some(role) if role >= min => Ok(role),
+        Some(_) => Err(MapError::Forbidden),
+    }
+}
+
 /// Whether `character_id` belongs to `user_id`.
 pub(super) async fn owns_character(pool: &PgPool, user_id: i64, character_id: i64) -> Result<bool> {
     let exists = sqlx::query_scalar!(

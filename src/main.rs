@@ -72,6 +72,9 @@ async fn main() {
     // Background: prune unclaimed connection-jump observations.
     vector::maps::jumps::start_prune(db.clone());
 
+    // Background: drop command-journal entries past the undo retention window.
+    vector::maps::events_log::start_purge(db.clone());
+
     let state = AppState {
         auth,
         db,

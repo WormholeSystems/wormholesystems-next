@@ -8,15 +8,18 @@
 // Cross-target modules: each holds shared data types (compiled for ssr + wasm) plus
 // `ssr`-gated DB actions. `access` and `error` are server-only.
 pub mod access;
+pub mod command;
 pub mod connection;
 pub mod error;
 pub mod events;
+pub mod events_log;
 pub mod jumps;
 pub mod map;
 pub mod signatures;
 pub mod solar_system;
 pub mod watchlist;
 
+pub use command::{CommandOutput, EventActor, MapCommand, execute};
 pub use connection::MapConnection;
 pub use error::{MapError, Result};
 pub use events::MapEvent;

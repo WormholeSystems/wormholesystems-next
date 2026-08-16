@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::access::require_role;
+use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
+use super::solar_system::unexpected;
 use super::{Actor, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -49,7 +51,13 @@ pub async fn add_watchlist_entry(
     actor: Actor,
     cmd: AddWatchlistEntry,
 ) -> Result<WatchlistEntry> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    match execute(pool, actor, MapCommand::AddWatchlistEntry(cmd)).await? {
+        CommandOutput::Watchlist(e) => Ok(*e),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_add_entry(tx: &mut Tx<'_>, cmd: AddWatchlistEntry) -> Result<Effect> {
     let entry = sqlx::query_as!(
         WatchlistEntry,
         "insert into map_watchlist (map_id, solar_system_id)
@@ -59,9 +67,18 @@ pub async fn add_watchlist_entry(
         cmd.map_id,
         cmd.solar_system_id,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?;
-    Ok(entry)
+    let inverse = MapCommand::RemoveWatchlistEntry(RemoveWatchlistEntry {
+        map_id: cmd.map_id,
+        entry_id: entry.id,
+    });
+    Ok(Effect::new(
+        "watchlist.added",
+        "watched a system",
+        CommandOutput::Watchlist(Box::new(entry)),
+    )
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -78,8 +95,14 @@ pub async fn set_watchlist_pinned(
     actor: Actor,
     cmd: SetWatchlistPinned,
 ) -> Result<WatchlistEntry> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    sqlx::query_as!(
+    match execute(pool, actor, MapCommand::SetWatchlistPinned(cmd)).await? {
+        CommandOutput::Watchlist(e) => Ok(*e),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_set_pinned(tx: &mut Tx<'_>, cmd: SetWatchlistPinned) -> Result<Effect> {
+    let entry = sqlx::query_as!(
         WatchlistEntry,
         "update map_watchlist set is_pinned = $1 where id = $2 and map_id = $3
          returning id, map_id, solar_system_id, is_pinned",
@@ -87,9 +110,33 @@ pub async fn set_watchlist_pinned(
         cmd.entry_id,
         cmd.map_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
-    .ok_or(MapError::NotFound)
+    .ok_or(MapError::NotFound)?;
+    let inverse = MapCommand::SetWatchlistPinned(SetWatchlistPinned {
+        map_id: cmd.map_id,
+        entry_id: cmd.entry_id,
+        value: !cmd.value,
+    });
+    let label = if cmd.value {
+        "pinned a watchlist entry"
+    } else {
+        "unpinned a watchlist entry"
+    };
+    Ok(Effect::new(
+        label_kind(cmd.value),
+        label,
+        CommandOutput::Watchlist(Box::new(entry)),
+    )
+    .undo_with(inverse))
+}
+
+fn label_kind(pinned: bool) -> &'static str {
+    if pinned {
+        "watchlist.pinned"
+    } else {
+        "watchlist.unpinned"
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -105,17 +152,31 @@ pub async fn remove_watchlist_entry(
     actor: Actor,
     cmd: RemoveWatchlistEntry,
 ) -> Result<()> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let deleted = sqlx::query!(
-        "delete from map_watchlist where id = $1 and map_id = $2",
+    execute(pool, actor, MapCommand::RemoveWatchlistEntry(cmd)).await?;
+    Ok(())
+}
+
+pub(super) async fn apply_remove_entry(
+    tx: &mut Tx<'_>,
+    cmd: RemoveWatchlistEntry,
+) -> Result<Effect> {
+    let row = sqlx::query!(
+        "delete from map_watchlist where id = $1 and map_id = $2
+         returning solar_system_id",
         cmd.entry_id,
         cmd.map_id,
     )
-    .execute(pool)
+    .fetch_optional(&mut **tx)
     .await?
-    .rows_affected();
-    if deleted == 0 {
-        return Err(MapError::NotFound);
-    }
-    Ok(())
+    .ok_or(MapError::NotFound)?;
+    let inverse = MapCommand::AddWatchlistEntry(AddWatchlistEntry {
+        map_id: cmd.map_id,
+        solar_system_id: row.solar_system_id,
+    });
+    Ok(Effect::new(
+        "watchlist.removed",
+        "unwatched a system",
+        CommandOutput::None,
+    )
+    .undo_with(inverse))
 }

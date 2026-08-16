@@ -26,7 +26,9 @@ use super::{MassStatus, SignatureGroup, TimeStatus, WormholeSize};
 use sqlx::PgPool;
 
 use super::access::require_role;
+use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
+use super::solar_system::unexpected;
 use super::{Actor, MapEvent, MapHub, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -84,12 +86,16 @@ fn validate_signature_id(id: &str) -> Result<()> {
 }
 
 /// `Validation` unless the catalog type exists and belongs to the group's category.
-async fn validate_type_for_group(pool: &PgPool, type_id: i64, group: SignatureGroup) -> Result<()> {
+async fn validate_type_for_group(
+    tx: &mut Tx<'_>,
+    type_id: i64,
+    group: SignatureGroup,
+) -> Result<()> {
     let category = sqlx::query_scalar!(
         "select signature_category_id from signature_types where id = $1",
         type_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?;
     if category.is_none() || category != category_id_for(group) {
         return Err(MapError::Validation(
@@ -142,11 +148,17 @@ impl AddSignature {
 /// duplicate `signature_id` in the same system → `Conflict`. Linking to a connection is a
 /// separate step ([`link_signature`]).
 pub async fn add_signature(pool: &PgPool, actor: Actor, cmd: AddSignature) -> Result<Signature> {
+    match execute(pool, actor, MapCommand::AddSignature(cmd)).await? {
+        CommandOutput::Signature(sig) => Ok(*sig),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> Result<Effect> {
     cmd.validate()?;
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    ensure_system_placed(pool, cmd.map_id, cmd.solar_system_id).await?;
+    ensure_system_placed(tx, cmd.map_id, cmd.solar_system_id).await?;
     if let Some(type_id) = cmd.signature_type_id {
-        validate_type_for_group(pool, type_id, cmd.group).await?;
+        validate_type_for_group(tx, type_id, cmd.group).await?;
     }
 
     let exists = sqlx::query_scalar!(
@@ -158,7 +170,7 @@ pub async fn add_signature(pool: &PgPool, actor: Actor, cmd: AddSignature) -> Re
         cmd.solar_system_id,
         cmd.signature_id.trim(),
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?
     .unwrap_or(false);
     if exists {
@@ -188,9 +200,18 @@ pub async fn add_signature(pool: &PgPool, actor: Actor, cmd: AddSignature) -> Re
         cmd.mass_status.map(|m| m.as_str()),
         cmd.time_status.map(|t| t.as_str()),
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?;
-    Ok(sig)
+    let inverse = MapCommand::RemoveSignature(RemoveSignature {
+        map_id: cmd.map_id,
+        signature_pk: sig.id,
+    });
+    Ok(Effect::new(
+        "signatures.added",
+        format!("added signature {}", sig.signature_id),
+        CommandOutput::Signature(Box::new(sig)),
+    )
+    .undo_with(inverse))
 }
 
 /// A partial edit of a signature. `None` leaves a field unchanged; `Some(None)` clears it.
@@ -231,8 +252,18 @@ pub async fn update_signature(
     actor: Actor,
     cmd: UpdateSignature,
 ) -> Result<Signature> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let current = fetch_signature(pool, cmd.map_id, cmd.signature_pk).await?;
+    match execute(pool, actor, MapCommand::UpdateSignature(cmd)).await? {
+        CommandOutput::Signature(sig) => Ok(*sig),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_update_signature(
+    tx: &mut Tx<'_>,
+    cmd: UpdateSignature,
+) -> Result<Effect> {
+    let current = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
+    let previous_name = current.name.clone();
 
     let signature_id = match &cmd.signature_id {
         Some(v) => {
@@ -248,7 +279,7 @@ pub async fn update_signature(
                     current.solar_system_id,
                     v,
                 )
-                .fetch_one(pool)
+                .fetch_one(&mut **tx)
                 .await?
                 .unwrap_or(false);
                 if taken {
@@ -269,7 +300,7 @@ pub async fn update_signature(
         cmd.signature_type_id.unwrap_or(current.signature_type_id)
     };
     if let Some(type_id) = type_id {
-        validate_type_for_group(pool, type_id, group).await?;
+        validate_type_for_group(tx, type_id, group).await?;
     }
 
     let name = cmd.name.unwrap_or(current.name);
@@ -316,9 +347,26 @@ pub async fn update_signature(
         cmd.signature_pk,
         cmd.map_id,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?;
-    Ok(sig)
+    // Undo replays the previous values verbatim.
+    let inverse = MapCommand::UpdateSignature(UpdateSignature {
+        map_id: cmd.map_id,
+        signature_pk: cmd.signature_pk,
+        signature_id: Some(current.signature_id.clone()),
+        group: Some(current.group),
+        signature_type_id: Some(current.signature_type_id),
+        name: Some(previous_name),
+        size: Some(current.size),
+        mass_status: Some(current.mass_status),
+        time_status: Some(current.time_status),
+    });
+    Ok(Effect::new(
+        "signatures.updated",
+        format!("edited signature {}", sig.signature_id),
+        CommandOutput::Signature(Box::new(sig)),
+    )
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -329,6 +377,7 @@ pub struct RemoveSignature {
 }
 
 /// What a delete touched, so the caller can publish the right events.
+#[derive(Debug, Clone)]
 pub struct RemovedSignature {
     pub solar_system_id: i64,
     pub removed_connection_id: Option<i64>,
@@ -343,33 +392,45 @@ pub async fn remove_signature(
     actor: Actor,
     cmd: RemoveSignature,
 ) -> Result<RemovedSignature> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let mut tx = pool.begin().await?;
+    match execute(pool, actor, MapCommand::RemoveSignature(cmd)).await? {
+        CommandOutput::Removal(r) => Ok(*r),
+        other => Err(unexpected(other)),
+    }
+}
 
+pub(super) async fn apply_remove_signature(
+    tx: &mut Tx<'_>,
+    cmd: RemoveSignature,
+) -> Result<Effect> {
+    let restore = capture_signatures(tx, cmd.map_id, &[cmd.signature_pk]).await?;
     let sig = sqlx::query!(
         "delete from signatures where id = $1 and map_id = $2
          returning solar_system_id, connection_id",
         cmd.signature_pk,
         cmd.map_id,
     )
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
 
     let mut removed_connection_id = None;
     if let Some(conn_id) = sig.connection_id
-        && delete_connection_if_side_empty(&mut tx, cmd.map_id, conn_id, sig.solar_system_id)
+        && delete_connection_if_side_empty(tx, cmd.map_id, conn_id, sig.solar_system_id)
             .await?
             .is_some()
     {
         removed_connection_id = Some(conn_id);
     }
 
-    tx.commit().await?;
-    Ok(RemovedSignature {
-        solar_system_id: sig.solar_system_id,
-        removed_connection_id,
-    })
+    Ok(Effect::new(
+        "signatures.removed",
+        "removed a signature",
+        CommandOutput::Removal(Box::new(RemovedSignature {
+            solar_system_id: sig.solar_system_id,
+            removed_connection_id,
+        })),
+    )
+    .undo_with(MapCommand::RestoreSignatures(restore)))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -380,6 +441,7 @@ pub struct RemoveSignatures {
 }
 
 /// What the bulk delete touched, so the caller can publish the right events.
+#[derive(Debug, Clone)]
 pub struct BulkRemoveOutcome {
     /// Solar systems that lost signatures.
     pub systems: Vec<i64>,
@@ -397,16 +459,24 @@ pub async fn remove_signatures(
     actor: Actor,
     cmd: RemoveSignatures,
 ) -> Result<BulkRemoveOutcome> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let mut tx = pool.begin().await?;
+    match execute(pool, actor, MapCommand::RemoveSignatures(cmd)).await? {
+        CommandOutput::BulkRemoval(o) => Ok(*o),
+        other => Err(unexpected(other)),
+    }
+}
 
+pub(super) async fn apply_remove_signatures(
+    tx: &mut Tx<'_>,
+    cmd: RemoveSignatures,
+) -> Result<Effect> {
+    let restore = capture_signatures(tx, cmd.map_id, &cmd.signature_pks).await?;
     let removed = sqlx::query!(
         "delete from signatures where map_id = $1 and id = any($2)
          returning solar_system_id, connection_id",
         cmd.map_id,
         &cmd.signature_pks,
     )
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut **tx)
     .await?;
 
     let mut systems: Vec<i64> = removed.iter().map(|r| r.solar_system_id).collect();
@@ -425,7 +495,7 @@ pub async fn remove_signatures(
     let mut endpoint_candidates: Vec<i64> = Vec::new();
     for (conn_id, side_system) in sides {
         if let Some(endpoints) =
-            delete_connection_if_side_empty(&mut tx, cmd.map_id, conn_id, side_system).await?
+            delete_connection_if_side_empty(tx, cmd.map_id, conn_id, side_system).await?
         {
             removed_connection_ids.push(conn_id);
             endpoint_candidates.extend(endpoints);
@@ -449,7 +519,7 @@ pub async fn remove_signatures(
             placement_id,
             cmd.map_id,
         )
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?
         .rows_affected();
         if deleted > 0 {
@@ -457,19 +527,25 @@ pub async fn remove_signatures(
         }
     }
 
-    tx.commit().await?;
-    Ok(BulkRemoveOutcome {
-        systems,
-        removed_connection_ids,
-        removed_placement_ids,
-    })
+    let count = cmd.signature_pks.len() as i64;
+    Ok(Effect::new(
+        "signatures.removed",
+        format!("removed {count} signatures"),
+        CommandOutput::BulkRemoval(Box::new(BulkRemoveOutcome {
+            systems,
+            removed_connection_ids,
+            removed_placement_ids,
+        })),
+    )
+    .entries(count)
+    .undo_with(MapCommand::RestoreSignatures(restore)))
 }
 
 /// Delete `conn_id` if no signature in `side_system` still references it (the legacy
 /// same-side survivor rule). Returns the connection's endpoint placement ids when it was
 /// deleted, `None` when a survivor kept it alive.
 async fn delete_connection_if_side_empty(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tx: &mut Tx<'_>,
     map_id: i64,
     conn_id: i64,
     side_system: i64,
@@ -511,8 +587,14 @@ pub struct LinkSignature {
 /// `wormhole`, and the connection must be on this map and have an endpoint in the
 /// signature's system.
 pub async fn link_signature(pool: &PgPool, actor: Actor, cmd: LinkSignature) -> Result<Signature> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let sig = fetch_signature(pool, cmd.map_id, cmd.signature_pk).await?;
+    match execute(pool, actor, MapCommand::LinkSignature(cmd)).await? {
+        CommandOutput::Signature(sig) => Ok(*sig),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) -> Result<Effect> {
+    let sig = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
     if !is_wormhole(sig.group) {
         return Err(MapError::Validation(
             "only a wormhole signature can link to a connection".into(),
@@ -532,7 +614,7 @@ pub async fn link_signature(pool: &PgPool, actor: Actor, cmd: LinkSignature) -> 
         cmd.map_id,
         sig.solar_system_id,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?
     .unwrap_or(false);
     if !ok {
@@ -547,11 +629,29 @@ pub async fn link_signature(pool: &PgPool, actor: Actor, cmd: LinkSignature) -> 
         cmd.signature_pk,
         cmd.map_id,
     )
-    .execute(pool)
+    .execute(&mut **tx)
     .await?;
 
     // Re-read: the merge trigger may have changed this row's state after the UPDATE.
-    fetch_signature(pool, cmd.map_id, cmd.signature_pk).await
+    let linked = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
+    // Undo unlinks and restores the pre-merge life-cycle state.
+    let inverse = MapCommand::UpdateSignature(UpdateSignature {
+        map_id: cmd.map_id,
+        signature_pk: cmd.signature_pk,
+        signature_id: None,
+        group: None,
+        signature_type_id: None,
+        name: None,
+        size: Some(sig.size),
+        mass_status: Some(sig.mass_status),
+        time_status: Some(sig.time_status),
+    });
+    Ok(Effect::new(
+        "signatures.linked",
+        "linked a signature",
+        CommandOutput::Signature(Box::new(linked)),
+    )
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -568,19 +668,42 @@ pub async fn unlink_signature(
     actor: Actor,
     cmd: UnlinkSignature,
 ) -> Result<Signature> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    let updated = sqlx::query!(
+    match execute(pool, actor, MapCommand::UnlinkSignature(cmd)).await? {
+        CommandOutput::Signature(sig) => Ok(*sig),
+        other => Err(unexpected(other)),
+    }
+}
+
+pub(super) async fn apply_unlink_signature(
+    tx: &mut Tx<'_>,
+    cmd: UnlinkSignature,
+) -> Result<Effect> {
+    let before = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
+    sqlx::query!(
         "update signatures set connection_id = null where id = $1 and map_id = $2",
         cmd.signature_pk,
         cmd.map_id,
     )
-    .execute(pool)
-    .await?
-    .rows_affected();
-    if updated == 0 {
-        return Err(MapError::NotFound);
+    .execute(&mut **tx)
+    .await?;
+    let sig = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
+    // Unlinking something that was never linked has nothing to restore.
+    let inverse = before.connection_id.map(|connection_id| {
+        MapCommand::LinkSignature(LinkSignature {
+            map_id: cmd.map_id,
+            signature_pk: cmd.signature_pk,
+            connection_id,
+        })
+    });
+    let mut effect = Effect::new(
+        "signatures.unlinked",
+        "unlinked a signature",
+        CommandOutput::Signature(Box::new(sig)),
+    );
+    if let Some(inverse) = inverse {
+        effect = effect.undo_with(inverse);
     }
-    fetch_signature(pool, cmd.map_id, cmd.signature_pk).await
+    Ok(effect)
 }
 
 /// One row of a parsed scanner paste. `group` is `None` when the scanner line carried no
@@ -619,10 +742,26 @@ pub struct PasteSignatures {
 /// - raw name: refreshed for sites, preserved for wormholes
 /// - `size` / `mass_status` / `time_status` / `created_at`: never touched
 pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures) -> Result<()> {
-    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
-    ensure_system_placed(pool, cmd.map_id, cmd.solar_system_id).await?;
+    execute(pool, actor, MapCommand::PasteSignatures(cmd)).await?;
+    Ok(())
+}
 
-    let mut tx = pool.begin().await?;
+pub(super) async fn apply_paste_signatures(
+    tx: &mut Tx<'_>,
+    cmd: PasteSignatures,
+) -> Result<Effect> {
+    ensure_system_placed(tx, cmd.map_id, cmd.solar_system_id).await?;
+    // Snapshot the whole system: a paste both edits existing rows and adds new ones.
+    let existing_ids: Vec<i64> = sqlx::query_scalar!(
+        "select id from signatures where map_id = $1 and solar_system_id = $2",
+        cmd.map_id,
+        cmd.solar_system_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+    let mut restore = capture_signatures(tx, cmd.map_id, &existing_ids).await?;
+    restore.replaces_system = Some(cmd.solar_system_id);
+
     for s in &cmd.signatures {
         let sid = s.signature_id.trim();
         if sid.is_empty() {
@@ -633,7 +772,7 @@ pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures)
         // A pasted type only counts if it belongs to the pasted group's category.
         let mut pasted_type = None;
         if let (Some(type_id), Some(group)) = (s.signature_type_id, s.group)
-            && type_category(&mut tx, type_id).await? == category_id_for(group)
+            && type_category(tx, type_id).await? == category_id_for(group)
         {
             pasted_type = Some(type_id);
         }
@@ -647,7 +786,7 @@ pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures)
             cmd.solar_system_id,
             sid,
         )
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?;
 
         let Some(existing) = existing else {
@@ -662,7 +801,7 @@ pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures)
                 pasted_type,
                 s.name.as_deref(),
             )
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             continue;
         };
@@ -677,7 +816,7 @@ pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures)
             None
         } else if let Some(kept) = existing.signature_type_id {
             // Keep the old type only if it still fits the (possibly new) group.
-            (type_category(&mut tx, kept).await? == category_id_for(group)).then_some(kept)
+            (type_category(tx, kept).await? == category_id_for(group)).then_some(kept)
         } else {
             None
         };
@@ -702,19 +841,22 @@ pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures)
             clear_link,
             existing.id,
         )
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await?;
     }
 
-    tx.commit().await?;
-    Ok(())
+    let count = cmd.signatures.len() as i64;
+    Ok(Effect::new(
+        "signatures.pasted",
+        format!("pasted {count} signatures"),
+        CommandOutput::None,
+    )
+    .entries(count)
+    .undo_with(MapCommand::RestoreSignatures(restore)))
 }
 
 /// A catalog type's category id, or `None` for an unknown type id.
-async fn type_category(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    type_id: i64,
-) -> Result<Option<i64>> {
+async fn type_category(tx: &mut Tx<'_>, type_id: i64) -> Result<Option<i64>> {
     Ok(sqlx::query_scalar!(
         "select signature_category_id from signature_types where id = $1",
         type_id,
@@ -741,8 +883,101 @@ pub async fn list_signatures(pool: &PgPool, actor: Actor, map_id: i64) -> Result
     Ok(sigs)
 }
 
-/// Read one signature on a map, or `NotFound`.
-async fn fetch_signature(pool: &PgPool, map_id: i64, signature_pk: i64) -> Result<Signature> {
+/// A snapshot of signatures, the inverse of any signature removal or paste.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestoreSignatures {
+    pub map_id: i64,
+    pub signatures: Vec<super::solar_system::RestoredSignature>,
+    /// When set, the system is reset to exactly this snapshot (used by paste undo, which
+    /// must also drop rows the paste created).
+    pub replaces_system: Option<i64>,
+}
+
+/// Snapshot signature rows so a removal or paste can be undone.
+pub(super) async fn capture_signatures(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    ids: &[i64],
+) -> Result<RestoreSignatures> {
+    let signatures = sqlx::query_as!(
+        super::solar_system::RestoredSignature,
+        r#"select id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
+                  signature_type_id, name, size as "size: WormholeSize",
+                  mass_status as "mass_status: MassStatus",
+                  time_status as "time_status: TimeStatus", connection_id
+           from signatures where map_id = $1 and id = any($2)"#,
+        map_id,
+        ids,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(RestoreSignatures {
+        map_id,
+        signatures,
+        replaces_system: None,
+    })
+}
+
+pub(super) async fn apply_restore_signatures(
+    tx: &mut Tx<'_>,
+    cmd: RestoreSignatures,
+) -> Result<Effect> {
+    // Paste undo: clear whatever the paste left behind before replaying the snapshot.
+    if let Some(solar_system_id) = cmd.replaces_system {
+        sqlx::query!(
+            "delete from signatures where map_id = $1 and solar_system_id = $2",
+            cmd.map_id,
+            solar_system_id,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+    for s in &cmd.signatures {
+        sqlx::query!(
+            r#"insert into signatures
+                   (id, map_id, solar_system_id, signature_id, "group", signature_type_id,
+                    name, size, mass_status, time_status, connection_id)
+               overriding system value
+               values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+               on conflict (id) do update set
+                   "group" = excluded."group",
+                   signature_type_id = excluded.signature_type_id,
+                   name = excluded.name,
+                   size = excluded.size,
+                   mass_status = excluded.mass_status,
+                   time_status = excluded.time_status,
+                   connection_id = excluded.connection_id"#,
+            s.id,
+            cmd.map_id,
+            s.solar_system_id,
+            s.signature_id,
+            s.group.as_str(),
+            s.signature_type_id,
+            s.name.as_deref(),
+            s.size.map(|w| w.as_str()),
+            s.mass_status.map(|m| m.as_str()),
+            s.time_status.map(|t| t.as_str()),
+            s.connection_id,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+    let count = cmd.signatures.len() as i64;
+    let ids: Vec<i64> = cmd.signatures.iter().map(|s| s.id).collect();
+    Ok(Effect::new(
+        "signatures.restored",
+        format!("restored {count} signatures"),
+        CommandOutput::None,
+    )
+    .entries(count)
+    .undo_with(MapCommand::RemoveSignatures(RemoveSignatures {
+        map_id: cmd.map_id,
+        signature_pks: ids,
+    })))
+}
+
+/// Read one signature inside the applying transaction, or `NotFound`.
+async fn fetch_signature_tx(tx: &mut Tx<'_>, map_id: i64, signature_pk: i64) -> Result<Signature> {
     sqlx::query_as!(
         Signature,
         r#"select id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
@@ -754,20 +989,20 @@ async fn fetch_signature(pool: &PgPool, map_id: i64, signature_pk: i64) -> Resul
         signature_pk,
         map_id,
     )
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)
 }
 
 /// `Validation` if the solar system isn't currently placed on the map (signatures hang off
 /// a placement via the `(map_id, solar_system_id)` foreign key).
-async fn ensure_system_placed(pool: &PgPool, map_id: i64, solar_system_id: i64) -> Result<()> {
+async fn ensure_system_placed(tx: &mut Tx<'_>, map_id: i64, solar_system_id: i64) -> Result<()> {
     let placed = sqlx::query_scalar!(
         "select exists(select 1 from map_solar_systems where map_id = $1 and solar_system_id = $2)",
         map_id,
         solar_system_id,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await?
     .unwrap_or(false);
     if !placed {
