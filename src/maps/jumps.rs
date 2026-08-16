@@ -91,10 +91,16 @@ pub struct AddConnectionJump {
 }
 
 /// Log a jump manually. Member+. Needs a mass or a ship type (whose hull mass is used).
-pub async fn add_jump(pool: &PgPool, actor: Actor, cmd: AddConnectionJump) -> Result<ConnectionJump> {
+pub async fn add_jump(
+    pool: &PgPool,
+    actor: Actor,
+    cmd: AddConnectionJump,
+) -> Result<ConnectionJump> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     if cmd.mass.is_none() && cmd.ship_type_id.is_none() {
-        return Err(MapError::Validation("enter a mass or pick a ship type".into()));
+        return Err(MapError::Validation(
+            "enter a mass or pick a ship type".into(),
+        ));
     }
     if cmd.mass.is_some_and(|m| m < 0) {
         return Err(MapError::Validation("mass must not be negative".into()));
@@ -161,13 +167,13 @@ pub async fn update_jump(
     }
 
     let (from_sys, to_sys) = connection_endpoints(pool, cmd.map_id, connection_id).await?;
-    let direction = cmd.direction.unwrap_or(
-        if current.from_solar_system_id == from_sys {
+    let direction = cmd
+        .direction
+        .unwrap_or(if current.from_solar_system_id == from_sys {
             JumpDirection::Outbound
         } else {
             JumpDirection::Inbound
-        },
-    );
+        });
     let (from, to) = match direction {
         JumpDirection::Outbound => (from_sys, to_sys),
         JumpDirection::Inbound => (to_sys, from_sys),
@@ -330,9 +336,9 @@ pub async fn record_transit(
     .await?;
 
     for map_id in map_ids {
-        if !effective_role(pool, map_id, character.user_id)
+        if effective_role(pool, map_id, character.user_id)
             .await?
-            .is_some_and(|r| r >= Role::Member)
+            .is_none_or(|r| r < Role::Member)
         {
             continue;
         }

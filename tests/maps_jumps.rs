@@ -227,7 +227,13 @@ async fn manual_jump_crud(pool: PgPool) {
     )
     .await
     .unwrap();
-    assert_eq!(list_jumps(&pool, w.owner, w.map_id, conn).await.unwrap().len(), 1);
+    assert_eq!(
+        list_jumps(&pool, w.owner, w.map_id, conn)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[sqlx::test]
@@ -291,13 +297,12 @@ async fn transit_capture_and_claiming(pool: PgPool) {
     assert_eq!(pending, 1);
     let c = place(&pool, w.owner, w.map_id, SYS_C).await;
     let conn = wormhole_between(&pool, w.owner, w.map_id, b, c).await;
-    let claimed: i64 = sqlx::query_scalar(
-        "select count(*) from map_connection_jumps where connection_id = $1",
-    )
-    .bind(conn)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let claimed: i64 =
+        sqlx::query_scalar("select count(*) from map_connection_jumps where connection_id = $1")
+            .bind(conn)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(claimed, 1);
 
     // Without the tracking opt-in nothing is recorded.
@@ -338,7 +343,9 @@ async fn claim_window_and_prune(pool: PgPool) {
     }
 
     let conn = wormhole_between(&pool, w.owner, w.map_id, a, b).await;
-    let claimed = claim_pending(&pool, w.map_id, conn, SYS_A, SYS_B).await.unwrap();
+    let claimed = claim_pending(&pool, w.map_id, conn, SYS_A, SYS_B)
+        .await
+        .unwrap();
     // add_connection already claimed the fresh row; the stale one stays pending.
     assert_eq!(claimed, 0);
     let on_conn: i64 =
