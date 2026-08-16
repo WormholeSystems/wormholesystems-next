@@ -3,65 +3,12 @@
 import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MassStatus } from '$lib/api/types/MassStatus';
-import type { PastedSignature } from '$lib/api/types/PastedSignature';
-import type { SignatureGroup } from '$lib/api/types/SignatureGroup';
 import type { SystemStatus } from '$lib/api/types/SystemStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import type { WormholeSize } from '$lib/api/types/WormholeSize';
 
 /** Fixed node width (px, world space). Height is `2 * grid cell`. */
 export const NODE_W = 180;
-
-/**
- * Parse a pasted in-game probe scan: tab-separated rows where col 0 = signature id, col 2 =
- * category (→ group), col 3 = type name. Blank/garbage rows are skipped.
- */
-export function parseScan(text: string): PastedSignature[] {
-	const out: PastedSignature[] = [];
-	for (const line of text.split('\n')) {
-		const cols = line.split('\t');
-		const sid = (cols[0] ?? '').trim();
-		if (!sid) continue;
-		const category = (cols[2] ?? '').trim();
-		const typeName = (cols[3] ?? '').trim();
-		out.push({
-			signature_id: sid,
-			group: parseGroup(category),
-			name: typeName ? typeName : null
-		});
-	}
-	return out;
-}
-
-export function parseGroup(category: string): SignatureGroup {
-	const c = category.toLowerCase();
-	if (c.includes('wormhole')) return 'wormhole';
-	if (c.includes('data')) return 'data';
-	if (c.includes('relic')) return 'relic';
-	if (c.includes('gas')) return 'gas';
-	if (c.includes('combat')) return 'combat';
-	if (c.includes('ore')) return 'ore';
-	return 'unknown';
-}
-
-export function groupColor(g: SignatureGroup): string {
-	switch (g) {
-		case 'wormhole':
-			return '#a855f7';
-		case 'data':
-			return '#3b82f6';
-		case 'relic':
-			return '#f59e0b';
-		case 'gas':
-			return '#34d399';
-		case 'combat':
-			return '#ef4444';
-		case 'ore':
-			return '#a3a3a3';
-		case 'unknown':
-			return '#71717a';
-	}
-}
 
 /** World coords of the viewport center (where a freshly-added system lands). */
 export function centerWorld(

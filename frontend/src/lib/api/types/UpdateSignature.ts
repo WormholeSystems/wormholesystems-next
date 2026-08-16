@@ -10,4 +10,8 @@ import type { WormholeSize } from "./WormholeSize";
  * (matching the legacy category select), unless a new type is supplied in the same call.
  * Editing a linked wormhole's state propagates to its connection via the DB trigger.
  */
-export type UpdateSignature = { map_id: number, signature_pk: number, group?: SignatureGroup, signature_type_id?: number | null, name?: string | null, size?: WormholeSize | null, mass_status?: MassStatus | null, time_status?: TimeStatus | null, };
+export type UpdateSignature = { map_id: number, signature_pk: number, 
+/**
+ * `Some` renames the scanner id (7 chars; duplicate in the system → `Conflict`).
+ */
+signature_id?: string, group?: SignatureGroup, signature_type_id?: number | null, name?: string | null, size?: WormholeSize | null, mass_status?: MassStatus | null, time_status?: TimeStatus | null, };

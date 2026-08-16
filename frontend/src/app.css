@@ -130,6 +130,29 @@
   --color-threat-high: oklch(70.5% 0.213 47.604);
 }
 
+/* Signature age cell: combined lifetime+mass states pulse between the two colors
+   (legacy SignatureTimeDetails). */
+@keyframes sig-pulse-crit-crit {
+  0%, 100% { color: oklch(63.7% 0.237 25.331); }
+  50% { color: oklch(50.5% 0.213 27.518); }
+}
+@keyframes sig-pulse-crit-reduced {
+  0%, 100% { color: oklch(63.7% 0.237 25.331); }
+  50% { color: oklch(70.5% 0.213 47.604); }
+}
+@keyframes sig-pulse-eol-crit {
+  0%, 100% { color: oklch(63.7% 0.237 25.331); }
+  50% { color: oklch(62.7% 0.265 303.9); }
+}
+@keyframes sig-pulse-eol-reduced {
+  0%, 100% { color: oklch(70.5% 0.213 47.604); }
+  50% { color: oklch(62.7% 0.265 303.9); }
+}
+.sig-time[data-lifetime='critical'][data-mass='critical'] { animation: sig-pulse-crit-crit 2s infinite; }
+.sig-time[data-lifetime='critical'][data-mass='reduced'] { animation: sig-pulse-crit-reduced 2s infinite; }
+.sig-time[data-lifetime='eol'][data-mass='critical'] { animation: sig-pulse-eol-crit 2s infinite; }
+.sig-time[data-lifetime='eol'][data-mass='reduced'] { animation: sig-pulse-eol-reduced 2s infinite; }
+
 .dark {
   --color-status-unknown: oklch(37.1% 0 0); /* neutral-700 */
   --color-edge: oklch(37.1% 0 0);

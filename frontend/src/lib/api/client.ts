@@ -22,6 +22,7 @@ import type { MoveSystems } from './types/MoveSystems';
 import type { PasteSignatures } from './types/PasteSignatures';
 import type { RemoveConnection } from './types/RemoveConnection';
 import type { RemoveSignature } from './types/RemoveSignature';
+import type { RemoveSignatures } from './types/RemoveSignatures';
 import type { RemoveSystems } from './types/RemoveSystems';
 import type { SetAlias } from './types/SetAlias';
 import type { SetConnectionStatus } from './types/SetConnectionStatus';
@@ -34,10 +35,12 @@ import type { SetStatus } from './types/SetStatus';
 import type { SetWaypointAllBody } from './types/SetWaypointAllBody';
 import type { SetWaypointBody } from './types/SetWaypointBody';
 import type { Signature } from './types/Signature';
+import type { SignatureCatalog } from './types/SignatureCatalog';
 import type { SystemDetails } from './types/SystemDetails';
 import type { ThreatAnalysis } from './types/ThreatAnalysis';
 import type { SystemSearchResult } from './types/SystemSearchResult';
 import type { UnlinkSignature } from './types/UnlinkSignature';
+import type { UpdateSignature } from './types/UpdateSignature';
 import type { UpdateMapUserSettings } from './types/UpdateMapUserSettings';
 
 export class ApiError extends Error {
@@ -149,6 +152,13 @@ export const api = {
 		post<null>(`/api/maps/${cmd.map_id}/connections/remove`, cmd),
 
 	// Signatures
+	signatureCatalog: () => get<SignatureCatalog>('/api/signature-types'),
+	addSignature: (cmd: AddSignature) =>
+		post<Signature>(`/api/maps/${cmd.map_id}/signatures/add`, cmd),
+	updateSignature: (cmd: UpdateSignature) =>
+		post<Signature>(`/api/maps/${cmd.map_id}/signatures/update`, cmd),
+	removeSignaturesBulk: (cmd: RemoveSignatures) =>
+		post<null>(`/api/maps/${cmd.map_id}/signatures/remove-bulk`, cmd),
 	pasteSignatures: (cmd: PasteSignatures) =>
 		post<null>(`/api/maps/${cmd.map_id}/signatures/paste`, cmd),
 	linkSignature: (cmd: LinkSignature) =>
