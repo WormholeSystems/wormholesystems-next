@@ -10,7 +10,7 @@ use serde::Deserialize;
 use super::AccessSubject;
 use super::{
     ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, EveScoutEdge,
-    MapCharacter, MapEntry, MapUserSettings, ShipSearchResult, SignatureCatalog,
+    MapCharacter, MapEntry, MapSearchHit, MapUserSettings, ShipSearchResult, SignatureCatalog,
     SignatureCategoryInfo, SignatureTypeInfo, SystemSearchResult, ThreatAnalysis, ThreatEntity,
     UpdateMapUserSettings, check_map_id, require_actor, session_actor, session_id,
 };
@@ -1529,6 +1529,147 @@ pub async fn update_map(
     let map = crate::maps::map::update_map(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(map))
+}
+
+/// `GET /api/maps/{id}/search?q=` — the map command palette. Matches placed systems by
+/// name, alias, occupier and (for members) notes, then falls back to off-map systems the
+/// palette can offer to add. Viewer+.
+pub async fn search_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Query(query): Query<SearchQuery>,
+) -> ApiResult<Vec<MapSearchHit>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let role = crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
+        .await?
+        .ok_or(crate::maps::MapError::NotFound)?;
+    let q = query.q.trim();
+    if q.len() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    // Notes are member-gated everywhere else, so they must not leak through search.
+    let with_notes = role >= crate::maps::Role::Member;
+    let contains = format!("%{q}%");
+    let prefix = format!("{q}%");
+
+    let placed = sqlx::query!(
+        r#"select mss.id as "map_solar_system_id!", ss.id as "solar_system_id!",
+                  ss.name as "name!", r.name as "region!",
+                  ss.security_status as "security!", ss.wormhole_class_id,
+                  mss.alias, d.occupying_group, d.notes
+           from map_solar_systems mss
+           join solar_systems ss on ss.id = mss.solar_system_id
+           join regions r on r.id = ss.region_id
+           left join map_solar_system_details d
+             on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
+           where mss.map_id = $1
+             and (ss.name ilike $2 or mss.alias ilike $2 or d.occupying_group ilike $2
+                  or ($4 and d.notes ilike $2))
+           order by (ss.name ilike $3) desc, ss.name
+           limit 25"#,
+        map_id,
+        contains,
+        prefix,
+        with_notes,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut hits: Vec<MapSearchHit> = placed
+        .into_iter()
+        .map(|r| {
+            let lower = q.to_lowercase();
+            let hit = |v: &Option<String>| {
+                v.as_ref()
+                    .is_some_and(|s| s.to_lowercase().contains(&lower))
+            };
+            let matched = if r.name.to_lowercase().contains(&lower) {
+                "name"
+            } else if hit(&r.alias) {
+                "alias"
+            } else if hit(&r.occupying_group) {
+                "occupier"
+            } else {
+                "notes"
+            };
+            MapSearchHit {
+                solar_system_id: r.solar_system_id,
+                map_solar_system_id: Some(r.map_solar_system_id),
+                name: r.name,
+                region: r.region,
+                security: r.security,
+                wormhole_class_id: r.wormhole_class_id,
+                alias: r.alias,
+                occupying_group: r.occupying_group,
+                note_excerpt: if matched == "notes" {
+                    r.notes.map(|n| excerpt(&n, q))
+                } else {
+                    None
+                },
+                matched: matched.into(),
+            }
+        })
+        .collect();
+
+    // Then systems that are not on the map yet, so the palette doubles as "add".
+    let placed_ids: Vec<i64> = hits.iter().map(|h| h.solar_system_id).collect();
+    let off_map = sqlx::query!(
+        r#"select ss.id as "solar_system_id!", ss.name as "name!", r.name as "region!",
+                  ss.security_status as "security!", ss.wormhole_class_id
+           from solar_systems ss
+           join regions r on r.id = ss.region_id
+           where ss.name ilike $1 and ss.id <> all($2)
+           order by (ss.name ilike $3) desc, length(ss.name), ss.name
+           limit 10"#,
+        contains,
+        &placed_ids,
+        prefix,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    hits.extend(off_map.into_iter().map(|r| MapSearchHit {
+        solar_system_id: r.solar_system_id,
+        map_solar_system_id: None,
+        name: r.name,
+        region: r.region,
+        security: r.security,
+        wormhole_class_id: r.wormhole_class_id,
+        alias: None,
+        occupying_group: None,
+        note_excerpt: None,
+        matched: "name".into(),
+    }));
+    Ok(Json(hits))
+}
+
+/// A one-line window of `notes` around the first match, so the palette shows why a note hit.
+fn excerpt(notes: &str, needle: &str) -> String {
+    const WINDOW: usize = 60;
+    let at = notes
+        .to_lowercase()
+        .find(&needle.to_lowercase())
+        .unwrap_or(0);
+    let start = notes[..at]
+        .char_indices()
+        .rev()
+        .take(WINDOW)
+        .last()
+        .map_or(at, |(i, _)| i);
+    let end = notes[at..]
+        .char_indices()
+        .take(needle.len() + WINDOW)
+        .last()
+        .map_or(notes.len(), |(i, c)| at + i + c.len_utf8());
+    let mut out = String::new();
+    if start > 0 {
+        out.push('…');
+    }
+    out.push_str(notes[start..end].trim());
+    if end < notes.len() {
+        out.push('…');
+    }
+    out.replace('\n', " ")
 }
 
 /// `GET /api/maps/{id}/connections/stale` — edges that have been critical for over an hour.

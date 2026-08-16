@@ -47,6 +47,7 @@ import type { SetWatchlistPinned } from './types/SetWatchlistPinned';
 import type { SystemDetails } from './types/SystemDetails';
 import type { AccessEntry } from './types/AccessEntry';
 import type { StaleConnection } from './types/StaleConnection';
+import type { MapSearchHit } from './types/MapSearchHit';
 import type { CleanStaleConnections } from './types/CleanStaleConnections';
 import type { AccessSubject } from './types/AccessSubject';
 import type { SetAccess } from './types/SetAccess';
@@ -208,6 +209,8 @@ export const api = {
 	setAccess: (cmd: SetAccess) => post<null>(`/api/maps/${cmd.map_id}/access/set`, cmd),
 	revokeAccess: (cmd: RevokeAccess) => post<null>(`/api/maps/${cmd.map_id}/access/revoke`, cmd),
 
+	searchMap: (mapId: number, query: string) =>
+		get<MapSearchHit[]>(`/api/maps/${mapId}/search?q=${encodeURIComponent(query)}`),
 	listStaleConnections: (mapId: number) =>
 		get<StaleConnection[]>(`/api/maps/${mapId}/connections/stale`),
 	cleanStaleConnections: (cmd: CleanStaleConnections) =>

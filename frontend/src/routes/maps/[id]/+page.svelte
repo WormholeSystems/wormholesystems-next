@@ -12,7 +12,7 @@
 
 	import { setContext } from 'svelte';
 
-	import { replaceState } from '$app/navigation';
+	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 
 	import { api } from '$lib/api/client';
@@ -45,6 +45,7 @@
 	import Scrollbars from './Scrollbars.svelte';
 	import SignaturesPanel from './SignaturesPanel.svelte';
 	import SystemNode from './SystemNode.svelte';
+	import CommandPalette from './CommandPalette.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import SystemSearchDialog from './SystemSearchDialog.svelte';
 
@@ -113,6 +114,24 @@
 			clearInterval(presence);
 			closeWs();
 		};
+	});
+
+	// `replaceState` throws until the router has started, which is still mid-hydration on
+	// first paint. afterNavigate fires once it is ready.
+	let routerReady = $state(false);
+	afterNavigate(() => (routerReady = true));
+
+	// The deep link follows the active system wherever it was set from: a node click, the
+	// palette, or the context menu. Keeping it in one effect means no caller can forget.
+	// It only ever writes the param: clearing it would race the load-time restore, which
+	// reads `?system=` before the map data has arrived and an active system exists.
+	$effect(() => {
+		const active = map.activeSystem;
+		if (!routerReady || !active) return;
+		const url = new URL(page.url);
+		if (url.searchParams.get('system') === String(active.solar_system_id)) return;
+		url.searchParams.set('system', String(active.solar_system_id));
+		replaceState(url, {});
 	});
 
 	// Block the page from scrolling when the wheel is used over the canvas (we don't zoom on
@@ -319,9 +338,6 @@
 		if (ev.button !== 0) return;
 		ev.stopPropagation();
 		map.activeId = s.id;
-		const url = new URL(page.url);
-		url.searchParams.set('system', String(s.solar_system_id));
-		replaceState(url, {});
 	}
 
 	function handleLinkDown(ev: PointerEvent, id: number) {
@@ -420,11 +436,16 @@
 			map.closeMenu();
 			map.connectionPopover = null;
 		}
+		if (ev.key === 'k' && (ev.metaKey || ev.ctrlKey)) {
+			ev.preventDefault();
+			map.paletteOpen = !map.paletteOpen;
+		}
 	}}
 />
 
 <StatusBar {map} />
 
+<CommandPalette {map} bind:open={map.paletteOpen} />
 <SystemSearchDialog bind:open={map.searchOpen} onpick={onSearchPick} />
 
 <div class="mt-3 grid grid-cols-[1fr_420px] items-start gap-4">

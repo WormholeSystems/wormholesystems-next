@@ -84,6 +84,8 @@ export class MapState {
 	menu = $state<Menu | null>(null);
 	panDrag = $state<{ cx: number; cy: number; px: number; py: number } | null>(null);
 	searchOpen = $state(false);
+	// The Cmd+K palette, opened from the status bar or the shortcut.
+	paletteOpen = $state(false);
 	// The connection details popover: which edge, anchored at which screen point.
 	connectionPopover = $state<{ id: number; x: number; y: number } | null>(null);
 	// Where a search-added system should land (world coords, top-left). Set by the

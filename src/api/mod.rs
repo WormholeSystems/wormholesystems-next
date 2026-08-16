@@ -222,6 +222,25 @@ pub struct ThreatAnalysis {
     pub entities: Vec<ThreatEntity>,
 }
 
+/// One hit from the map command palette. `map_solar_system_id` is set when the system is
+/// already placed; otherwise the hit is an off-map system the palette can add.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct MapSearchHit {
+    pub solar_system_id: i64,
+    pub map_solar_system_id: Option<i64>,
+    pub name: String,
+    pub region: String,
+    pub security: f64,
+    pub wormhole_class_id: Option<i32>,
+    pub alias: Option<String>,
+    pub occupying_group: Option<String>,
+    /// The matching slice of the system's notes, when the query hit the notes. Member+ only.
+    pub note_excerpt: Option<String>,
+    /// Why this row matched: `name`, `alias`, `occupier`, or `notes`.
+    pub matched: String,
+}
+
 /// A grantable subject from the access-subject search.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -376,6 +395,7 @@ pub fn router() -> Router<AppState> {
             "/api/maps/{id}/connections/{cid}/jumps",
             get(h::list_connection_jumps),
         )
+        .route("/api/maps/{id}/search", get(h::search_map))
         .route(
             "/api/maps/{id}/connections/stale",
             get(h::list_stale_connections),

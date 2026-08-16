@@ -7,6 +7,7 @@
 	import HistoryIcon from '@lucide/svelte/icons/history';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import RadarIcon from '@lucide/svelte/icons/radar';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -103,6 +104,17 @@
 	<span class="truncate text-sm font-medium" data-testid="status-bar-name">
 		{map.data?.map.name ?? '...'}
 	</span>
+	<Button
+		variant="outline"
+		size="sm"
+		class="h-7 gap-2 text-muted-foreground"
+		data-testid="palette-trigger"
+		onclick={() => (map.paletteOpen = true)}
+	>
+		<SearchIcon />
+		Search
+		<kbd class="rounded border border-border/60 px-1 font-mono text-[10px]">⌘K</kbd>
+	</Button>
 
 	<div class="flex flex-1 items-center justify-center gap-2">
 		{#if map.data && !map.data.character_has_access}
