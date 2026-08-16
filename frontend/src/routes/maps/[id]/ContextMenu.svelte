@@ -31,7 +31,7 @@
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { isWormholeClass } from '$lib/map/classes';
-	import { statusColor } from '$lib/map/helpers';
+	import { NODE_W, statusColor } from '$lib/map/helpers';
 	import { STATUS_ICONS, STATUS_OPTIONS, statusLabel } from '$lib/map/status';
 	import type { MapState, Menu } from './map-state.svelte';
 
@@ -60,6 +60,9 @@
 
 	function addSystem() {
 		map.linkFrom = null;
+		// Land the new system where the map was right-clicked (centered on the click).
+		const w = map.toWorld(menu.x, menu.y);
+		map.searchAnchor = { x: w.x - NODE_W / 2, y: w.y - map.nodeH / 2 };
 		map.searchOpen = true;
 		close();
 	}
@@ -82,6 +85,11 @@
 
 	function connectFrom(id: number) {
 		map.linkFrom = id;
+		// Land the connected system just right of its source node.
+		const s = map.systems.find((s) => s.id === id);
+		map.searchAnchor = s
+			? { x: s.position_x + NODE_W + 2 * map.grid.cell_size, y: s.position_y }
+			: null;
 		map.searchOpen = true;
 		close();
 	}

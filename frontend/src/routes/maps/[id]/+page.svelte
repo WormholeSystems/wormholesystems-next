@@ -328,10 +328,10 @@
 		map.linkFrom = null;
 		// Already placed?
 		const existing = map.systems.find((s) => s.solar_system_id === solarSystemId)?.id;
-		// Drop the new system at the first free grid slot near the viewport center, so
-		// systems don't stack on top of each other.
-		const r = map.viewportRect();
-		const base = centerWorld(map.pan, map.zoom, r);
+		// Drop the new system at the first free grid slot near the requested spot (the
+		// right-click point / source node), falling back to the viewport center.
+		const base = map.searchAnchor ?? centerWorld(map.pan, map.zoom, map.viewportRect());
+		map.searchAnchor = null;
 		const spot = freePosition(map.systems, base, map.grid);
 		map.run(
 			'add',

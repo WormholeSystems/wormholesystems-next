@@ -24,10 +24,18 @@ test('search dialog adds a system to the map', async ({ page, api }) => {
 	await expect(result).toBeVisible();
 	await result.click();
 
-	// The node appears on the canvas with its name and region.
+	// The node appears on the canvas with its name and region, centered on the
+	// right-click spot (grid-snapped).
 	const node = page.getByTestId('system-node').filter({ hasText: 'Jita' });
 	await expect(node).toBeVisible();
 	await expect(node.getByText('The Forge')).toBeVisible();
+	const pos = await node.evaluate((el) => ({
+		left: parseFloat((el as HTMLElement).style.left),
+		top: parseFloat((el as HTMLElement).style.top)
+	}));
+	// Click at (500, 500), node 180 wide / 40 tall → top-left near (410, 480).
+	expect(Math.abs(pos.left - 410)).toBeLessThanOrEqual(40);
+	expect(Math.abs(pos.top - 480)).toBeLessThanOrEqual(40);
 });
 
 test('node context menu sets the system status', async ({ page, api }) => {

@@ -77,6 +77,9 @@ export class MapState {
 	menu = $state<Menu | null>(null);
 	panDrag = $state<{ cx: number; cy: number; px: number; py: number } | null>(null);
 	searchOpen = $state(false);
+	// Where a search-added system should land (world coords, top-left). Set by the
+	// context menu (right-click spot / next to the source node); null = viewport center.
+	searchAnchor = $state<{ x: number; y: number } | null>(null);
 	// The active system (legacy model): set by clicking a node body, drives the side
 	// panels and the amber ring. Independent of the marquee selection.
 	activeId = $state<number | null>(null);
