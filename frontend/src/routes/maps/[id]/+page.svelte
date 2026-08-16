@@ -34,16 +34,8 @@
 	import { openMapSocket } from '$lib/ws';
 	import ConnectionPopover from './ConnectionPopover.svelte';
 	import ContextMenu from './ContextMenu.svelte';
-	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
-	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
-	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import NavigationCard from './panels/NavigationCard.svelte';
-	import ThreatCard from './panels/ThreatCard.svelte';
-	import NotesCard from './panels/NotesCard.svelte';
-	import SystemInfoCard from './panels/SystemInfoCard.svelte';
 	import { MapState, type Drag } from './map-state.svelte';
 	import Scrollbars from './Scrollbars.svelte';
-	import SignaturesPanel from './SignaturesPanel.svelte';
 	import SystemNode from './SystemNode.svelte';
 	import CommandPalette from './CommandPalette.svelte';
 	import Sidebar from './panels/Sidebar.svelte';
