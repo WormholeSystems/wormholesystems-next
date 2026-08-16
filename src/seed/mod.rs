@@ -86,15 +86,20 @@ async fn ensure_sde_present() -> Result<(), BoxError> {
 pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
     ensure_sde_present().await?;
     let bundled = bundled_build()?;
-    let loaded: Option<i64> = sqlx::query_scalar("select build_number from sde_build")
-        .fetch_optional(pool)
-        .await?;
-    if loaded == Some(bundled.build_number) {
+    let loaded: Option<(i64, i32)> =
+        sqlx::query_as("select build_number, seed_revision from sde_build")
+            .fetch_optional(pool)
+            .await?;
+    if loaded == Some((bundled.build_number, SEED_REVISION)) {
         return Ok(false);
     }
     seed_all(pool).await?;
     Ok(true)
 }
+
+/// Bump when the seed logic or bundled static data changes in a way that requires
+/// re-seeding an already-loaded SDE build.
+const SEED_REVISION: i32 = 2;
 
 /// The SDE build currently unpacked in `data/sde` (from its `_sde.jsonl` marker).
 #[derive(Deserialize)]
@@ -278,16 +283,35 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
     seed_entities(&mut tx, &corporations).await?;
     seed_static(&mut tx, &solar_systems).await?;
 
-    // Record the loaded build so startup can skip re-seeding when nothing changed.
+    // Effective wormhole class (see docs/database/universe.md): the SDE only sets a
+    // per-system class for a handful of systems, so fall back to the wormhole-system
+    // catalogue (all of J-space, Thera, C13), then to the region (Pochven, drifter
+    // regions). Runs after seed_static so wormhole_systems is populated.
+    sqlx::query(
+        "update solar_systems ss
+         set wormhole_class_id = coalesce(
+             ss.wormhole_class_id,
+             (select ws.wormhole_class_id from wormhole_systems ws where ws.solar_system_id = ss.id),
+             (select r.wormhole_class_id from regions r where r.id = ss.region_id)
+         )
+         where ss.wormhole_class_id is null",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Record the loaded build + seed revision so startup can skip re-seeding when
+    // nothing changed.
     let build = bundled_build()?;
     sqlx::query(
-        "insert into sde_build (id, build_number, release_date, loaded_at) \
-         values (true, $1, $2, now()) \
+        "insert into sde_build (id, build_number, release_date, seed_revision, loaded_at) \
+         values (true, $1, $2, $3, now()) \
          on conflict (id) do update set \
-         build_number = excluded.build_number, release_date = excluded.release_date, loaded_at = excluded.loaded_at",
+         build_number = excluded.build_number, release_date = excluded.release_date, \
+         seed_revision = excluded.seed_revision, loaded_at = excluded.loaded_at",
     )
     .bind(build.build_number)
     .bind(build.release_date())
+    .bind(SEED_REVISION)
     .execute(&mut *tx)
     .await?;
 
@@ -465,6 +489,7 @@ struct WhType {
     mass_regen: Option<i64>,
     lifetime: Option<f64>,
     sibling_groups: Option<serde_json::Value>,
+    signature_strength: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -478,6 +503,8 @@ struct WhSystem {
     effect: Option<String>,
     #[serde(default)]
     statics: Vec<String>,
+    #[serde(default)]
+    shattered: bool,
 }
 
 #[derive(Deserialize)]
@@ -567,7 +594,8 @@ async fn seed_static(
     }
     let n = bulk!(
         tx,
-        "wormhole_types (code, type_id, dest_class, is_static, max_mass_per_jump, total_mass, mass_regen, lifetime_hours, sibling_groups)",
+        "wormhole_types (code, type_id, dest_class, is_static, max_mass_per_jump, total_mass, mass_regen, lifetime_hours, sibling_groups, signature_strength)",
+        "on conflict (code) do update set type_id = excluded.type_id, dest_class = excluded.dest_class, is_static = excluded.is_static, max_mass_per_jump = excluded.max_mass_per_jump, total_mass = excluded.total_mass, mass_regen = excluded.mass_regen, lifetime_hours = excluded.lifetime_hours, sibling_groups = excluded.sibling_groups, signature_strength = excluded.signature_strength",
         &wh_types,
         |b, (code, t)| {
             b.push_bind(code)
@@ -579,6 +607,7 @@ async fn seed_static(
                 .push_bind(t.mass_regen)
                 .push_bind(t.lifetime)
                 .push_bind(t.sibling_groups.clone())
+                .push_bind(t.signature_strength)
         }
     );
     println!("wormhole_types: {n}");
@@ -605,12 +634,14 @@ async fn seed_static(
     }
     let n = bulk!(
         tx,
-        "wormhole_systems (solar_system_id, wormhole_class_id, effect_name)",
+        "wormhole_systems (solar_system_id, wormhole_class_id, effect_name, is_shattered)",
+        "on conflict (solar_system_id) do update set wormhole_class_id = excluded.wormhole_class_id, effect_name = excluded.effect_name, is_shattered = excluded.is_shattered",
         &wh_systems,
         |b, s| {
             b.push_bind(s.id)
                 .push_bind(s.class.unwrap())
                 .push_bind(s.effect.clone())
+                .push_bind(s.shattered)
         }
     );
     println!("wormhole_systems: {n}");

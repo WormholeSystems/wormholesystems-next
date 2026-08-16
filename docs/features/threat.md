@@ -1,0 +1,41 @@
+# Threat analysis
+
+Kill-activity threat per wormhole system, ported from the legacy rules. Part of the
+[feature specs](../README.md); tables in [database/](../database/).
+
+## Ingest
+
+`src/killmails.rs` polls zKillboard's R2Z2 sequence stream (`/ephemeral/sequence.json`,
+then `/ephemeral/{seq}.json`) and persists a **minimal** row per killmail: id, hash,
+solar system, time, and the participating organisations (victim + every attacker,
+alliance preferred over corporation, each org at most once per killmail). The full ESI
+payload is not stored. Retention is 730 days (daily purge). The cursor lives in
+`zkb_state`.
+
+Both loops are gated behind `ZKB_LISTEN=1` so dev machines don't poll zKillboard by
+default. Backfill from EVE Ref archives is a possible follow-up; without it, threat data
+accumulates from the moment the listener first runs.
+
+## Analysis (daily, full replacement)
+
+Per wormhole system, over the last 90 days:
+
+1. Count kills per organisation (an org scores one per killmail it appears in).
+2. Drop orgs active on fewer than 5 distinct days.
+3. Keep the top 10 by kills.
+4. Sum their kills: `>= 50` → `critical`, `>= 15` → `high`, else `unknown`.
+
+Results go to `wormhole_systems.threat_level` / `threat_analyzed_at` and the
+`wormhole_system_threats` top list (names resolved from the local alliance/corporation
+tables, falling back to ESI). The whole result set is replaced on every run.
+
+Rules are covered by unit tests in `src/killmails.rs` and DB-backed tests in
+`tests/threat.rs`.
+
+## Surface
+
+- `MapSystemView.threat_level` (wormhole systems only) drives the node's threat ring
+  (`ring-threat-critical` red / `ring-threat-high` orange), gated by the per-user map
+  setting `show_threat_level` and suppressed while the node is active.
+- `GET /api/threat/{solar_system_id}` returns the level, analysis timestamp, and the top
+  entities for the Threat card (badge, entity list with zKillboard links, freshness).

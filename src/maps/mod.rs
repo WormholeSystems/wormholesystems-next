@@ -7,10 +7,8 @@
 
 // Cross-target modules: each holds shared data types (compiled for ssr + wasm) plus
 // `ssr`-gated DB actions. `access` and `error` are server-only.
-#[cfg(feature = "ssr")]
 pub mod access;
 pub mod connection;
-#[cfg(feature = "ssr")]
 pub mod error;
 pub mod events;
 pub mod map;
@@ -18,10 +16,8 @@ pub mod signatures;
 pub mod solar_system;
 
 pub use connection::MapConnection;
-#[cfg(feature = "ssr")]
 pub use error::{MapError, Result};
 pub use events::MapEvent;
-#[cfg(feature = "ssr")]
 pub use events::MapHub;
 pub use map::Map;
 pub use signatures::Signature;
@@ -33,8 +29,9 @@ pub use solar_system::{EffectModifier, MapSolarSystem, MapSystemView, Sovereignt
 macro_rules! text_enum {
     ($(#[$m:meta])* $vis:vis enum $name:ident { $($variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS)]
         #[serde(rename_all = "lowercase")]
+        #[ts(export)]
         $vis enum $name { $($variant),+ }
 
         impl $name {
@@ -49,7 +46,6 @@ macro_rules! text_enum {
         // Only `Type` + `Decode` are generated: queries bind these enums as `&str` via
         // `as_str()`, but read them back through `as "col: Enum"` casts. Server-only — the
         // sqlx glue isn't compiled for the wasm client.
-        #[cfg(feature = "ssr")]
         impl sqlx::Type<sqlx::Postgres> for $name {
             fn type_info() -> sqlx::postgres::PgTypeInfo {
                 <str as sqlx::Type<sqlx::Postgres>>::type_info()
@@ -58,7 +54,6 @@ macro_rules! text_enum {
                 <str as sqlx::Type<sqlx::Postgres>>::compatible(ty)
             }
         }
-        #[cfg(feature = "ssr")]
         impl<'r> sqlx::Decode<'r, sqlx::Postgres> for $name {
             fn decode(
                 value: sqlx::postgres::PgValueRef<'r>,
@@ -154,13 +149,15 @@ impl Default for SignatureGroup {
 
 text_enum! {
     /// A placed system's intel status (`map_solar_system_details.status`), set by users.
+    /// Matches the legacy vocabulary: `active` = recent activity seen, `empty` = scanned
+    /// and found empty.
     pub enum SystemStatus {
-        Unscanned => "unscanned",
-        Scanned => "scanned",
-        Occupied => "occupied",
+        Unknown => "unknown",
         Friendly => "friendly",
         Hostile => "hostile",
-        Unknown => "unknown",
+        Active => "active",
+        Unscanned => "unscanned",
+        Empty => "empty",
     }
 }
 
@@ -168,6 +165,15 @@ impl Default for SystemStatus {
     /// A freshly placed system is `Unscanned` until someone classifies it.
     fn default() -> Self {
         Self::Unscanned
+    }
+}
+
+text_enum! {
+    /// A wormhole system's kill-activity threat level, from the daily analysis.
+    pub enum ThreatLevel {
+        Unknown => "unknown",
+        High => "high",
+        Critical => "critical",
     }
 }
 
@@ -180,9 +186,34 @@ pub struct Actor {
 }
 
 /// The graph as seen by a viewer: the map plus its placed systems and connections.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct MapView {
     pub map: Map,
     pub systems: Vec<MapSystemView>,
     pub connections: Vec<MapConnection>,
+}
+
+/// Map canvas geometry. Server-owned (built from env in `crate::config`), fetched by the
+/// client so layout has a single source of truth. Node height is `2 * cell_size`;
+/// dimensions are world-space px.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct GridConfig {
+    pub cell_size: f64,
+    pub world_width: f64,
+    pub world_height: f64,
+    pub viewport_height: f64,
+}
+
+impl Default for GridConfig {
+    fn default() -> Self {
+        Self {
+            // Match the legacy map: 20-unit grid cells, so the node (2 cells) is 40 tall.
+            cell_size: 20.0,
+            world_width: 4000.0,
+            world_height: 2000.0,
+            viewport_height: 1400.0,
+        }
+    }
 }

@@ -66,7 +66,8 @@ map and be shown again when it is re-added. Lives independently of
 | `id`               | pk          |                                                          |
 | `map_id`           | fk maps     |                                                          |
 | `solar_system_id`  | int         | SDE `_key`                                               |
-| `status`           | enum        | e.g. `unscanned`, `scanned`, `friendly`, `hostile`       |
+| `status`           | enum        | `unknown` / `friendly` / `hostile` / `active` / `unscanned` / `empty` |
+| `notes`             | text, null  | member-gated markdown notes (viewers never receive them)  |
 | `occupying_group`  | text, null  | who holds the system (intel)                             |
 | `updated_at`       | timestamptz |                                                          |
 
@@ -78,9 +79,6 @@ map and be shown again when it is re-added. Lives independently of
 - Round-trip: add system → set status/occupying group → remove → re-add ⇒ the status
   and occupying group are still there. (Signatures, by contrast, are gone.)
 - Deleting the **map** removes its details; removing a single **system** does not.
-
-> **Open — status values.** Final enum set (`unscanned`/`scanned`/`friendly`/
-> `hostile`/…?). And is `occupying_group` free text or a reference to a known entity?
 
 ---
 

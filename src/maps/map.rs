@@ -6,25 +6,20 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
-#[cfg(feature = "ssr")]
 use super::access::{owns_character, require_role};
-#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
-#[cfg(feature = "ssr")]
 use std::collections::HashMap;
 
-#[cfg(feature = "ssr")]
 use super::solar_system::{MapSystemView, Sovereignty, Static};
-#[cfg(feature = "ssr")]
 use super::{
     Actor, ConnectionType, MapConnection, MapView, MassStatus, Role, SubjectType, TimeStatus,
     WormholeSize,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct Map {
     pub id: i64,
     pub name: String,
@@ -33,13 +28,13 @@ pub struct Map {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct CreateMap {
     pub name: String,
     pub description: Option<String>,
 }
 
-#[cfg(feature = "ssr")]
 impl CreateMap {
     pub fn validate(&self) -> Result<()> {
         if self.name.trim().is_empty() {
@@ -51,7 +46,6 @@ impl CreateMap {
 
 /// Create a map and grant ownership to the acting character. Any authenticated user may
 /// create a map.
-#[cfg(feature = "ssr")]
 pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<Map> {
     cmd.validate()?;
     if !owns_character(pool, actor.user_id, actor.character_id).await? {
@@ -84,18 +78,21 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
 
 /// A partial update of a map's fields. `None` leaves a field unchanged; `Some(None)`
 /// explicitly clears a nullable field.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct UpdateMap {
     pub map_id: i64,
     #[serde(default)]
+    #[ts(optional)]
     pub name: Option<String>,
     #[serde(default)]
+    #[ts(optional)]
     pub description: Option<Option<String>>,
     #[serde(default)]
+    #[ts(optional)]
     pub image_url: Option<Option<String>>,
 }
 
-#[cfg(feature = "ssr")]
 impl UpdateMap {
     pub fn validate(&self) -> Result<()> {
         if let Some(name) = &self.name
@@ -108,7 +105,6 @@ impl UpdateMap {
 }
 
 /// Rename / re-describe / re-icon a map. Owner only.
-#[cfg(feature = "ssr")]
 pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<Map> {
     cmd.validate()?;
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
@@ -145,14 +141,14 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     Ok(map)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct DeleteMap {
     pub map_id: i64,
 }
 
 /// Delete a map. Owner only. The database cascades placements, details, connections,
 /// signatures, and access grants.
-#[cfg(feature = "ssr")]
 pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
     sqlx::query!("delete from maps where id = $1", cmd.map_id)
@@ -162,7 +158,6 @@ pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<(
 }
 
 /// Every map the user can access, paired with their effective role on it.
-#[cfg(feature = "ssr")]
 pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> {
     let rows = sqlx::query!(
         r#"select m.id, m.name, m.description, m.image_url, m.created_at, ma.role as "role!: Role"
@@ -200,14 +195,14 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
     Ok(out)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct GetMap {
     pub map_id: i64,
 }
 
 /// Read a map's graph — the map, its placed systems, and its connections. Viewer+.
 /// Live pilot locations are not included (that's the member-gated tracking path).
-#[cfg(feature = "ssr")]
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
 
@@ -224,7 +219,8 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     // system rather than joining (which would multiply the system rows).
     let mut statics_by_system: HashMap<i64, Vec<Static>> = HashMap::new();
     let static_rows = sqlx::query!(
-        "select wss.solar_system_id, wt.code, wt.dest_class
+        "select wss.solar_system_id, wt.code, wt.dest_class,
+                wt.total_mass, wt.max_mass_per_jump, wt.lifetime_hours, wt.signature_strength
          from map_solar_systems mss
          join wormhole_system_statics wss on wss.solar_system_id = mss.solar_system_id
          join wormhole_types wt on wt.code = wss.wormhole_code
@@ -240,6 +236,10 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
             .push(Static {
                 code: row.code,
                 dest_class: row.dest_class,
+                total_mass: row.total_mass,
+                max_jump_mass: row.max_mass_per_jump,
+                lifetime_hours: row.lifetime_hours,
+                signature_strength: row.signature_strength,
             });
     }
 
@@ -251,8 +251,11 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                d.occupying_group,
                ss.name as "name!", ss.security_status as "security_status!",
                ss.wormhole_class_id,
-               r.name as "region!",
+               r.name as "region!", ss.region_id,
+               ss.constellation_id, c.name as "constellation!",
                ws.effect_name,
+               coalesce(ws.is_shattered, false) as "is_shattered!",
+               ws.threat_level as "threat_level?: super::ThreatLevel",
                -- Sovereignty holder, alliance preferred over corp over faction.
                case
                    when sov.alliance_id is not null then 'alliance'
@@ -265,6 +268,7 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
            from map_solar_systems mss
            join solar_systems ss on ss.id = mss.solar_system_id
            join regions r on r.id = ss.region_id
+           join constellations c on c.id = ss.constellation_id
            left join map_solar_system_details d
                on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
            left join wormhole_systems ws on ws.solar_system_id = ss.id
@@ -314,8 +318,15 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                 security_status: row.security_status,
                 wormhole_class_id: row.wormhole_class_id,
                 region: row.region,
+                region_id: row.region_id,
+                constellation_id: row.constellation_id,
+                constellation: row.constellation,
                 effect_name: row.effect_name,
-                statics: statics_by_system.remove(&row.solar_system_id).unwrap_or_default(),
+                is_shattered: row.is_shattered,
+                threat_level: row.threat_level,
+                statics: statics_by_system
+                    .remove(&row.solar_system_id)
+                    .unwrap_or_default(),
                 sovereignty,
             }
         })

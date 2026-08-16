@@ -32,6 +32,7 @@ with their mass and lifetime limits.
 | `mass_regen` | bigint, null | kg regenerated |
 | `lifetime_hours` | float, null | hours before natural decay (fractional — some are e.g. 4.5) |
 | `sibling_groups` | jsonb, null | related-type groupings (rarely set) |
+| `signature_strength` | float, null | scan signature strength in percent |
 
 **Invariants & expected behaviour**
 
@@ -85,6 +86,7 @@ systems. The system's `id` **is** an SDE solar system, so this augments
 | `solar_system_id` | pk, fk solar_systems | the J-space system |
 | `wormhole_class_id` | int | the system's class (C1–C6, 12–23) |
 | `effect_name` | fk wormhole_effects, null | system effect, if any |
+| `is_shattered` | bool | shattered system (106 systems, all classes; C13 is only the frigate subset) |
 
 ### `wormhole_system_statics`
 

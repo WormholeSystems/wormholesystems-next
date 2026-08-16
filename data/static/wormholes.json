@@ -1,1250 +1,1342 @@
 {
-    "_encoding": {
-        "1": "C1",
-        "2": "C2",
-        "3": "C3",
-        "4": "C4",
-        "5": "C5",
-        "6": "C6",
-        "7": "Highsec",
-        "8": "Lowsec",
-        "9": "Nullsec",
-        "12": "Thera",
-        "13": "C13 (shattered)",
-        "14": "Drifter - Sentinel",
-        "15": "Drifter - Barbican",
-        "16": "Drifter - Vidette",
-        "17": "Drifter - Conflux",
-        "18": "Drifter - Redoubt",
-        "19": "Abyssal",
-        "20": "Abyssal",
-        "21": "Abyssal",
-        "22": "Abyssal",
-        "23": "Abyssal",
-        "25": "Pochven"
+  "_encoding": {
+    "1": "C1",
+    "2": "C2",
+    "3": "C3",
+    "4": "C4",
+    "5": "C5",
+    "6": "C6",
+    "7": "Highsec",
+    "8": "Lowsec",
+    "9": "Nullsec",
+    "12": "Thera",
+    "13": "C13 (shattered)",
+    "14": "Drifter - Sentinel",
+    "15": "Drifter - Barbican",
+    "16": "Drifter - Vidette",
+    "17": "Drifter - Conflux",
+    "18": "Drifter - Redoubt",
+    "19": "Abyssal",
+    "20": "Abyssal",
+    "21": "Abyssal",
+    "22": "Abyssal",
+    "23": "Abyssal",
+    "25": "Pochven",
+    "signature_strength": "scan signature strength in percent (higher = easier to scan)"
+  },
+  "wormholes": {
+    "T405": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30683,
+      "signature_strength": 6.67
     },
-    "wormholes": {
-        "T405": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30683
-        },
-        "R943": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                7,
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 30583
-        },
-        "B041": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                7
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 48,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30645
-        },
-        "S804": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30665
-        },
-        "Q063": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                12
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": null,
-            "typeID": 34368
-        },
-        "K329": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                4
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 16,
-            "total_mass": 5000000000,
-            "sibling_groups": null,
-            "typeID": 30697
-        },
-        "B520": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 48,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30713
-        },
-        "M267": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                5
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 1000000000,
-            "sibling_groups": [],
-            "typeID": 30700
-        },
-        "V911": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                6
-            ],
-            "static": true,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": [],
-            "typeID": 30711
-        },
-        "O883": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30662
-        },
-        "W237": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                6
-            ],
-            "static": true,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": [],
-            "typeID": 30712
-        },
-        "L031": {
-            "mass_regen": 0,
-            "dest": 12,
-            "src": [
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34367
-        },
-        "H121": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": null,
-            "typeID": 30660
-        },
-        "E004": {
-            "mass_regen": 3000000000,
-            "dest": 1,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34134
-        },
-        "V753": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                5
-            ],
-            "static": true,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": [],
-            "typeID": 30703
-        },
-        "C008": {
-            "mass_regen": 3000000000,
-            "dest": 5,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34138
-        },
-        "F353": {
-            "mass_regen": 0,
-            "dest": 12,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 100000000,
-            "sibling_groups": null,
-            "typeID": 34371
-        },
-        "U319": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 48,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30646
-        },
-        "Z457": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                6
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [],
-            "typeID": 30710
-        },
-        "X877": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                4
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30692
-        },
-        "Y683": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [
-                [
-                    "B274"
-                ]
-            ],
-            "typeID": 30674
-        },
-        "O128": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                7,
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30642
-        },
-        "C414": {
-            "mass_regen": 0,
-            "dest": 17,
-            "src": [],
-            "static": null,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 35653
-        },
-        "A009": {
-            "mass_regen": 3000000000,
-            "dest": 13,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 16,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34439
-        },
-        "L614": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30664
-        },
-        "B274": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 2000000000,
-            "sibling_groups": [
-                [
-                    "Z647"
-                ],
-                [
-                    "O477"
-                ],
-                [
-                    "Y683"
-                ]
-            ],
-            "typeID": 30677
-        },
-        "H900": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                4
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30693
-        },
-        "O477": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [
-                [
-                    "B274"
-                ]
-            ],
-            "typeID": 30673
-        },
-        "L005": {
-            "mass_regen": 3000000000,
-            "dest": 2,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34135
-        },
-        "E175": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                5
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [],
-            "typeID": 30701
-        },
-        "K346": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                3
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 3000000000,
-            "sibling_groups": [],
-            "typeID": 30688
-        },
-        "Z006": {
-            "mass_regen": 3000000000,
-            "dest": 3,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34136
-        },
-        "P060": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                4
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": null,
-            "typeID": 30689
-        },
-        "A239": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 2000000000,
-            "sibling_groups": [
-                [
-                    "D382"
-                ]
-            ],
-            "typeID": 30678
-        },
-        "C125": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30661
-        },
-        "Z142": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                5,
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 16,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30706
-        },
-        "R051": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                7
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30658
-        },
-        "N770": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30684
-        },
-        "Y790": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                5
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": [],
-            "typeID": 30698
-        },
-        "V898": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                12
-            ],
-            "static": true,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 34369
-        },
-        "A641": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                7
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30657
-        },
-        "M164": {
-            "mass_regen": 0,
-            "dest": 12,
-            "src": [
-                8
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 34366
-        },
-        "B735": {
-            "mass_regen": 0,
-            "dest": 15,
-            "src": [],
-            "static": null,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 35651
-        },
-        "I182": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30681
-        },
-        "N290": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                4
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30696
-        },
-        "S877": {
-            "mass_regen": 0,
-            "dest": 14,
-            "src": [],
-            "static": null,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 35650
-        },
-        "D364": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                5
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 1000000000,
-            "sibling_groups": [],
-            "typeID": 30699
-        },
-        "N766": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                4
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30690
-        },
-        "U210": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                3
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": [],
-            "typeID": 30687
-        },
-        "Z971": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                7,
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 100000000,
-            "sibling_groups": null,
-            "typeID": 30579
-        },
-        "Z060": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                1
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 1000000000,
-            "sibling_groups": [],
-            "typeID": 30668
-        },
-        "H296": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                5
-            ],
-            "static": true,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": [],
-            "typeID": 30702
-        },
-        "Q317": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                6
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": [],
-            "typeID": 30707
-        },
-        "A982": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30685
-        },
-        "X702": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                7,
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30584
-        },
-        "V301": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": null,
-            "typeID": 30680
-        },
-        "C391": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 48,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30714
-        },
-        "M555": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                7
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30644
-        },
-        "F135": {
-            "mass_regen": 0,
-            "dest": 12,
-            "src": [
-                2,
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 34372
-        },
-        "E545": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [
-                [
-                    "N062"
-                ],
-                [
-                    "R474"
-                ]
-            ],
-            "typeID": 30679
-        },
-        "D382": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [
-                [
-                    "A239"
-                ]
-            ],
-            "typeID": 30672
-        },
-        "M609": {
-            "mass_regen": 0,
-            "dest": 4,
-            "src": [
-                1
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 30663
-        },
-        "S047": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                4
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30686
-        },
-        "R474": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": [
-                [
-                    "E545"
-                ]
-            ],
-            "typeID": 30676
-        },
-        "N062": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": [
-                [
-                    "E545"
-                ]
-            ],
-            "typeID": 30675
-        },
-        "E587": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                12
-            ],
-            "static": true,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34370
-        },
-        "S199": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 16,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30649
-        },
-        "Z647": {
-            "mass_regen": 0,
-            "dest": 1,
-            "src": [
-                2
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": [
-                [
-                    "B274"
-                ]
-            ],
-            "typeID": 30671
-        },
-        "C247": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                4
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30691
-        },
-        "Q003": {
-            "mass_regen": 3000000000,
-            "dest": 9,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34140
-        },
-        "N944": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30648
-        },
-        "D792": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                5,
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30704
-        },
-        "N110": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                1
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": [],
-            "typeID": 30666
-        },
-        "M001": {
-            "mass_regen": 3000000000,
-            "dest": 4,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34137
-        },
-        "K162": {
-            "mass_regen": null,
-            "dest": null,
-            "src": [],
-            "static": null,
-            "max_mass_per_jump": null,
-            "lifetime": null,
-            "total_mass": null,
-            "sibling_groups": null,
-            "typeID": 30831
-        },
-        "G008": {
-            "mass_regen": 3000000000,
-            "dest": 6,
-            "src": [],
-            "static": false,
-            "max_mass_per_jump": 5000000,
-            "lifetime": 4.5,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 34139
-        },
-        "C248": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 16,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30715
-        },
-        "V928": {
-            "mass_regen": 0,
-            "dest": 16,
-            "src": [],
-            "static": null,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 35652
-        },
-        "D845": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                3
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 5000000000,
-            "sibling_groups": [],
-            "typeID": 30695
-        },
-        "R259": {
-            "mass_regen": 0,
-            "dest": 18,
-            "src": [],
-            "static": null,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 750000000,
-            "sibling_groups": null,
-            "typeID": 35654
-        },
-        "N968": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                3
-            ],
-            "static": false,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30682
-        },
-        "T458": {
-            "mass_regen": 0,
-            "dest": 12,
-            "src": [
-                7
-            ],
-            "static": false,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 16,
-            "total_mass": 500000000,
-            "sibling_groups": null,
-            "typeID": 34338
-        },
-        "V283": {
-            "mass_regen": 0,
-            "dest": 9,
-            "src": [
-                7
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30659
-        },
-        "C140": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                5,
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30705
-        },
-        "U574": {
-            "mass_regen": 0,
-            "dest": 6,
-            "src": [
-                4
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 24,
-            "total_mass": 3000000000,
-            "sibling_groups": null,
-            "typeID": 30694
-        },
-        "N432": {
-            "mass_regen": 0,
-            "dest": 5,
-            "src": [
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 2000000000,
-            "lifetime": 24,
-            "total_mass": 3300000000,
-            "sibling_groups": null,
-            "typeID": 30643
-        },
-        "B449": {
-            "mass_regen": 0,
-            "dest": 7,
-            "src": [
-                8,
-                9
-            ],
-            "static": false,
-            "max_mass_per_jump": 1000000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": null,
-            "typeID": 30647
-        },
-        "G024": {
-            "mass_regen": 0,
-            "dest": 2,
-            "src": [
-                6
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [],
-            "typeID": 30708
-        },
-        "J244": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                1
-            ],
-            "static": true,
-            "max_mass_per_jump": 62000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": [],
-            "typeID": 30667
-        },
-        "L477": {
-            "mass_regen": 0,
-            "dest": 3,
-            "src": [
-                6
-            ],
-            "static": true,
-            "max_mass_per_jump": 375000000,
-            "lifetime": 16,
-            "total_mass": 2000000000,
-            "sibling_groups": [],
-            "typeID": 30709
-        },
-        "J492": {
-            "mass_regen": 0,
-            "dest": 8,
-            "src": [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6
-            ],
-            "static": false,
-            "max_mass_per_jump": 620000000,
-            "lifetime": 24,
-            "total_mass": 1000000000,
-            "sibling_groups": null,
-            "typeID": 87827
-        }
+    "R943": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        7,
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 30583,
+      "signature_strength": 6.67
+    },
+    "B041": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        7
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 48,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30645,
+      "signature_strength": null
+    },
+    "S804": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30665,
+      "signature_strength": 1.25
+    },
+    "Q063": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        12
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": null,
+      "typeID": 34368,
+      "signature_strength": null
+    },
+    "K329": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        4
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 16,
+      "total_mass": 5000000000,
+      "sibling_groups": null,
+      "typeID": 30697,
+      "signature_strength": null
+    },
+    "B520": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 48,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30713,
+      "signature_strength": null
+    },
+    "M267": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        5
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 1000000000,
+      "sibling_groups": [],
+      "typeID": 30700,
+      "signature_strength": 1.25
+    },
+    "V911": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        6
+      ],
+      "static": true,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": [],
+      "typeID": 30711,
+      "signature_strength": 10
+    },
+    "O883": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30662,
+      "signature_strength": 5
+    },
+    "W237": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        6
+      ],
+      "static": true,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": [],
+      "typeID": 30712,
+      "signature_strength": 6.67
+    },
+    "L031": {
+      "mass_regen": 0,
+      "dest": 12,
+      "src": [
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34367,
+      "signature_strength": null
+    },
+    "H121": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": null,
+      "typeID": 30660,
+      "signature_strength": 10
+    },
+    "E004": {
+      "mass_regen": 3000000000,
+      "dest": 1,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34134,
+      "signature_strength": null
+    },
+    "V753": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        5
+      ],
+      "static": true,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": [],
+      "typeID": 30703,
+      "signature_strength": 6.67
+    },
+    "C008": {
+      "mass_regen": 3000000000,
+      "dest": 5,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34138,
+      "signature_strength": null
+    },
+    "F353": {
+      "mass_regen": 0,
+      "dest": 12,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 100000000,
+      "sibling_groups": null,
+      "typeID": 34371,
+      "signature_strength": null
+    },
+    "U319": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 48,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30646,
+      "signature_strength": null
+    },
+    "Z457": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        6
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [],
+      "typeID": 30710,
+      "signature_strength": 4
+    },
+    "X877": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        4
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30692,
+      "signature_strength": 6.67
+    },
+    "Y683": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [
+        [
+          "B274"
+        ]
+      ],
+      "typeID": 30674,
+      "signature_strength": 4
+    },
+    "O128": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        7,
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30642,
+      "signature_strength": null
+    },
+    "C414": {
+      "mass_regen": 0,
+      "dest": 17,
+      "src": [],
+      "static": null,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 35653,
+      "signature_strength": null
+    },
+    "A009": {
+      "mass_regen": 3000000000,
+      "dest": 13,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 16,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34439,
+      "signature_strength": null
+    },
+    "L614": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30664,
+      "signature_strength": 2.5
+    },
+    "B274": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 2000000000,
+      "sibling_groups": [
+        [
+          "Z647"
+        ],
+        [
+          "O477"
+        ],
+        [
+          "Y683"
+        ]
+      ],
+      "typeID": 30677,
+      "signature_strength": 10
+    },
+    "H900": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        4
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30693,
+      "signature_strength": 2.5
+    },
+    "O477": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [
+        [
+          "B274"
+        ]
+      ],
+      "typeID": 30673,
+      "signature_strength": 5
+    },
+    "L005": {
+      "mass_regen": 3000000000,
+      "dest": 2,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34135,
+      "signature_strength": null
+    },
+    "E175": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        5
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [],
+      "typeID": 30701,
+      "signature_strength": 5
+    },
+    "K346": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        3
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 3000000000,
+      "sibling_groups": [],
+      "typeID": 30688,
+      "signature_strength": 2.5
+    },
+    "Z006": {
+      "mass_regen": 3000000000,
+      "dest": 3,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34136,
+      "signature_strength": null
+    },
+    "P060": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        4
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": null,
+      "typeID": 30689,
+      "signature_strength": 5
+    },
+    "A239": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 2000000000,
+      "sibling_groups": [
+        [
+          "D382"
+        ]
+      ],
+      "typeID": 30678,
+      "signature_strength": 5
+    },
+    "C125": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30661,
+      "signature_strength": 6.67
+    },
+    "Z142": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        5,
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 16,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30706,
+      "signature_strength": 10
+    },
+    "R051": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        7
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30658,
+      "signature_strength": 5
+    },
+    "N770": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30684,
+      "signature_strength": 2.5
+    },
+    "Y790": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        5
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": [],
+      "typeID": 30698,
+      "signature_strength": 2.5
+    },
+    "V898": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        12
+      ],
+      "static": true,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 34369,
+      "signature_strength": null
+    },
+    "A641": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        7
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30657,
+      "signature_strength": 10
+    },
+    "M164": {
+      "mass_regen": 0,
+      "dest": 12,
+      "src": [
+        8
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 34366,
+      "signature_strength": null
+    },
+    "B735": {
+      "mass_regen": 0,
+      "dest": 15,
+      "src": [],
+      "static": null,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 35651,
+      "signature_strength": null
+    },
+    "I182": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30681,
+      "signature_strength": 4
+    },
+    "N290": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        4
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30696,
+      "signature_strength": null
+    },
+    "S877": {
+      "mass_regen": 0,
+      "dest": 14,
+      "src": [],
+      "static": null,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 35650,
+      "signature_strength": null
+    },
+    "D364": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        5
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 1000000000,
+      "sibling_groups": [],
+      "typeID": 30699,
+      "signature_strength": 1.25
+    },
+    "N766": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        4
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30690,
+      "signature_strength": 4
+    },
+    "U210": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        3
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": [],
+      "typeID": 30687,
+      "signature_strength": 10
+    },
+    "Z971": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        7,
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 100000000,
+      "sibling_groups": null,
+      "typeID": 30579,
+      "signature_strength": 10
+    },
+    "Z060": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        1
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 1000000000,
+      "sibling_groups": [],
+      "typeID": 30668,
+      "signature_strength": 2.5
+    },
+    "H296": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        5
+      ],
+      "static": true,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": [],
+      "typeID": 30702,
+      "signature_strength": 10
+    },
+    "Q317": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        6
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": [],
+      "typeID": 30707,
+      "signature_strength": 2.5
+    },
+    "A982": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30685,
+      "signature_strength": 2.22
+    },
+    "X702": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        7,
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30584,
+      "signature_strength": 10
+    },
+    "V301": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": null,
+      "typeID": 30680,
+      "signature_strength": 5
+    },
+    "C391": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 48,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30714,
+      "signature_strength": null
+    },
+    "M555": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        7
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30644,
+      "signature_strength": 2.5
+    },
+    "F135": {
+      "mass_regen": 0,
+      "dest": 12,
+      "src": [
+        2,
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 34372,
+      "signature_strength": null
+    },
+    "E545": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [
+        [
+          "N062"
+        ],
+        [
+          "R474"
+        ]
+      ],
+      "typeID": 30679,
+      "signature_strength": 2.5
+    },
+    "D382": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [
+        [
+          "A239"
+        ]
+      ],
+      "typeID": 30672,
+      "signature_strength": 6.67
+    },
+    "M609": {
+      "mass_regen": 0,
+      "dest": 4,
+      "src": [
+        1
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 30663,
+      "signature_strength": 4
+    },
+    "S047": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        4
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30686,
+      "signature_strength": null
+    },
+    "R474": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": [
+        [
+          "E545"
+        ]
+      ],
+      "typeID": 30676,
+      "signature_strength": 2.22
+    },
+    "N062": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": [
+        [
+          "E545"
+        ]
+      ],
+      "typeID": 30675,
+      "signature_strength": 2.5
+    },
+    "E587": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        12
+      ],
+      "static": true,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34370,
+      "signature_strength": null
+    },
+    "S199": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 16,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30649,
+      "signature_strength": 10
+    },
+    "Z647": {
+      "mass_regen": 0,
+      "dest": 1,
+      "src": [
+        2
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": [
+        [
+          "B274"
+        ]
+      ],
+      "typeID": 30671,
+      "signature_strength": 10
+    },
+    "C247": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        4
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30691,
+      "signature_strength": 10
+    },
+    "Q003": {
+      "mass_regen": 3000000000,
+      "dest": 9,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34140,
+      "signature_strength": null
+    },
+    "N944": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30648,
+      "signature_strength": 10
+    },
+    "D792": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        5,
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30704,
+      "signature_strength": 2.5
+    },
+    "N110": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        1
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": [],
+      "typeID": 30666,
+      "signature_strength": 10
+    },
+    "M001": {
+      "mass_regen": 3000000000,
+      "dest": 4,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34137,
+      "signature_strength": null
+    },
+    "K162": {
+      "mass_regen": null,
+      "dest": null,
+      "src": [],
+      "static": null,
+      "max_mass_per_jump": null,
+      "lifetime": null,
+      "total_mass": null,
+      "sibling_groups": null,
+      "typeID": 30831,
+      "signature_strength": null
+    },
+    "G008": {
+      "mass_regen": 3000000000,
+      "dest": 6,
+      "src": [],
+      "static": false,
+      "max_mass_per_jump": 5000000,
+      "lifetime": 4.5,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 34139,
+      "signature_strength": null
+    },
+    "C248": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 16,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30715,
+      "signature_strength": null
+    },
+    "V928": {
+      "mass_regen": 0,
+      "dest": 16,
+      "src": [],
+      "static": null,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 35652,
+      "signature_strength": null
+    },
+    "D845": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        3
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 5000000000,
+      "sibling_groups": [],
+      "typeID": 30695,
+      "signature_strength": 5
+    },
+    "R259": {
+      "mass_regen": 0,
+      "dest": 18,
+      "src": [],
+      "static": null,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 750000000,
+      "sibling_groups": null,
+      "typeID": 35654,
+      "signature_strength": null
+    },
+    "N968": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        3
+      ],
+      "static": false,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30682,
+      "signature_strength": 10
+    },
+    "T458": {
+      "mass_regen": 0,
+      "dest": 12,
+      "src": [
+        7
+      ],
+      "static": false,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 16,
+      "total_mass": 500000000,
+      "sibling_groups": null,
+      "typeID": 34338,
+      "signature_strength": null
+    },
+    "V283": {
+      "mass_regen": 0,
+      "dest": 9,
+      "src": [
+        7
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30659,
+      "signature_strength": 2.5
+    },
+    "C140": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        5,
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30705,
+      "signature_strength": 5
+    },
+    "U574": {
+      "mass_regen": 0,
+      "dest": 6,
+      "src": [
+        4
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 24,
+      "total_mass": 3000000000,
+      "sibling_groups": null,
+      "typeID": 30694,
+      "signature_strength": 1.25
+    },
+    "N432": {
+      "mass_regen": 0,
+      "dest": 5,
+      "src": [
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 2000000000,
+      "lifetime": 24,
+      "total_mass": 3300000000,
+      "sibling_groups": null,
+      "typeID": 30643,
+      "signature_strength": 10
+    },
+    "B449": {
+      "mass_regen": 0,
+      "dest": 7,
+      "src": [
+        8,
+        9
+      ],
+      "static": false,
+      "max_mass_per_jump": 1000000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": null,
+      "typeID": 30647,
+      "signature_strength": 2.5
+    },
+    "G024": {
+      "mass_regen": 0,
+      "dest": 2,
+      "src": [
+        6
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [],
+      "typeID": 30708,
+      "signature_strength": 1.25
+    },
+    "J244": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        1
+      ],
+      "static": true,
+      "max_mass_per_jump": 62000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": [],
+      "typeID": 30667,
+      "signature_strength": 5
+    },
+    "L477": {
+      "mass_regen": 0,
+      "dest": 3,
+      "src": [
+        6
+      ],
+      "static": true,
+      "max_mass_per_jump": 375000000,
+      "lifetime": 16,
+      "total_mass": 2000000000,
+      "sibling_groups": [],
+      "typeID": 30709,
+      "signature_strength": 5
+    },
+    "J492": {
+      "mass_regen": 0,
+      "dest": 8,
+      "src": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "static": false,
+      "max_mass_per_jump": 620000000,
+      "lifetime": 24,
+      "total_mass": 1000000000,
+      "sibling_groups": null,
+      "typeID": 87827,
+      "signature_strength": null
     }
+  }
 }

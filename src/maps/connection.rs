@@ -13,17 +13,14 @@ use serde::{Deserialize, Serialize};
 // Used by the cross-target struct + command definitions.
 use super::{ConnectionType, MassStatus, TimeStatus, WormholeSize};
 
-#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
-#[cfg(feature = "ssr")]
 use super::access::require_role;
-#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
-#[cfg(feature = "ssr")]
 use super::{Actor, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct MapConnection {
     pub id: i64,
     pub map_id: i64,
@@ -39,15 +36,20 @@ pub struct MapConnection {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct AddConnection {
     pub map_id: i64,
     pub from_system: i64,
     pub to_system: i64,
     pub kind: ConnectionType,
+    /// Initial max ship size, when the client can infer it (e.g. a C13 endpoint is
+    /// frigate-sized). `None` = unknown.
+    #[serde(default)]
+    #[ts(optional)]
+    pub size: Option<WormholeSize>,
 }
 
-#[cfg(feature = "ssr")]
 impl AddConnection {
     pub fn validate(&self) -> Result<()> {
         if self.from_system == self.to_system {
@@ -63,7 +65,6 @@ impl AddConnection {
 /// both on this map. The same pair may be connected more than once (e.g. two separate
 /// wormholes between the same systems), so duplicate edges are allowed. A new connection
 /// starts with unknown life-cycle state.
-#[cfg(feature = "ssr")]
 pub async fn add_connection(
     pool: &PgPool,
     actor: Actor,
@@ -89,8 +90,8 @@ pub async fn add_connection(
 
     let connection = sqlx::query_as!(
         MapConnection,
-        r#"insert into map_connections (map_id, from_system, to_system, type)
-           values ($1, $2, $3, $4)
+        r#"insert into map_connections (map_id, from_system, to_system, type, size)
+           values ($1, $2, $3, $4, $5)
            returning id, map_id, from_system, to_system, type as "kind: ConnectionType",
                      mass_status as "mass_status: MassStatus",
                      time_status as "time_status: TimeStatus",
@@ -100,6 +101,7 @@ pub async fn add_connection(
         cmd.from_system,
         cmd.to_system,
         cmd.kind.as_str(),
+        cmd.size.map(|s| s.as_str()),
     )
     .fetch_one(pool)
     .await?;
@@ -109,24 +111,28 @@ pub async fn add_connection(
 /// A partial update of a connection's wormhole state. `None` leaves a field unchanged;
 /// `Some(None)` clears it to unknown; `Some(Some(v))` sets it. Setting any field triggers
 /// the DB sync, so linked signatures follow.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetConnectionStatus {
     pub map_id: i64,
     pub connection_id: i64,
     /// `None` leaves the edge kind unchanged; `Some(k)` switches wormhole/stargate.
     #[serde(default)]
+    #[ts(optional)]
     pub kind: Option<ConnectionType>,
     #[serde(default)]
+    #[ts(optional)]
     pub mass_status: Option<Option<MassStatus>>,
     #[serde(default)]
+    #[ts(optional)]
     pub time_status: Option<Option<TimeStatus>>,
     #[serde(default)]
+    #[ts(optional)]
     pub size: Option<Option<WormholeSize>>,
 }
 
 /// Mark a connection's mass / EOL / size. Member+. Works whether or not a signature is
 /// linked; when one is, the trigger propagates the change to it (and its sibling).
-#[cfg(feature = "ssr")]
 pub async fn set_connection_status(
     pool: &PgPool,
     actor: Actor,
@@ -175,14 +181,14 @@ pub async fn set_connection_status(
     Ok(connection)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct RemoveConnection {
     pub map_id: i64,
     pub connection_id: i64,
 }
 
 /// Remove a connection. Linked signatures survive with their `connection_id` cleared.
-#[cfg(feature = "ssr")]
 pub async fn remove_connection(pool: &PgPool, actor: Actor, cmd: RemoveConnection) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(

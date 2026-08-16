@@ -54,7 +54,7 @@ by `solar_system_id`.
 | `security_status` | double | −1.0 … 1.0 (drives hi/low/null colouring) |
 | `security_class` | text, null | |
 | `faction_id` | int, null | |
-| `wormhole_class_id` | int, null | effective EVE class id — see note |
+| `wormhole_class_id` | int, null | effective EVE class id (system value, else wormhole-system catalogue, else region; filled by the seed post-pass) |
 | `star_id` | int, null | |
 
 > **Class resolution.** The SDE sets `wormholeClassID` mostly at the **region** level

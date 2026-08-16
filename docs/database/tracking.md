@@ -49,3 +49,19 @@ singular name reads better than the usual plural.)
 > **Open — history.** Cadence is specified in
 > [character status polling](../processes.md#character-status-polling). Still open: keep
 > only the current snapshot (modelled here) or a movement history for trails / replay?
+
+## `map_user_settings`
+
+Per-user, per-map preferences.
+
+| Column              | Type        | Notes                                              |
+|---------------------|-------------|----------------------------------------------------|
+| `map_id`            | pk part, fk maps     | cascade on map delete                     |
+| `user_id`           | pk part, fk users    | cascade on user delete                    |
+| `tracking_allowed`  | bool, default false  | explicit opt-in to share the user's characters' live location on this map |
+| `show_threat_level` | bool, default true   | whether threat rings render for this user |
+| `updated_at`        | timestamptz          |                                           |
+
+Presence (`GET /api/maps/{id}/characters`) shows a character only when: its user opted in
+here, the character holds a location-scoped ESI token, it is online, and the user has
+member-or-better access. Viewers can neither appear nor see presence.

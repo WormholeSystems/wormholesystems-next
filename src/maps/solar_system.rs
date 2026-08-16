@@ -4,17 +4,14 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "ssr")]
 use sqlx::PgPool;
 
-#[cfg(feature = "ssr")]
 use super::access::require_role;
-#[cfg(feature = "ssr")]
 use super::error::{MapError, Result};
-#[cfg(feature = "ssr")]
 use super::{Actor, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct MapSolarSystem {
     pub id: i64,
     pub map_id: i64,
@@ -26,16 +23,26 @@ pub struct MapSolarSystem {
 }
 
 /// A static wormhole a system always has, plus the class it leads to (`dest_class` is the
-/// `wormhole_class_id` encoding; `None` for the few codes with no fixed destination).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// `wormhole_class_id` encoding; `None` for the few codes with no fixed destination) and
+/// the hole physics for the static tooltip.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct Static {
     pub code: String,
     pub dest_class: Option<i32>,
+    /// Total mass the hole can pass before collapsing, kg.
+    pub total_mass: Option<i64>,
+    /// Max mass of a single ship per jump, kg.
+    pub max_jump_mass: Option<i64>,
+    pub lifetime_hours: Option<f64>,
+    /// Scan signature strength in percent (higher = easier to scan).
+    pub signature_strength: Option<f64>,
 }
 
 /// One buff/debuff a wormhole effect applies, for the node's effect popover. `kind` is the
 /// effect strength tier; `stat` is what it modifies; `value` is the (already-formatted) amount.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct EffectModifier {
     pub kind: String,
     pub stat: String,
@@ -43,19 +50,25 @@ pub struct EffectModifier {
 }
 
 /// The modifiers a wormhole effect applies at a given class — reference data, no auth needed.
-#[cfg(feature = "ssr")]
+/// The modifier table is keyed by class 1..6; special classes map to the strength tier the
+/// game uses for them (C13 has C6-strength effects, drifter systems C14-18 have C2 strength).
 pub async fn effect_modifiers(
     pool: &PgPool,
     effect_name: &str,
     wormhole_class_id: i32,
 ) -> Result<Vec<EffectModifier>> {
+    let effective_class = match wormhole_class_id {
+        13 => 6,
+        14..=18 => 2,
+        c => c,
+    };
     let rows = sqlx::query_as!(
         EffectModifier,
         "select kind, stat, value from wormhole_effect_modifiers
          where effect_name = $1 and wormhole_class_id = $2
          order by stat, kind",
         effect_name,
-        wormhole_class_id,
+        effective_class,
     )
     .fetch_all(pool)
     .await?;
@@ -64,18 +77,31 @@ pub async fn effect_modifiers(
 
 /// Who holds sovereignty in a system. The variant *is* the holder kind, so the node knows
 /// which EVE image endpoint to use for the icon; only alliances/corps carry a ticker.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Sovereignty {
-    Alliance { id: i64, name: String, ticker: String },
-    Corporation { id: i64, name: String, ticker: String },
-    Faction { id: i64, name: String },
+    Alliance {
+        id: i64,
+        name: String,
+        ticker: String,
+    },
+    Corporation {
+        id: i64,
+        name: String,
+        ticker: String,
+    },
+    Faction {
+        id: i64,
+        name: String,
+    },
 }
 
 /// A placed system enriched with everything a map node displays. Read-only — built by
 /// `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
 /// [`MapSolarSystem`].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct MapSystemView {
     // Placement (map_solar_systems).
     pub id: i64,
@@ -90,19 +116,26 @@ pub struct MapSystemView {
     // Intel (map_solar_system_details; defaults when no row exists yet).
     pub status: super::SystemStatus,
     pub occupying_group: Option<String>,
-    // Reference (solar_systems / regions).
+    // Reference (solar_systems / regions / constellations).
     pub name: String,
     pub security_status: f64,
     pub wormhole_class_id: Option<i32>,
     pub region: String,
+    pub region_id: i64,
+    pub constellation_id: i64,
+    pub constellation: String,
     // Wormhole reference (wormhole_systems / statics).
     pub effect_name: Option<String>,
+    pub is_shattered: bool,
+    /// Kill-activity threat (wormhole systems only; `None` for k-space).
+    pub threat_level: Option<super::ThreatLevel>,
     pub statics: Vec<Static>,
     // Sovereignty (system_sovereignty → alliance/corp/faction).
     pub sovereignty: Option<Sovereignty>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct AddSystem {
     pub map_id: i64,
     pub solar_system_id: i64,
@@ -113,7 +146,6 @@ pub struct AddSystem {
 
 /// Place a solar system on a map. The system must exist in the SDE and not already be on
 /// the map. Adding a system does not touch its persisted details.
-#[cfg(feature = "ssr")]
 pub async fn add_system(pool: &PgPool, actor: Actor, cmd: AddSystem) -> Result<MapSolarSystem> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
 
@@ -159,7 +191,8 @@ pub async fn add_system(pool: &PgPool, actor: Actor, cmd: AddSystem) -> Result<M
     Ok(placed)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct RemoveSystem {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -167,7 +200,6 @@ pub struct RemoveSystem {
 
 /// Remove a system from a map. Cascades the system's signatures and any connections it
 /// is an endpoint of; its persisted details survive.
-#[cfg(feature = "ssr")]
 pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
@@ -184,7 +216,8 @@ pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Re
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct RemoveSystems {
     pub map_id: i64,
     pub map_solar_system_ids: Vec<i64>,
@@ -192,7 +225,6 @@ pub struct RemoveSystems {
 
 /// Remove several placed systems at once (multi-select delete). Same cascade as
 /// [`remove_system`]. Returns the number actually removed; an empty id list is a no-op.
-#[cfg(feature = "ssr")]
 pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> Result<u64> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
@@ -206,14 +238,14 @@ pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> 
     Ok(deleted)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct ClearMap {
     pub map_id: i64,
 }
 
 /// Remove every placed system on a map except the home system and any pinned systems.
 /// Connections to removed systems cascade. Returns the number removed.
-#[cfg(feature = "ssr")]
 pub async fn clear_map(pool: &PgPool, actor: Actor, cmd: ClearMap) -> Result<u64> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let deleted = sqlx::query!(
@@ -226,7 +258,8 @@ pub async fn clear_map(pool: &PgPool, actor: Actor, cmd: ClearMap) -> Result<u64
     Ok(deleted)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct MoveSystem {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -235,7 +268,6 @@ pub struct MoveSystem {
 }
 
 /// Move a placed system to a new position.
-#[cfg(feature = "ssr")]
 pub async fn move_system(pool: &PgPool, actor: Actor, cmd: MoveSystem) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
@@ -255,21 +287,22 @@ pub async fn move_system(pool: &PgPool, actor: Actor, cmd: MoveSystem) -> Result
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SystemMove {
     pub map_solar_system_id: i64,
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct MoveSystems {
     pub map_id: i64,
     pub moves: Vec<SystemMove>,
 }
 
 /// Move several placed systems at once (multi-drag), in one transaction.
-#[cfg(feature = "ssr")]
 pub async fn move_systems(pool: &PgPool, actor: Actor, cmd: MoveSystems) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let mut tx = pool.begin().await?;
@@ -289,7 +322,8 @@ pub async fn move_systems(pool: &PgPool, actor: Actor, cmd: MoveSystems) -> Resu
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetAlias {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -297,7 +331,6 @@ pub struct SetAlias {
 }
 
 /// Set or clear a placement's ephemeral alias.
-#[cfg(feature = "ssr")]
 pub async fn set_alias(pool: &PgPool, actor: Actor, cmd: SetAlias) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
@@ -315,7 +348,8 @@ pub async fn set_alias(pool: &PgPool, actor: Actor, cmd: SetAlias) -> Result<()>
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetStatus {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -324,7 +358,6 @@ pub struct SetStatus {
 
 /// Set a placed system's intel status. Upserts the persisted details row, keyed by the
 /// placement's `(map_id, solar_system_id)`.
-#[cfg(feature = "ssr")]
 pub async fn set_status(pool: &PgPool, actor: Actor, cmd: SetStatus) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
@@ -345,7 +378,8 @@ pub async fn set_status(pool: &PgPool, actor: Actor, cmd: SetStatus) -> Result<(
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetOccupier {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -354,7 +388,6 @@ pub struct SetOccupier {
 
 /// Set or clear who occupies a placed system (free text, like the alias). Upserts the
 /// persisted details row.
-#[cfg(feature = "ssr")]
 pub async fn set_occupier(pool: &PgPool, actor: Actor, cmd: SetOccupier) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
@@ -375,7 +408,69 @@ pub async fn set_occupier(pool: &PgPool, actor: Actor, cmd: SetOccupier) -> Resu
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SetNotes {
+    pub map_id: i64,
+    pub map_solar_system_id: i64,
+    pub notes: Option<String>,
+}
+
+/// Set or clear a placed system's notes (markdown free text). Member+ only, like every
+/// other intel write; upserts the persisted details row.
+pub async fn set_notes(pool: &PgPool, actor: Actor, cmd: SetNotes) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
+    let updated = sqlx::query!(
+        "insert into map_solar_system_details (map_id, solar_system_id, notes)
+         select map_id, solar_system_id, $3 from map_solar_systems where id = $2 and map_id = $1
+         on conflict (map_id, solar_system_id)
+             do update set notes = excluded.notes, updated_at = now()",
+        cmd.map_id,
+        cmd.map_solar_system_id,
+        cmd.notes.as_deref(),
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        return Err(MapError::NotFound);
+    }
+    Ok(())
+}
+
+/// A placed system's member-gated intel details (currently just the notes). Viewers never
+/// receive this: the read itself requires Member.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SystemDetails {
+    pub notes: Option<String>,
+}
+
+/// The member-gated details for a placement. `Forbidden` for viewers.
+pub async fn system_details(
+    pool: &PgPool,
+    actor: Actor,
+    map_id: i64,
+    map_solar_system_id: i64,
+) -> Result<SystemDetails> {
+    require_role(pool, map_id, actor.user_id, Role::Member).await?;
+    let row = sqlx::query!(
+        "select d.notes
+         from map_solar_systems mss
+         left join map_solar_system_details d
+             on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
+         where mss.id = $2 and mss.map_id = $1",
+        map_id,
+        map_solar_system_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(MapError::NotFound)?;
+    Ok(SystemDetails { notes: row.notes })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetHome {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -384,7 +479,6 @@ pub struct SetHome {
 
 /// Mark a placement as the map's home system (or clear it). A map has at most one home (a
 /// partial unique index enforces it), so setting a new home first clears the previous one.
-#[cfg(feature = "ssr")]
 pub async fn set_home(pool: &PgPool, actor: Actor, cmd: SetHome) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let mut tx = pool.begin().await?;
@@ -413,7 +507,8 @@ pub async fn set_home(pool: &PgPool, actor: Actor, cmd: SetHome) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetRally {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -422,7 +517,6 @@ pub struct SetRally {
 
 /// Mark a placement as the map's rally point (or clear it). One rally per map, enforced by a
 /// partial unique index, so setting a new rally first clears the previous one.
-#[cfg(feature = "ssr")]
 pub async fn set_rally(pool: &PgPool, actor: Actor, cmd: SetRally) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let mut tx = pool.begin().await?;
@@ -450,7 +544,8 @@ pub async fn set_rally(pool: &PgPool, actor: Actor, cmd: SetRally) -> Result<()>
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SetPinned {
     pub map_id: i64,
     pub map_solar_system_id: i64,
@@ -459,7 +554,6 @@ pub struct SetPinned {
 
 /// Pin or unpin a placement. Pinned systems are drag-locked client-side and survive
 /// "clear map". Any number of systems may be pinned.
-#[cfg(feature = "ssr")]
 pub async fn set_pinned(pool: &PgPool, actor: Actor, cmd: SetPinned) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Member).await?;
     let updated = sqlx::query!(
