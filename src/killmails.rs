@@ -46,6 +46,18 @@ struct R2Z2Killmail {
     esi: serde_json::Value,
 }
 
+/// zKillboard and EVE Ref reject anonymous clients (403), so identify ourselves.
+fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent(concat!(
+            "vector-wormhole-mapper/",
+            env!("CARGO_PKG_VERSION"),
+            " (tim.kunze4@gmail.com)"
+        ))
+        .build()
+        .expect("http client")
+}
+
 /// Spawn the ingest + analysis loops (gated by `ZKB_LISTEN=1`).
 pub fn start(pool: PgPool, esi: EsiClient) {
     if std::env::var("ZKB_LISTEN").as_deref() != Ok("1") {
@@ -57,7 +69,7 @@ pub fn start(pool: PgPool, esi: EsiClient) {
 }
 
 async fn listen(pool: PgPool, base: String) {
-    let http = reqwest::Client::new();
+    let http = http_client();
     loop {
         match ingest_next(&pool, &http, &base).await {
             Ok(true) => tokio::time::sleep(Duration::from_millis(500)).await,
@@ -319,6 +331,126 @@ async fn purge(pool: &PgPool) -> Result<(), sqlx::Error> {
         .bind(RETENTION_DAYS)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+/// Backfill killmails from EVE Ref's daily archives (`vector killmails-backfill <days>`),
+/// most recent day first. Each day is one `killmails-YYYY-MM-DD.tar.bz2` download,
+/// extracted with the system `tar` and bulk-inserted (existing ids untouched, so the
+/// live listener's rows are kept). Ends with a threat analysis run so the data shows up
+/// immediately.
+pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), BoxError> {
+    let http = http_client();
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs() as i64;
+    let scratch = std::env::temp_dir().join("vector-killmails");
+    std::fs::create_dir_all(&scratch)?;
+
+    for offset in 1..=i64::from(days) {
+        let day = chrono::DateTime::from_timestamp(now_secs - offset * 86_400, 0)
+            .expect("valid timestamp")
+            .date_naive();
+        let name = format!("killmails-{}.tar.bz2", day.format("%Y-%m-%d"));
+        let url = format!(
+            "https://data.everef.net/killmails/{}/{name}",
+            day.format("%Y")
+        );
+
+        print!("{day}: downloading… ");
+        let res = http.get(&url).send().await?;
+        if res.status() == reqwest::StatusCode::NOT_FOUND {
+            println!("no archive");
+            continue;
+        }
+        let bytes = res.error_for_status()?.bytes().await?;
+        let archive = scratch.join(&name);
+        std::fs::write(&archive, &bytes)?;
+
+        let extract_dir = scratch.join(day.format("%Y-%m-%d").to_string());
+        std::fs::create_dir_all(&extract_dir)?;
+        let status = tokio::process::Command::new("tar")
+            .arg("-xjf")
+            .arg(&archive)
+            .arg("-C")
+            .arg(&extract_dir)
+            .status()
+            .await?;
+        if !status.success() {
+            return Err(format!("tar failed for {name}").into());
+        }
+
+        let mut files = Vec::new();
+        collect_json_files(&extract_dir, &mut files)?;
+        let mut inserted = 0usize;
+        for chunk in files.chunks(500) {
+            let mut ids = Vec::new();
+            let mut hashes = Vec::new();
+            let mut systems = Vec::new();
+            let mut times = Vec::new();
+            let mut orgs_json = Vec::new();
+            for path in chunk {
+                let Ok(text) = std::fs::read_to_string(path) else {
+                    continue;
+                };
+                let Ok(km) = serde_json::from_str::<serde_json::Value>(&text) else {
+                    continue;
+                };
+                let (Some(id), Some(system), Some(time)) = (
+                    km["killmail_id"].as_i64(),
+                    km["solar_system_id"].as_i64(),
+                    km["killmail_time"].as_str(),
+                ) else {
+                    continue;
+                };
+                ids.push(id);
+                hashes.push(km["killmail_hash"].as_str().unwrap_or_default().to_string());
+                systems.push(system);
+                times.push(time.to_string());
+                orgs_json.push(serde_json::to_value(extract_orgs(&km))?);
+            }
+            let n = sqlx::query(
+                "insert into killmails (id, hash, solar_system_id, time, orgs)
+                 select * from unnest($1::bigint[], $2::text[], $3::bigint[],
+                                      $4::text[]::timestamptz[], $5::jsonb[])
+                 on conflict (id) do nothing",
+            )
+            .bind(&ids)
+            .bind(&hashes)
+            .bind(&systems)
+            .bind(&times)
+            .bind(&orgs_json)
+            .execute(pool)
+            .await?
+            .rows_affected();
+            inserted += n as usize;
+        }
+        println!("{} killmails ({} new)", files.len(), inserted);
+
+        std::fs::remove_file(&archive).ok();
+        std::fs::remove_dir_all(&extract_dir).ok();
+    }
+
+    println!("running threat analysis…");
+    analyze(pool, esi).await?;
+    println!("backfill complete.");
+    Ok(())
+}
+
+type BoxError = Box<dyn std::error::Error>;
+
+fn collect_json_files(
+    dir: &std::path::Path,
+    out: &mut Vec<std::path::PathBuf>,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_json_files(&path, out)?;
+        } else if path.extension().is_some_and(|e| e == "json") {
+            out.push(path);
+        }
+    }
     Ok(())
 }
 

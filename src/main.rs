@@ -1,8 +1,20 @@
 #[tokio::main]
 async fn main() {
     // `vector seed` populates the reference tables from the SDE + data/static, then exits.
-    if std::env::args().any(|a| a == "seed") {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "seed") {
         vector::seed::run().await.expect("seeding failed");
+        return;
+    }
+    // `vector killmails-backfill [days]` imports EVE Ref daily archives, then exits.
+    if let Some(pos) = args.iter().position(|a| a == "killmails-backfill") {
+        let days: u32 = args.get(pos + 1).and_then(|d| d.parse().ok()).unwrap_or(30);
+        dotenvy::dotenv().ok();
+        let url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
+        let db = vector::db::connect(&url).await.expect("db connect failed");
+        vector::killmails::backfill(&db, &vector::esi::EsiClient::new(), days)
+            .await
+            .expect("backfill failed");
         return;
     }
 
