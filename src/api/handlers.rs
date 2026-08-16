@@ -1,0 +1,1042 @@
+//! The JSON endpoint handlers. Reads are GETs; commands are POSTs whose bodies are the
+//! command structs from [`crate::maps`] (JSON, so the `Option<Option<_>>` "absent = leave,
+//! null = clear" fields work).
+
+use axum::Json;
+use axum::extract::{Path, Query, State};
+use axum_extra::extract::CookieJar;
+use serde::Deserialize;
+
+use super::{
+    ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, MapCharacter, MapEntry,
+    MapUserSettings, SystemSearchResult, ThreatAnalysis, ThreatEntity, UpdateMapUserSettings,
+    check_map_id, require_actor, session_actor, session_id,
+};
+use crate::auth::AppState;
+use crate::maps::connection::{AddConnection, RemoveConnection, SetConnectionStatus};
+use crate::maps::signatures::{
+    AddSignature, LinkSignature, PasteSignatures, RemoveSignature, UnlinkSignature, UpdateSignature,
+};
+use crate::maps::solar_system::{
+    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
+    SetNotes, SetOccupier, SetPinned, SetRally, SetStatus, SystemDetails,
+};
+use crate::maps::{
+    EffectModifier, GridConfig, Map, MapConnection, MapEvent, MapSolarSystem, MapView, Signature,
+};
+
+// --- Auth / identity ---
+
+/// `GET /api/me` — who's signed in, if anyone.
+pub async fn me(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> ApiResult<Option<CharacterSummary>> {
+    let Some(actor) = session_actor(&state.db, &jar).await? else {
+        return Ok(Json(None));
+    };
+    let row = sqlx::query!(
+        "select name from characters where id = $1",
+        actor.character_id
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    Ok(Json(row.map(|r| CharacterSummary {
+        character_id: actor.character_id,
+        name: r.name,
+    })))
+}
+
+/// `GET /api/me/status` — live status of the active character (online / system / ship).
+pub async fn me_status(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> ApiResult<Option<CharacterStatus>> {
+    let Some(actor) = session_actor(&state.db, &jar).await? else {
+        return Ok(Json(None));
+    };
+    let row = sqlx::query!(
+        r#"select s.online,
+                  s.ship_type_id,
+                  ss.name as "solar_system?",
+                  s.ship_name,
+                  t.name as "ship_type?"
+           from character_status s
+           left join solar_systems ss on ss.id = s.solar_system_id
+           left join types t on t.id = s.ship_type_id
+           where s.character_id = $1"#,
+        actor.character_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    Ok(Json(row.map(|r| CharacterStatus {
+        online: r.online,
+        solar_system: r.solar_system,
+        ship_type_id: r.ship_type_id,
+        ship_name: r.ship_name,
+        ship_type: r.ship_type,
+    })))
+}
+
+/// `GET /api/me/characters` — the user's characters, marking the active one.
+pub async fn my_characters(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> ApiResult<Vec<CharacterRef>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let rows = sqlx::query!(
+        r#"select c.id, c.name, coalesce(s.online, false) as "online!"
+           from characters c
+           left join character_status s on s.character_id = c.id
+           where c.user_id = $1 order by c.name"#,
+        actor.user_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| CharacterRef {
+                character_id: r.id,
+                name: r.name,
+                is_active: r.id == actor.character_id,
+                online: r.online,
+            })
+            .collect(),
+    ))
+}
+
+#[derive(Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct CharacterIdBody {
+    pub character_id: i64,
+}
+
+/// `POST /api/me/switch-character` — switch the session's active character.
+pub async fn switch_character(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<CharacterIdBody>,
+) -> ApiResult<()> {
+    let Some(session_id) = session_id(&jar) else {
+        return Err(ApiError::unauthorized());
+    };
+    let ok =
+        crate::session::set_active_character(&state.db, &session_id, body.character_id).await?;
+    if !ok {
+        return Err(ApiError::bad_request("that character isn't yours"));
+    }
+    Ok(Json(()))
+}
+
+/// `POST /api/me/remove-character` — remove one of the user's characters. Refuses to remove
+/// the last one. If it's the active character, the session switches to another first (so
+/// the session isn't cascade-deleted).
+pub async fn remove_character(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<CharacterIdBody>,
+) -> ApiResult<()> {
+    let Some(session_id) = session_id(&jar) else {
+        return Err(ApiError::unauthorized());
+    };
+    let actor = require_actor(&state.db, &jar).await?;
+    let character_id = body.character_id;
+
+    let count = sqlx::query_scalar!(
+        "select count(*) from characters where user_id = $1",
+        actor.user_id,
+    )
+    .fetch_one(&state.db)
+    .await?
+    .unwrap_or(0);
+    if count <= 1 {
+        return Err(ApiError::bad_request("can't remove your only character"));
+    }
+
+    let owns = sqlx::query_scalar!(
+        "select exists(select 1 from characters where id = $1 and user_id = $2)",
+        character_id,
+        actor.user_id,
+    )
+    .fetch_one(&state.db)
+    .await?
+    .unwrap_or(false);
+    if !owns {
+        return Err(ApiError::bad_request("that character isn't yours"));
+    }
+
+    // Switch away before deleting the active one (sessions FK-cascade on the character).
+    if character_id == actor.character_id
+        && let Some(other) = sqlx::query_scalar!(
+            "select id from characters where user_id = $1 and id <> $2
+             order by is_preferred desc, id limit 1",
+            actor.user_id,
+            character_id,
+        )
+        .fetch_optional(&state.db)
+        .await?
+    {
+        crate::session::set_active_character(&state.db, &session_id, other).await?;
+    }
+
+    sqlx::query!(
+        "delete from characters where id = $1 and user_id = $2",
+        character_id,
+        actor.user_id,
+    )
+    .execute(&state.db)
+    .await?;
+    Ok(Json(()))
+}
+
+#[derive(Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SetWaypointBody {
+    pub character_id: i64,
+    pub destination_id: i64,
+    #[serde(default)]
+    #[ts(optional)]
+    pub add_to_beginning: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub clear_other_waypoints: Option<bool>,
+}
+
+#[derive(Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SetWaypointAllBody {
+    pub destination_id: i64,
+    #[serde(default)]
+    #[ts(optional)]
+    pub add_to_beginning: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub clear_other_waypoints: Option<bool>,
+}
+
+/// Set an in-game autopilot waypoint for one character via ESI. Maps a missing waypoint
+/// scope to 409 (the character must re-consent) and other ESI failures to 502.
+async fn esi_waypoint(
+    state: &AppState,
+    character_id: i64,
+    destination_id: i64,
+    add_to_beginning: bool,
+    clear_other_waypoints: bool,
+) -> Result<(), ApiError> {
+    use axum::http::StatusCode;
+    let store = crate::db::PgTokenStore::new(state.db.clone());
+    let token = state
+        .auth
+        .sso()
+        .access_token(&store, character_id, crate::esi::Scope::WriteWaypoint)
+        .await
+        .map_err(|err| match err {
+            crate::esi::EsiError::MissingScope(_) => ApiError {
+                status: StatusCode::CONFLICT,
+                message: "that character has not granted the waypoint scope".into(),
+            },
+            other => ApiError {
+                status: StatusCode::BAD_GATEWAY,
+                message: other.to_string(),
+            },
+        })?;
+    state
+        .auth
+        .esi()
+        .set_waypoint(
+            &token,
+            destination_id,
+            add_to_beginning,
+            clear_other_waypoints,
+        )
+        .await
+        .map_err(|err| ApiError {
+            status: StatusCode::BAD_GATEWAY,
+            message: err.to_string(),
+        })
+}
+
+async fn validate_waypoint_destination(
+    state: &AppState,
+    destination_id: i64,
+) -> Result<(), ApiError> {
+    let exists = sqlx::query_scalar!(
+        "select exists(select 1 from solar_systems where id = $1)",
+        destination_id,
+    )
+    .fetch_one(&state.db)
+    .await?
+    .unwrap_or(false);
+    if exists {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request("unknown destination system"))
+    }
+}
+
+/// `POST /api/waypoints` — set a destination/waypoint for one of the caller's characters.
+pub async fn set_waypoint(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<SetWaypointBody>,
+) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let owns = sqlx::query_scalar!(
+        "select exists(select 1 from characters where id = $1 and user_id = $2)",
+        body.character_id,
+        actor.user_id,
+    )
+    .fetch_one(&state.db)
+    .await?
+    .unwrap_or(false);
+    if !owns {
+        return Err(ApiError::bad_request("that character isn't yours"));
+    }
+    validate_waypoint_destination(&state, body.destination_id).await?;
+    esi_waypoint(
+        &state,
+        body.character_id,
+        body.destination_id,
+        body.add_to_beginning.unwrap_or(false),
+        body.clear_other_waypoints.unwrap_or(true),
+    )
+    .await?;
+    Ok(Json(()))
+}
+
+/// `POST /api/waypoints/all` — set the destination for every online character of the
+/// caller. Best-effort: characters without the scope are skipped; fails only when none
+/// succeed.
+pub async fn set_waypoint_all(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<SetWaypointAllBody>,
+) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &jar).await?;
+    validate_waypoint_destination(&state, body.destination_id).await?;
+    let ids = sqlx::query_scalar!(
+        "select c.id from characters c
+         join character_status s on s.character_id = c.id and s.online
+         where c.user_id = $1",
+        actor.user_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    if ids.is_empty() {
+        return Err(ApiError::bad_request("no characters online"));
+    }
+    let mut ok = 0usize;
+    let mut last_err = None;
+    for id in ids {
+        match esi_waypoint(
+            &state,
+            id,
+            body.destination_id,
+            body.add_to_beginning.unwrap_or(false),
+            body.clear_other_waypoints.unwrap_or(true),
+        )
+        .await
+        {
+            Ok(()) => ok += 1,
+            Err(err) => last_err = Some(err),
+        }
+    }
+    if ok == 0 {
+        return Err(last_err.expect("at least one attempt"));
+    }
+    Ok(Json(()))
+}
+
+// --- Config / reference data ---
+
+/// `GET /api/grid-config` — the server-owned map canvas geometry.
+pub async fn grid_config(State(state): State<AppState>) -> ApiResult<GridConfig> {
+    Ok(Json(state.grid))
+}
+
+#[derive(Deserialize)]
+pub struct EffectsQuery {
+    pub name: String,
+    pub class: i32,
+}
+
+/// `GET /api/effects?name=&class=` — the buffs/debuffs a wormhole effect applies at a
+/// system's class. Reference data, so no actor/role check.
+pub async fn effect_modifiers(
+    State(state): State<AppState>,
+    Query(query): Query<EffectsQuery>,
+) -> ApiResult<Vec<EffectModifier>> {
+    let mods =
+        crate::maps::solar_system::effect_modifiers(&state.db, &query.name, query.class).await?;
+    Ok(Json(mods))
+}
+
+#[derive(Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+}
+
+/// `GET /api/systems/search?q=` — search the SDE solar systems by name. Prefix matches rank
+/// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
+pub async fn search_systems(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Query(query): Query<SearchQuery>,
+) -> ApiResult<Vec<SystemSearchResult>> {
+    require_actor(&state.db, &jar).await?;
+    let q = query.q.trim();
+    if q.len() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    let contains = format!("%{q}%");
+    let prefix = format!("{q}%");
+    let results = sqlx::query_as!(
+        SystemSearchResult,
+        r#"
+        select s.id,
+               s.name,
+               s.security_status as "security!",
+               r.name            as "region!",
+               s.wormhole_class_id
+        from solar_systems s
+        join regions r on r.id = s.region_id
+        where s.name ilike $1
+        order by (s.name ilike $2) desc, length(s.name), s.name
+        limit 30
+        "#,
+        contains,
+        prefix,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(results))
+}
+
+/// `GET /api/routing-graph` — the static half of the routing graph: k-space stargate
+/// adjacency (`{from_id: [to_id, ...]}`, Zarzakh excluded since its gates are
+/// faction-gated) plus per-system security for the safer/less-secure cost functions.
+/// Static reference data: cacheable for a day.
+pub async fn routing_graph(
+    State(state): State<AppState>,
+) -> Result<impl axum::response::IntoResponse, ApiError> {
+    const ZARZAKH: i64 = 30100000;
+    let rows = sqlx::query!(
+        "select solar_system_id, destination_system_id from stargates
+         where solar_system_id <> $1 and destination_system_id <> $1",
+        ZARZAKH,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let mut adjacency: std::collections::HashMap<i64, Vec<i64>> = std::collections::HashMap::new();
+    for r in rows {
+        adjacency
+            .entry(r.solar_system_id)
+            .or_default()
+            .push(r.destination_system_id);
+    }
+    let security: std::collections::HashMap<i64, f64> =
+        sqlx::query!("select id, security_status from solar_systems")
+            .fetch_all(&state.db)
+            .await?
+            .into_iter()
+            .map(|r| (r.id, r.security_status))
+            .collect();
+    Ok((
+        [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
+        Json(serde_json::json!({ "adjacency": adjacency, "security": security })),
+    ))
+}
+
+/// `GET /api/systems/resolve?ids=a,b,c` — resolve solar system ids to display data for
+/// route rows. Capped at 200 ids.
+pub async fn resolve_systems(
+    State(state): State<AppState>,
+    Query(query): Query<ResolveQuery>,
+) -> ApiResult<Vec<SystemSearchResult>> {
+    let ids: Vec<i64> = query
+        .ids
+        .split(',')
+        .filter_map(|s| s.trim().parse().ok())
+        .take(200)
+        .collect();
+    let rows = sqlx::query_as!(
+        SystemSearchResult,
+        r#"select s.id, s.name, s.security_status as "security!", r.name as "region!",
+                  s.wormhole_class_id
+           from solar_systems s
+           join regions r on r.id = s.region_id
+           where s.id = any($1)"#,
+        &ids,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+#[derive(Deserialize)]
+pub struct ResolveQuery {
+    pub ids: String,
+}
+
+/// `GET /api/threat/{solar_system_id}` — a wormhole system's threat analysis. 404 for
+/// k-space systems (threat is only computed for wormhole space).
+pub async fn threat_analysis(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(solar_system_id): Path<i64>,
+) -> ApiResult<ThreatAnalysis> {
+    require_actor(&state.db, &jar).await?;
+    let row = sqlx::query!(
+        r#"select threat_level as "threat_level: crate::maps::ThreatLevel", threat_analyzed_at
+           from wormhole_systems where solar_system_id = $1"#,
+        solar_system_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(crate::maps::MapError::NotFound)?;
+    let entities = sqlx::query!(
+        "select entity_id, entity_type, name, kills from wormhole_system_threats
+         where solar_system_id = $1 order by kills desc",
+        solar_system_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(ThreatAnalysis {
+        threat_level: row.threat_level,
+        threat_analyzed_at: row.threat_analyzed_at,
+        entities: entities
+            .into_iter()
+            .map(|e| ThreatEntity {
+                id: e.entity_id,
+                name: e.name,
+                entity_type: e.entity_type,
+                kills: e.kills,
+            })
+            .collect(),
+    }))
+}
+
+// --- Maps ---
+
+/// `GET /api/maps` — every map the signed-in character can access, with their role.
+pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult<Vec<MapEntry>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let maps = crate::maps::map::list_maps(&state.db, actor.user_id).await?;
+    Ok(Json(
+        maps.into_iter()
+            .map(|(m, role)| MapEntry {
+                id: m.id,
+                name: m.name,
+                role: role.as_str().to_string(),
+            })
+            .collect(),
+    ))
+}
+
+#[derive(Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct CreateMapBody {
+    pub name: String,
+}
+
+/// `POST /api/maps` — create a map owned by the active character.
+pub async fn create_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<CreateMapBody>,
+) -> ApiResult<Map> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let map = crate::maps::map::create_map(
+        &state.db,
+        actor,
+        crate::maps::map::CreateMap {
+            name: body.name,
+            description: None,
+        },
+    )
+    .await?;
+    Ok(Json(map))
+}
+
+/// `DELETE /api/maps/{id}` — delete a map (owner only).
+pub async fn delete_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::map::delete_map(&state.db, actor, crate::maps::map::DeleteMap { map_id }).await?;
+    Ok(Json(()))
+}
+
+/// `GET /api/maps/{id}` — the full map view (map + systems + connections).
+pub async fn fetch_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<MapView> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let view =
+        crate::maps::map::get_map(&state.db, actor, crate::maps::map::GetMap { map_id }).await?;
+    Ok(Json(view))
+}
+
+/// `GET /api/maps/{id}/signatures` — all signatures on the map.
+pub async fn list_signatures(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<Signature>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let sigs = crate::maps::signatures::list_signatures(&state.db, actor, map_id).await?;
+    Ok(Json(sigs))
+}
+
+/// `GET /api/maps/{id}/settings/user` — the caller's per-map preferences (defaults when
+/// no row exists yet). Requires any access to the map.
+pub async fn map_user_settings(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<MapUserSettings> {
+    let actor = require_actor(&state.db, &jar).await?;
+    if crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
+        .await?
+        .is_none()
+    {
+        return Err(ApiError::from(crate::maps::MapError::NotFound));
+    }
+    let row = sqlx::query!(
+        "select tracking_allowed, show_threat_level from map_user_settings
+         where map_id = $1 and user_id = $2",
+        map_id,
+        actor.user_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    Ok(Json(match row {
+        Some(r) => MapUserSettings {
+            tracking_allowed: r.tracking_allowed,
+            show_threat_level: r.show_threat_level,
+        },
+        None => MapUserSettings {
+            tracking_allowed: false,
+            show_threat_level: true,
+        },
+    }))
+}
+
+/// `POST /api/maps/{id}/settings/user` — partial update (upsert) of the caller's per-map
+/// preferences.
+pub async fn update_map_user_settings(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(body): Json<UpdateMapUserSettings>,
+) -> ApiResult<MapUserSettings> {
+    let actor = require_actor(&state.db, &jar).await?;
+    if crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
+        .await?
+        .is_none()
+    {
+        return Err(ApiError::from(crate::maps::MapError::NotFound));
+    }
+    let row = sqlx::query!(
+        "insert into map_user_settings (map_id, user_id, tracking_allowed, show_threat_level)
+         values ($1, $2, coalesce($3, false), coalesce($4, true))
+         on conflict (map_id, user_id) do update set
+             tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
+             show_threat_level = coalesce($4, map_user_settings.show_threat_level),
+             updated_at = now()
+         returning tracking_allowed, show_threat_level",
+        map_id,
+        actor.user_id,
+        body.tracking_allowed,
+        body.show_threat_level,
+    )
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(MapUserSettings {
+        tracking_allowed: row.tracking_allowed,
+        show_threat_level: row.show_threat_level,
+    }))
+}
+
+/// `GET /api/maps/{id}/characters` — presence: online characters of users who opted into
+/// tracking on this map, holding the location scope, whose user has member-or-better
+/// access. Member+ may view (viewers never see pilot data).
+pub async fn map_characters(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<MapCharacter>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    match crate::maps::access::effective_role(&state.db, map_id, actor.user_id).await? {
+        None => return Err(ApiError::from(crate::maps::MapError::NotFound)),
+        Some(crate::maps::Role::Viewer) => {
+            return Err(ApiError::from(crate::maps::MapError::Forbidden));
+        }
+        Some(_) => {}
+    }
+    let rows = sqlx::query!(
+        r#"select c.id as character_id, c.name, co.ticker as corporation_ticker,
+                  s.solar_system_id, s.ship_type_id, s.ship_name, t.name as "ship_type?"
+           from characters c
+           join users u on u.id = c.user_id
+           join map_user_settings mus
+               on mus.map_id = $1 and mus.user_id = u.id and mus.tracking_allowed
+           join character_status s on s.character_id = c.id and s.online
+           join corporations co on co.id = c.corporation_id
+           left join types t on t.id = s.ship_type_id
+           where exists (
+                     select 1 from esi_tokens et
+                     join esi_token_scopes ets on ets.token_id = et.id
+                     join esi_scopes sc on sc.id = ets.scope_id
+                     where et.character_id = c.id
+                       and sc.name = 'esi-location.read_location.v1'
+                 )
+             and exists (
+                     select 1 from map_access ma
+                     where ma.map_id = $1
+                       and ma.role <> 'viewer'
+                       and ma.subject_id in (
+                           select id from characters where user_id = u.id
+                           union all
+                           select corporation_id from characters where user_id = u.id
+                           union all
+                           select alliance_id from characters
+                           where user_id = u.id and alliance_id is not null
+                       )
+                 )
+           order by c.name"#,
+        map_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| MapCharacter {
+                character_id: r.character_id,
+                name: r.name,
+                corporation_ticker: r.corporation_ticker,
+                solar_system_id: r.solar_system_id,
+                ship_type_id: r.ship_type_id,
+                ship_name: r.ship_name,
+                ship_type: r.ship_type,
+            })
+            .collect(),
+    ))
+}
+
+// --- Systems ---
+
+pub async fn add_system(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<AddSystem>,
+) -> ApiResult<MapSolarSystem> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let placed = crate::maps::solar_system::add_system(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SystemAdded {
+        map_id,
+        map_solar_system_id: placed.id,
+    });
+    Ok(Json(placed))
+}
+
+pub async fn move_system(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<MoveSystem>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let mss = cmd.map_solar_system_id;
+    crate::maps::solar_system::move_system(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SystemMoved {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(Json(()))
+}
+
+pub async fn move_systems(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<MoveSystems>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::solar_system::move_systems(&state.db, actor, cmd).await?;
+    // Several systems moved at once → one coarse event rather than N SystemMoved events.
+    state.hub.publish(MapEvent::MapUpdated { map_id });
+    Ok(Json(()))
+}
+
+pub async fn remove_system(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveSystem>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let mss = cmd.map_solar_system_id;
+    crate::maps::solar_system::remove_system(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SystemRemoved {
+        map_id,
+        map_solar_system_id: mss,
+    });
+    Ok(Json(()))
+}
+
+// Bulk removal (multi-select delete + clear map). Publishes a single coarse `MapUpdated`
+// so each viewer does one full refetch rather than reacting to a storm of per-system events.
+
+pub async fn remove_systems(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveSystems>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::solar_system::remove_systems(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::MapUpdated { map_id });
+    Ok(Json(()))
+}
+
+pub async fn clear_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<ClearMap>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::solar_system::clear_map(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::MapUpdated { map_id });
+    Ok(Json(()))
+}
+
+// --- System details (alias / status / occupier / home / rally / pinned) ---
+//
+// All publish `SystemDetailsChanged` (position unchanged; details refetched).
+
+macro_rules! detail_handler {
+    ($name:ident, $cmd:ty, $action:path) => {
+        pub async fn $name(
+            State(state): State<AppState>,
+            jar: CookieJar,
+            Path(map_id): Path<i64>,
+            Json(cmd): Json<$cmd>,
+        ) -> ApiResult<()> {
+            check_map_id(map_id, cmd.map_id)?;
+            let actor = require_actor(&state.db, &jar).await?;
+            let mss = cmd.map_solar_system_id;
+            $action(&state.db, actor, cmd).await?;
+            state.hub.publish(MapEvent::SystemDetailsChanged {
+                map_id,
+                map_solar_system_id: mss,
+            });
+            Ok(Json(()))
+        }
+    };
+}
+
+detail_handler!(set_alias, SetAlias, crate::maps::solar_system::set_alias);
+detail_handler!(set_status, SetStatus, crate::maps::solar_system::set_status);
+detail_handler!(
+    set_occupier,
+    SetOccupier,
+    crate::maps::solar_system::set_occupier
+);
+detail_handler!(set_notes, SetNotes, crate::maps::solar_system::set_notes);
+detail_handler!(set_home, SetHome, crate::maps::solar_system::set_home);
+detail_handler!(set_rally, SetRally, crate::maps::solar_system::set_rally);
+detail_handler!(set_pinned, SetPinned, crate::maps::solar_system::set_pinned);
+
+/// `GET /api/maps/{id}/systems/{mss}/details` — member-gated intel (notes). 403 for viewers.
+pub async fn system_details(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path((map_id, mss)): Path<(i64, i64)>,
+) -> ApiResult<SystemDetails> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let details = crate::maps::solar_system::system_details(&state.db, actor, map_id, mss).await?;
+    Ok(Json(details))
+}
+
+// --- Connections ---
+
+pub async fn add_connection(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<AddConnection>,
+) -> ApiResult<MapConnection> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let conn = crate::maps::connection::add_connection(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::ConnectionChanged {
+        map_id,
+        connection_id: conn.id,
+    });
+    Ok(Json(conn))
+}
+
+pub async fn set_connection_status(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<SetConnectionStatus>,
+) -> ApiResult<MapConnection> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let connection_id = cmd.connection_id;
+    let conn = crate::maps::connection::set_connection_status(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::ConnectionChanged {
+        map_id,
+        connection_id,
+    });
+    Ok(Json(conn))
+}
+
+pub async fn remove_connection(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveConnection>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let connection_id = cmd.connection_id;
+    crate::maps::connection::remove_connection(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::ConnectionChanged {
+        map_id,
+        connection_id,
+    });
+    Ok(Json(()))
+}
+
+// --- Signatures ---
+
+pub async fn add_signature(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<AddSignature>,
+) -> ApiResult<Signature> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let sig = crate::maps::signatures::add_signature(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SignatureChanged {
+        map_id: sig.map_id,
+        solar_system_id: sig.solar_system_id,
+    });
+    Ok(Json(sig))
+}
+
+pub async fn paste_signatures(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<PasteSignatures>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let solar_system_id = cmd.solar_system_id;
+    crate::maps::signatures::paste_signatures(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SignatureChanged {
+        map_id,
+        solar_system_id,
+    });
+    Ok(Json(()))
+}
+
+pub async fn update_signature(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<UpdateSignature>,
+) -> ApiResult<Signature> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let sig = crate::maps::signatures::update_signature(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SignatureChanged {
+        map_id: sig.map_id,
+        solar_system_id: sig.solar_system_id,
+    });
+    if let Some(connection_id) = sig.connection_id {
+        state.hub.publish(MapEvent::ConnectionChanged {
+            map_id: sig.map_id,
+            connection_id,
+        });
+    }
+    Ok(Json(sig))
+}
+
+pub async fn link_signature(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<LinkSignature>,
+) -> ApiResult<Signature> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let connection_id = cmd.connection_id;
+    let sig = crate::maps::signatures::link_signature(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SignatureChanged {
+        map_id: sig.map_id,
+        solar_system_id: sig.solar_system_id,
+    });
+    state.hub.publish(MapEvent::ConnectionChanged {
+        map_id: sig.map_id,
+        connection_id,
+    });
+    Ok(Json(sig))
+}
+
+pub async fn unlink_signature(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<UnlinkSignature>,
+) -> ApiResult<Signature> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let sig = crate::maps::signatures::unlink_signature(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SignatureChanged {
+        map_id: sig.map_id,
+        solar_system_id: sig.solar_system_id,
+    });
+    Ok(Json(sig))
+}
+
+pub async fn remove_signature(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<RemoveSignature>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let solar_system_id: Option<i64> =
+        sqlx::query_scalar("select solar_system_id from signatures where id = $1 and map_id = $2")
+            .bind(cmd.signature_pk)
+            .bind(map_id)
+            .fetch_optional(&state.db)
+            .await?;
+    crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
+    if let Some(solar_system_id) = solar_system_id {
+        state.hub.publish(MapEvent::SignatureChanged {
+            map_id,
+            solar_system_id,
+        });
+    }
+    Ok(Json(()))
+}

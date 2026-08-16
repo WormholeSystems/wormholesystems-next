@@ -15,7 +15,7 @@ pub mod token;
 pub mod character;
 pub mod entities;
 pub mod sovereignty;
-mod ui;
+pub mod ui;
 
 // These read as "unused" only because nothing consumes the crate yet (it's a binary);
 // they are the surface the web layer will use.

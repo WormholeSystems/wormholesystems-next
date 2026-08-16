@@ -211,6 +211,7 @@ async fn link_merges_worst_then_edits_propagate(pool: PgPool) {
             from_system: a,
             to_system: b,
             kind: vector::maps::ConnectionType::Wormhole,
+            size: None,
         },
     )
     .await
@@ -333,6 +334,7 @@ async fn link_validations_and_unlink(pool: PgPool) {
             from_system: a,
             to_system: b,
             kind: vector::maps::ConnectionType::Wormhole,
+            size: None,
         },
     )
     .await

@@ -1,4 +1,3 @@
-#[cfg(feature = "ssr")]
 #[tokio::main]
 async fn main() {
     // `vector seed` populates the reference tables from the SDE + data/static, then exits.
@@ -11,18 +10,9 @@ async fn main() {
 
     use axum::Router;
     use axum::routing::get;
-    use leptos::logging::log;
-    use leptos::prelude::*;
-    use leptos_axum::{LeptosRoutes, generate_route_list};
-    use vector::app::{App, shell};
     use vector::auth::{self, AppState, Auth};
     use vector::config::Config;
     use vector::esi::{EsiClient, Sso};
-
-    let conf = get_configuration(None).unwrap();
-    let leptos_options = conf.leptos_options;
-    let addr = leptos_options.site_addr;
-    let routes = generate_route_list(App);
 
     // Config, the database, and SSO are all essential — fail fast if any is unavailable.
     let config = Config::from_env()
@@ -33,7 +23,7 @@ async fn main() {
     // Keep the reference tables in sync with the bundled SDE. Runs only on first boot
     // or when data/sde holds a newer build; otherwise it's a single cheap query.
     match vector::seed::ensure_seeded(&db).await {
-        Ok(true) => log!("seeded reference tables from the SDE"),
+        Ok(true) => println!("seeded reference tables from the SDE"),
         Ok(false) => {}
         Err(e) => panic!("could not seed the SDE reference tables: {e}"),
     }
@@ -55,26 +45,15 @@ async fn main() {
     // Background: keep sovereignty (and its alliance/corp entities) current for map display.
     vector::sovereignty::start(db.clone(), esi.clone());
 
-    let state = AppState {
-        leptos_options: leptos_options.clone(),
-        auth,
-        db: db.clone(),
-        hub: hub.clone(),
-        user_hub: user_hub.clone(),
-    };
+    // Background: killmail ingest + daily threat analysis (gated by ZKB_LISTEN=1).
+    vector::killmails::start(db.clone(), esi.clone());
 
-    // Server functions reach the DB + event hub through Leptos context. The same context must
-    // be provided on every path that renders <App> — both the page routes and the error/404
-    // fallback, which also renders <Nav> (and so calls DB-backed server fns during SSR).
-    let provide_app_context = {
-        let db = db.clone();
-        let hub = hub.clone();
-        let grid = config.grid;
-        move || {
-            provide_context(db.clone());
-            provide_context(hub.clone());
-            provide_context(grid);
-        }
+    let state = AppState {
+        auth,
+        db,
+        hub,
+        user_hub,
+        grid: config.grid,
     };
 
     let app = Router::new()
@@ -82,59 +61,16 @@ async fn main() {
         .route("/auth/callback", get(auth::callback))
         .route("/auth/logout", get(auth::logout))
         // Realtime: per-map event stream + the per-user private channel / activity heartbeat.
-        .route("/ws/map/{map_id}", get(vector::app::api::map_ws))
-        .route("/ws/user", get(vector::app::api::user_ws))
-        .leptos_routes_with_context(
-            &state,
-            routes,
-            provide_app_context.clone(),
-            {
-                let leptos_options = leptos_options.clone();
-                move || shell(leptos_options.clone())
-            },
-        )
-        .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(
-            provide_app_context.clone(),
-            shell,
-        ))
-        // Dev: stop the browser caching the wasm/JS bundle so reloads pick up rebuilds.
-        .layer(axum::middleware::from_fn(no_cache_pkg_assets))
-        // Gate protected pages (/maps...) before rendering; redirects unauthenticated loads.
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            auth::require_login,
-        ))
+        .route("/ws/map/{map_id}", get(vector::api::ws::map_ws))
+        .route("/ws/user", get(vector::api::ws::user_ws))
+        // The JSON API for the SvelteKit frontend.
+        .merge(vector::api::router())
         .with_state(state);
 
+    let addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".to_string());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    log!("listening on http://{}", &addr);
+    println!("listening on http://{addr}");
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }
-
-/// In dev (`cargo leptos watch`) the client bundle keeps a stable filename (`/pkg/vector.wasm`),
-/// so browsers cache it and miss rebuilds on a normal reload. Mark `/pkg` assets non-cacheable.
-/// Release builds ship hashed filenames where caching is correct, so this is debug-only.
-#[cfg(feature = "ssr")]
-async fn no_cache_pkg_assets(
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> axum::response::Response {
-    let is_pkg = req.uri().path().starts_with("/pkg/");
-    let res = next.run(req).await;
-    #[cfg(debug_assertions)]
-    if is_pkg {
-        let mut res = res;
-        res.headers_mut().insert(
-            axum::http::header::CACHE_CONTROL,
-            axum::http::HeaderValue::from_static("no-store, must-revalidate"),
-        );
-        return res;
-    }
-    let _ = is_pkg;
-    res
-}
-
-#[cfg(not(feature = "ssr"))]
-fn main() {}

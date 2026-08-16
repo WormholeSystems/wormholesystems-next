@@ -213,6 +213,7 @@ async fn delete_is_owner_only_and_cascades(pool: PgPool) {
             from_system: a.id,
             to_system: b.id,
             kind: ConnectionType::Wormhole,
+            size: None,
         },
     )
     .await
@@ -323,6 +324,7 @@ async fn get_map_returns_exact_graph(pool: PgPool) {
             from_system: a.id,
             to_system: b.id,
             kind: ConnectionType::Stargate,
+            size: None,
         },
     )
     .await

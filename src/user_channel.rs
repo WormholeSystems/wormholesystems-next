@@ -14,7 +14,8 @@ use tokio::sync::broadcast;
 const CHANNEL_CAPACITY: usize = 64;
 
 /// An event addressed to a single user.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UserEvent {
     /// One of the user's characters had its tracked status updated — refetch.

@@ -7,8 +7,8 @@ use chrono::{DateTime, Utc};
 use vector::maps::connection::SetConnectionStatus;
 use vector::maps::signatures::AddSignature;
 use vector::maps::{
-    ConnectionType, Map, MapConnection, MapEvent, MapSolarSystem, MapView, MassStatus,
-    SignatureGroup, TimeStatus, WormholeSize,
+    ConnectionType, Map, MapConnection, MapEvent, MapSystemView, MapView, MassStatus,
+    SignatureGroup, Static, SystemStatus, ThreatLevel, TimeStatus, WormholeSize,
 };
 
 /// A fixed timestamp (chrono's `clock` feature is off — no `Utc::now()`).
@@ -37,6 +37,10 @@ fn map_event_round_trips_and_reports_its_map() {
             map_solar_system_id: 9,
         },
         MapEvent::SystemRemoved {
+            map_id: 2,
+            map_solar_system_id: 9,
+        },
+        MapEvent::SystemDetailsChanged {
             map_id: 2,
             map_solar_system_id: 9,
         },
@@ -76,6 +80,7 @@ fn partial_update_command_preserves_leave_vs_clear_vs_set() {
     let cmd = SetConnectionStatus {
         map_id: 1,
         connection_id: 2,
+        kind: None,
         mass_status: Some(Some(MassStatus::Critical)),
         time_status: Some(None),
         size: None,
@@ -115,14 +120,37 @@ fn map_view_round_trips() {
             image_url: None,
             created_at: ts(),
         },
-        systems: vec![MapSolarSystem {
+        systems: vec![MapSystemView {
             id: 10,
             map_id: 1,
-            solar_system_id: 30000142,
+            solar_system_id: 31000005,
             position_x: 1.5,
             position_y: -2.0,
-            alias: Some("Jita".into()),
-            created_at: ts(),
+            alias: Some("Home".into()),
+            is_home: true,
+            is_rally: false,
+            is_pinned: false,
+            status: SystemStatus::Active,
+            occupying_group: Some("Lazerhawks".into()),
+            name: "J104809".into(),
+            security_status: -0.99,
+            wormhole_class_id: Some(5),
+            region: "D-R00016".into(),
+            region_id: 11000016,
+            constellation_id: 21000113,
+            constellation: "E-C00113".into(),
+            effect_name: Some("Wolf-Rayet Star".into()),
+            is_shattered: false,
+            threat_level: Some(ThreatLevel::High),
+            statics: vec![Static {
+                code: "H296".into(),
+                dest_class: Some(5),
+                total_mass: Some(3_300_000_000),
+                max_jump_mass: Some(2_000_000_000),
+                lifetime_hours: Some(24.0),
+                signature_strength: Some(10.0),
+            }],
+            sovereignty: None,
         }],
         connections: vec![MapConnection {
             id: 20,

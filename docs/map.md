@@ -332,13 +332,12 @@ The live refetch must be **invisible**: the map stays on screen and updates in p
 - **No flicker, blank frame, or remount** of canvas or nodes.
 - **Pan/zoom, hover, selection, and in-progress drag are preserved** across an update.
 
-Leptos implementation notes:
+Implementation notes (Svelte client):
 
-- Don't gate the map on a `<Suspense>` whose fallback re-shows on refetch. Use `<Transition>`
-  (keeps current view mounted while loading) or read the resource's previous value. Initial SSR
-  load may show a fallback; **subsequent** refetches must not.
-- Render nodes/connections **keyed by stable id** so the framework **diffs in place** instead of
-  remounting — preserving per-node UI state and avoiding flicker.
+- A refetch replaces the fetched data in place; interaction state (pan/zoom/selection/drag)
+  lives outside the fetched data, so it survives the swap.
+- Render nodes/connections **keyed by stable id** (`{#each ... (s.id)}`) so the framework
+  **diffs in place** instead of remounting — preserving per-node UI state and avoiding flicker.
 - Only the changed slice visibly changes.
 
 ### 8.2 Events for the new actions

@@ -56,7 +56,10 @@ async fn sync_once(pool: &PgPool, esi: &EsiClient) {
         if let Err(err) = upsert_system(pool, system).await {
             // A system we don't have in the SDE, or an entity that failed to resolve — skip
             // it; the next tick retries.
-            eprintln!("sovereignty upsert for system {} skipped: {err}", system.solar_system_id);
+            eprintln!(
+                "sovereignty upsert for system {} skipped: {err}",
+                system.solar_system_id
+            );
         }
     }
 }
@@ -96,20 +99,24 @@ enum EntityKind {
 async fn stale_ids(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> Vec<i64> {
     let ids: Vec<i64> = ids.iter().copied().collect();
     let fresh = match kind {
-        EntityKind::Alliance => sqlx::query_scalar!(
-            "select id from alliances
+        EntityKind::Alliance => {
+            sqlx::query_scalar!(
+                "select id from alliances
              where id = any($1) and updated_at > now() - interval '7 days'",
-            &ids,
-        )
-        .fetch_all(pool)
-        .await,
-        EntityKind::Corporation => sqlx::query_scalar!(
-            "select id from corporations
+                &ids,
+            )
+            .fetch_all(pool)
+            .await
+        }
+        EntityKind::Corporation => {
+            sqlx::query_scalar!(
+                "select id from corporations
              where id = any($1) and updated_at > now() - interval '7 days'",
-            &ids,
-        )
-        .fetch_all(pool)
-        .await,
+                &ids,
+            )
+            .fetch_all(pool)
+            .await
+        }
     };
     let fresh: HashSet<i64> = match fresh {
         Ok(rows) => rows.into_iter().collect(),

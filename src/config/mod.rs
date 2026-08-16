@@ -1,7 +1,7 @@
 //! Application configuration, read from the environment (and a `.env` file in dev).
 
-use crate::app::GridConfig;
 use crate::esi::{Scope, SsoConfig};
+use crate::maps::GridConfig;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {

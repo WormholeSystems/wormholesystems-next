@@ -73,11 +73,11 @@ changes too. The trigger never needs to emit anything itself.
 
 Built now: `MapEvent` + `MapHub` (the bus, unit-tested in `events.rs`).
 
-Deferred to the server/UI layer (none of it exists yet):
+Built since: the **Axum WebSocket endpoint** (`src/api/ws.rs`), the **Svelte client**
+subscription (any frame → refetch, `frontend/src/lib/ws.ts`), and the **`publish` calls**
+at the API handler boundary (`src/api/handlers.rs`).
 
-- the **Axum WebSocket endpoint** that subscribes a connection to its map and forwards events;
-- the **Leptos client** subscription that maps an event to a `Resource` refetch, and does a
-  full `get_map` on (re)connect so a missed event self-heals;
-- the **`publish` calls** at the server-function boundary;
+Still deferred:
+
 - **presence** (`Presence { map_id, character_id }`) from the tracking poller — the case that
   most justifies the in-process design.

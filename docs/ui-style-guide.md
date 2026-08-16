@@ -35,26 +35,25 @@ signals, not surfaces.
 
 ## Dark mode
 
-Class-based: the [`ThemeToggle`](../src/components/ui/theme_toggle.rs) flips a `dark` class on
-`<html>` (synced from `ThemeMode` in `app/mod.rs`; a no-flash script in the shell applies the
-saved choice before paint). `style/tailwind.css` defines the `.dark` token overrides and the
-`@custom-variant dark`. Because everything uses tokens, components adapt automatically.
+Class-based: the [`ThemeToggle`](../frontend/src/lib/components/ThemeToggle.svelte) flips a
+`dark` class on `<html>` (persisted via `$lib/theme.svelte.ts`; a no-flash script in
+`app.html` applies the saved choice before paint). `frontend/src/app.css` defines the `.dark`
+token overrides and the `@custom-variant dark`. Because everything uses tokens, components
+adapt automatically.
 
 ## Components
 
-- **Vendored Rust/UI library** — `crate::components::ui::*` (added via the `ui` CLI:
-  `ui add <name>`). Buttons, dialog, dropdown_menu, popover, command, input, avatar, etc.
-  Prefer these over hand-rolled controls.
-- **Icons** — Lucide via the `icons` crate: `use icons::{Map, LogOut, Plus};` then
-  `<Map class="size-4" />`. Size with `size-4`/`size-5`; color via text token.
-- **EVE imagery** — `crate::app::components::{CharacterImage, CorporationImage,
-  AllianceImage, TypeImage}`. Pass the entity id + a `class` for size/shape (they render a
-  plain `<img>` from `images.evetech.net`). Use square framing (`size-7`, `border-border`).
-- **Search palette** — `crate::app::components::SystemSearchDialog`: a command-palette modal
-  for picking a solar system (driven by an `open: RwSignal<bool>` + `on_select: Callback<i64>`).
-  It is Leptos-reactive (↑/↓/Enter/Esc, live server-side search) rather than using the
-  vendored `Command` component's static-list `<script>`, which can't drive dynamic results.
-  Reach for this pattern (signal-controlled `<Show>` overlay) for any searchable picker.
+- **Headless components** — [bits-ui](https://bits-ui.com) (e.g. `DropdownMenu`), styled
+  with the theme tokens. Prefer these over hand-rolled controls for overlays/menus.
+- **Icons** — Lucide via `@lucide/svelte`: `import { Map, LogOut, Plus } from '@lucide/svelte';`
+  then `<Map class="size-4" />`. Size with `size-4`/`size-5`; color via text token.
+- **EVE imagery** — [`EveImage`](../frontend/src/lib/components/EveImage.svelte): pass the
+  entity `kind` + id + a `class` for size/shape (renders a plain `<img>` from
+  `images.evetech.net`). Use square framing (`size-7`, `border-border`).
+- **Search palette** — `SystemSearchDialog` (map route): a command-palette modal for picking
+  a solar system (driven by a bindable `open` prop + an `onpick` callback), with ↑/↓/Enter/Esc
+  keyboard navigation and live server-side search. Reach for this pattern (state-controlled
+  overlay) for any searchable picker.
 
 ## Layout
 
@@ -64,12 +63,12 @@ saved choice before paint). `style/tailwind.css` defines the `.dark` token overr
 
 ## Patterns
 
-- **Navbar** (`app/mod.rs`): slim sticky bar, wordmark + text links (`text-muted-foreground`
+- **Navbar** (`frontend/src/lib/components/Nav.svelte`): slim sticky bar, wordmark + text links (`text-muted-foreground`
   → `hover:text-foreground`), right-aligned status + theme toggle + avatar. The avatar opens
   the account dropdown (switch / add / remove character / log out) — no loose buttons in the
   bar.
 - **Menu items**: the `MENU_ITEM` style — `flex w-full items-center gap-2 px-2 py-1.5 text-sm
   text-muted-foreground hover:bg-accent hover:text-foreground`; destructive items add
   `hover:text-destructive`.
-- **Auth-state UI** lives in one `<Suspense>`/`<Transition>` boundary; never nest async
-  boundaries (causes hydration mismatches) — see the navbar.
+- **Auth-state UI**: the signed-in character comes from the root layout's server load, so
+  it is present on first paint; live data (status, character list) loads client-side.

@@ -9,9 +9,18 @@ processes:
     auto_restart: true
     restart_when_changed: []
     env: {}
-  Leptos Watch:
-    command: cargo leptos watch
+  API:
+    command: cargo run
     working_dir: null
+    auto_start: true
+    auto_restart: true
+    restart_when_changed:
+      - src/**/*.rs
+      - Cargo.toml
+    env: {}
+  Frontend:
+    command: npm run dev
+    working_dir: frontend
     auto_start: true
     auto_restart: true
     restart_when_changed: []
@@ -41,6 +50,20 @@ processes:
     env: {}
   Check:
     command: cargo check --all-targets
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
+  E2E:
+    command: npm run test:e2e
+    working_dir: frontend
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
+  Export TS types:
+    command: TS_RS_EXPORT_DIR=$PWD/frontend/src/lib/api/types TS_RS_LARGE_INT=number cargo test export_bindings
     working_dir: null
     auto_start: false
     auto_restart: false

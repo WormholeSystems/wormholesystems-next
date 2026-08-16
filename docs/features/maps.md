@@ -7,8 +7,8 @@ into a set of authorized, validated operations.
 
 Scope of this doc: **action-based, no UI.** Each action is a server-side function with a
 clear signature, authorization rule, validation, effect, and error set — the contract
-tests are derived from. UI / HTTP wiring (Leptos server functions, Axum routes) comes
-later and just calls these.
+tests are derived from. UI / HTTP wiring (the Axum JSON routes in `src/api`) just
+calls these.
 
 In scope: map lifecycle (create / rename / delete / list / get), access grants, graph
 editing (add / remove / move systems, add / remove connections, mark connection state),

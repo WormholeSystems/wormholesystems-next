@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from signatures where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4cb767a3af149170c2d8cd6c117d8fa5fd71f283a8fc28e9ba8c1a8a6cb6384"
+}

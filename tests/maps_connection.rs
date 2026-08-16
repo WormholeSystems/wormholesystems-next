@@ -50,7 +50,8 @@ async fn add_connection_returns_fields_and_validates(pool: PgPool) {
                 map_id: w.map_id,
                 from_system: a.id,
                 to_system: a.id,
-                kind: ConnectionType::Wormhole
+                kind: ConnectionType::Wormhole,
+                size: None,
             }
         )
         .await,
@@ -65,7 +66,8 @@ async fn add_connection_returns_fields_and_validates(pool: PgPool) {
                 map_id: w.map_id,
                 from_system: a.id,
                 to_system: 4242,
-                kind: ConnectionType::Wormhole
+                kind: ConnectionType::Wormhole,
+                size: None,
             }
         )
         .await,
@@ -80,6 +82,7 @@ async fn add_connection_returns_fields_and_validates(pool: PgPool) {
             from_system: a.id,
             to_system: b.id,
             kind: ConnectionType::Wormhole,
+            size: None,
         },
     )
     .await
@@ -98,6 +101,7 @@ async fn add_connection_returns_fields_and_validates(pool: PgPool) {
             from_system: b.id,
             to_system: a.id,
             kind: ConnectionType::Stargate,
+            size: None,
         },
     )
     .await
@@ -148,6 +152,7 @@ async fn remove_connection_clears_signature_link(pool: PgPool) {
             from_system: a.id,
             to_system: b.id,
             kind: ConnectionType::Wormhole,
+            size: None,
         },
     )
     .await
@@ -241,6 +246,7 @@ async fn set_status_marks_a_connection_without_a_signature(pool: PgPool) {
             from_system: a.id,
             to_system: b.id,
             kind: ConnectionType::Wormhole,
+            size: None,
         },
     )
     .await

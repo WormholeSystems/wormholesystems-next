@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use axum::extract::{FromRef, Query, Request, State};
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, SameSite};
-use leptos::prelude::LeptosOptions;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -17,17 +15,11 @@ use crate::session;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub leptos_options: LeptosOptions,
     pub auth: Arc<Auth>,
     pub db: sqlx::PgPool,
     pub hub: crate::maps::MapHub,
     pub user_hub: crate::user_channel::UserHub,
-}
-
-impl FromRef<AppState> for LeptosOptions {
-    fn from_ref(state: &AppState) -> Self {
-        state.leptos_options.clone()
-    }
+    pub grid: crate::maps::GridConfig,
 }
 
 pub struct Auth {
@@ -38,6 +30,14 @@ pub struct Auth {
 impl Auth {
     pub fn new(sso: Arc<Sso>, esi: EsiClient) -> Self {
         Auth { sso, esi }
+    }
+
+    pub fn sso(&self) -> &Arc<Sso> {
+        &self.sso
+    }
+
+    pub fn esi(&self) -> &EsiClient {
+        &self.esi
     }
 }
 
@@ -200,33 +200,6 @@ pub async fn callback(
         .build();
     let destination = flow.redirect_to.unwrap_or_else(|| "/".to_string());
     (jar.add(cookie), Redirect::to(&destination)).into_response()
-}
-
-/// Route guard middleware: redirect unauthenticated requests for protected paths
-/// (`/maps`, `/maps/...`) to the login page before any rendering happens. Server functions
-/// enforce auth independently; this is the page-level gate.
-pub async fn require_login(
-    State(state): State<AppState>,
-    jar: CookieJar,
-    req: Request,
-    next: Next,
-) -> Response {
-    let path = req.uri().path();
-    let protected = path == "/maps" || path.starts_with("/maps/");
-    if protected {
-        let authed = match jar.get(session::SESSION_COOKIE) {
-            Some(cookie) => session::actor_for_session(&state.db, cookie.value())
-                .await
-                .ok()
-                .flatten()
-                .is_some(),
-            None => false,
-        };
-        if !authed {
-            return Redirect::to("/login").into_response();
-        }
-    }
-    next.run(req).await
 }
 
 /// `GET /auth/logout` — end the session and clear the cookie.

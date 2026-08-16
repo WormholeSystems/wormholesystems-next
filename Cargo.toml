@@ -4,42 +4,21 @@ edition = "2024"
 # sqlx 0.9 (and its CLI) require rustc >= 1.94.
 rust-version = "1.94"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
-# Leptos (compiled for both server and client)
-leptos = { version = "0.8" }
-leptos_meta = { version = "0.8" }
-leptos_router = { version = "0.8" }
-leptos_axum = { version = "0.8", optional = true }
+# Web server
+axum = { version = "0.8", features = ["ws"] }
+axum-extra = { version = "0.10", features = ["cookie"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
 
-# Web server (ssr only)
-axum = { version = "0.8", features = ["ws"], optional = true }
-axum-extra = { version = "0.10", features = ["cookie"], optional = true }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"], optional = true }
-
-# Client / hydrate only
-console_error_panic_hook = { version = "0.1", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-# WebSocket client for realtime map events.
-gloo-net = { version = "0.6", default-features = false, features = ["websocket"], optional = true }
-futures = { version = "0.3", optional = true }
-js-sys = { version = "0.3", optional = true }
-# Not optional: the vendored UI components reference web-sys on both targets (it compiles
-# everywhere; DOM calls only run on the client).
-web-sys = { version = "0.3", features = ["Window", "Location", "Document", "Element", "HtmlElement", "CssStyleDeclaration", "DomTokenList", "NodeList", "Node", "Storage", "MediaQueryList", "DomRect", "EventTarget", "AddEventListenerOptions", "PointerEvent", "MouseEvent", "WheelEvent", "KeyboardEvent"] }
-
-# Domain (server only)
-reqwest = { version = "0.13.4", features = ["blocking", "json", "form"], optional = true }
-jsonwebtoken = { version = "9", optional = true }
-zip = { version = "8.6.0", optional = true }
-dotenvy = { version = "0.15", optional = true }
-thiserror = { version = "2", optional = true }
-uuid = { version = "1", features = ["v4"], optional = true }
-# default-features off drops `clock` (and its wasm time-source deps) — we only use
-# DateTime<Utc> as a type, never now(). `serde` is needed for the cross-target structs.
-chrono = { version = "0.4", default-features = false, features = ["std", "serde"], optional = true }
+# Domain
+reqwest = { version = "0.13.4", features = ["blocking", "json", "form"] }
+jsonwebtoken = "9"
+zip = "8.6.0"
+dotenvy = "0.15"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+# default-features off drops `clock` — we only use DateTime<Utc> as a type, never now().
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 sqlx = { version = "0.9", default-features = false, features = [
     "runtime-tokio",
     "tls-rustls",
@@ -47,57 +26,7 @@ sqlx = { version = "0.9", default-features = false, features = [
     "macros",
     "migrate",
     "chrono",
-], optional = true }
+] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", optional = true }
-serde_urlencoded = { version = "0.7", optional = true }
-strum = "0.28.0"
-icons = { version = "0.18.3", features = ["leptos"] }
-tw_merge = { version = "0.1.21", features = ["variant"] }
-leptos_ui = "0.3.22"
-
-[features]
-default = ["ssr"]
-hydrate = [
-    "leptos/hydrate",
-    "dep:console_error_panic_hook",
-    "dep:wasm-bindgen",
-    # Shared domain types (maps) need these on the client too.
-    "dep:chrono",
-    "dep:serde_json",
-    # Realtime client.
-    "dep:gloo-net",
-    "dep:futures",
-    "dep:js-sys",
-]
-ssr = [
-    "dep:axum",
-    "dep:axum-extra",
-    "dep:tokio",
-    "dep:leptos_axum",
-    "dep:reqwest",
-    "dep:jsonwebtoken",
-    "dep:zip",
-    "dep:dotenvy",
-    "dep:thiserror",
-    "dep:serde_json",
-    "dep:serde_urlencoded",
-    "dep:uuid",
-    "dep:chrono",
-    "dep:sqlx",
-    "leptos/ssr",
-    "leptos_meta/ssr",
-    "leptos_router/ssr",
-]
-
-[package.metadata.leptos]
-output-name = "vector"
-site-root = "target/site"
-site-pkg-dir = "pkg"
-tailwind-input-file = "style/tailwind.css"
-site-addr = "127.0.0.1:3000"
-reload-port = 3001
-bin-features = ["ssr"]
-bin-default-features = false
-lib-features = ["hydrate"]
-lib-default-features = false
+serde_json = "1.0"
+ts-rs = { version = "12.0.1", features = ["chrono-impl"] }
