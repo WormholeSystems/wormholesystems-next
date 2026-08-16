@@ -79,8 +79,12 @@
 				data-testid="connection-popover"
 				onpointerdown={(ev: PointerEvent) => ev.stopPropagation()}
 				oncontextmenu={(ev: MouseEvent) => ev.stopPropagation()}
+				onOpenAutoFocus={(ev) => ev.preventDefault()}
 			>
-				<Tooltip.Provider delayDuration={300}>
+				<!-- ignoreNonKeyboardFocus: without it the popover's auto-focus lands on the
+				     first tooltip trigger, popping a tooltip whose dismiss layer then eats
+				     the first outside click. -->
+				<Tooltip.Provider delayDuration={300} ignoreNonKeyboardFocus>
 					<div class="space-y-3">
 						{#if outSig !== null}
 							<SignatureSection title="Out Sig" sig={outSig} {catalog} />

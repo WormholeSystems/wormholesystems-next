@@ -96,7 +96,18 @@ test('click opens the popover: status, no signatures, empty mass section', async
 	await expect(popover.getByTestId('mass-jumped')).toHaveText('0');
 	await expect(popover.getByTestId('jump-log-trigger')).toContainText('0 jumps');
 
-	// Escape closes it.
+	// Opening must not auto-focus a tooltip trigger (a stray tooltip's dismiss layer
+	// would eat the first outside click).
+	await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
+
+	// A single outside click closes it, and the map stays interactive afterwards.
+	await page.mouse.click(900, 620);
+	await expect(popover).toHaveCount(0);
+	await page.getByTestId('system-node').filter({ hasText: 'Jita' }).click();
+	await expect(page.getByTestId('system-info')).toBeVisible();
+
+	// Reopen: Escape closes it too.
+	await openPopover(page);
 	await page.keyboard.press('Escape');
 	await expect(popover).toHaveCount(0);
 });
