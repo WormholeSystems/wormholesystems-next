@@ -46,6 +46,7 @@
 	import SignaturesPanel from './SignaturesPanel.svelte';
 	import SystemNode from './SystemNode.svelte';
 	import CommandPalette from './CommandPalette.svelte';
+	import Sidebar from './panels/Sidebar.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import SystemSearchDialog from './SystemSearchDialog.svelte';
 
@@ -671,25 +672,5 @@
 	<ConnectionPopover {map} />
 </div>
 
-<!-- Side panels for the active system (legacy layout): flush-stacked, hairline-merged. -->
-<aside class="flex flex-col">
-	<NavigationCard {map} />
-	{#if map.activeSystem}
-		<SystemInfoCard system={map.activeSystem} />
-		<ThreatCard system={map.activeSystem} />
-		<SignaturesPanel {map} system={map.activeSystem} />
-		<NotesCard {map} system={map.activeSystem} />
-	{:else}
-		<MapPanel testid="system-info-empty">
-			<MapPanelHeader>System</MapPanelHeader>
-			<MapPanelContent>
-				<div class="flex flex-col items-center justify-center gap-2 p-4">
-					<p class="font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase">
-						Select a system
-					</p>
-				</div>
-			</MapPanelContent>
-		</MapPanel>
-	{/if}
-</aside>
+<Sidebar {map} />
 </div>

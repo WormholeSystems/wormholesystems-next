@@ -96,6 +96,11 @@ pub struct MapUserSettings {
     /// Worst wormhole mass still routed through: `stable` / `reduced` / `critical`.
     pub route_allow_mass_status: String,
     pub route_use_evescout: bool,
+    /// Sidebar panels this user hides on this map. Empty = the built-in set.
+    pub hidden_panels: Vec<String>,
+    /// The order the visible panels appear in. Empty = the built-in order; ids missing
+    /// from the list keep their default position after the ones that are listed.
+    pub panel_order: Vec<String>,
 }
 
 /// Partial update of [`MapUserSettings`]; absent fields stay unchanged.
@@ -129,6 +134,12 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub route_use_evescout: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub hidden_panels: Option<Vec<String>>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub panel_order: Option<Vec<String>>,
 }
 
 /// A public Thera/Turnur wormhole edge from EVE Scout, normalized to Vector's status

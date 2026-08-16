@@ -14,7 +14,8 @@
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { isWormholeClass } from '$lib/map/classes';
 
-	let { system }: { system: MapSystemView } = $props();
+	let { system, layoutActions }: { system: MapSystemView; layoutActions?: import('svelte').Snippet } =
+		$props();
 
 	let analysis = $state<ThreatAnalysis | null>(null);
 
@@ -53,6 +54,7 @@
 		<MapPanelHeader>
 			Threat Analysis
 			{#snippet actions()}
+			{@render layoutActions?.()}
 				{#if analysis}
 					<Badge variant="secondary" class={badgeClass} data-testid="threat-badge">
 						{analysis.threat_level[0].toUpperCase() + analysis.threat_level.slice(1)}

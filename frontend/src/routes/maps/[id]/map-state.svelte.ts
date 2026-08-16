@@ -86,6 +86,8 @@ export class MapState {
 	searchOpen = $state(false);
 	// The Cmd+K palette, opened from the status bar or the shortcut.
 	paletteOpen = $state(false);
+	// Sidebar layout edit mode: panel headers show move/hide controls while it is on.
+	editingLayout = $state(false);
 	// The connection details popover: which edge, anchored at which screen point.
 	connectionPopover = $state<{ id: number; x: number; y: number } | null>(null);
 	// Where a search-added system should land (world coords, top-left). Set by the

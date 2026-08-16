@@ -27,7 +27,11 @@
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
 
-	let { map, system }: { map: MapState; system: MapSystemView } = $props();
+	let { map, system, layoutActions }: {
+		map: MapState;
+		system: MapSystemView;
+		layoutActions?: import('svelte').Snippet;
+	} = $props();
 
 	let catalog = $state<SignatureCatalog | null>(null);
 	$effect(() => {
@@ -263,6 +267,7 @@
 			<span class="ml-1 text-muted-foreground/70">{hiddenCount} hidden</span>
 		{/if}
 		{#snippet actions()}
+			{@render layoutActions?.()}
 			<Button
 				variant="ghost"
 				size="icon"

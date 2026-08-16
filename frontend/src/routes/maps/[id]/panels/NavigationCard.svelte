@@ -49,7 +49,7 @@
 	import RoutePopover from './RoutePopover.svelte';
 	import RouteSettings from './RouteSettings.svelte';
 
-	let { map }: { map: MapState } = $props();
+	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } = $props();
 
 	const PREF_LABELS: Record<string, string> = {
 		shorter: 'Shortest',
@@ -366,6 +366,7 @@
 			{PREF_LABELS[map.userSettings?.route_preference ?? 'shorter']}
 		</span>
 		{#snippet actions()}
+			{@render layoutActions?.()}
 			<RouteSettings {map} />
 			{#if canWrite}
 				<Popover.Root bind:open={addOpen}>

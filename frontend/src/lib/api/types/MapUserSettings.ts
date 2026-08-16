@@ -19,4 +19,13 @@ route_allow_time_status: string,
 /**
  * Worst wormhole mass still routed through: `stable` / `reduced` / `critical`.
  */
-route_allow_mass_status: string, route_use_evescout: boolean, };
+route_allow_mass_status: string, route_use_evescout: boolean, 
+/**
+ * Sidebar panels this user hides on this map. Empty = the built-in set.
+ */
+hidden_panels: Array<string>, 
+/**
+ * The order the visible panels appear in. Empty = the built-in order; ids missing
+ * from the list keep their default position after the ones that are listed.
+ */
+panel_order: Array<string>, };

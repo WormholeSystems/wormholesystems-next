@@ -6,6 +6,7 @@
 	import EyeIcon from '@lucide/svelte/icons/eye';
 	import HistoryIcon from '@lucide/svelte/icons/history';
 	import LayersIcon from '@lucide/svelte/icons/layers';
+	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 	import RadarIcon from '@lucide/svelte/icons/radar';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
@@ -281,6 +282,27 @@
 			</Tooltip.Content>
 		</Tooltip.Root>
 	{/if}
+
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="ghost"
+					size="icon"
+					class={cn('size-7', map.editingLayout && 'bg-accent text-foreground')}
+					aria-pressed={map.editingLayout}
+					data-testid="layout-toggle"
+					onclick={() => (map.editingLayout = !map.editingLayout)}
+				>
+					<LayoutGridIcon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content>
+			{map.editingLayout ? 'Done arranging panels' : 'Arrange the side panels'}
+		</Tooltip.Content>
+	</Tooltip.Root>
 
 	<Popover.Root>
 		<Popover.Trigger>

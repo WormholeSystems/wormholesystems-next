@@ -13,7 +13,8 @@
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
 	import { classMeta, destClassMeta, effectTextColor, isWormholeClass } from '$lib/map/classes';
 
-	let { system }: { system: MapSystemView } = $props();
+	let { system, layoutActions }: { system: MapSystemView; layoutActions?: import('svelte').Snippet } =
+		$props();
 
 	const cls = $derived(classMeta(system.wormhole_class_id, system.security_status));
 	const isWormhole = $derived(isWormholeClass(system.wormhole_class_id));
@@ -40,7 +41,12 @@
 </script>
 
 <MapPanel testid="system-info">
-	<MapPanelHeader>System</MapPanelHeader>
+	<MapPanelHeader>
+		System
+		{#snippet actions()}
+			{@render layoutActions?.()}
+		{/snippet}
+	</MapPanelHeader>
 	<MapPanelContent>
 		<div class="border-b border-border/50 px-3 py-3">
 			<div class="flex items-center gap-2">

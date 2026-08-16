@@ -3,4 +3,4 @@
 /**
  * Partial update of [`MapUserSettings`]; absent fields stay unchanged.
  */
-export type UpdateMapUserSettings = { tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, route_preference?: string, security_penalty?: number, route_allow_time_status?: string, route_allow_mass_status?: string, route_use_evescout?: boolean, };
+export type UpdateMapUserSettings = { tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, route_preference?: string, security_penalty?: number, route_allow_time_status?: string, route_allow_mass_status?: string, route_use_evescout?: boolean, hidden_panels?: Array<string>, panel_order?: Array<string>, };

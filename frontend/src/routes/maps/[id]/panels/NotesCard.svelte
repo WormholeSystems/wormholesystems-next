@@ -14,7 +14,11 @@
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import type { MapState } from '../map-state.svelte';
 
-	let { map, system }: { map: MapState; system: MapSystemView } = $props();
+	let { map, system, layoutActions }: {
+		map: MapState;
+		system: MapSystemView;
+		layoutActions?: import('svelte').Snippet;
+	} = $props();
 
 	let notes = $state<string | null>(null);
 	let hidden = $state(false);
@@ -62,6 +66,7 @@
 		<MapPanelHeader>
 			Notes
 			{#snippet actions()}
+			{@render layoutActions?.()}
 				{#if editing}
 					<Button variant="ghost" class="h-5 px-1.5 text-[10px]" onclick={() => (editing = false)}>
 						Cancel
