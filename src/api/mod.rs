@@ -72,6 +72,9 @@ pub struct SystemSearchResult {
     pub security: f64,
     pub region: String,
     pub wormhole_class_id: Option<i32>,
+    /// Wormhole effect, for J-space rows (shown where k-space rows show sovereignty).
+    pub effect_name: Option<String>,
+    pub sovereignty: Option<crate::maps::solar_system::Sovereignty>,
 }
 
 /// A user's per-map preferences.

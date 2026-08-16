@@ -397,16 +397,29 @@ pub async fn search_systems(
     }
     let contains = format!("%{q}%");
     let prefix = format!("{q}%");
-    let results = sqlx::query_as!(
-        SystemSearchResult,
+    let rows = sqlx::query!(
         r#"
         select s.id,
                s.name,
                s.security_status as "security!",
                r.name            as "region!",
-               s.wormhole_class_id
+               s.wormhole_class_id,
+               ws.effect_name,
+               case
+                   when sov.alliance_id is not null then 'alliance'
+                   when sov.corporation_id is not null then 'corporation'
+                   when sov.faction_id is not null then 'faction'
+               end as "sov_kind?",
+               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
+               coalesce(al.name, co.name, f.name) as "sov_name?",
+               coalesce(al.ticker, co.ticker) as "sov_ticker?"
         from solar_systems s
         join regions r on r.id = s.region_id
+        left join wormhole_systems ws on ws.solar_system_id = s.id
+        left join system_sovereignty sov on sov.solar_system_id = s.id
+        left join alliances al on al.id = sov.alliance_id
+        left join corporations co on co.id = sov.corporation_id
+        left join factions f on f.id = sov.faction_id
         where s.name ilike $1
         order by (s.name ilike $2) desc, length(s.name), s.name
         limit 30
@@ -416,6 +429,40 @@ pub async fn search_systems(
     )
     .fetch_all(&state.db)
     .await?;
+    let results = rows
+        .into_iter()
+        .map(|row| {
+            let sovereignty = match (row.sov_kind.as_deref(), row.sov_id, row.sov_name) {
+                (Some("alliance"), Some(id), Some(name)) => {
+                    Some(crate::maps::solar_system::Sovereignty::Alliance {
+                        id,
+                        name,
+                        ticker: row.sov_ticker.unwrap_or_default(),
+                    })
+                }
+                (Some("corporation"), Some(id), Some(name)) => {
+                    Some(crate::maps::solar_system::Sovereignty::Corporation {
+                        id,
+                        name,
+                        ticker: row.sov_ticker.unwrap_or_default(),
+                    })
+                }
+                (Some("faction"), Some(id), Some(name)) => {
+                    Some(crate::maps::solar_system::Sovereignty::Faction { id, name })
+                }
+                _ => None,
+            };
+            SystemSearchResult {
+                id: row.id,
+                name: row.name,
+                security: row.security,
+                region: row.region,
+                wormhole_class_id: row.wormhole_class_id,
+                effect_name: row.effect_name,
+                sovereignty,
+            }
+        })
+        .collect();
     Ok(Json(results))
 }
 
@@ -466,18 +513,69 @@ pub async fn resolve_systems(
         .filter_map(|s| s.trim().parse().ok())
         .take(200)
         .collect();
-    let rows = sqlx::query_as!(
-        SystemSearchResult,
-        r#"select s.id, s.name, s.security_status as "security!", r.name as "region!",
-                  s.wormhole_class_id
-           from solar_systems s
-           join regions r on r.id = s.region_id
-           where s.id = any($1)"#,
+    let rows = sqlx::query!(
+        r#"
+        select s.id,
+               s.name,
+               s.security_status as "security!",
+               r.name            as "region!",
+               s.wormhole_class_id,
+               ws.effect_name,
+               case
+                   when sov.alliance_id is not null then 'alliance'
+                   when sov.corporation_id is not null then 'corporation'
+                   when sov.faction_id is not null then 'faction'
+               end as "sov_kind?",
+               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
+               coalesce(al.name, co.name, f.name) as "sov_name?",
+               coalesce(al.ticker, co.ticker) as "sov_ticker?"
+        from solar_systems s
+        join regions r on r.id = s.region_id
+        left join wormhole_systems ws on ws.solar_system_id = s.id
+        left join system_sovereignty sov on sov.solar_system_id = s.id
+        left join alliances al on al.id = sov.alliance_id
+        left join corporations co on co.id = sov.corporation_id
+        left join factions f on f.id = sov.faction_id
+        where s.id = any($1)"#,
         &ids,
     )
     .fetch_all(&state.db)
     .await?;
-    Ok(Json(rows))
+    let results = rows
+        .into_iter()
+        .map(|row| {
+            let sovereignty = match (row.sov_kind.as_deref(), row.sov_id, row.sov_name) {
+                (Some("alliance"), Some(id), Some(name)) => {
+                    Some(crate::maps::solar_system::Sovereignty::Alliance {
+                        id,
+                        name,
+                        ticker: row.sov_ticker.unwrap_or_default(),
+                    })
+                }
+                (Some("corporation"), Some(id), Some(name)) => {
+                    Some(crate::maps::solar_system::Sovereignty::Corporation {
+                        id,
+                        name,
+                        ticker: row.sov_ticker.unwrap_or_default(),
+                    })
+                }
+                (Some("faction"), Some(id), Some(name)) => {
+                    Some(crate::maps::solar_system::Sovereignty::Faction { id, name })
+                }
+                _ => None,
+            };
+            SystemSearchResult {
+                id: row.id,
+                name: row.name,
+                security: row.security,
+                region: row.region,
+                wormhole_class_id: row.wormhole_class_id,
+                effect_name: row.effect_name,
+                sovereignty,
+            }
+        })
+        .collect();
+    Ok(Json(results))
 }
 
 #[derive(Deserialize)]

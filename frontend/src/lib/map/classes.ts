@@ -81,10 +81,19 @@ export function isWormholeClass(wormholeClassId: number | null): boolean {
 
 /** Search-dialog badge: class short label for w-space, otherwise the rounded security. */
 export function searchClassification(s: SystemSearchResult): { badge: string; token: string } {
+	// Class letters everywhere (H/L/N/C5...), not raw security numbers.
 	const m = classMeta(s.wormhole_class_id, s.security);
-	if (s.wormhole_class_id !== null && !m.isKnownSpace) {
-		return { badge: m.short, token: m.token };
-	}
-	const sec = Math.abs(s.security) < 0.05 ? 0 : s.security;
-	return { badge: sec.toFixed(1), token: m.token };
+	return { badge: m.short, token: m.token };
+}
+
+/** Legacy keyword map: the text color for a wormhole effect name. */
+export function effectTextColor(name: string | null | undefined): string {
+	const n = name?.toLowerCase() ?? '';
+	if (n.includes('pulsar')) return 'text-blue-400';
+	if (n.includes('magnetar')) return 'text-pink-400';
+	if (n.includes('wolf')) return 'text-amber-600';
+	if (n.includes('black')) return 'text-neutral-400';
+	if (n.includes('cataclysmic')) return 'text-yellow-400';
+	if (n.includes('red giant')) return 'text-red-400';
+	return 'text-muted-foreground';
 }

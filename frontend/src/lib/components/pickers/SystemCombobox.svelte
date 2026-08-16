@@ -73,7 +73,7 @@
 	>
 		<span class="block truncate">{label || placeholder}</span>
 	</Popover.Trigger>
-	<Popover.Content class="w-64 p-0">
+	<Popover.Content class="w-96 p-0">
 		<Command.Root shouldFilter={false}>
 			<Command.Input placeholder="Search…" bind:value={query} />
 			<Command.List class="max-h-48">

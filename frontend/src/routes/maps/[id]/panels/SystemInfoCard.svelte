@@ -11,7 +11,7 @@
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
-	import { classMeta, destClassMeta, isWormholeClass } from '$lib/map/classes';
+	import { classMeta, destClassMeta, effectTextColor, isWormholeClass } from '$lib/map/classes';
 
 	let { system }: { system: MapSystemView } = $props();
 
@@ -20,17 +20,7 @@
 	const underscore = (s: string) => s.replaceAll(' ', '_');
 	const sovKind = $derived(system.sovereignty?.kind === 'alliance' ? 'alliance' : 'corporation');
 
-	// Legacy keyword map: color the effect name by star type.
-	const effectColor = $derived.by(() => {
-		const name = system.effect_name?.toLowerCase() ?? '';
-		if (name.includes('pulsar')) return 'text-blue-400';
-		if (name.includes('magnetar')) return 'text-pink-400';
-		if (name.includes('wolf')) return 'text-amber-600';
-		if (name.includes('black')) return 'text-neutral-400';
-		if (name.includes('cataclysmic')) return 'text-yellow-400';
-		if (name.includes('red giant')) return 'text-red-400';
-		return 'text-muted-foreground';
-	});
+	const effectColor = $derived(effectTextColor(system.effect_name));
 
 	let mods = $state<EffectModifier[]>([]);
 	$effect(() => {

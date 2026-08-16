@@ -38,6 +38,30 @@ test('search dialog adds a system to the map', async ({ page, api }) => {
 	expect(Math.abs(pos.top - 480)).toBeLessThanOrEqual(40);
 });
 
+test('search rows show class letters and the effect column', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E SearchRows');
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const canvas = page.getByTestId('map-canvas');
+	await canvas.click({ button: 'right', position: { x: 400, y: 400 } });
+	await page.getByRole('button', { name: 'Add solar system' }).click();
+	const input = page.getByPlaceholder('Search for a system…');
+
+	// A wormhole row: class label plus its effect in the last column.
+	await input.fill('J122515');
+	const whRow = page.locator('[data-slot="command-item"]', { hasText: 'J122515' });
+	await expect(whRow).toBeVisible();
+	await expect(whRow.getByText('C5', { exact: true })).toBeVisible();
+	await expect(whRow.getByText('Wolf-Rayet Star')).toBeVisible();
+
+	// A k-space row: the class letter, not the raw security number.
+	await input.fill('jita');
+	const jitaRow = page.locator('[data-slot="command-item"]', { hasText: 'Jita' }).first();
+	await expect(jitaRow.getByText('H', { exact: true })).toBeVisible();
+	await expect(jitaRow.getByText('0.9')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+});
+
 test('node context menu sets the system status', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Status Map');
 	const add = await api.post(`/api/maps/${mapId}/systems/add`, {
