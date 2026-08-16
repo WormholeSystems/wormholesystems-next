@@ -162,9 +162,10 @@ text_enum! {
 }
 
 impl Default for SystemStatus {
-    /// A freshly placed system is `Unscanned` until someone classifies it.
+    /// A freshly placed system is `Unknown` until someone classifies it (matching the
+    /// legacy default: no status icon, neutral border).
     fn default() -> Self {
-        Self::Unscanned
+        Self::Unknown
     }
 }
 

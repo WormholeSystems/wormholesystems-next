@@ -132,6 +132,10 @@ test('status vocabulary drives border and icon', async ({ page, api }) => {
 	await gotoApp(page, `/maps/${mapId}`);
 	const node = page.getByTestId('system-node').filter({ hasText: 'Jita' });
 
+	// A fresh placement defaults to unknown: neutral border, no status icon.
+	await expect(node).toHaveAttribute('data-status', 'unknown');
+	await expect(node.locator('[aria-label]').filter({ hasText: '' })).toHaveCount(0);
+
 	await node.click({ button: 'right' });
 	await page.getByTestId('status-subtrigger').hover();
 	await page.getByTestId('status-submenu').getByRole('button', { name: 'Empty' }).click();

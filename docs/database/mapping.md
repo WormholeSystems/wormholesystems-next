@@ -66,7 +66,7 @@ map and be shown again when it is re-added. Lives independently of
 | `id`               | pk          |                                                          |
 | `map_id`           | fk maps     |                                                          |
 | `solar_system_id`  | int         | SDE `_key`                                               |
-| `status`           | enum        | `unknown` / `friendly` / `hostile` / `active` / `unscanned` / `empty` |
+| `status`           | enum        | `unknown` (default) / `friendly` / `hostile` / `active` / `unscanned` / `empty` |
 | `notes`             | text, null  | member-gated markdown notes (viewers never receive them)  |
 | `occupying_group`  | text, null  | who holds the system (intel)                             |
 | `updated_at`       | timestamptz |                                                          |
