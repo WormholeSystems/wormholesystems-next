@@ -18,7 +18,15 @@ import type { SocketState } from '$lib/ws';
 import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
 import { DEFAULT_LAYOUTS, placeAtBottom, resolveLayouts } from './panels/registry';
 import type { GridItem } from '$lib/layout/grid';
-import type { RouteStep } from '$lib/routing/algorithm';
+import type {
+	DynamicEdge,
+	RouteGraph,
+	RouteStep,
+	RoutingSettings
+} from '$lib/routing/algorithm';
+import { buildDynamicAdjacency } from '$lib/routing/algorithm';
+import type { MassStatus } from '$lib/api/types/MassStatus';
+import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import { NODE_W, clamp } from '$lib/map/helpers';
 
 /**
@@ -94,6 +102,8 @@ export class MapState {
 	// arrangement. The draft is what the grid renders, so a drag shows immediately; it is
 	// only persisted on Save, which is what makes Discard possible.
 	editingLayout = $state(false);
+	/** Raised when leaving edit mode with unsaved changes, so nothing is lost silently. */
+	layoutExitPrompt = $state(false);
 	layoutBreakpoint = $state<BreakpointKey>('lg');
 	layoutDraft = $state<PanelLayouts | null>(null);
 	/** The last saved arrangement, for dirty-tracking and for reverting to.  */
@@ -115,6 +125,22 @@ export class MapState {
 	routePath = $state<number[]>([]);
 	// Systems the router steers around (per map, persisted locally).
 	ignoredSystems = $state<Set<number>>(new Set());
+	// The static routing data, fetched once and shared: the navigation card plans routes
+	// with it, and the pilots card measures distances with it. One home, one fetch.
+	stargates = $state<Map<number, number[]> | null>(null);
+	security = $state<Map<number, number>>(new Map());
+	joveSystems = $state<Set<number>>(new Set());
+	stationSystems = $state<Set<number>>(new Set());
+	serviceOptions = $state<
+		{
+			id: number;
+			name: string;
+			systems: Set<number>;
+			/** Concrete stations per system, so results can name (and target) the station. */
+			stationsBySystem: Map<number, { id: number; name: string }[]>;
+		}[]
+	>([]);
+
 	// The history tree plus where the map sits in it, and the live socket state behind
 	// the status dot.
 	history = $state<MapHistory | null>(null);
@@ -141,6 +167,43 @@ export class MapState {
 			this.myCharacters.find((c) => c.online && c.solar_system_id !== null)?.solar_system_id ??
 			null
 	);
+
+	routingSettings = $derived<RoutingSettings>({
+		preference: (this.userSettings?.route_preference ??
+			'shorter') as RoutingSettings['preference'],
+		securityPenalty: this.userSettings?.security_penalty ?? 50,
+		allowTimeStatus: (this.userSettings?.route_allow_time_status ?? 'critical') as TimeStatus,
+		allowMassStatus: (this.userSettings?.route_allow_mass_status ?? 'reduced') as MassStatus
+	});
+	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
+
+	/** Stargates plus the chain's own edges. `null` until the static data has arrived. */
+	graph = $derived.by<RouteGraph | null>(() => {
+		const stargates = this.stargates;
+		if (!stargates) return null;
+		const placementSystem = new Map<number, number>();
+		for (const s of this.systems) placementSystem.set(s.id, s.solar_system_id);
+		const edges: DynamicEdge[] = [];
+		for (const c of this.connections) {
+			if (c.kind !== 'wormhole') continue;
+			const a = placementSystem.get(c.from_system);
+			const b = placementSystem.get(c.to_system);
+			if (a === undefined || b === undefined || a === b) continue;
+			edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
+		}
+		if (this.useEveScout) {
+			for (const e of this.eveScout) {
+				edges.push({
+					a: e.from_solar_system_id,
+					b: e.to_solar_system_id,
+					via: 'evescout',
+					mass: e.mass_status as MassStatus,
+					time: e.time_status as TimeStatus
+				});
+			}
+		}
+		return { stargates, dynamic: buildDynamicAdjacency(edges), security: this.security };
+	});
 
 	// Undo and redo move the map's cursor through the history tree rather than recording
 	// anything, so the server is the only thing that decides whether they are available.
@@ -243,6 +306,35 @@ export class MapState {
 		}
 	}
 
+	/** The static routing tables (stargates, security, Jove/station/service indexes). */
+	async loadRoutingGraph() {
+		try {
+			const g = await api.routingGraph();
+			this.stargates = new Map(
+				Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]])
+			);
+			this.security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
+			this.joveSystems = new Set(g.jove ?? []);
+			this.stationSystems = new Set(g.stations ?? []);
+			this.serviceOptions = (g.services ?? []).map((svc) => {
+				const stationsBySystem = new Map<number, { id: number; name: string }[]>();
+				for (const station of svc.stations) {
+					const list = stationsBySystem.get(station.solar_system_id) ?? [];
+					list.push({ id: station.id, name: station.name });
+					stationsBySystem.set(station.solar_system_id, list);
+				}
+				return {
+					id: svc.id,
+					name: svc.name,
+					systems: new Set(stationsBySystem.keys()),
+					stationsBySystem
+				};
+			});
+		} catch {
+			// No graph means no routing; the cards fall back to showing no distances.
+		}
+	}
+
 	async loadUserSettings() {
 		try {
 			this.userSettings = await api.mapUserSettings(this.mapId);
@@ -320,6 +412,29 @@ export class MapState {
 				this.editingLayout = false;
 			})
 			.catch((err) => (this.statusLine = `layout: ${(err as Error).message}`));
+	}
+
+	/**
+	 * Leave arrange mode. Unsaved changes raise the prompt instead of vanishing, whichever
+	 * control was used to leave: the toolbar's close button or the status-bar toggle.
+	 */
+	exitLayoutEdit() {
+		if (this.layoutDirty) {
+			this.layoutExitPrompt = true;
+			return;
+		}
+		this.editingLayout = false;
+	}
+
+	/** Answer the prompt: keep the changes, or throw them away. */
+	resolveLayoutExit(save: boolean) {
+		this.layoutExitPrompt = false;
+		if (save) {
+			this.saveLayout();
+			return;
+		}
+		this.revertLayout();
+		this.editingLayout = false;
 	}
 
 	/** Throw the working copy away and go back to what was last saved. */

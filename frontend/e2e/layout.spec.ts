@@ -313,6 +313,49 @@ test('hiding a panel in the middle closes the hole it leaves', async ({ page, ap
 	await expect(page.locator('[data-testid="panel-tile"][data-panel="navigation"]')).toBeVisible();
 });
 
+test('leaving with unsaved changes offers to save, from either control', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E ExitPrompt');
+	await page.setViewportSize({ width: 1700, height: 1000 });
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const before = await box(page, 'notes');
+	await page.getByTestId('layout-toggle').click();
+	await dragTile(page, 'notes', -700, 0);
+	const moved = await box(page, 'notes');
+	expect(moved.x).not.toBe(before.x);
+
+	// The status-bar toggle is the other way out of edit mode, and it must not drop the
+	// changes on the floor either.
+	await page.getByTestId('layout-toggle').click();
+	await expect(page.getByTestId('layout-exit-prompt')).toBeVisible();
+	await page.getByRole('button', { name: 'Keep editing' }).click();
+	await expect(page.getByTestId('layout-toolbar')).toBeVisible();
+	expect(await box(page, 'notes')).toEqual(moved);
+
+	// Saving keeps the arrangement and leaves edit mode.
+	await page.getByTestId('layout-exit').click();
+	await page.getByTestId('layout-save-exit').click();
+	await expect(page.getByTestId('layout-toolbar')).toHaveCount(0);
+
+	await page.reload();
+	await page.waitForSelector('[data-testid="panel-grid"]');
+	expect((await box(page, 'notes')).x).toBe(moved.x);
+});
+
+test('leaving an untouched layout does not ask', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E NoPrompt');
+	await page.setViewportSize({ width: 1700, height: 1000 });
+	await gotoApp(page, `/maps/${mapId}`);
+
+	await page.getByTestId('layout-toggle').click();
+	await page.getByTestId('layout-toggle').click();
+	await expect(page.getByTestId('layout-exit-prompt')).toHaveCount(0);
+	await expect(page.getByTestId('layout-toolbar')).toHaveCount(0);
+});
+
 test('discarding puts the arrangement back', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Discard');
 	await page.setViewportSize({ width: 1700, height: 1000 });

@@ -320,7 +320,8 @@
 					class={cn('size-7', map.editingLayout && 'bg-accent text-foreground')}
 					aria-pressed={map.editingLayout}
 					data-testid="layout-toggle"
-					onclick={() => (map.editingLayout = !map.editingLayout)}
+					onclick={() =>
+						map.editingLayout ? map.exitLayoutEdit() : (map.editingLayout = true)}
 				>
 					<LayoutGridIcon />
 				</Button>

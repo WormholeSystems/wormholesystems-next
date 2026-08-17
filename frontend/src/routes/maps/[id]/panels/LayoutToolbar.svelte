@@ -27,7 +27,6 @@
 
 	let { map }: { map: MapState } = $props();
 
-	let confirmDiscard = $state(false);
 	let pasteError = $state('');
 
 	const hidden = $derived(map.userSettings?.hidden_panels ?? []);
@@ -39,20 +38,6 @@
 		md: LaptopIcon,
 		lg: MonitorIcon
 	} as const;
-
-	function exit() {
-		if (map.layoutDirty) {
-			confirmDiscard = true;
-			return;
-		}
-		map.editingLayout = false;
-	}
-
-	function discard() {
-		confirmDiscard = false;
-		map.revertLayout();
-		map.editingLayout = false;
-	}
 
 	/** The layout as a string you can hand to someone else. */
 	async function copy() {
@@ -100,7 +85,7 @@
 							size="icon"
 							class={cn('size-9 rounded-xl', map.layoutDirty && 'text-destructive')}
 							data-testid="layout-exit"
-							onclick={exit}
+							onclick={() => map.exitLayoutEdit()}
 						>
 							<XIcon />
 						</Button>
@@ -269,19 +254,27 @@
 	</div>
 </Tooltip.Provider>
 
-<Dialog.Root bind:open={confirmDiscard}>
-	<Dialog.Content class="sm:max-w-md">
+<Dialog.Root bind:open={map.layoutExitPrompt}>
+	<Dialog.Content class="sm:max-w-md" data-testid="layout-exit-prompt">
 		<Dialog.Header>
-			<Dialog.Title>Discard layout changes?</Dialog.Title>
+			<Dialog.Title>Save your layout changes?</Dialog.Title>
 			<Dialog.Description>
-				The arrangement will go back to the last one you saved.
+				You have rearranged panels without saving. Discarding puts the arrangement back to
+				the last one you saved.
 			</Dialog.Description>
 		</Dialog.Header>
-		<Dialog.Footer>
-			<Button variant="outline" onclick={() => (confirmDiscard = false)}>Keep editing</Button>
-			<Button variant="destructive" data-testid="layout-discard" onclick={discard}>
-				Discard changes
-			</Button>
+		<Dialog.Footer class="sm:justify-between">
+			<Button variant="ghost" onclick={() => (map.layoutExitPrompt = false)}>Keep editing</Button>
+			<div class="flex gap-2">
+				<Button
+					variant="outline"
+					data-testid="layout-discard"
+					onclick={() => map.resolveLayoutExit(false)}>Discard</Button
+				>
+				<Button data-testid="layout-save-exit" onclick={() => map.resolveLayoutExit(true)}>
+					Save
+				</Button>
+			</div>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

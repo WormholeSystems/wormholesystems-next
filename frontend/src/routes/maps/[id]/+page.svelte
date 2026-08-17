@@ -113,6 +113,7 @@
 			}
 		});
 		s.loadUserSettings();
+		s.loadRoutingGraph();
 		tracker.refresh();
 		s.loadIgnored();
 		s.fetchCharacters();

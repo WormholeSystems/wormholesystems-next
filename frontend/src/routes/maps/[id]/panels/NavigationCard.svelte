@@ -58,55 +58,14 @@
 	};
 	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
 
-	const routingSettings = $derived<RoutingSettings>({
-		preference: (map.userSettings?.route_preference ?? 'shorter') as RoutingSettings['preference'],
-		securityPenalty: map.userSettings?.security_penalty ?? 50,
-		allowTimeStatus: (map.userSettings?.route_allow_time_status ?? 'critical') as TimeStatus,
-		allowMassStatus: (map.userSettings?.route_allow_mass_status ?? 'reduced') as MassStatus
-	});
-	const useEveScout = $derived(map.userSettings?.route_use_evescout ?? false);
-
-	// --- graph assembly ---
-	let stargates = $state<Map<number, number[]> | null>(null);
-	let security = $state<Map<number, number>>(new Map());
-	let joveSystems = $state<Set<number>>(new Set());
-	let stationSystems = $state<Set<number>>(new Set());
-	let serviceOptions = $state<
-		{
-			id: number;
-			name: string;
-			systems: Set<number>;
-			/** Concrete stations per system, so results can name (and target) the station. */
-			stationsBySystem: Map<number, { id: number; name: string }[]>;
-		}[]
-	>([]);
-	$effect(() => {
-		api
-			.routingGraph()
-			.then((g) => {
-				stargates = new Map(
-					Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]])
-				);
-				security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
-				joveSystems = new Set(g.jove ?? []);
-				stationSystems = new Set(g.stations ?? []);
-				serviceOptions = (g.services ?? []).map((svc) => {
-					const stationsBySystem = new Map<number, { id: number; name: string }[]>();
-					for (const station of svc.stations) {
-						const list = stationsBySystem.get(station.solar_system_id) ?? [];
-						list.push({ id: station.id, name: station.name });
-						stationsBySystem.set(station.solar_system_id, list);
-					}
-					return {
-						id: svc.id,
-						name: svc.name,
-						systems: new Set(stationsBySystem.keys()),
-						stationsBySystem
-					};
-				});
-			})
-			.catch(() => {});
-	});
+	// The routing tables and the assembled graph live on the map state, shared with the
+	// pilots card so both measure distance the same way from one fetch.
+	const routingSettings = $derived(map.routingSettings);
+	const useEveScout = $derived(map.useEveScout);
+	const joveSystems = $derived(map.joveSystems);
+	const stationSystems = $derived(map.stationSystems);
+	const serviceOptions = $derived(map.serviceOptions);
+	const graph = $derived(map.graph);
 
 	// EVE Scout edges refresh every 5 minutes while enabled.
 	$effect(() => {
@@ -114,32 +73,6 @@
 		map.loadEveScout();
 		const t = setInterval(() => map.loadEveScout(), 300_000);
 		return () => clearInterval(t);
-	});
-
-	const graph = $derived.by<RouteGraph | null>(() => {
-		if (!stargates) return null;
-		const placementSystem = new Map<number, number>();
-		for (const s of map.systems) placementSystem.set(s.id, s.solar_system_id);
-		const edges: DynamicEdge[] = [];
-		for (const c of map.connections) {
-			if (c.kind !== 'wormhole') continue;
-			const a = placementSystem.get(c.from_system);
-			const b = placementSystem.get(c.to_system);
-			if (a === undefined || b === undefined || a === b) continue;
-			edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
-		}
-		if (useEveScout) {
-			for (const e of map.eveScout) {
-				edges.push({
-					a: e.from_solar_system_id,
-					b: e.to_solar_system_id,
-					via: 'evescout',
-					mass: e.mass_status as MassStatus,
-					time: e.time_status as TimeStatus
-				});
-			}
-		}
-		return { stargates, dynamic: buildDynamicAdjacency(edges), security };
 	});
 
 	// --- display-data resolution cache (watchlist rows, chips, origin label, find) ---
@@ -331,7 +264,7 @@
 
 	const findResults = $derived.by(() => {
 		if (!findOpen || !graph || origin === null) return [];
-		const sec = (id: number) => security.get(id) ?? 0;
+		const sec = (id: number) => map.security.get(id) ?? 0;
 		const matchers: Record<string, (id: number) => boolean> = {
 			observatories: (id) => joveSystems.has(id),
 			npc_stations: (id) => stationSystems.has(id),
