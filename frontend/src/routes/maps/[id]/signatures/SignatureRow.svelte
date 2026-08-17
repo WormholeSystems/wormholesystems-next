@@ -7,6 +7,7 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { api } from '$lib/api/client';
+	import { formatBookmark } from '$lib/bookmark';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
@@ -98,14 +99,33 @@
 		update({ group });
 	}
 
+	// The bookmark names the *far* end of the hole: it is filed in game as "where this
+	// leads", not as where you are standing. Until the hole is mapped the only thing known
+	// about that end is the class the signature type promises.
 	function copyBookmark() {
-		const label = system.alias ?? system.name;
-		const destClass =
-			linkedTarget?.wormhole_class_id ??
-			typeById(catalog, sig.signature_type_id)?.target_class ??
-			null;
-		const dest = destClass === null ? '' : ` ${destClassMeta(destClass).short}`;
-		const text = `${label} ${sig.signature_id}${dest}`;
+		const type = typeById(catalog, sig.signature_type_id);
+		const far = linkedTarget;
+		const text = formatBookmark(
+			{
+				alias: far?.alias ?? null,
+				// Blank rather than borrowing this system's: an unmapped hole's far side is
+				// genuinely unknown, and the class the type promises is all we can say.
+				name: far?.name ?? '',
+				region: far?.region ?? null,
+				wormholeClassId: far?.wormhole_class_id ?? type?.target_class ?? null,
+				security: far?.security_status ?? null,
+				occupier: far?.occupying_group ?? null
+			},
+			{
+				signatureId: sig.signature_id,
+				size: sig.size,
+				massStatus: sig.mass_status,
+				timeStatus: sig.time_status,
+				wormholeCode: type?.signature ?? null
+			},
+			null,
+			system.alias
+		);
 		navigator.clipboard?.writeText(text);
 		map.statusLine = `copied: ${text}`;
 	}

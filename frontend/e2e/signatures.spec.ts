@@ -291,11 +291,12 @@ test('row actions: EOL color, preserve mass, copy bookmark', async ({ browser, a
 	);
 	await page.keyboard.press('Escape');
 
-	// Copy bookmark writes "{alias|name} {sig id} {class}".
+	// The bookmark names the far side of the hole, since that is what it has to tell you
+	// in-game: Jita is k-space, so it takes the k-space format.
 	await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
 	await row.getByLabel('Copy bookmark').click();
 	const clip = await page.evaluate(() => navigator.clipboard.readText());
-	expect(clip).toContain('J122515 WHX-401');
+	expect(clip).toBe('HS WHX Jita The Forge');
 	await ctx.close();
 });
 
