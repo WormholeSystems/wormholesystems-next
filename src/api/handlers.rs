@@ -811,7 +811,7 @@ pub async fn map_user_settings(
     let row = sqlx::query!(
         "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first,
                 route_preference, security_penalty, route_allow_time_status,
-                route_allow_mass_status, route_use_evescout, hidden_panels, panel_order
+                route_allow_mass_status, route_use_evescout, hidden_panels, layout_breakpoints
          from map_user_settings where map_id = $1 and user_id = $2",
         map_id,
         actor.user_id,
@@ -830,7 +830,11 @@ pub async fn map_user_settings(
             route_allow_mass_status: r.route_allow_mass_status,
             route_use_evescout: r.route_use_evescout,
             hidden_panels: r.hidden_panels,
-            panel_order: r.panel_order,
+            layout_breakpoints: r
+                .layout_breakpoints
+                .map(serde_json::from_value)
+                .transpose()
+                .unwrap_or(None),
         },
         None => MapUserSettings {
             tracking_allowed: false,
@@ -843,7 +847,7 @@ pub async fn map_user_settings(
             route_allow_mass_status: "reduced".into(),
             route_use_evescout: false,
             hidden_panels: Vec::new(),
-            panel_order: Vec::new(),
+            layout_breakpoints: None,
         },
     }))
 }
@@ -883,17 +887,30 @@ pub async fn update_map_user_settings(
     {
         return Err(ApiError::bad_request("invalid mass tolerance"));
     }
+    // Reject an arrangement that could not render, rather than storing it and breaking
+    // the page on the next load.
+    let layout_json =
+        match &body.layout_breakpoints {
+            Some(layouts) => {
+                super::validate_layouts(layouts)?;
+                Some(serde_json::to_value(layouts).map_err(|e| {
+                    ApiError::bad_request(format!("could not store the layout: {e}"))
+                })?)
+            }
+            None => None,
+        };
+
     let row = sqlx::query!(
         "insert into map_user_settings
              (map_id, user_id, tracking_allowed, show_threat_level,
               compact_signature_list, show_statics_first,
               route_preference, security_penalty, route_allow_time_status,
-              route_allow_mass_status, route_use_evescout, hidden_panels, panel_order)
+              route_allow_mass_status, route_use_evescout, hidden_panels, layout_breakpoints)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
                  coalesce($10, 'reduced'), coalesce($11, false),
-                 coalesce($12, '{}'::text[]), coalesce($13, '{}'::text[]))
+                 coalesce($12, '{}'::text[]), $13)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -905,12 +922,12 @@ pub async fn update_map_user_settings(
              route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),
              route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),
              hidden_panels = coalesce($12, map_user_settings.hidden_panels),
-             panel_order = coalesce($13, map_user_settings.panel_order),
+             layout_breakpoints = coalesce($13, map_user_settings.layout_breakpoints),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
                    route_allow_time_status, route_allow_mass_status, route_use_evescout,
-                   hidden_panels, panel_order",
+                   hidden_panels, layout_breakpoints",
         map_id,
         actor.user_id,
         body.tracking_allowed,
@@ -923,7 +940,7 @@ pub async fn update_map_user_settings(
         body.route_allow_mass_status,
         body.route_use_evescout,
         body.hidden_panels.as_deref(),
-        body.panel_order.as_deref(),
+        layout_json.as_ref(),
     )
     .fetch_one(&state.db)
     .await?;
@@ -938,7 +955,11 @@ pub async fn update_map_user_settings(
         route_allow_mass_status: row.route_allow_mass_status,
         route_use_evescout: row.route_use_evescout,
         hidden_panels: row.hidden_panels,
-        panel_order: row.panel_order,
+        layout_breakpoints: row
+            .layout_breakpoints
+            .map(serde_json::from_value)
+            .transpose()
+            .unwrap_or(None),
     }))
 }
 

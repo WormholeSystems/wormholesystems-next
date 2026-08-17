@@ -7,6 +7,7 @@
 	// Pan/zoom/selection live outside the fetched data and nodes are keyed by id, so a
 	// refetch updates data in place without losing interaction state.
 	import ClockIcon from '@lucide/svelte/icons/clock';
+	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import OrbitIcon from '@lucide/svelte/icons/orbit';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 
@@ -38,7 +39,8 @@
 	import Scrollbars from './Scrollbars.svelte';
 	import SystemNode from './SystemNode.svelte';
 	import CommandPalette from './CommandPalette.svelte';
-	import Sidebar from './panels/Sidebar.svelte';
+	import LayoutToolbar from './panels/LayoutToolbar.svelte';
+	import PanelGrid from './panels/PanelGrid.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import SystemSearchDialog from './SystemSearchDialog.svelte';
 
@@ -455,14 +457,34 @@
 <CommandPalette {map} bind:open={map.paletteOpen} />
 <SystemSearchDialog bind:open={map.searchOpen} onpick={onSearchPick} />
 
-<div class="mt-3 grid grid-cols-[1fr_420px] items-start gap-4">
+{#if map.loadError}
+	<p class="p-12 text-center text-sm text-destructive" data-testid="map-error">
+		{map.loadError}
+	</p>
+{:else if !map.ready}
+	<!-- Held until the arrangement is known, so tiles are never painted in the built-in
+	     positions and then moved. -->
+	<div
+		class="flex h-96 flex-col items-center justify-center gap-3 text-muted-foreground"
+		data-testid="map-loading"
+	>
+		<LoaderIcon class="size-5 animate-spin" />
+		<p class="font-mono text-[10px] tracking-wider uppercase">Loading map</p>
+	</div>
+{:else}
+	<PanelGrid {map} {canvas} />
+	{#if map.editingLayout}
+		<LayoutToolbar {map} />
+	{/if}
+{/if}
+
+{#snippet canvas()}
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
 <div
 	bind:this={viewportEl}
 	data-testid="map-canvas"
 	tabindex="0"
-	class="group relative w-full overflow-hidden border border-border bg-zinc-950 outline-none select-none"
-	style:height="{map.grid.viewport_height}px"
+	class="group relative h-full w-full overflow-hidden bg-zinc-950 ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
 	onpointerdown={onBackgroundDown}
 	onpointermove={onPointerMove}
 	onpointerup={onPointerUp}
@@ -677,6 +699,4 @@
 	{/if}
 	<ConnectionPopover {map} />
 </div>
-
-<Sidebar {map} />
-</div>
+{/snippet}

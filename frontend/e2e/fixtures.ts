@@ -28,4 +28,9 @@ export { expect } from '@playwright/test';
 export async function gotoApp(page: import('@playwright/test').Page, path: string) {
 	await page.goto(path);
 	await page.waitForSelector('html[data-hydrated="true"]');
+	// A map page holds a loader until its graph and panel arrangement have both arrived,
+	// so hydration alone is not enough to start clicking.
+	if (/\/maps\/\d+(\?|$)/.test(path)) {
+		await page.waitForSelector('[data-testid="panel-grid"]');
+	}
 }

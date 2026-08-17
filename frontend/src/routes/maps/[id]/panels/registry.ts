@@ -1,51 +1,224 @@
-// The sidebar's panel registry. Order and visibility are per user per map; an empty
-// stored value means "the built-in layout", so a map nobody has customised renders
-// exactly as it always did.
+// The map page's tiles and the arrangements they start from.
+//
+// The map canvas is a tile like any other, which is the whole point: you can trade canvas
+// space against panel space instead of living with a fixed sidebar.
+//
+// Minimum sizes live here rather than in the stored layout on purpose. They are a property
+// of the panel, not of anyone's arrangement, so tightening one reaches people who already
+// saved a layout.
 
-export type PanelId = 'navigation' | 'system-info' | 'threat' | 'signatures' | 'notes';
+import { type GridItem, bottom, compact } from '$lib/layout/grid';
+
+export type PanelId = 'map' | 'navigation' | 'system-info' | 'threat' | 'signatures' | 'notes';
 
 export interface PanelMeta {
 	id: PanelId;
 	label: string;
-	/// Panels about the active system are hidden entirely when nothing is selected.
-	needsSystem: boolean;
+	/** Shown in the card library, so it says what you get back when you add it. */
+	description: string;
+	minW: number;
+	minH: number;
+	/** The map cannot be hidden; there would be nothing left to look at. */
+	removable: boolean;
 }
 
 export const PANELS: PanelMeta[] = [
-	{ id: 'navigation', label: 'Navigation', needsSystem: false },
-	{ id: 'system-info', label: 'System', needsSystem: true },
-	{ id: 'threat', label: 'Threat', needsSystem: true },
-	{ id: 'signatures', label: 'Signatures', needsSystem: true },
-	{ id: 'notes', label: 'Notes', needsSystem: true }
+	{
+		id: 'map',
+		label: 'Map',
+		description: 'The chain itself.',
+		minW: 2,
+		minH: 4,
+		removable: false
+	},
+	{
+		id: 'navigation',
+		label: 'Navigation',
+		description: 'Route planner, watchlist and the Find tools.',
+		minW: 2,
+		minH: 3,
+		removable: true
+	},
+	{
+		id: 'system-info',
+		label: 'System',
+		description: 'Class, effect, statics and external links for the active system.',
+		minW: 2,
+		minH: 2,
+		removable: true
+	},
+	{
+		id: 'threat',
+		label: 'Threat Analysis',
+		description: 'Recent kill activity around the active wormhole system.',
+		minW: 2,
+		minH: 2,
+		removable: true
+	},
+	{
+		id: 'signatures',
+		label: 'Signatures',
+		description: 'Scanned signatures for the active system, with paste import.',
+		minW: 2,
+		minH: 3,
+		removable: true
+	},
+	{
+		id: 'notes',
+		label: 'Notes',
+		description: 'Free-text intel on the active system.',
+		minW: 2,
+		minH: 2,
+		removable: true
+	}
 ];
 
-const DEFAULT_ORDER = PANELS.map((p) => p.id);
+export const PANEL_IDS = PANELS.map((p) => p.id);
 
-function isPanelId(v: string): v is PanelId {
-	return DEFAULT_ORDER.includes(v as PanelId);
+export function panelMeta(id: PanelId): PanelMeta {
+	return PANELS.find((p) => p.id === id)!;
+}
+
+export function isPanelId(v: string): v is PanelId {
+	return (PANEL_IDS as string[]).includes(v);
+}
+
+export interface BreakpointMeta {
+	key: BreakpointKey;
+	label: string;
+	/** The narrowest window this arrangement applies to. */
+	minWidth: number;
+}
+
+export type BreakpointKey = 'xs' | 'sm' | 'md' | 'lg';
+
+export const BREAKPOINTS: BreakpointMeta[] = [
+	{ key: 'xs', label: 'Phone', minWidth: 0 },
+	{ key: 'sm', label: 'Tablet', minWidth: 640 },
+	{ key: 'md', label: 'Laptop', minWidth: 1024 },
+	{ key: 'lg', label: 'Desktop', minWidth: 1536 }
+];
+
+export interface BreakpointLayout {
+	cols: number;
+	row_height: number;
+	items: GridItem[];
+}
+
+export type PanelLayouts = Record<string, BreakpointLayout>;
+
+const item = (i: PanelId, x: number, y: number, w: number, h: number): GridItem => ({
+	i,
+	x,
+	y,
+	w,
+	h
+});
+
+/** The arrangement a map starts from, per breakpoint. */
+export const DEFAULT_LAYOUTS: PanelLayouts = {
+	xs: {
+		cols: 1,
+		row_height: 100,
+		items: [
+			item('map', 0, 0, 1, 7),
+			item('system-info', 0, 7, 1, 3),
+			item('signatures', 0, 10, 1, 4),
+			item('navigation', 0, 14, 1, 4),
+			item('threat', 0, 18, 1, 3),
+			item('notes', 0, 21, 1, 2)
+		]
+	},
+	sm: {
+		cols: 2,
+		row_height: 100,
+		items: [
+			item('map', 0, 0, 2, 7),
+			item('system-info', 0, 7, 1, 3),
+			item('signatures', 1, 7, 1, 4),
+			item('navigation', 0, 10, 1, 4),
+			item('threat', 1, 11, 1, 3),
+			item('notes', 0, 14, 2, 2)
+		]
+	},
+	md: {
+		cols: 4,
+		row_height: 100,
+		items: [
+			item('map', 0, 0, 4, 8),
+			item('system-info', 0, 8, 2, 3),
+			item('signatures', 2, 8, 2, 4),
+			item('navigation', 0, 11, 2, 4),
+			item('threat', 2, 12, 2, 3),
+			item('notes', 0, 15, 2, 2)
+		]
+	},
+	lg: {
+		cols: 10,
+		row_height: 100,
+		items: [
+			item('map', 0, 0, 7, 9),
+			item('navigation', 7, 0, 3, 5),
+			item('signatures', 7, 5, 3, 4),
+			item('system-info', 0, 9, 3, 3),
+			item('threat', 3, 9, 4, 3),
+			item('notes', 7, 9, 3, 3)
+		]
+	}
+};
+
+/** The breakpoint that applies at a given window width. */
+export function breakpointFor(width: number): BreakpointKey {
+	let match: BreakpointKey = BREAKPOINTS[0].key;
+	for (const bp of BREAKPOINTS) if (width >= bp.minWidth) match = bp.key;
+	return match;
 }
 
 /**
- * The panels to render, in order. Stored ids come first in their saved order; anything
- * the stored order never mentioned (a panel added after the user last saved) keeps its
- * built-in position at the end, so a new panel appears rather than silently vanishing.
+ * The stored layout merged over the defaults.
+ *
+ * A saved arrangement that predates a panel gets that panel appended at the bottom rather
+ * than losing it, so shipping a new panel makes it appear for everyone instead of
+ * silently vanishing for anyone who has ever saved.
  */
-export function visiblePanels(order: string[], hidden: string[]): PanelMeta[] {
-	const saved = order.filter(isPanelId);
-	const rest = DEFAULT_ORDER.filter((id) => !saved.includes(id));
-	const hiddenSet = new Set(hidden);
-	return [...saved, ...rest]
-		.filter((id) => !hiddenSet.has(id))
-		.map((id) => PANELS.find((p) => p.id === id)!);
+export function resolveLayouts(stored: PanelLayouts | null): PanelLayouts {
+	const out: PanelLayouts = {};
+	for (const bp of BREAKPOINTS) {
+		const fallback = DEFAULT_LAYOUTS[bp.key];
+		const saved = stored?.[bp.key];
+		if (!saved) {
+			out[bp.key] = structuredClone(fallback);
+			continue;
+		}
+		const cols = saved.cols || fallback.cols;
+		const items = saved.items.filter((i) => isPanelId(i.i));
+		const present = new Set(items.map((i) => i.i));
+		const missing = fallback.items.filter((i) => !present.has(i.i));
+		let y = bottom(items);
+		for (const add of missing) {
+			items.push({ ...add, x: 0, y });
+			y += add.h;
+		}
+		out[bp.key] = {
+			cols,
+			row_height: saved.row_height || fallback.row_height,
+			items: compact(items, cols)
+		};
+	}
+	return out;
 }
 
-/** Move `id` one step through the visible order, returning the full order to persist. */
-export function reorder(order: string[], hidden: string[], id: PanelId, delta: -1 | 1): PanelId[] {
-	const current = visiblePanels(order, hidden).map((p) => p.id);
-	const from = current.indexOf(id);
-	const to = from + delta;
-	if (from < 0 || to < 0 || to >= current.length) return current;
-	current.splice(to, 0, ...current.splice(from, 1));
-	// Hidden panels keep a place in the saved order so unhiding restores them sensibly.
-	return [...current, ...DEFAULT_ORDER.filter((p) => !current.includes(p))];
+/** Put a hidden panel back at the bottom, so unhiding never drops it into a hole. */
+export function placeAtBottom(layout: BreakpointLayout, id: PanelId): BreakpointLayout {
+	const meta = panelMeta(id);
+	const others = layout.items.filter((i) => i.i !== id);
+	const existing = layout.items.find((i) => i.i === id);
+	const placed: GridItem = {
+		i: id,
+		x: 0,
+		y: bottom(others),
+		w: existing?.w ?? Math.min(meta.minW, layout.cols),
+		h: existing?.h ?? meta.minH
+	};
+	return { ...layout, items: compact([...others, placed], layout.cols) };
 }

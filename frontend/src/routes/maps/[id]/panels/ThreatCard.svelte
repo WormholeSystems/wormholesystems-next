@@ -49,22 +49,26 @@
 	}
 </script>
 
-{#if isWormholeClass(system.wormhole_class_id)}
-	<MapPanel testid="threat-card">
-		<MapPanelHeader>
-			Threat Analysis
-			{#snippet actions()}
+<MapPanel testid="threat-card">
+	<MapPanelHeader>
+		Threat Analysis
+		{#snippet actions()}
 			{@render layoutActions?.()}
-				{#if analysis}
-					<Badge variant="secondary" class={badgeClass} data-testid="threat-badge">
-						{analysis.threat_level[0].toUpperCase() + analysis.threat_level.slice(1)}
-					</Badge>
-				{/if}
-			{/snippet}
-		</MapPanelHeader>
-		<MapPanelContent>
-			<div class="flex flex-col gap-2 p-3 text-xs">
-			{#if !analysis}
+			{#if analysis}
+				<Badge variant="secondary" class={badgeClass} data-testid="threat-badge">
+					{analysis.threat_level[0].toUpperCase() + analysis.threat_level.slice(1)}
+				</Badge>
+			{/if}
+		{/snippet}
+	</MapPanelHeader>
+	<MapPanelContent>
+		<div class="flex flex-col gap-2 p-3 text-xs">
+			{#if !isWormholeClass(system.wormhole_class_id)}
+				<!-- Threat is derived from killmails in wormhole space; k-space has none. -->
+				<p class="text-muted-foreground">
+					No analysis for this system. Threat is only tracked in wormhole space.
+				</p>
+			{:else if !analysis}
 				<p class="text-muted-foreground">No threat data available for this system.</p>
 			{:else if analysis.entities.length === 0}
 				<p class="text-muted-foreground">No significant activity detected.</p>
@@ -115,6 +119,5 @@
 				zKillboard
 			</a>
 			</div>
-		</MapPanelContent>
-	</MapPanel>
-{/if}
+	</MapPanelContent>
+</MapPanel>

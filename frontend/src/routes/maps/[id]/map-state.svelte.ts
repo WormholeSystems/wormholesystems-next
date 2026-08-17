@@ -15,6 +15,9 @@ import type { MapHistory } from '$lib/api/types/MapHistory';
 import type { StaleConnection } from '$lib/api/types/StaleConnection';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 import type { SocketState } from '$lib/ws';
+import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
+import { DEFAULT_LAYOUTS, placeAtBottom, resolveLayouts } from './panels/registry';
+import type { GridItem } from '$lib/layout/grid';
 import { NODE_W, clamp } from '$lib/map/helpers';
 
 /**
@@ -86,8 +89,14 @@ export class MapState {
 	searchOpen = $state(false);
 	// The Cmd+K palette, opened from the status bar or the shortcut.
 	paletteOpen = $state(false);
-	// Sidebar layout edit mode: panel headers show move/hide controls while it is on.
+	// Layout edit mode, the breakpoint being edited, and the working copy of the
+	// arrangement. The draft is what the grid renders, so a drag shows immediately; it is
+	// only persisted on Save, which is what makes Discard possible.
 	editingLayout = $state(false);
+	layoutBreakpoint = $state<BreakpointKey>('lg');
+	layoutDraft = $state<PanelLayouts | null>(null);
+	/** The last saved arrangement, for dirty-tracking and for reverting to.  */
+	layoutSaved = $state<PanelLayouts | null>(null);
 	// The connection details popover: which edge, anchored at which screen point.
 	connectionPopover = $state<{ id: number; x: number; y: number } | null>(null);
 	// Where a search-added system should land (world coords, top-left). Set by the
@@ -113,6 +122,12 @@ export class MapState {
 	socket = $state<SocketState>('connecting');
 	/** The canvas's rendered size, kept current by a ResizeObserver on the viewport. */
 	viewportSize = $state({ width: 1200, height: 1400 });
+	// The page holds a loader until both the graph and the arrangement have arrived, so
+	// tiles are never painted in the built-in positions and then moved.
+	loaded = $state(false);
+	settingsLoaded = $state(false);
+	loadError = $state('');
+	ready = $derived(this.loaded && this.settingsLoaded);
 
 	systems = $derived(this.data?.systems ?? []);
 	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
@@ -230,9 +245,97 @@ export class MapState {
 	async loadUserSettings() {
 		try {
 			this.userSettings = await api.mapUserSettings(this.mapId);
+			this.layoutSaved = this.userSettings.layout_breakpoints ?? null;
+			this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
 		} catch {
-			// no access yet; leave null
+			// No access yet; the page falls back to the built-in arrangement.
+		} finally {
+			this.settingsLoaded = true;
 		}
+	}
+
+	// --- layout ---
+
+	private hiddenDirty = $state(false);
+	layoutDirty = $derived(
+		JSON.stringify(this.layoutDraft) !== JSON.stringify(this.layoutSaved) || this.hiddenDirty
+	);
+
+	/** Apply a new arrangement for one breakpoint to the working copy. */
+	setLayoutItems(key: BreakpointKey, items: GridItem[]) {
+		const base = resolveLayouts(this.layoutDraft);
+		this.layoutDraft = { ...base, [key]: { ...base[key], items } };
+	}
+
+	setLayout(layouts: PanelLayouts) {
+		this.layoutDraft = layouts;
+	}
+
+	hidePanel(id: string) {
+		if (!this.userSettings || this.userSettings.hidden_panels.includes(id)) return;
+		this.userSettings = {
+			...this.userSettings,
+			hidden_panels: [...this.userSettings.hidden_panels, id]
+		};
+		this.hiddenDirty = true;
+	}
+
+	showPanel(id: string) {
+		if (!this.userSettings) return;
+		// Put it back at the bottom of every breakpoint, so unhiding never drops a tile
+		// into a hole left by something that has since moved.
+		const base = resolveLayouts(this.layoutDraft);
+		for (const key of Object.keys(base)) {
+			base[key] = placeAtBottom(base[key], id as PanelId);
+		}
+		this.layoutDraft = base;
+		this.userSettings = {
+			...this.userSettings,
+			hidden_panels: this.userSettings.hidden_panels.filter((p) => p !== id)
+		};
+		this.hiddenDirty = true;
+	}
+
+	saveLayout() {
+		const layouts = resolveLayouts(this.layoutDraft);
+		api
+			.updateMapUserSettings(this.mapId, {
+				layout_breakpoints: layouts,
+				hidden_panels: this.userSettings?.hidden_panels ?? []
+			})
+			.then((s) => {
+				this.userSettings = s;
+				this.layoutSaved = s.layout_breakpoints ?? null;
+				this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
+				this.hiddenDirty = false;
+				this.editingLayout = false;
+			})
+			.catch((err) => (this.statusLine = `layout: ${(err as Error).message}`));
+	}
+
+	/** Throw the working copy away and go back to what was last saved. */
+	revertLayout() {
+		this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
+		if (this.userSettings) {
+			this.userSettings = {
+				...this.userSettings,
+				hidden_panels: this.layoutSavedHidden
+			};
+		}
+		this.hiddenDirty = false;
+	}
+
+	/** Hidden panels as of the last save, so a revert restores them too. */
+	private layoutSavedHidden: string[] = [];
+
+	rememberHidden() {
+		this.layoutSavedHidden = [...(this.userSettings?.hidden_panels ?? [])];
+	}
+
+	/** Put one breakpoint back to the built-in arrangement. */
+	resetLayout(key: BreakpointKey) {
+		const base = resolveLayouts(this.layoutDraft);
+		this.layoutDraft = { ...base, [key]: structuredClone(DEFAULT_LAYOUTS[key]) };
 	}
 
 	async loadGrid() {
@@ -278,16 +381,17 @@ export class MapState {
 
 	async refetch() {
 		try {
-			const [data, sigs, watchlist] = await Promise.all([
-				api.fetchMap(this.mapId),
-				api.listSignatures(this.mapId),
-				api.listWatchlist(this.mapId),
-				this.fetchHistory(),
-				this.fetchStale()
-			]);
-			this.watchlist = watchlist;
+			// All five go out together, but the page only waits on the graph: the panels can
+			// fill in a moment later, and holding first paint for every list makes the map
+			// feel slow for no benefit.
+			const graph = api.fetchMap(this.mapId);
+			const sigs = api.listSignatures(this.mapId);
+			const watchlist = api.listWatchlist(this.mapId);
+			const history = this.fetchHistory();
+			const stale = this.fetchStale();
+
+			const data = await graph;
 			this.data = data;
-			this.sigs = sigs;
 			// Reconcile optimistic move overrides: drop one once the server position matches
 			// it (our move landed) or the system is gone.
 			const pending = { ...this.pending };
@@ -298,19 +402,32 @@ export class MapState {
 				}
 			}
 			this.pending = pending;
+			this.loaded = true;
+			this.loadError = '';
+
+			this.sigs = await sigs;
+			this.watchlist = await watchlist;
+			await history;
+			await stale;
 		} catch (err) {
-			this.statusLine = `load: ${(err as Error).message}`;
+			const message = (err as Error).message;
+			this.statusLine = `load: ${message}`;
+			// Only the first load can leave the page with nothing to show; a later failure
+			// just means the view is briefly stale.
+			if (!this.loaded) this.loadError = message;
 		}
 	}
 
 	/**
-	 * Run an API call, report the outcome in the status line, and refetch (the WS event also
-	 * arrives — both are idempotent).
+	 * Run an API call and refetch (the WS event also arrives — both are idempotent).
+	 *
+	 * Success clears the status line rather than announcing itself: the change is visible on
+	 * the map, so an "ok" per action would be noise that buries the failures worth reading.
 	 */
 	run(label: string, promise: Promise<unknown>) {
 		promise
 			.then(() => {
-				this.statusLine = `${label}: ok`;
+				this.statusLine = '';
 				this.refetch();
 			})
 			.catch((err) => {

@@ -70,9 +70,14 @@ test('notes round-trip with markdown rendering', async ({ page, api }) => {
 
 	await card.getByLabel('Edit notes').click();
 	await card.getByPlaceholder('Add notes...').fill('**Danger**: hostile Astrahus');
+	// The card renders the new notes optimistically, so wait for the write itself before
+	// reloading; otherwise the navigation can abort the request in flight.
+	const saved = page.waitForResponse(
+		(r) => r.url().includes('/systems/set-notes') && r.request().method() === 'POST'
+	);
 	await card.getByRole('button', { name: 'Save' }).click();
-
 	await expect(card.locator('strong', { hasText: 'Danger' })).toBeVisible();
+	await saved;
 
 	// Survives a reload (persisted server-side).
 	await page.reload();
