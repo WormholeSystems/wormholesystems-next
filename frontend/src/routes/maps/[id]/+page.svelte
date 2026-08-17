@@ -81,6 +81,20 @@
 		map.viewportEl = viewportEl;
 	});
 
+	// The canvas is sized by its container rather than by a fixed height, so its size has
+	// to be observed: `getBoundingClientRect` is not reactive, and the virtual scrollbars
+	// are derived from it.
+	$effect(() => {
+		const el = viewportEl;
+		if (!el) return;
+		const observer = new ResizeObserver(([entry]) => {
+			const box = entry.contentRect;
+			map.viewportSize = { width: box.width, height: box.height };
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	});
+
 	// Load + realtime: any frame on the map socket means "refetch".
 	$effect(() => {
 		const s = map;

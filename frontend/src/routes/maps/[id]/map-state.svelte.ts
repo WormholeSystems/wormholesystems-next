@@ -111,6 +111,8 @@ export class MapState {
 	// Connections critical for over an hour, offered for a one-click sweep.
 	stale = $state<StaleConnection[]>([]);
 	socket = $state<SocketState>('connecting');
+	/** The canvas's rendered size, kept current by a ResizeObserver on the viewport. */
+	viewportSize = $state({ width: 1200, height: 1400 });
 
 	systems = $derived(this.data?.systems ?? []);
 	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
@@ -320,9 +322,17 @@ export class MapState {
 
 	viewportRect(): { left: number; top: number; width: number; height: number } {
 		const r = this.viewportEl?.getBoundingClientRect();
-		return r
-			? { left: r.left, top: r.top, width: r.width, height: r.height }
-			: { left: 0, top: 0, width: 1200, height: 1400 };
+		return {
+			// Position is read live: it only matters during a pointer event, and it moves
+			// with scrolling rather than with the element's own size.
+			left: r?.left ?? 0,
+			top: r?.top ?? 0,
+			// Size comes from the observer instead of the rect, because a rect read is not
+			// reactive: anything derived from it (the scrollbar thumbs) would keep the
+			// value it had when the canvas was first measured.
+			width: this.viewportSize.width,
+			height: this.viewportSize.height
+		};
 	}
 
 	/** Screen (client) point → world coords, accounting for pan + zoom. */
