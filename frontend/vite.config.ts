@@ -1,7 +1,7 @@
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 // In dev the Axum API runs separately; proxy the backend paths so the whole app
 // (including the EVE SSO flow and both WebSockets) lives on the vite origin.
@@ -25,5 +25,10 @@ export default defineConfig({
 			'/auth': backend,
 			'/ws': { target: backend, ws: true }
 		}
+	},
+	test: {
+		// Unit tests cover pure logic only. `e2e/` is Playwright's and must stay out of
+		// vitest's reach, or it collects those specs and fails on the wrong runner.
+		include: ['src/**/*.test.ts']
 	}
 });
