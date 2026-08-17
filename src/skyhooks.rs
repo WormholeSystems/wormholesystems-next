@@ -15,6 +15,7 @@ use tokio::time::{MissedTickBehavior, interval};
 
 use crate::esi::EsiClient;
 use crate::esi::skyhooks::RaidableSkyhook;
+use crate::maps::Sovereignty;
 use crate::server_status::ServerWatch;
 
 /// Windows are two hours long and ESI advertises them ahead of time, so five minutes is
@@ -65,6 +66,10 @@ pub struct Skyhook {
     pub system_name: String,
     pub region: String,
     pub security_status: f64,
+    /// Who holds the system. Skyhooks only exist in sovereign nullsec, so this is the
+    /// alliance whose toes you are stepping on.
+    #[ts(optional)]
+    pub sovereignty: Option<Sovereignty>,
     pub vulnerable_from: DateTime<Utc>,
     pub vulnerable_until: DateTime<Utc>,
 }
@@ -163,6 +168,30 @@ pub async fn store(pool: &PgPool, fetched: &[RaidableSkyhook]) -> sqlx::Result<u
     Ok(stored)
 }
 
+/// Build the holder from the joined columns. Mirrors the systems queries, so a skyhook row
+/// names its holder exactly as the map node does.
+fn sovereignty_of(
+    kind: Option<&str>,
+    id: Option<i64>,
+    name: Option<String>,
+    ticker: Option<String>,
+) -> Option<Sovereignty> {
+    match (kind, id, name) {
+        (Some("alliance"), Some(id), Some(name)) => Some(Sovereignty::Alliance {
+            id,
+            name,
+            ticker: ticker.unwrap_or_default(),
+        }),
+        (Some("corporation"), Some(id), Some(name)) => Some(Sovereignty::Corporation {
+            id,
+            name,
+            ticker: ticker.unwrap_or_default(),
+        }),
+        (Some("faction"), Some(id), Some(name)) => Some(Sovereignty::Faction { id, name }),
+        _ => None,
+    }
+}
+
 /// The in-game name of a planet: its system, then its position in Roman numerals.
 ///
 /// The SDE ships a `name` for only 43 of the 68,000-odd planets, so the label is built
@@ -208,13 +237,25 @@ pub async fn list(pool: &PgPool) -> sqlx::Result<Vec<Skyhook>> {
     let rows = sqlx::query!(
         r#"select s.planet_id, s.solar_system_id, s.vulnerable_from, s.vulnerable_until,
                   p.name as planet_name, p.celestial_index, t.name as planet_type,
-                  ss.name as system_name, r.name as region, ss.security_status
+                  ss.name as system_name, r.name as region, ss.security_status,
+                  case
+                      when sov.alliance_id is not null then 'alliance'
+                      when sov.corporation_id is not null then 'corporation'
+                      when sov.faction_id is not null then 'faction'
+                  end as "sov_kind?",
+                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
+                  coalesce(al.name, co.name, f.name) as "sov_name?",
+                  coalesce(al.ticker, co.ticker) as "sov_ticker?"
            from raidable_skyhooks s
            join planets p on p.id = s.planet_id
            join types t on t.id = p.type_id
            join solar_systems ss on ss.id = s.solar_system_id
            join constellations c on c.id = ss.constellation_id
            join regions r on r.id = c.region_id
+           left join system_sovereignty sov on sov.solar_system_id = s.solar_system_id
+           left join alliances al on al.id = sov.alliance_id
+           left join corporations co on co.id = sov.corporation_id
+           left join factions f on f.id = sov.faction_id
            where s.vulnerable_until > now()
            order by s.vulnerable_from"#,
     )
@@ -230,6 +271,7 @@ pub async fn list(pool: &PgPool) -> sqlx::Result<Vec<Skyhook>> {
             system_name: r.system_name,
             region: r.region,
             security_status: r.security_status,
+            sovereignty: sovereignty_of(r.sov_kind.as_deref(), r.sov_id, r.sov_name, r.sov_ticker),
             vulnerable_from: r.vulnerable_from,
             vulnerable_until: r.vulnerable_until,
         })

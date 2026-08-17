@@ -11,10 +11,10 @@
 	import type { PlanetKind } from '$lib/api/types/PlanetKind';
 	import type { Skyhook } from '$lib/api/types/Skyhook';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
+	import EveImage from '$lib/components/EveImage.svelte';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import * as Tabs from '$lib/components/ui/tabs';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { findRoutes, jumpTone } from '$lib/routing/algorithm';
@@ -39,7 +39,10 @@
 
 	let skyhooks = $state<Skyhook[]>([]);
 	let now = $state(new Date());
-	let tab = $state<PlanetKind>('lava');
+	// Skyhooks only go on the planets that yield reagents, so lava and ice is the whole
+	// vocabulary. One at a time, because the reagent is what you went for: a mixed list
+	// would need a per-row marker to say which is which, and this says it once.
+	let kind = $state<PlanetKind>('lava');
 	// Which of the three live states to show. Closed ones are never listed: the window is
 	// over, so there is nothing to go and do.
 	let shown = $state<string[]>(['upcoming', 'open', 'closing']);
@@ -97,6 +100,19 @@
 		other: live.filter((r) => r.skyhook.planet_kind === 'other').length
 	});
 
+	/**
+	 * Lava and ice always; anything else only once there is one to show.
+	 *
+	 * A skyhook can only go on a reagent planet, so "other" should stay empty forever. It
+	 * is still counted, because a permanent third button is clutter but a skyhook that
+	 * silently cannot be displayed is a bug you would never see.
+	 */
+	const choices = $derived([
+		{ key: 'lava' as const, label: 'Lava' },
+		{ key: 'ice' as const, label: 'Ice' },
+		...(counts.other > 0 ? [{ key: 'other' as const, label: 'Other' }] : [])
+	]);
+
 	/** Unreachable sorts last however the column is pointed: it is never the answer. */
 	function byJumps(a: Row, b: Row) {
 		if (a.jumps === null || b.jumps === null) return a.jumps === null ? 1 : -1;
@@ -116,7 +132,7 @@
 			}
 		};
 		return live
-			.filter((r) => r.skyhook.planet_kind === tab)
+			.filter((r) => r.skyhook.planet_kind === kind)
 			.sort((a, b) => {
 				const primary = compare[column](a, b) * direction;
 				// Always break ties the same way, so the order never jitters as timers tick.
@@ -131,6 +147,12 @@
 		}
 		column = next;
 		ascending = true;
+	}
+
+	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id,
+	// so anything that is not an alliance uses the corporation one.
+	function sovKind(sov: NonNullable<Skyhook['sovereignty']>) {
+		return sov.kind === 'alliance' ? 'alliance' : 'corporation';
 	}
 
 	function hover(row: Row, on: boolean) {
@@ -157,11 +179,6 @@
 		}
 	});
 
-	const TABS: { key: PlanetKind; label: string }[] = [
-		{ key: 'lava', label: 'Lava' },
-		{ key: 'ice', label: 'Ice' },
-		{ key: 'other', label: 'Other' }
-	];
 	const FILTERS: { key: SkyhookStatus; label: string }[] = [
 		{ key: 'upcoming', label: 'Upcoming' },
 		{ key: 'open', label: 'Raidable now' },
@@ -190,6 +207,28 @@
 			</span>
 			{#snippet actions()}
 				{@render layoutActions?.()}
+				<ToggleGroup.Root
+					type="single"
+					size="sm"
+					variant="outline"
+					value={kind}
+					onValueChange={(v) => v && (kind = v as PlanetKind)}
+					data-testid="skyhook-kinds"
+				>
+					{#each choices as choice (choice.key)}
+						<ToggleGroup.Item
+							value={choice.key}
+							aria-label="Show {choice.label}"
+							class="h-6 px-1.5 text-[10px]"
+							data-testid="skyhook-kind-{choice.key}"
+						>
+							{choice.label}
+							{#if counts[choice.key] > 0}
+								<span class="ml-1 font-mono text-amber-400">{counts[choice.key]}</span>
+							{/if}
+						</ToggleGroup.Item>
+					{/each}
+				</ToggleGroup.Root>
 				<ToggleGroup.Root
 					type="multiple"
 					size="sm"
@@ -221,19 +260,6 @@
 		</MapPanelHeader>
 
 		<MapPanelContent>
-			<Tabs.Root value={tab} onValueChange={(v) => (tab = v as PlanetKind)}>
-				<Tabs.List class="mx-3 mt-2 h-7">
-					{#each TABS as t (t.key)}
-						<Tabs.Trigger value={t.key} class="text-xs" data-testid="skyhook-tab-{t.key}">
-							{t.label}
-							{#if counts[t.key] > 0}
-								<span class="ml-1 font-mono text-amber-400">{counts[t.key]}</span>
-							{/if}
-						</Tabs.Trigger>
-					{/each}
-				</Tabs.List>
-			</Tabs.Root>
-
 			<div class="mt-1 flex flex-col">
 				<div
 					class="flex items-center gap-2 px-3 pb-1 text-[10px] tracking-wider text-muted-foreground uppercase"
@@ -241,6 +267,7 @@
 					<span class="w-2 shrink-0"></span>
 					{@render heading('planet', 'Planet', 'min-w-0 flex-1')}
 					{@render heading('region', 'Region', 'min-w-0 flex-1')}
+					<span class="w-4 shrink-0"></span>
 					{@render heading('jumps', 'J', 'w-10 shrink-0 justify-end')}
 					{@render heading('timer', 'Timer', 'w-16 shrink-0 justify-end')}
 				</div>
@@ -249,7 +276,7 @@
 					<p class="px-3 py-4 text-xs text-muted-foreground" data-testid="skyhooks-empty">
 						{skyhooks.length === 0
 							? 'No raidable skyhooks right now.'
-							: 'Nothing here matches the current filters.'}
+							: 'Nothing matches the current filters.'}
 					</p>
 				{:else}
 					{#each sorted as row (row.skyhook.planet_id)}
@@ -282,6 +309,26 @@
 								class="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground"
 								title={row.skyhook.region}>{row.skyhook.region}</span
 							>
+
+							<span class="flex w-4 shrink-0 justify-center">
+								{#if row.skyhook.sovereignty}
+									{@const sov = row.skyhook.sovereignty}
+									<Tooltip.Root>
+										<Tooltip.Trigger class="flex">
+											<EveImage
+												kind={sovKind(sov)}
+												id={sov.id}
+												class="size-4 shrink-0 rounded-sm"
+											/>
+										</Tooltip.Trigger>
+										<Tooltip.Content class="flex items-center gap-2">
+											<EveImage kind={sovKind(sov)} id={sov.id} class="size-6 rounded-sm" />
+											{sov.name}
+											{#if 'ticker' in sov}({sov.ticker}){/if}
+										</Tooltip.Content>
+									</Tooltip.Root>
+								{/if}
+							</span>
 
 							<span class="w-10 shrink-0 text-right">
 								{#if row.route}

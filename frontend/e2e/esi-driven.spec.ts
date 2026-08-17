@@ -367,7 +367,7 @@ test('skyhook windows are read the way a raider reads them', async ({
 	const card = page.getByTestId('skyhooks-card');
 	await expect(card).toBeVisible();
 
-	// Lava tab first: the Jita hook is open, and zero jumps from the system in focus.
+	// Lava first: the Jita hook is open, and zero jumps from the system in focus.
 	const row = card.getByTestId('skyhook-row');
 	await expect(row).toHaveCount(1, { timeout: 15_000 });
 	await expect(row).toHaveAttribute('data-planet', 'Jita VI');
@@ -378,8 +378,8 @@ test('skyhook windows are read the way a raider reads them', async ({
 	// few seconds later.
 	await expect(row.getByTestId('skyhook-timer')).toHaveText(/^1h (29|30)m$/);
 
-	// The ice one has five minutes left, which is its own state and its own tab.
-	await card.getByTestId('skyhook-tab-ice').click();
+	// The ice one has five minutes left, and lives behind the other half of the toggle.
+	await card.getByTestId('skyhook-kind-ice').click();
 	const ice = card.getByTestId('skyhook-row');
 	await expect(ice).toHaveCount(1);
 	await expect(ice).toHaveAttribute('data-status', 'closing');
