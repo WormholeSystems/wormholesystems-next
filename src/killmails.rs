@@ -44,6 +44,52 @@ struct R2Z2Killmail {
     killmail_id: i64,
     hash: String,
     esi: serde_json::Value,
+    /// zKillboard's own summary: value, attacker count, and the solo/NPC flags. Absent on
+    /// a malformed frame, which is why every field below is read defensively.
+    #[serde(default)]
+    zkb: serde_json::Value,
+}
+
+/// The parts of a killmail a reader cares about, pulled out of the two payloads.
+struct Detail {
+    victim_character_id: Option<i64>,
+    victim_corporation_id: Option<i64>,
+    victim_alliance_id: Option<i64>,
+    victim_ship_type_id: Option<i64>,
+    total_value: Option<f64>,
+    attacker_count: Option<i32>,
+    is_npc: bool,
+    is_solo: bool,
+    final_blow_character_id: Option<i64>,
+    final_blow_corporation_id: Option<i64>,
+    final_blow_alliance_id: Option<i64>,
+    final_blow_ship_type_id: Option<i64>,
+}
+
+fn extract_detail(esi: &serde_json::Value, zkb: &serde_json::Value) -> Detail {
+    let victim = &esi["victim"];
+    // The killing blow is the one attacker worth naming; the rest are a count.
+    let final_blow = esi["attackers"]
+        .as_array()
+        .and_then(|a| a.iter().find(|x| x["final_blow"].as_bool() == Some(true)));
+    let id = |v: &serde_json::Value, key: &str| v[key].as_i64();
+    Detail {
+        victim_character_id: id(victim, "character_id"),
+        victim_corporation_id: id(victim, "corporation_id"),
+        victim_alliance_id: id(victim, "alliance_id"),
+        victim_ship_type_id: id(victim, "ship_type_id"),
+        total_value: zkb["totalValue"].as_f64(),
+        attacker_count: zkb["attackerCount"]
+            .as_i64()
+            .or_else(|| esi["attackers"].as_array().map(|a| a.len() as i64))
+            .map(|n| n as i32),
+        is_npc: zkb["npc"].as_bool().unwrap_or(false),
+        is_solo: zkb["solo"].as_bool().unwrap_or(false),
+        final_blow_character_id: final_blow.and_then(|a| id(a, "character_id")),
+        final_blow_corporation_id: final_blow.and_then(|a| id(a, "corporation_id")),
+        final_blow_alliance_id: final_blow.and_then(|a| id(a, "alliance_id")),
+        final_blow_ship_type_id: final_blow.and_then(|a| id(a, "ship_type_id")),
+    }
 }
 
 /// zKillboard and EVE Ref reject anonymous clients (403), so identify ourselves.
@@ -127,11 +173,19 @@ async fn ingest_next(
     let solar_system_id = km.esi["solar_system_id"].as_i64().unwrap_or(0);
     let time = km.esi["killmail_time"].as_str().unwrap_or_default();
     let orgs = extract_orgs(&km.esi);
+    let detail = extract_detail(&km.esi, &km.zkb);
     if solar_system_id != 0 && !time.is_empty() {
         // The retention check happens in SQL (chrono's clock is disabled in this crate).
         sqlx::query(
-            "insert into killmails (id, hash, solar_system_id, time, orgs)
-             select $1, $2, $3, $4::timestamptz, $5
+            "insert into killmails (
+                 id, hash, solar_system_id, time, orgs,
+                 victim_character_id, victim_corporation_id, victim_alliance_id,
+                 victim_ship_type_id, total_value, attacker_count, is_npc, is_solo,
+                 final_blow_character_id, final_blow_corporation_id,
+                 final_blow_alliance_id, final_blow_ship_type_id
+             )
+             select $1, $2, $3, $4::timestamptz, $5, $7, $8, $9, $10, $11, $12, $13, $14,
+                    $15, $16, $17, $18
              where $4::timestamptz >= now() - make_interval(days => $6)
              on conflict (id) do nothing",
         )
@@ -141,6 +195,18 @@ async fn ingest_next(
         .bind(time)
         .bind(serde_json::to_value(&orgs)?)
         .bind(RETENTION_DAYS)
+        .bind(detail.victim_character_id)
+        .bind(detail.victim_corporation_id)
+        .bind(detail.victim_alliance_id)
+        .bind(detail.victim_ship_type_id)
+        .bind(detail.total_value)
+        .bind(detail.attacker_count)
+        .bind(detail.is_npc)
+        .bind(detail.is_solo)
+        .bind(detail.final_blow_character_id)
+        .bind(detail.final_blow_corporation_id)
+        .bind(detail.final_blow_alliance_id)
+        .bind(detail.final_blow_ship_type_id)
         .execute(pool)
         .await?;
     }
@@ -492,5 +558,61 @@ mod tests {
                 },
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod detail_tests {
+    use super::*;
+
+    fn payload() -> (serde_json::Value, serde_json::Value) {
+        let esi = serde_json::json!({
+            "victim": {
+                "character_id": 11, "corporation_id": 22, "alliance_id": 33,
+                "ship_type_id": 670, "damage_taken": 1234
+            },
+            "attackers": [
+                {"character_id": 44, "corporation_id": 55, "final_blow": false,
+                 "ship_type_id": 111},
+                {"character_id": 66, "corporation_id": 77, "alliance_id": 88,
+                 "final_blow": true, "ship_type_id": 222}
+            ]
+        });
+        let zkb = serde_json::json!({
+            "totalValue": 1_234_567.89, "attackerCount": 2, "npc": false, "solo": false
+        });
+        (esi, zkb)
+    }
+
+    #[test]
+    fn a_killmail_yields_what_a_reader_wants() {
+        let (esi, zkb) = payload();
+        let d = extract_detail(&esi, &zkb);
+        assert_eq!(d.victim_character_id, Some(11));
+        assert_eq!(d.victim_ship_type_id, Some(670));
+        assert_eq!(d.total_value, Some(1_234_567.89));
+        assert_eq!(d.attacker_count, Some(2));
+        // The killing blow, not merely the first or last attacker.
+        assert_eq!(d.final_blow_character_id, Some(66));
+        assert_eq!(d.final_blow_alliance_id, Some(88));
+        assert_eq!(d.final_blow_ship_type_id, Some(222));
+    }
+
+    #[test]
+    fn a_frame_without_zkb_still_gives_an_attacker_count() {
+        let (esi, _) = payload();
+        let d = extract_detail(&esi, &serde_json::Value::Null);
+        // Falls back to counting the array, so the row is never mysteriously blank.
+        assert_eq!(d.attacker_count, Some(2));
+        assert_eq!(d.total_value, None);
+        assert!(!d.is_npc && !d.is_solo);
+    }
+
+    #[test]
+    fn a_kill_with_nobody_flagged_names_no_attacker() {
+        let esi = serde_json::json!({ "victim": {}, "attackers": [{"character_id": 1}] });
+        let d = extract_detail(&esi, &serde_json::Value::Null);
+        assert_eq!(d.final_blow_character_id, None);
+        assert_eq!(d.attacker_count, Some(1));
     }
 }
