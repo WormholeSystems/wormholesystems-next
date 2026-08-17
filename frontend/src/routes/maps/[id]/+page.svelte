@@ -32,7 +32,7 @@
 	} from '$lib/map/helpers';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { isWormholeClass } from '$lib/map/classes';
-	import { openMapSocket } from '$lib/ws';
+	import { openMapSocket, openUserSocket } from '$lib/ws';
 	import ConnectionPopover from './ConnectionPopover.svelte';
 	import ContextMenu from './ContextMenu.svelte';
 	import { MapState, type Drag } from './map-state.svelte';
@@ -42,10 +42,14 @@
 	import LayoutToolbar from './panels/LayoutToolbar.svelte';
 	import PanelGrid from './panels/PanelGrid.svelte';
 	import StatusBar from './StatusBar.svelte';
+	import TrackingDialog from './TrackingDialog.svelte';
+	import { JumpTracker } from './tracking.svelte';
 	import SystemSearchDialog from './SystemSearchDialog.svelte';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const map = $derived(new MapState(mapId));
+	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
+	const tracker = $derived(new JumpTracker(map));
 	// The app-wide system context menu reads the map through this getter.
 	setContext('map-state', () => map);
 
@@ -109,11 +113,22 @@
 			}
 		});
 		s.loadUserSettings();
-		s.loadMyCharacters();
+		s.loadMyCharacters().then(() => tracker.observe());
 		s.loadIgnored();
 		s.fetchCharacters();
-		// Presence has no realtime push yet; poll while the page is open.
-		const presence = setInterval(() => s.fetchCharacters(), 15_000);
+		const observe = () => s.loadMyCharacters().then(() => tracker.observe());
+		// Presence has no realtime push yet; poll while the page is open. Own characters
+		// ride along, so a missed push still gets the jump noticed within the interval.
+		const presence = setInterval(() => {
+			s.fetchCharacters();
+			observe();
+		}, 15_000);
+		// The user socket fires when the character's status changes, which is how a jump is
+		// normally noticed within seconds.
+		const closeUserWs = openUserSocket(observe);
+		// Coming back to the tab is the other half: flying happens in the game client, so
+		// the jump has usually already happened by the time the map is looked at again.
+		window.addEventListener('focus', observe);
 		const closeWs = openMapSocket(
 			s.mapId,
 			() => s.refetch(),
@@ -121,6 +136,8 @@
 		);
 		return () => {
 			clearInterval(presence);
+			window.removeEventListener('focus', observe);
+			closeUserWs();
 			closeWs();
 		};
 	});
@@ -455,6 +472,7 @@
 <StatusBar {map} />
 
 <CommandPalette {map} bind:open={map.paletteOpen} />
+<TrackingDialog {map} {tracker} />
 <SystemSearchDialog bind:open={map.searchOpen} onpick={onSearchPick} />
 
 {#if map.loadError}

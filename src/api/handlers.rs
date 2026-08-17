@@ -1913,6 +1913,22 @@ pub async fn list_map_events(
     Ok(Json(history))
 }
 
+/// `POST /api/maps/{id}/track-jump` — record a jump: place the system, connect it, and
+/// link the signature it turned out to be. Member+. One command, so it undoes as one step;
+/// it can touch a system, a connection and a signature at once, so clients just refetch.
+pub async fn track_jump(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<crate::maps::tracking::TrackJump>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::tracking::track_jump(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::HistoryChanged { map_id });
+    Ok(Json(()))
+}
+
 /// `POST /api/maps/{id}/events/undo` — step back to the previous point in the history.
 /// Member+. Moving the cursor can touch anything the steps it crosses did, so it publishes
 /// `HistoryChanged` and clients refetch rather than trying to reconstruct a targeted event.

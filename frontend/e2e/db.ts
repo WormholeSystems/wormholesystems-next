@@ -154,3 +154,10 @@ export async function ageStaleConnections(mapId: number) {
 		);
 	});
 }
+
+/** Make one of a user's characters the acting one, as the character switcher would. */
+export async function setActiveCharacter(characterId: number, session = E2E_SESSION) {
+	await withDb((db) =>
+		db.query('update sessions set active_character_id = $1 where id = $2', [characterId, session])
+	);
+}

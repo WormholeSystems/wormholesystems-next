@@ -39,6 +39,7 @@ import type { SetStatus } from './types/SetStatus';
 import type { SetWaypointAllBody } from './types/SetWaypointAllBody';
 import type { SetWaypointBody } from './types/SetWaypointBody';
 import type { Signature } from './types/Signature';
+import type { TrackJump } from './types/TrackJump';
 import type { ShipSearchResult } from './types/ShipSearchResult';
 import type { SignatureCatalog } from './types/SignatureCatalog';
 import type { AddWatchlistEntry } from './types/AddWatchlistEntry';
@@ -172,6 +173,10 @@ export const api = {
 		get<SystemDetails>(`/api/maps/${mapId}/systems/${mss}/details`),
 	setRally: (cmd: SetRally) => post<null>(`/api/maps/${cmd.map_id}/systems/set-rally`, cmd),
 	setPinned: (cmd: SetPinned) => post<null>(`/api/maps/${cmd.map_id}/systems/set-pinned`, cmd),
+
+	// A tracked jump: places the system, connects it, and links the signature in one
+	// undoable step. The response is empty; the socket drives the refetch.
+	trackJump: (cmd: TrackJump) => post<null>(`/api/maps/${cmd.map_id}/track-jump`, cmd),
 
 	// Connections
 	addConnection: (cmd: AddConnection) =>
