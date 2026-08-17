@@ -75,6 +75,9 @@ async fn main() {
     // Background: keep sovereignty (and its alliance/corp entities) current for map display.
     vector::sovereignty::start(db.clone(), esi.clone(), server.clone());
 
+    // Background: mirror the raidable skyhooks CCP is currently advertising.
+    vector::skyhooks::start(db.clone(), esi.clone(), server.clone());
+
     // Background: killmail ingest + daily threat analysis (gated by ZKB_LISTEN=1).
     vector::killmails::start(db.clone(), esi.clone());
 

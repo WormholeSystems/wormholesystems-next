@@ -219,11 +219,14 @@ test('sorting and category filters with hidden count', async ({ page, api }) => 
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	// Scoped to the card: the page has other panels, and an accessible name match is a
+	// substring, so a bare "ID" catches anything that merely contains it.
+	const card = page.getByTestId('signatures-card');
 	const rows = page.getByTestId('sig-row');
 	await expect(rows).toHaveCount(3);
 	// Default sort: id desc.
 	await expect(rows.first()).toContainText('CCC-333');
-	await page.getByRole('button', { name: 'ID' }).click();
+	await card.getByRole('button', { name: 'ID' }).click();
 	await expect(rows.first()).toContainText('AAA-111');
 
 	// Hiding a category shows the hidden count in the header.

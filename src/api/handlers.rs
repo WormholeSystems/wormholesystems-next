@@ -1919,6 +1919,16 @@ pub async fn list_map_events(
     Ok(Json(history))
 }
 
+/// `GET /api/skyhooks` — every skyhook currently or shortly raidable. Public EVE data, so
+/// no per-map gating; a session is still required, like the rest of the API.
+pub async fn skyhooks(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> ApiResult<Vec<crate::skyhooks::Skyhook>> {
+    require_actor(&state.db, &jar).await?;
+    Ok(Json(crate::skyhooks::list(&state.db).await?))
+}
+
 /// `GET /api/server-status` — what Tranquility is doing. Public: the header shows it
 /// signed in or not, and it is the same figure ESI serves to anyone.
 pub async fn server_status(

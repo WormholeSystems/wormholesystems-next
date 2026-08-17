@@ -326,6 +326,82 @@ test('a pilot moving shows up on everyone else\u2019s map, not just their own', 
 	}
 });
 
+const JITA_LAVA = 40009116; // Jita's lava planet, so a skyhook can sit next door.
+const KAZNA_ICE = 40001246;
+const KAZNA = 30000018;
+
+async function setSkyhooks(
+	playwright: Playwright,
+	rows: { planet_id: number; solar_system_id: number; opens_in_min: number; hours?: number }[]
+) {
+	const ctx = await playwright.request.newContext();
+	const res = await ctx.put(`${STUB}/_stub/skyhooks`, { data: { skyhooks: rows } });
+	expect(res.ok()).toBe(true);
+	await ctx.dispose();
+}
+
+test('skyhook windows are read the way a raider reads them', async ({
+	page,
+	api,
+	playwright
+}) => {
+	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
+
+	// One open with hours to run, one about to close, one not open yet, and one ice so the
+	// tabs have something to separate.
+	await setSkyhooks(playwright, [
+		{ planet_id: JITA_LAVA, solar_system_id: JITA, opens_in_min: -30, hours: 2 },
+		{ planet_id: KAZNA_ICE, solar_system_id: KAZNA, opens_in_min: -115, hours: 2 }
+	]);
+
+	const mapId = await createMap(api, 'E2E Skyhooks');
+	await addSystem(api, mapId, JITA);
+
+	await expect
+		.poll(async () => ((await (await api.get('/api/skyhooks')).json()) as unknown[]).length, {
+			timeout: 20_000
+		})
+		.toBe(2);
+
+	await gotoApp(page, `/maps/${mapId}?system=${JITA}`);
+	const card = page.getByTestId('skyhooks-card');
+	await expect(card).toBeVisible();
+
+	// Lava tab first: the Jita hook is open, and zero jumps from the system in focus.
+	const row = card.getByTestId('skyhook-row');
+	await expect(row).toHaveCount(1, { timeout: 15_000 });
+	await expect(row).toHaveAttribute('data-planet', 'Jita VI');
+	await expect(row).toHaveAttribute('data-status', 'open');
+	await expect(row.getByTestId('skyhook-jumps')).toHaveText('0j');
+	// Opened 30 minutes into a two-hour window, so an hour and a half is left. A minute of
+	// slack: the window is stamped when the stub is told about it, and the page renders a
+	// few seconds later.
+	await expect(row.getByTestId('skyhook-timer')).toHaveText(/^1h (29|30)m$/);
+
+	// The ice one has five minutes left, which is its own state and its own tab.
+	await card.getByTestId('skyhook-tab-ice').click();
+	const ice = card.getByTestId('skyhook-row');
+	await expect(ice).toHaveCount(1);
+	await expect(ice).toHaveAttribute('data-status', 'closing');
+	await expect(ice.getByTestId('skyhook-timer')).toHaveText(/^[45]m$/);
+
+	// A window that has already run out stops being listed at all.
+	await setSkyhooks(playwright, [
+		{ planet_id: JITA_LAVA, solar_system_id: JITA, opens_in_min: -180, hours: 2 }
+	]);
+	// Wait for the server to have mirrored it before reloading: the card refetches on mount
+	// and then only every five minutes, so reloading too early would just re-read the old
+	// list and sit there.
+	await expect
+		.poll(async () => ((await (await api.get('/api/skyhooks')).json()) as unknown[]).length, {
+			timeout: 20_000
+		})
+		.toBe(0);
+	await page.reload();
+	await page.waitForSelector('[data-testid="panel-grid"]');
+	await expect(card.getByTestId('skyhooks-empty')).toBeVisible();
+});
+
 test('the poller drives the whole jump, from ESI to the prompt', async ({
 	api,
 	browser,

@@ -16,7 +16,8 @@ export type PanelId =
 	| 'threat'
 	| 'signatures'
 	| 'notes'
-	| 'characters';
+	| 'characters'
+	| 'skyhooks';
 
 export interface PanelMeta {
 	id: PanelId;
@@ -85,6 +86,14 @@ export const PANELS: PanelMeta[] = [
 		minW: 2,
 		minH: 3,
 		removable: true
+	},
+	{
+		id: 'skyhooks',
+		label: 'Raidable Skyhooks',
+		description: 'Skyhook theft windows across New Eden, nearest first.',
+		minW: 2,
+		minH: 3,
+		removable: true
 	}
 ];
 
@@ -142,7 +151,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('navigation', 0, 14, 1, 4),
 			item('threat', 0, 18, 1, 3),
 			item('notes', 0, 21, 1, 2),
-			item('characters', 0, 23, 1, 3)
+			item('characters', 0, 23, 1, 3),
+			item('skyhooks', 0, 26, 1, 3)
 		]
 	},
 	sm: {
@@ -155,7 +165,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('navigation', 0, 10, 1, 4),
 			item('threat', 1, 11, 1, 3),
 			item('notes', 0, 14, 2, 2),
-			item('characters', 0, 16, 2, 3)
+			item('characters', 0, 16, 2, 3),
+			item('skyhooks', 0, 19, 2, 3)
 		]
 	},
 	md: {
@@ -168,7 +179,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('navigation', 0, 11, 2, 4),
 			item('threat', 2, 12, 2, 3),
 			item('notes', 0, 15, 2, 2),
-			item('characters', 2, 15, 2, 3)
+			item('characters', 2, 15, 2, 3),
+			item('skyhooks', 0, 17, 2, 3)
 		]
 	},
 	lg: {
@@ -181,7 +193,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('system-info', 0, 9, 3, 3),
 			item('threat', 3, 9, 4, 3),
 			item('notes', 7, 9, 3, 3),
-			item('characters', 0, 12, 5, 3)
+			item('characters', 0, 12, 5, 3),
+			item('skyhooks', 5, 12, 5, 3)
 		]
 	}
 };

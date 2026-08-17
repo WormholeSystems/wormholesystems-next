@@ -138,7 +138,7 @@ pub struct LayoutItem {
 
 /// Panels the layout may refer to. The server keeps its own copy so a bad payload is a
 /// 400 rather than a page that renders a tile nothing knows how to draw.
-pub const PANEL_IDS: [&str; 7] = [
+pub const PANEL_IDS: [&str; 8] = [
     "map",
     "navigation",
     "system-info",
@@ -146,6 +146,7 @@ pub const PANEL_IDS: [&str; 7] = [
     "signatures",
     "notes",
     "characters",
+    "skyhooks",
 ];
 const BREAKPOINT_KEYS: [&str; 4] = ["xs", "sm", "md", "lg"];
 
@@ -493,6 +494,7 @@ pub fn router() -> Router<AppState> {
             get(h::system_details),
         )
         .route("/api/server-status", get(h::server_status))
+        .route("/api/skyhooks", get(h::skyhooks))
         .route("/api/maps/{id}/track-jump", post(h::track_jump))
         .route("/api/maps/{id}/connections/add", post(h::add_connection))
         .route(

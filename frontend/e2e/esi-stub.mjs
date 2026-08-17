@@ -16,6 +16,8 @@ const UPSTREAM = process.env.ESI_STUB_UPSTREAM ?? 'https://esi.evetech.net';
 const pilots = new Map();
 /** Tranquility's own status, or null to let the real one through. */
 let tranquility = null;
+/** Scripted skyhooks, or null to let the real list through. */
+let skyhooks = null;
 /** character_id -> how many times the API has asked about them, so tests can wait for a poll. */
 const hits = new Map();
 
@@ -34,9 +36,26 @@ async function readJson(req) {
 	return chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
 }
 
+/**
+ * Unauthenticated GETs are cached briefly, because the app under test polls far faster
+ * than it would in production and there is no reason to make CCP absorb that. Anything
+ * carrying a token is passed straight through, since it is per-character and short-lived.
+ */
+const PROXY_CACHE_MS = 60_000;
+const proxyCache = new Map();
+/** In-flight upstream fetches, so a burst of misses is still one request. */
+const inFlight = new Map();
+
 /** Hand anything unscripted to the real ESI, headers and all. */
 async function proxy(req, res, url) {
-	try {
+	const key = req.method === 'GET' && !req.headers.authorization ? url.pathname + url.search : null;
+	const hit = key ? proxyCache.get(key) : null;
+	if (hit && Date.now() - hit.at < PROXY_CACHE_MS) {
+		res.writeHead(hit.status, { 'content-type': 'application/json' });
+		res.end(hit.body);
+		return;
+	}
+	const fetchUpstream = async () => {
 		const upstream = await fetch(`${UPSTREAM}${url.pathname}${url.search}`, {
 			method: req.method,
 			headers: {
@@ -44,9 +63,24 @@ async function proxy(req, res, url) {
 				'x-compatibility-date': req.headers['x-compatibility-date'] ?? ''
 			}
 		});
-		const body = await upstream.text();
-		res.writeHead(upstream.status, { 'content-type': 'application/json' });
-		res.end(body);
+		return { status: upstream.status, body: await upstream.text() };
+	};
+
+	try {
+		let pending = key ? inFlight.get(key) : null;
+		if (!pending) {
+			pending = fetchUpstream();
+			if (key) {
+				inFlight.set(key, pending);
+				pending.finally(() => inFlight.delete(key));
+			}
+		}
+		const answer = await pending;
+		// Errors are cached too, and deliberately: a rate limit that is retried every two
+		// seconds is how you stay rate limited.
+		if (key) proxyCache.set(key, { at: Date.now(), ...answer });
+		res.writeHead(answer.status, { 'content-type': 'application/json' });
+		res.end(answer.body);
 	} catch (err) {
 		json(res, 502, { error: `esi-stub upstream failed: ${err.message}` });
 	}
@@ -61,6 +95,8 @@ const server = createServer(async (req, res) => {
 		pilots.clear();
 		hits.clear();
 		tranquility = null;
+		skyhooks = null;
+		proxyCache.clear();
 		return json(res, 200, { ok: true });
 	}
 
@@ -72,6 +108,26 @@ const server = createServer(async (req, res) => {
 	}
 	if (url.pathname === '/_stub/server' && req.method === 'DELETE') {
 		tranquility = null;
+		return json(res, 200, { ok: true });
+	}
+
+	// Windows are given relative to now, because a test cares that one is "about to close",
+	// not what the wall clock says: `{planet_id, solar_system_id, opens_in_min, hours}`.
+	if (url.pathname === '/_stub/skyhooks' && req.method === 'PUT') {
+		const body = await readJson(req);
+		skyhooks = (body.skyhooks ?? []).map((s) => {
+			const start = new Date(Date.now() + (s.opens_in_min ?? 0) * 60_000);
+			const end = new Date(start.getTime() + (s.hours ?? 2) * 3_600_000);
+			return {
+				planet_id: s.planet_id,
+				solar_system_id: s.solar_system_id,
+				theft_vulnerability: { start: start.toISOString(), end: end.toISOString() }
+			};
+		});
+		return json(res, 200, { ok: true });
+	}
+	if (url.pathname === '/_stub/skyhooks' && req.method === 'DELETE') {
+		skyhooks = null;
 		return json(res, 200, { ok: true });
 	}
 
@@ -111,6 +167,11 @@ const server = createServer(async (req, res) => {
 			start_time: tranquility.start_time ?? '2026-08-17T11:00:00Z',
 			vip: tranquility.vip ?? false
 		});
+	}
+
+	if (url.pathname === '/skyhooks/raidable' && req.method === 'GET') {
+		if (!skyhooks) return proxy(req, res, url);
+		return json(res, 200, { skyhooks });
 	}
 
 	const character = url.pathname.match(/^\/characters\/(\d+)\/(online|location|ship)$/);

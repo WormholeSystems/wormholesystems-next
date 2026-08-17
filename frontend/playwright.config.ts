@@ -42,7 +42,8 @@ export default defineConfig({
 			env: {
 				ESI_BASE_URL: 'http://127.0.0.1:3999',
 				// Tight enough that a test can take Tranquility down and see the effect.
-				SERVER_STATUS_POLL_SECS: '2'
+				SERVER_STATUS_POLL_SECS: '2',
+				SKYHOOK_POLL_SECS: '2'
 			},
 			// First run compiles the API and may seed the SDE into a fresh database.
 			timeout: 300_000

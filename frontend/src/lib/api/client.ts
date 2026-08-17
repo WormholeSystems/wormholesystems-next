@@ -40,6 +40,7 @@ import type { SetWaypointAllBody } from './types/SetWaypointAllBody';
 import type { SetWaypointBody } from './types/SetWaypointBody';
 import type { ServerStatus } from './types/ServerStatus';
 import type { Signature } from './types/Signature';
+import type { Skyhook } from './types/Skyhook';
 import type { TrackJump } from './types/TrackJump';
 import type { ShipSearchResult } from './types/ShipSearchResult';
 import type { SignatureCatalog } from './types/SignatureCatalog';
@@ -176,6 +177,7 @@ export const api = {
 	setPinned: (cmd: SetPinned) => post<null>(`/api/maps/${cmd.map_id}/systems/set-pinned`, cmd),
 
 	serverStatus: () => get<ServerStatus>('/api/server-status'),
+	skyhooks: () => get<Skyhook[]>('/api/skyhooks'),
 
 	// A tracked jump: places the system, connects it, and links the signature in one
 	// undoable step. The response is empty; the socket drives the refetch.

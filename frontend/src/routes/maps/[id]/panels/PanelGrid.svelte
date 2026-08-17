@@ -17,6 +17,7 @@
 	import NavigationCard from './NavigationCard.svelte';
 	import CharactersCard from './CharactersCard.svelte';
 	import NotesCard from './NotesCard.svelte';
+	import SkyhooksCard from './SkyhooksCard.svelte';
 	import SystemInfoCard from './SystemInfoCard.svelte';
 	import ThreatCard from './ThreatCard.svelte';
 	import SignaturesPanel from '../SignaturesPanel.svelte';
@@ -263,6 +264,8 @@
 				{/if}
 			{:else if item.i === 'characters'}
 				<CharactersCard {map} />
+			{:else if item.i === 'skyhooks'}
+				<SkyhooksCard {map} />
 			{:else if item.i === 'notes'}
 				{#if map.activeSystem}
 					<NotesCard {map} system={map.activeSystem} />

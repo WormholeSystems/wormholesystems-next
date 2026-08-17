@@ -9,6 +9,7 @@ pub mod sde;
 pub mod seed;
 pub mod server_status;
 pub mod session;
+pub mod skyhooks;
 pub mod sovereignty;
 pub mod tracking;
 pub mod user_channel;

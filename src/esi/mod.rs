@@ -14,6 +14,7 @@ pub mod token;
 
 pub mod character;
 pub mod entities;
+pub mod skyhooks;
 pub mod sovereignty;
 pub mod status;
 pub mod ui;
@@ -27,6 +28,7 @@ pub use {
     error::{EsiError, Result},
     jwt::Claims,
     scopes::Scope,
+    skyhooks::RaidableSkyhook,
     sovereignty::SovereigntySystem,
     sso::{Sso, SsoConfig},
     status::TranquilityStatus,
