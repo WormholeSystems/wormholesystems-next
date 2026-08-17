@@ -459,7 +459,7 @@
 						</Button>
 					</span>
 				</div>
-				<RouteList steps={abResult.route} onignore={(id) => map.ignoreSystem(id)} />
+				<RouteList steps={map.withSignatures(abResult.route)} onignore={(id) => map.ignoreSystem(id)} />
 			{:else if map.ignoredSystems.size > 0}
 				<button
 					class="self-start text-[11px] text-muted-foreground underline-offset-2 hover:underline"

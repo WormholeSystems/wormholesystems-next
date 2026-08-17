@@ -261,6 +261,37 @@ test('typing in a picker replaces the suggestions with search results', async ({
 	await expect(page.getByTestId('picker-result').filter({ hasText: 'Amarr' }).first()).toBeVisible();
 });
 
+test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E RouteWH');
+	const a = await addSystem(api, mapId, J122515, 200, 200);
+	const b = await addSystem(api, mapId, JITA, 560, 200);
+	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+	});
+	const connId = (await conn.json()).id as number;
+
+	await gotoApp(page, `/maps/${mapId}`);
+	await setRoute(page, 'J122515', 'Jita');
+
+	// Unscanned, the hop can only say that it is a wormhole.
+	const marker = page.getByTestId('route-wormhole').first();
+	await expect(marker).toHaveText('WH');
+	await expect(marker).toHaveAttribute('title', /not scanned/);
+
+	// Once a signature on the departure side is linked, the hop names it: that is what you
+	// actually look for in the scanner.
+	const sig = await api.post(`/api/maps/${mapId}/signatures/add`, {
+		data: { map_id: mapId, solar_system_id: J122515, signature_id: 'QRS-481', group: 'wormhole' }
+	});
+	const sigId = (await sig.json()).id as number;
+	await api.post(`/api/maps/${mapId}/signatures/link`, {
+		data: { map_id: mapId, signature_pk: sigId, connection_id: connId }
+	});
+
+	await expect(marker).toHaveText('QRS-481');
+	await expect(marker).toHaveAttribute('title', 'Take wormhole QRS-481');
+});
+
 test('viewers see the watchlist read-only', async ({ page, api, browser }) => {
 	const mapId = await createMap(api, 'E2E NavViewer');
 	await addSystem(api, mapId, JITA, 200, 200);

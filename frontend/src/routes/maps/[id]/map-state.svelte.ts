@@ -18,6 +18,7 @@ import type { SocketState } from '$lib/ws';
 import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
 import { DEFAULT_LAYOUTS, placeAtBottom, resolveLayouts } from './panels/registry';
 import type { GridItem } from '$lib/layout/grid';
+import type { RouteStep } from '$lib/routing/algorithm';
 import { NODE_W, clamp } from '$lib/map/helpers';
 
 /**
@@ -261,10 +262,18 @@ export class MapState {
 		JSON.stringify(this.layoutDraft) !== JSON.stringify(this.layoutSaved) || this.hiddenDirty
 	);
 
-	/** Apply a new arrangement for one breakpoint to the working copy. */
+	/**
+	 * Apply a new arrangement for one breakpoint to the working copy.
+	 *
+	 * `items` only covers the visible panels, so the hidden ones are carried over rather
+	 * than dropped: their stored positions are what puts them back where they were when
+	 * they are unhidden.
+	 */
 	setLayoutItems(key: BreakpointKey, items: GridItem[]) {
 		const base = resolveLayouts(this.layoutDraft);
-		this.layoutDraft = { ...base, [key]: { ...base[key], items } };
+		const hidden = new Set(this.userSettings?.hidden_panels ?? []);
+		const kept = base[key].items.filter((i) => hidden.has(i.i));
+		this.layoutDraft = { ...base, [key]: { ...base[key], items: [...items, ...kept] } };
 	}
 
 	setLayout(layouts: PanelLayouts) {
@@ -433,6 +442,35 @@ export class MapState {
 			.catch((err) => {
 				this.statusLine = `${label}: ${(err as Error).message}`;
 			});
+	}
+
+	/**
+	 * The signature to warp to for a wormhole hop between two solar systems.
+	 *
+	 * A connection has a signature at each end; the one that matters is on the side you are
+	 * leaving from, because that is the one you can actually see in the scanner.
+	 */
+	wormholeSignature(from: number, to: number): string | null {
+		const system = new Map(this.systems.map((s) => [s.id, s.solar_system_id]));
+		const conn = this.connections.find((c) => {
+			const a = system.get(c.from_system);
+			const b = system.get(c.to_system);
+			return (a === from && b === to) || (a === to && b === from);
+		});
+		if (!conn) return null;
+		return (
+			this.sigs.find((sig) => sig.connection_id === conn.id && sig.solar_system_id === from)
+				?.signature_id ?? null
+		);
+	}
+
+	/** Route steps with the signature attached to each wormhole hop. */
+	withSignatures(steps: RouteStep[]): (RouteStep & { signature: string | null })[] {
+		return steps.map((step, i) => ({
+			...step,
+			signature:
+				step.via === 'wormhole' && i > 0 ? this.wormholeSignature(steps[i - 1].id, step.id) : null
+		}));
 	}
 
 	// --- geometry ---

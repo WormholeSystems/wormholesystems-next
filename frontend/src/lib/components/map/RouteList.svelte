@@ -14,7 +14,12 @@
 		steps,
 		onignore
 	}: {
-		steps: { id: number; via?: 'stargate' | 'wormhole' | 'evescout' | null }[];
+		steps: {
+			id: number;
+			via?: 'stargate' | 'wormhole' | 'evescout' | null;
+			/** For a wormhole hop, the signature to warp to on the side you are leaving. */
+			signature?: string | null;
+		}[];
 		/** When set, middle hops get an X to route around that system. */
 		onignore?: (id: number) => void;
 	} = $props();
@@ -49,7 +54,17 @@
 					<span class="text-right text-muted-foreground">{i}</span>
 					<span class="text-center">
 						{#if step.via === 'wormhole'}
-							<span class="text-amber-500" title="Take wormhole">WH</span>
+							<!-- The signature is what you actually look for in the scanner, so show it
+							     in place of the generic marker whenever the hole has one scanned. -->
+							<span
+								class="font-mono text-amber-500"
+								data-testid="route-wormhole"
+								title={step.signature
+									? `Take wormhole ${step.signature}`
+									: 'Take a wormhole (not scanned)'}
+							>
+								{step.signature ?? 'WH'}
+							</span>
 						{:else if step.via === 'evescout'}
 							<span class="text-blue-400" title="EVE Scout connection">ES</span>
 						{/if}

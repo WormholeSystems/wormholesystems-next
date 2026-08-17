@@ -9,7 +9,7 @@
 
 	import XIcon from '@lucide/svelte/icons/x';
 
-	import { bottom, moveItem, resizeItem, type GridItem } from '$lib/layout/grid';
+	import { bottom, compact, moveItem, resizeItem, type GridItem } from '$lib/layout/grid';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
@@ -45,7 +45,10 @@
 	const layouts = $derived(resolveLayouts(map.layoutDraft));
 	const layout = $derived(layouts[activeKey]);
 	const hidden = $derived(new Set(map.userSettings?.hidden_panels ?? []));
-	const items = $derived(layout.items.filter((i) => !hidden.has(i.i)));
+	// Compacted after filtering, so hiding a panel in the middle closes the hole it leaves
+	// rather than showing a gap. The stored positions are untouched, which is what lets a
+	// panel go back where it was when it is unhidden.
+	const items = $derived(compact(layout.items.filter((i) => !hidden.has(i.i)), layout.cols));
 
 	const colWidth = $derived(gridWidth / layout.cols);
 	const rows = $derived(bottom(items));

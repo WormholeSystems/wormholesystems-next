@@ -290,6 +290,29 @@ test('hiding a panel and adding it back from the library', async ({ page, api })
 	await expect(page.locator('[data-testid="tile-hide"][data-panel="map"]')).toHaveCount(0);
 });
 
+test('hiding a panel in the middle closes the hole it leaves', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Hole');
+	await page.setViewportSize({ width: 1700, height: 1300 });
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+
+	// At lg, signatures sits directly under navigation in the right-hand column.
+	const before = await box(page, 'signatures');
+	expect(before.y).toBeGreaterThan(0);
+
+	await page.getByTestId('layout-toggle').click();
+	await page.locator('[data-testid="tile-hide"][data-panel="navigation"]').click();
+
+	// Signatures rises into the space navigation was occupying rather than leaving a gap.
+	await expect(
+		page.locator('[data-testid="panel-tile"][data-panel="signatures"]')
+	).toHaveAttribute('data-y', '0');
+
+	// Putting it back restores the original arrangement, so the position was remembered.
+	await page.getByTestId('card-library').click();
+	await page.getByTestId('add-navigation').click();
+	await expect(page.locator('[data-testid="panel-tile"][data-panel="navigation"]')).toBeVisible();
+});
+
 test('discarding puts the arrangement back', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Discard');
 	await page.setViewportSize({ width: 1700, height: 1000 });

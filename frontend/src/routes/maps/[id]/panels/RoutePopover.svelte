@@ -94,7 +94,7 @@
 			{/if}
 		</div>
 		<div class="p-2">
-			<RouteList {steps} onignore={(id) => map.ignoreSystem(id)} />
+			<RouteList steps={map.withSignatures(steps)} onignore={(id) => map.ignoreSystem(id)} />
 		</div>
 	</Popover.Content>
 </Popover.Root>
