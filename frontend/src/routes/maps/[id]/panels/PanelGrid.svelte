@@ -50,17 +50,63 @@
 	const colWidth = $derived(gridWidth / layout.cols);
 	const rows = $derived(bottom(items));
 
-	/** A drag or resize in flight, previewed before it is committed. */
+	/**
+	 * A drag or resize in flight.
+	 *
+	 * `dx`/`dy` are the raw pixel offset: the tile being dragged follows those exactly, so it
+	 * tracks the cursor rather than jumping a cell at a time. `live` is the snapped layout it
+	 * would land in, which is what the other tiles reflow to and what the placeholder shows.
+	 */
 	let gesture = $state<{
 		id: PanelId;
 		kind: 'move' | 'resize';
 		startX: number;
 		startY: number;
 		origin: GridItem;
+		dx: number;
+		dy: number;
 		live: GridItem[] | null;
 	} | null>(null);
 
 	const shown = $derived(gesture?.live ?? items);
+
+	/** Where the dragged tile will land, in grid units. */
+	const placeholder = $derived(
+		gesture?.live ? (gesture.live.find((i) => i.i === gesture!.id) ?? null) : null
+	);
+
+	/** The dragged tile's free pixel box, following the pointer. */
+	const floating = $derived.by(() => {
+		const g = gesture;
+		if (!g?.live) return null;
+		const meta = panelMeta(g.id);
+		const left = g.origin.x * colWidth;
+		const top = g.origin.y * layout.row_height;
+		if (g.kind === 'move') {
+			return {
+				left: left + g.dx,
+				top: top + g.dy,
+				width: g.origin.w * colWidth,
+				height: g.origin.h * layout.row_height
+			};
+		}
+		// Resizing grows from the tile's own corner, and stops where the grid and the
+		// panel's minimum say it must.
+		return {
+			left,
+			top,
+			width: clamp(
+				g.origin.w * colWidth + g.dx,
+				meta.minW * colWidth,
+				(layout.cols - g.origin.x) * colWidth
+			),
+			height: Math.max(g.origin.h * layout.row_height + g.dy, meta.minH * layout.row_height)
+		};
+	});
+
+	function clamp(v: number, lo: number, hi: number) {
+		return Math.max(lo, Math.min(hi, v));
+	}
 
 	function commit(next: GridItem[]) {
 		map.setLayoutItems(activeKey, next);
@@ -73,7 +119,7 @@
 		const origin = items.find((i) => i.i === id);
 		if (!origin) return;
 		(ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
-		gesture = { id, kind, startX: ev.clientX, startY: ev.clientY, origin, live: null };
+		gesture = { id, kind, startX: ev.clientX, startY: ev.clientY, origin, dx: 0, dy: 0, live: null };
 	}
 
 	function onPointerMove(ev: PointerEvent) {
@@ -90,7 +136,7 @@
 			g.kind === 'move'
 				? moveItem(items, g.id, g.origin.x + cols, g.origin.y + rowsMoved, layout.cols)
 				: resizeItem(items, g.id, g.origin.w + cols, g.origin.h + rowsMoved, layout.cols, meta);
-		gesture = { ...g, live: next };
+		gesture = { ...g, dx, dy, live: next };
 	}
 
 	function onPointerUp() {
@@ -145,15 +191,20 @@
 
 {#snippet tile(item: GridItem)}
 	{@const meta = panelMeta(item.i as PanelId)}
+	{@const held = gesture?.id === item.i ? floating : null}
 	<div
 		class={cn(
 			'absolute transition-[transform,width,height] duration-150',
-			// The tile being dragged follows the pointer directly; animating it would lag.
-			gesture?.id === item.i && 'z-20 duration-0'
+			// The held tile follows the pointer directly, so it must not animate or it would
+			// lag behind the cursor. Releasing re-enables the transition, which is what makes
+			// it glide into the slot the placeholder was showing.
+			held && 'z-30 shadow-2xl duration-0'
 		)}
-		style:width="{item.w * colWidth}px"
-		style:height="{item.h * layout.row_height}px"
-		style:transform="translate({item.x * colWidth}px, {item.y * layout.row_height}px)"
+		style:width="{held ? held.width : item.w * colWidth}px"
+		style:height="{held ? held.height : item.h * layout.row_height}px"
+		style:transform="translate({held ? held.left : item.x * colWidth}px, {held
+			? held.top
+			: item.y * layout.row_height}px)"
 		data-testid="panel-tile"
 		data-panel={item.i}
 		data-x={item.x}
@@ -274,6 +325,24 @@
 	onpointerup={onPointerUp}
 	onpointercancel={onPointerUp}
 >
+	{#if placeholder}
+		<!-- Where the held tile will land. It sits under the tiles so the one being dragged
+		     stays readable over it, and it does not animate: it is showing a decision about
+		     which cell, so easing between cells would just lag behind that decision. -->
+		<div
+			class="absolute z-0 border-2 border-dashed border-muted-foreground/60 bg-muted/50"
+			data-testid="tile-placeholder"
+			data-panel={placeholder.i}
+			data-x={placeholder.x}
+			data-y={placeholder.y}
+			data-w={placeholder.w}
+			data-h={placeholder.h}
+			style:width="{placeholder.w * colWidth}px"
+			style:height="{placeholder.h * layout.row_height}px"
+			style:transform="translate({placeholder.x * colWidth}px, {placeholder.y *
+				layout.row_height}px)"
+		></div>
+	{/if}
 	{#each shown as item (item.i)}
 		{@render tile(item)}
 	{/each}

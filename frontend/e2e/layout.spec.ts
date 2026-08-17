@@ -90,6 +90,72 @@ test('dragging a tile moves it and the move survives a reload', async ({ page, a
 	);
 });
 
+test('a held tile follows the cursor while a ghost shows where it lands', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E Float');
+	await page.setViewportSize({ width: 1700, height: 1300 });
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.getByTestId('layout-toggle').click();
+
+	const tile = page.locator('[data-testid="panel-tile"][data-panel="navigation"]');
+	const shield = page.locator('[data-testid="tile-shield"][data-panel="navigation"]');
+	const start = (await shield.boundingBox())!;
+
+	await page.mouse.move(start.x + 100, start.y + 40);
+	await page.mouse.down();
+	await page.mouse.move(start.x + 110, start.y + 50);
+	// Land deliberately off-grid, so a snapped tile and a floating one cannot agree.
+	await page.mouse.move(start.x + 100 - 430, start.y + 40 + 170, { steps: 10 });
+
+	const ghost = page.getByTestId('tile-placeholder');
+	await expect(ghost).toBeVisible();
+	const held = (await tile.boundingBox())!;
+	const target = (await ghost.boundingBox())!;
+	// The tile tracks the pointer exactly while the ghost is snapped to the grid, so they
+	// sit apart by whatever is left over inside the cell.
+	expect(Math.round(held.x - target.x)).not.toBe(0);
+	expect(held.width).toBeCloseTo(target.width, 0);
+	// The cell the ghost is claiming, in grid units, which does not depend on any animation.
+	const cell = {
+		x: await ghost.getAttribute('data-x'),
+		y: await ghost.getAttribute('data-y')
+	};
+
+	// Releasing drops the tile into exactly that cell.
+	await page.mouse.up();
+	await expect(page.getByTestId('panel-grid')).toHaveAttribute('data-dragging', 'false');
+	await expect(ghost).toHaveCount(0);
+	await expect(tile).toHaveAttribute('data-x', cell.x!);
+	await expect(tile).toHaveAttribute('data-y', cell.y!);
+});
+
+test('a resize grows freely while the ghost snaps', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E FloatResize');
+	await page.setViewportSize({ width: 1700, height: 1300 });
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.getByTestId('layout-toggle').click();
+
+	const tile = page.locator('[data-testid="panel-tile"][data-panel="notes"]');
+	const handle = page.locator('[data-testid="tile-resize"][data-panel="notes"]');
+	await handle.scrollIntoViewIfNeeded();
+	const grip = (await handle.boundingBox())!;
+	const before = (await tile.boundingBox())!;
+
+	await page.mouse.move(grip.x + 2, grip.y + 2);
+	await page.mouse.down();
+	await page.mouse.move(grip.x + 12, grip.y + 12);
+	await page.mouse.move(grip.x + 2, grip.y + 2 + 130, { steps: 8 });
+
+	const held = (await tile.boundingBox())!;
+	const target = (await page.getByTestId('tile-placeholder').boundingBox())!;
+	expect(held.height).toBeGreaterThan(before.height);
+	// Free height versus a whole number of rows.
+	expect(Math.round(held.height - target.height)).not.toBe(0);
+	await page.mouse.up();
+});
+
 test('arrow keys move a tile without a pointer', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Keyboard');
 	await page.setViewportSize({ width: 1700, height: 1000 });
