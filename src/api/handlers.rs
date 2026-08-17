@@ -857,12 +857,13 @@ pub async fn map_user_settings(
         return Err(ApiError::from(crate::maps::MapError::NotFound));
     }
     let row = sqlx::query!(
-        "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first,
-                route_preference, security_penalty, route_allow_time_status,
-                route_allow_mass_status, route_use_evescout, prompt_for_signature,
-                suggest_alias, copy_bookmark, killmail_filter, is_archived, hidden_panels,
-                layout_breakpoints
-         from map_user_settings where map_id = $1 and user_id = $2",
+        r#"select tracking_allowed, show_threat_level, compact_signature_list,
+                  show_statics_first, route_preference, security_penalty,
+                  route_allow_time_status, route_allow_mass_status, route_use_evescout,
+                  prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
+                  is_archived, (setup_dismissed_at is not null) as "setup_dismissed!",
+                  hidden_panels, layout_breakpoints
+           from map_user_settings where map_id = $1 and user_id = $2"#,
         map_id,
         actor.user_id,
     )
@@ -884,6 +885,7 @@ pub async fn map_user_settings(
             copy_bookmark: r.copy_bookmark,
             killmail_filter: r.killmail_filter,
             is_archived: r.is_archived,
+            setup_dismissed: r.setup_dismissed,
             hidden_panels: r.hidden_panels,
             layout_breakpoints: r
                 .layout_breakpoints
@@ -906,6 +908,7 @@ pub async fn map_user_settings(
             copy_bookmark: false,
             killmail_filter: "all".into(),
             is_archived: false,
+            setup_dismissed: false,
             hidden_panels: Vec::new(),
             layout_breakpoints: None,
         },
@@ -966,15 +969,16 @@ pub async fn update_map_user_settings(
               compact_signature_list, show_statics_first,
               route_preference, security_penalty, route_allow_time_status,
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
-              suggest_alias, copy_bookmark, killmail_filter, is_archived, hidden_panels,
-              layout_breakpoints)
+              suggest_alias, copy_bookmark, killmail_filter, is_archived, setup_dismissed_at,
+              hidden_panels, layout_breakpoints)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
                  coalesce($10, 'reduced'), coalesce($11, false),
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
                  coalesce($15, 'all'), coalesce($16, false),
-                 coalesce($17, '{}'::text[]), $18)
+                 case when $17 then now() end,
+                 coalesce($18, '{}'::text[]), $19)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -990,14 +994,20 @@ pub async fn update_map_user_settings(
              copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),
              killmail_filter = coalesce($15, map_user_settings.killmail_filter),
              is_archived = coalesce($16, map_user_settings.is_archived),
-             hidden_panels = coalesce($17, map_user_settings.hidden_panels),
-             layout_breakpoints = coalesce($18, map_user_settings.layout_breakpoints),
+             -- Absent leaves it; true stamps now; false clears it and brings the guide back.
+             setup_dismissed_at = case
+                 when $17 is null then map_user_settings.setup_dismissed_at
+                 when $17 then now()
+             end,
+             hidden_panels = coalesce($18, map_user_settings.hidden_panels),
+             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
                    route_allow_time_status, route_allow_mass_status, route_use_evescout,
                    prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
-                   is_archived, hidden_panels, layout_breakpoints",
+                   is_archived, (setup_dismissed_at is not null) as setup_dismissed,
+                   hidden_panels, layout_breakpoints",
         map_id,
         actor.user_id,
         body.tracking_allowed,
@@ -1014,6 +1024,7 @@ pub async fn update_map_user_settings(
         body.copy_bookmark,
         body.killmail_filter,
         body.is_archived,
+        body.setup_dismissed,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
     )
@@ -1034,6 +1045,7 @@ pub async fn update_map_user_settings(
         copy_bookmark: row.copy_bookmark,
         killmail_filter: row.killmail_filter,
         is_archived: row.is_archived,
+        setup_dismissed: row.setup_dismissed.unwrap_or(false),
         hidden_panels: row.hidden_panels,
         layout_breakpoints: row
             .layout_breakpoints

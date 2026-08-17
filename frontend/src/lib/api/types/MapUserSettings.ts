@@ -38,6 +38,10 @@ copy_bookmark: boolean,
  */
 killmail_filter: string, is_archived: boolean, 
 /**
+ * Whether this user has waved the setup guide away on this map.
+ */
+setup_dismissed: boolean, 
+/**
  * Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
  * its saved position, so unhiding puts it back where it was.
  */

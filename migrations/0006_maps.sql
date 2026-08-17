@@ -148,6 +148,10 @@ create table map_user_settings (
     -- Hides a finished chain from this user's map list without deleting it for everyone
     -- else. Per-user because one group's dead chain is another's staging map.
     is_archived             boolean not null default false,
+    -- When this user waved the setup guide away. The guide otherwise shows itself whenever
+    -- a map still has setup left, so this is the "yes, I know, leave it" switch. Stamped
+    -- rather than a flag, because when someone dismissed it is the useful half.
+    setup_dismissed_at      timestamptz,
     -- Panels this user hides, and the per-breakpoint tile positions. Null layout means
     -- "the built-in arrangement", so a map nobody has customised renders from defaults.
     hidden_panels           text[] not null default '{}',

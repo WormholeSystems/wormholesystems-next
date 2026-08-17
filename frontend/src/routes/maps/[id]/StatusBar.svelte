@@ -7,6 +7,7 @@
 	import HistoryIcon from '@lucide/svelte/icons/history';
 	import LayersIcon from '@lucide/svelte/icons/layers';
 	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
+	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import RadarIcon from '@lucide/svelte/icons/radar';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
@@ -26,7 +27,7 @@
 	import type { MapState } from './map-state.svelte';
 	import TrackingSettings from './TrackingSettings.svelte';
 
-	let { map }: { map: MapState } = $props();
+	let { map, onsetup }: { map: MapState; onsetup?: () => void } = $props();
 
 	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
 	const rows = $derived(historyRows(map.entries));
@@ -307,6 +308,27 @@
 			<Tooltip.Content>
 				{map.redoEntry ? `Redo: ${map.redoEntry.label}` : 'Nothing to redo'}
 			</Tooltip.Content>
+		</Tooltip.Root>
+	{/if}
+
+	{#if onsetup}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon"
+						class="size-7"
+						aria-label="Setup guide"
+						data-testid="setup-toggle"
+						onclick={onsetup}
+					>
+						<ListChecksIcon />
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content>What this map still needs</Tooltip.Content>
 		</Tooltip.Root>
 	{/if}
 

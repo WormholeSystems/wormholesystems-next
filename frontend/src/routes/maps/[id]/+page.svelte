@@ -41,6 +41,7 @@
 	import CommandPalette from './CommandPalette.svelte';
 	import LayoutToolbar from './panels/LayoutToolbar.svelte';
 	import PanelGrid from './panels/PanelGrid.svelte';
+	import SetupGuide from './SetupGuide.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import TrackingDialog from './TrackingDialog.svelte';
 	import { JumpTracker } from './tracking.svelte';
@@ -50,6 +51,8 @@
 	const map = $derived(new MapState(mapId));
 	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
 	const tracker = $derived(new JumpTracker(map));
+	// Held so the status bar can bring the guide back after it has been waved away.
+	let setupGuide = $state<SetupGuide | null>(null);
 	// The app-wide system context menu reads the map through this getter.
 	setContext('map-state', () => map);
 
@@ -481,7 +484,7 @@
 	}}
 />
 
-<StatusBar {map} />
+<StatusBar {map} onsetup={() => setupGuide?.toggle()} />
 
 <CommandPalette {map} bind:open={map.paletteOpen} />
 <TrackingDialog {map} {tracker} />
@@ -524,6 +527,8 @@
 		map.openMenu(ev.clientX, ev.clientY, { kind: 'map' });
 	}}
 >
+	<SetupGuide bind:this={setupGuide} {map} />
+
 	<!-- The transformed world: nodes + the connection overlay scale & pan together. -->
 	<div
 		class="absolute top-0 left-0 origin-top-left"
