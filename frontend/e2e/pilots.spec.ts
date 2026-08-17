@@ -131,6 +131,27 @@ test('a pilot outside the chain still shows where they are', async ({ page, api 
 	await expect(row).toContainText('Jita');
 });
 
+test('a pilot row right-clicks to the system menu', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E PilotsMenu');
+	await addSystem(api, mapId, J122515, 'HOME');
+	// In known space, so the row's system is one the map does not hold: the menu still has
+	// to work, which means the system was resolved rather than read off a placement.
+	await addPilot(api, mapId, 28, JITA, { typeId: MACHARIEL });
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	const row = page.getByTestId('characters-card').getByTestId('pilot-row');
+	await expect(row).toHaveCount(1);
+	// The menu appears once the system behind the row has been resolved, which is also when
+	// the row stops saying "Unknown".
+	await expect(row).toContainText('Jita');
+
+	await row.click({ button: 'right' });
+	const menu = page.getByRole('menu');
+	await expect(menu).toBeVisible();
+	await expect(menu.getByText('Set destination')).toBeVisible();
+	await expect(menu.getByText('Add to map')).toBeVisible();
+});
+
 test('viewers do not get a pilot list at all', async ({ api, browser }) => {
 	const mapId = await createMap(api, 'E2E PilotsViewer');
 	await addSystem(api, mapId, J122515, 'HOME');

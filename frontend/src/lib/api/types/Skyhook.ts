@@ -9,7 +9,12 @@ export type Skyhook = { planet_id: number,
 /**
  * e.g. `4-EP12 VI`, as it reads in the overview.
  */
-planet_name: string, planet_kind: PlanetKind, solar_system_id: number, system_name: string, region: string, security_status: number, 
+planet_name: string, planet_kind: PlanetKind, solar_system_id: number, system_name: string, region: string, 
+/**
+ * Carried so a row can offer the system menu without a second round trip to resolve
+ * the system it already names.
+ */
+region_id: number, constellation_id: number, security_status: number, 
 /**
  * Who holds the system. Skyhooks only exist in sovereign nullsec, so this is the
  * alliance whose toes you are stepping on.

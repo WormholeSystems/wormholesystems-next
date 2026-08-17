@@ -8,14 +8,13 @@
 	//
 	// Distance is measured from the same origin as the watchlist and the Find tools, so
 	// every number on the page agrees about where "here" is.
-	import { api } from '$lib/api/client';
 	import type { MapCharacter } from '$lib/api/types/MapCharacter';
-	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { findRoutes, jumpTone } from '$lib/routing/algorithm';
 	import type { RouteResult } from '$lib/routing/algorithm';
@@ -30,54 +29,28 @@
 	const pilots = $derived(map.characters);
 	const sorted = $derived(orderPilots(pilots));
 
-	// Systems the pilots are in, resolved for the ones that are not on the map. A pilot in
-	// known space is common and should still show a name rather than an id.
-	let resolved = $state<Map<number, SystemSearchResult>>(new Map());
+	// A pilot in known space is common, and should still read as a name rather than an id.
 	$effect(() => {
-		const placed = new Set(map.systems.map((s) => s.solar_system_id));
-		const missing = [
-			...new Set(
-				pilots
-					.map((p) => p.solar_system_id)
-					.filter((id): id is number => id !== null && !placed.has(id) && !resolved.has(id))
-			)
-		];
-		if (missing.length === 0) return;
-		api
-			.resolveSystems(missing)
-			.then((rows) => {
-				const next = new Map(resolved);
-				for (const r of rows) next.set(r.id, r);
-				resolved = next;
-			})
-			.catch(() => {});
+		map.ensureResolved(
+			pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null)
+		);
 	});
 
 	/** Everything a row needs to name a pilot's location, on the map or off it. */
 	function place(solarSystemId: number | null) {
 		if (solarSystemId === null) return null;
+		const info = map.systemInfo(solarSystemId);
+		if (!info) return null;
 		const placed = map.systems.find((s) => s.solar_system_id === solarSystemId);
-		if (placed) {
-			return {
-				id: placed.id,
-				alias: placed.alias,
-				name: placed.name,
-				region: placed.region,
-				classId: placed.wormhole_class_id,
-				security: placed.security_status
-			};
-		}
-		const hit = resolved.get(solarSystemId);
-		return hit
-			? {
-					id: null,
-					alias: null,
-					name: hit.name,
-					region: hit.region,
-					classId: hit.wormhole_class_id,
-					security: hit.security
-				}
-			: null;
+		return {
+			id: placed?.id ?? null,
+			alias: placed?.alias ?? null,
+			name: info.name,
+			region: info.region,
+			classId: info.wormhole_class_id,
+			security: info.security,
+			info
+		};
 	}
 
 	// One search from the origin covers every pilot, rather than one per row.
@@ -128,87 +101,97 @@
 						{@const route = pilot.solar_system_id === null
 							? undefined
 							: routes.get(pilot.solar_system_id)}
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class={cn(
-								'flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs last:border-b-0 hover:bg-muted/30',
-								isIdle(pilot) && 'opacity-50'
-							)}
-							data-testid="pilot-row"
-							data-pilot={pilot.name}
-							onmouseenter={() => hover(pilot, true)}
-							onmouseleave={() => hover(pilot, false)}
-						>
-							<EveImage kind="character" id={pilot.character_id} class="size-5 shrink-0 rounded" />
+						<!-- Right-click reaches the same system menu as anywhere else a system is
+						     named: set destination, add to map, external links. -->
+						{#snippet row()}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class={cn(
+									'flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs last:border-b-0 hover:bg-muted/30',
+									isIdle(pilot) && 'opacity-50'
+								)}
+								data-testid="pilot-row"
+								data-pilot={pilot.name}
+								onmouseenter={() => hover(pilot, true)}
+								onmouseleave={() => hover(pilot, false)}
+							>
+								<EveImage kind="character" id={pilot.character_id} class="size-5 shrink-0 rounded" />
 
-							<span class="flex min-w-0 shrink-0 basis-28 items-center gap-1">
-								<span
-									class={cn('truncate', pilot.is_mine && 'font-medium text-foreground')}
-									title={pilot.name}>{pilot.name}</span
-								>
-								{#if pilot.is_docked}
-									<Tooltip.Root>
-										<Tooltip.Trigger class="shrink-0 text-[10px] text-muted-foreground">
-											(D)
-										</Tooltip.Trigger>
-										<Tooltip.Content>Docked</Tooltip.Content>
-									</Tooltip.Root>
-								{:else if isScanner(pilot)}
-									<Tooltip.Root>
-										<Tooltip.Trigger class="shrink-0 text-[10px] text-amber-400">(S)</Tooltip.Trigger>
-										<Tooltip.Content>Scanner</Tooltip.Content>
-									</Tooltip.Root>
-								{/if}
-							</span>
-
-							<span class="flex min-w-0 flex-1 items-center gap-1.5">
-								{#if pilot.ship_type_id !== null}
-									<EveImage kind="type" id={pilot.ship_type_id} class="size-4 shrink-0" />
-								{/if}
-								<Tooltip.Root>
-									<Tooltip.Trigger class="min-w-0 truncate font-mono text-[10px] text-muted-foreground">
-										{pilot.ship_type ?? 'Unknown ship'}
-									</Tooltip.Trigger>
-									<Tooltip.Content>{pilot.ship_name ?? 'Unnamed'}</Tooltip.Content>
-								</Tooltip.Root>
-							</span>
-
-							<span class="flex min-w-0 flex-1 items-center gap-1.5">
-								{#if where}
-									<ClassBadge
-										classId={where.classId}
-										security={where.security}
-										class="shrink-0 text-[10px]"
-									/>
-									<button
-										class="min-w-0 truncate text-left hover:text-foreground"
-										title="{where.name} · {where.region}"
-										disabled={where.id === null}
-										onclick={() => where.id !== null && (map.activeId = where.id)}
+								<span class="flex min-w-0 shrink-0 basis-28 items-center gap-1">
+									<span
+										class={cn('truncate', pilot.is_mine && 'font-medium text-foreground')}
+										title={pilot.name}>{pilot.name}</span
 									>
-										{#if where.alias}<span class="font-medium">{where.alias}</span> · {/if}{where.name}
-									</button>
-								{:else}
-									<span class="text-muted-foreground/60">Unknown</span>
-								{/if}
-							</span>
+									{#if pilot.is_docked}
+										<Tooltip.Root>
+											<Tooltip.Trigger class="shrink-0 text-[10px] text-muted-foreground">
+												(D)
+											</Tooltip.Trigger>
+											<Tooltip.Content>Docked</Tooltip.Content>
+										</Tooltip.Root>
+									{:else if isScanner(pilot)}
+										<Tooltip.Root>
+											<Tooltip.Trigger class="shrink-0 text-[10px] text-amber-400">(S)</Tooltip.Trigger>
+											<Tooltip.Content>Scanner</Tooltip.Content>
+										</Tooltip.Root>
+									{/if}
+								</span>
 
-							<span class="shrink-0 text-right">
-								{#if route}
-									<RoutePopover {map} steps={route.route}>
-										<span
-											class={cn('cursor-pointer font-medium tabular-nums', jumpTone(route.jumps))}
-											data-testid="pilot-jumps"
+								<span class="flex min-w-0 flex-1 items-center gap-1.5">
+									{#if pilot.ship_type_id !== null}
+										<EveImage kind="type" id={pilot.ship_type_id} class="size-4 shrink-0" />
+									{/if}
+									<Tooltip.Root>
+										<Tooltip.Trigger class="min-w-0 truncate font-mono text-[10px] text-muted-foreground">
+											{pilot.ship_type ?? 'Unknown ship'}
+										</Tooltip.Trigger>
+										<Tooltip.Content>{pilot.ship_name ?? 'Unnamed'}</Tooltip.Content>
+									</Tooltip.Root>
+								</span>
+
+								<span class="flex min-w-0 flex-1 items-center gap-1.5">
+									{#if where}
+										<ClassBadge
+											classId={where.classId}
+											security={where.security}
+											class="shrink-0 text-[10px]"
+										/>
+										<button
+											class="min-w-0 truncate text-left hover:text-foreground"
+											title="{where.name} · {where.region}"
+											disabled={where.id === null}
+											onclick={() => where.id !== null && (map.activeId = where.id)}
 										>
-											{route.jumps}j
-										</span>
-									</RoutePopover>
-								{:else}
-									<!-- `nowrap`: a lone hyphen pair wraps and makes the row a line taller. -->
-									<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">--</span>
-								{/if}
-							</span>
-						</div>
+											{#if where.alias}<span class="font-medium">{where.alias}</span> · {/if}{where.name}
+										</button>
+									{:else}
+										<span class="text-muted-foreground/60">Unknown</span>
+									{/if}
+								</span>
+
+								<span class="shrink-0 text-right">
+									{#if route}
+										<RoutePopover {map} steps={route.route}>
+											<span
+												class={cn('cursor-pointer font-medium tabular-nums', jumpTone(route.jumps))}
+												data-testid="pilot-jumps"
+											>
+												{route.jumps}j
+											</span>
+										</RoutePopover>
+									{:else}
+										<!-- `nowrap`: a lone hyphen pair wraps and makes the row a line taller. -->
+										<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">--</span>
+									{/if}
+								</span>
+							</div>
+						{/snippet}
+
+						{#if where?.info}
+							<SystemMenu system={where.info}>{@render row()}</SystemMenu>
+						{:else}
+							{@render row()}
+						{/if}
 					{/each}
 				</div>
 			{/if}

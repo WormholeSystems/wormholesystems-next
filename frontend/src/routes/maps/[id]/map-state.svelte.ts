@@ -11,6 +11,7 @@ import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
 import type { EveScoutEdge } from '$lib/api/types/EveScoutEdge';
 import type { Signature } from '$lib/api/types/Signature';
+import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 import type { MapHistory } from '$lib/api/types/MapHistory';
 import type { StaleConnection } from '$lib/api/types/StaleConnection';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
@@ -129,6 +130,10 @@ export class MapState {
 	hoverPath = $state<number[] | null>(null);
 	// Systems the router steers around (per map, persisted locally).
 	ignoredSystems = $state<Set<number>>(new Set());
+	// Display data for systems a side panel names but the map does not hold: a pilot in
+	// known space, a skyhook out in sov null. Fetched once each and kept, because the
+	// context menu needs the same shape wherever a system is shown.
+	resolvedSystems = $state<Map<number, SystemSearchResult>>(new Map());
 	// The static routing data, fetched once and shared: the navigation card plans routes
 	// with it, and the pilots card measures distances with it. One home, one fetch.
 	stargates = $state<Map<number, number[]> | null>(null);
@@ -308,6 +313,45 @@ export class MapState {
 		} catch {
 			this.myCharacters = [];
 		}
+	}
+
+	/**
+	 * A system in the shape every picker and the context menu expect, whether or not it is
+	 * on the map. Returns null until [`ensureResolved`] has fetched an off-map one.
+	 */
+	systemInfo(solarSystemId: number): SystemSearchResult | null {
+		const placed = this.systems.find((s) => s.solar_system_id === solarSystemId);
+		if (placed) {
+			return {
+				id: placed.solar_system_id,
+				name: placed.name,
+				security: placed.security_status,
+				region: placed.region,
+				region_id: placed.region_id,
+				constellation_id: placed.constellation_id,
+				wormhole_class_id: placed.wormhole_class_id,
+				effect_name: placed.effect_name,
+				sovereignty: placed.sovereignty
+			};
+		}
+		return this.resolvedSystems.get(solarSystemId) ?? null;
+	}
+
+	/** Fetch display data for any of `ids` that is neither on the map nor already known. */
+	ensureResolved(ids: number[]) {
+		const placed = new Set(this.systems.map((s) => s.solar_system_id));
+		const missing = [
+			...new Set(ids.filter((id) => !placed.has(id) && !this.resolvedSystems.has(id)))
+		];
+		if (missing.length === 0) return;
+		api
+			.resolveSystems(missing)
+			.then((rows) => {
+				const next = new Map(this.resolvedSystems);
+				for (const row of rows) next.set(row.id, row);
+				this.resolvedSystems = next;
+			})
+			.catch(() => {});
 	}
 
 	/** The static routing tables (stargates, security, Jove/station/service indexes). */

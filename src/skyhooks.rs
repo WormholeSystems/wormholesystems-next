@@ -65,6 +65,10 @@ pub struct Skyhook {
     pub solar_system_id: i64,
     pub system_name: String,
     pub region: String,
+    /// Carried so a row can offer the system menu without a second round trip to resolve
+    /// the system it already names.
+    pub region_id: i64,
+    pub constellation_id: i64,
     pub security_status: f64,
     /// Who holds the system. Skyhooks only exist in sovereign nullsec, so this is the
     /// alliance whose toes you are stepping on.
@@ -237,7 +241,8 @@ pub async fn list(pool: &PgPool) -> sqlx::Result<Vec<Skyhook>> {
     let rows = sqlx::query!(
         r#"select s.planet_id, s.solar_system_id, s.vulnerable_from, s.vulnerable_until,
                   p.name as planet_name, p.celestial_index, t.name as planet_type,
-                  ss.name as system_name, r.name as region, ss.security_status,
+                  ss.name as system_name, r.name as region, r.id as region_id,
+                  ss.constellation_id, ss.security_status,
                   case
                       when sov.alliance_id is not null then 'alliance'
                       when sov.corporation_id is not null then 'corporation'
@@ -270,6 +275,8 @@ pub async fn list(pool: &PgPool) -> sqlx::Result<Vec<Skyhook>> {
             solar_system_id: r.solar_system_id,
             system_name: r.system_name,
             region: r.region,
+            region_id: r.region_id,
+            constellation_id: r.constellation_id,
             security_status: r.security_status,
             sovereignty: sovereignty_of(r.sov_kind.as_deref(), r.sov_id, r.sov_name, r.sov_ticker),
             vulnerable_from: r.vulnerable_from,

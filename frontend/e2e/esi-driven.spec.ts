@@ -378,6 +378,14 @@ test('skyhook windows are read the way a raider reads them', async ({
 	// few seconds later.
 	await expect(row.getByTestId('skyhook-timer')).toHaveText(/^1h (29|30)m$/);
 
+	// A skyhook is a system like any other: right-click reaches the same menu.
+	await row.click({ button: 'right' });
+	const menu = page.getByRole('menu');
+	await expect(menu).toBeVisible();
+	await expect(menu.getByText('Set destination')).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+
 	// The ice one has five minutes left, and lives behind the other half of the toggle.
 	await card.getByTestId('skyhook-kind-ice').click();
 	const ice = card.getByTestId('skyhook-row');

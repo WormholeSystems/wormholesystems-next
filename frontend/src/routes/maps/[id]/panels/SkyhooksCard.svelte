@@ -10,6 +10,7 @@
 	import { api } from '$lib/api/client';
 	import type { PlanetKind } from '$lib/api/types/PlanetKind';
 	import type { Skyhook } from '$lib/api/types/Skyhook';
+	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
@@ -31,6 +32,7 @@
 	} from '$lib/skyhooks/timer';
 	import { cn } from '$lib/utils';
 	import type { MapState } from '../map-state.svelte';
+	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
 	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } =
@@ -148,6 +150,28 @@
 		}
 		column = next;
 		ascending = true;
+	}
+
+	/**
+	 * The row's system in the shape the context menu wants.
+	 *
+	 * Built from the payload rather than resolved: a skyhook already carries everything the
+	 * menu needs, and a row that cannot be right-clicked until a second request lands is a
+	 * row that sometimes cannot be right-clicked at all.
+	 */
+	function systemOf(skyhook: Skyhook): SystemSearchResult {
+		return {
+			id: skyhook.solar_system_id,
+			name: skyhook.system_name,
+			security: skyhook.security_status,
+			region: skyhook.region,
+			region_id: skyhook.region_id,
+			constellation_id: skyhook.constellation_id,
+			// Skyhooks only exist in sovereign nullsec, so neither of these can apply.
+			wormhole_class_id: null,
+			effect_name: null,
+			sovereignty: skyhook.sovereignty ?? null
+		};
 	}
 
 	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id,
@@ -284,87 +308,93 @@
 					</p>
 				{:else}
 					{#each sorted as row (row.skyhook.planet_id)}
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div
-							class="flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs last:border-b-0 hover:bg-muted/30"
-							data-testid="skyhook-row"
-							data-planet={row.skyhook.planet_name}
-							data-status={row.status}
-							onmouseenter={() => hover(row, true)}
-							onmouseleave={() => hover(row, false)}
-						>
-							<span
-								class={cn('size-2 shrink-0 rounded-full', statusDot(row.status))}
-								aria-label={row.status}
-							></span>
-
-							<span class="flex min-w-0 flex-1 items-center gap-1.5">
-								<ClassBadge
-									classId={null}
-									security={row.skyhook.security_status}
-									class="shrink-0 text-[10px]"
-								/>
-								<span class="truncate" title={row.skyhook.planet_name}
-									>{row.skyhook.planet_name}</span
-								>
-							</span>
-
-							<span
-								class="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground"
-								title={row.skyhook.region}>{row.skyhook.region}</span
+						<!-- Right-click reaches the system menu, same as anywhere else a system is
+						     named: set destination, add to map, external links. -->
+						{#snippet line()}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs last:border-b-0 hover:bg-muted/30"
+								data-testid="skyhook-row"
+								data-planet={row.skyhook.planet_name}
+								data-status={row.status}
+								onmouseenter={() => hover(row, true)}
+								onmouseleave={() => hover(row, false)}
 							>
+								<span
+									class={cn('size-2 shrink-0 rounded-full', statusDot(row.status))}
+									aria-label={row.status}
+								></span>
 
-							<span class="flex w-4 shrink-0 justify-center">
-								{#if row.skyhook.sovereignty}
-									{@const sov = row.skyhook.sovereignty}
-									<Tooltip.Root>
-										<Tooltip.Trigger class="flex">
-											<EveImage
-												kind={sovKind(sov)}
-												id={sov.id}
-												class="size-4 shrink-0 rounded-sm"
-											/>
-										</Tooltip.Trigger>
-										<Tooltip.Content class="flex items-center gap-2">
-											<EveImage kind={sovKind(sov)} id={sov.id} class="size-6 rounded-sm" />
-											{sov.name}
-											{#if 'ticker' in sov}({sov.ticker}){/if}
-										</Tooltip.Content>
-									</Tooltip.Root>
-								{/if}
-							</span>
+								<span class="flex min-w-0 flex-1 items-center gap-1.5">
+									<ClassBadge
+										classId={null}
+										security={row.skyhook.security_status}
+										class="shrink-0 text-[10px]"
+									/>
+									<span class="truncate" title={row.skyhook.planet_name}
+										>{row.skyhook.planet_name}</span
+									>
+								</span>
 
-							<span class="w-10 shrink-0 text-right">
-								{#if row.route}
-									<RoutePopover {map} steps={row.route.route}>
-										<span
-											class={cn('cursor-pointer font-medium tabular-nums', jumpTone(row.jumps ?? 0))}
-											data-testid="skyhook-jumps">{row.jumps}j</span
-										>
-									</RoutePopover>
-								{:else}
-									<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">--</span>
-								{/if}
-							</span>
-
-							<Tooltip.Root>
-								<Tooltip.Trigger
-									class={cn(
-										'w-16 shrink-0 cursor-help text-right font-mono text-[10px] font-semibold tabular-nums',
-										statusText(row.status)
-									)}
-									data-testid="skyhook-timer"
+								<span
+									class="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground"
+									title={row.skyhook.region}>{row.skyhook.region}</span
 								>
-									{formatDuration(row.untilMs)}
-								</Tooltip.Trigger>
-								<Tooltip.Content class="flex flex-col gap-0.5">
-									<span>{describe({ status: row.status, untilMs: row.untilMs })}</span>
-									<span class="font-mono text-[10px] text-muted-foreground">
-										{formatWindow(row.skyhook)}
-									</span>
-								</Tooltip.Content>
-							</Tooltip.Root>
-						</div>
+
+								<span class="flex w-4 shrink-0 justify-center">
+									{#if row.skyhook.sovereignty}
+										{@const sov = row.skyhook.sovereignty}
+										<Tooltip.Root>
+											<Tooltip.Trigger class="flex">
+												<EveImage
+													kind={sovKind(sov)}
+													id={sov.id}
+													class="size-4 shrink-0 rounded-sm"
+												/>
+											</Tooltip.Trigger>
+											<Tooltip.Content class="flex items-center gap-2">
+												<EveImage kind={sovKind(sov)} id={sov.id} class="size-6 rounded-sm" />
+												{sov.name}
+												{#if 'ticker' in sov}({sov.ticker}){/if}
+											</Tooltip.Content>
+										</Tooltip.Root>
+									{/if}
+								</span>
+
+								<span class="w-10 shrink-0 text-right">
+									{#if row.route}
+										<RoutePopover {map} steps={row.route.route}>
+											<span
+												class={cn('cursor-pointer font-medium tabular-nums', jumpTone(row.jumps ?? 0))}
+												data-testid="skyhook-jumps">{row.jumps}j</span
+											>
+										</RoutePopover>
+									{:else}
+										<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">--</span>
+									{/if}
+								</span>
+
+								<Tooltip.Root>
+									<Tooltip.Trigger
+										class={cn(
+											'w-16 shrink-0 cursor-help text-right font-mono text-[10px] font-semibold tabular-nums',
+											statusText(row.status)
+										)}
+										data-testid="skyhook-timer"
+									>
+										{formatDuration(row.untilMs)}
+									</Tooltip.Trigger>
+									<Tooltip.Content class="flex flex-col gap-0.5">
+										<span>{describe({ status: row.status, untilMs: row.untilMs })}</span>
+										<span class="font-mono text-[10px] text-muted-foreground">
+											{formatWindow(row.skyhook)}
+										</span>
+									</Tooltip.Content>
+								</Tooltip.Root>
+							</div>
+						{/snippet}
+
+						<SystemMenu system={systemOf(row.skyhook)}>{@render line()}</SystemMenu>
 					{/each}
 				{/if}
 			</div>

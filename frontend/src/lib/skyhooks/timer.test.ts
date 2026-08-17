@@ -15,6 +15,8 @@ function skyhook(from: string, hours = 2): Skyhook {
 		solar_system_id: 30003681,
 		system_name: 'M2GJ-X',
 		region: 'Feythabolis',
+		region_id: 10000056,
+		constellation_id: 20000812,
 		security_status: -0.2,
 		vulnerable_from: start.toISOString(),
 		vulnerable_until: new Date(start.getTime() + hours * 3_600_000).toISOString()
