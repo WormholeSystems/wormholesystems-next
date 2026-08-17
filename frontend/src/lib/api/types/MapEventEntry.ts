@@ -6,10 +6,15 @@ export type MapEventEntry = { id: number, map_id: number, character_id: number |
  */
 character_name: string | null, kind: string, label: string, entries_count: number, 
 /**
- * Whether this entry carries an inverse and has not been undone yet.
+ * The step this one was applied on top of. `None` for a root, or for an audit row.
  */
-undoable: boolean, undone_at: string | null, 
+parent_id: number | null, 
 /**
- * The entry this one reverted, if any (undo/redo chains).
+ * Whether this row is a step in the tree. Audit-only rows (background writers) are
+ * shown in the history but cannot be jumped to.
  */
-reverts_id: number | null, created_at: string, };
+is_step: boolean, 
+/**
+ * Whether this step is currently in effect, i.e. on the path from a root to the head.
+ */
+applied: boolean, created_at: string, };

@@ -11,7 +11,7 @@ import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
 import type { EveScoutEdge } from '$lib/api/types/EveScoutEdge';
 import type { Signature } from '$lib/api/types/Signature';
-import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
+import type { MapHistory } from '$lib/api/types/MapHistory';
 import type { StaleConnection } from '$lib/api/types/StaleConnection';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 import type { SocketState } from '$lib/ws';
@@ -105,8 +105,9 @@ export class MapState {
 	routePath = $state<number[]>([]);
 	// Systems the router steers around (per map, persisted locally).
 	ignoredSystems = $state<Set<number>>(new Set());
-	// The command journal, newest first, and the live socket state behind the status dot.
-	history = $state<MapEventEntry[]>([]);
+	// The history tree plus where the map sits in it, and the live socket state behind
+	// the status dot.
+	history = $state<MapHistory | null>(null);
 	// Connections critical for over an hour, offered for a one-click sweep.
 	stale = $state<StaleConnection[]>([]);
 	socket = $state<SocketState>('connecting');
@@ -123,21 +124,14 @@ export class MapState {
 			null
 	);
 
-	/**
-	 * Undo and redo both revert a journal entry; they differ only in which entry they aim
-	 * at. A plain change is undone by the Undo button, and the entry the undo itself
-	 * recorded is what Redo reverts, which puts the change back. Both are restricted to
-	 * the acting character's own entries, matching what the server will accept.
-	 */
-	private myEntries = $derived(
-		this.history.filter(
-			(e) =>
-				e.undoable &&
-				e.character_id === this.myCharacters.find((c) => c.is_active)?.character_id
-		)
-	);
-	undoTarget = $derived(this.myEntries.find((e) => e.reverts_id === null) ?? null);
-	redoTarget = $derived(this.myEntries.find((e) => e.reverts_id !== null) ?? null);
+	// Undo and redo move the map's cursor through the history tree rather than recording
+	// anything, so the server is the only thing that decides whether they are available.
+	entries = $derived(this.history?.entries ?? []);
+	canUndo = $derived(this.history?.can_undo ?? false);
+	canRedo = $derived(this.history?.can_redo ?? false);
+	/** The step the map is sitting on, for labelling the undo button. */
+	headEntry = $derived(this.entries.find((e) => e.id === this.history?.head_event_id) ?? null);
+	redoEntry = $derived(this.entries.find((e) => e.id === this.history?.redo_target) ?? null);
 
 	private ignoreStorageKey(): string {
 		return `route-ignored-${this.mapId}`;
@@ -261,16 +255,23 @@ export class MapState {
 
 	async fetchHistory() {
 		try {
-			this.history = await api.listMapEvents(this.mapId);
+			this.history = await api.mapHistory(this.mapId);
 		} catch {
-			this.history = [];
+			this.history = null;
 		}
 	}
 
-	/** Revert one journal entry. The server records the reversal as its own entry, so the
-	 *  refetch is what makes the button flip between undo and redo. */
-	undoEvent(eventId: number) {
-		this.run('undo', api.undoMapEvent({ map_id: this.mapId, event_id: eventId }));
+	undo() {
+		this.run('undo', api.undoMapEvent(this.mapId));
+	}
+
+	redo() {
+		this.run('redo', api.redoMapEvent(this.mapId));
+	}
+
+	/** Jump the map to any step, which is how a branch left behind by an undo is re-entered. */
+	gotoEvent(eventId: number | null) {
+		this.run('history', api.gotoMapEvent({ map_id: this.mapId, event_id: eventId }));
 	}
 
 	async refetch() {

@@ -6,6 +6,7 @@ import { ageStaleConnections, createIdentity, grantAccess } from './db';
 
 const J122515 = 31001882; // C5, Wolf-Rayet Star
 const JITA = 30000142;
+const AMARR = 30002187;
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
@@ -35,31 +36,71 @@ test('the view toggles persist through a reload', async ({ page, api }) => {
 	await expect(page.getByTestId('threat-toggle')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('undo reverses a change and redo puts it back', async ({ page, api }) => {
+test('undo and redo settle instead of toggling for ever', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Undo');
 	await gotoApp(page, `/maps/${mapId}`);
 
-	// Nothing has happened yet, so there is nothing to undo.
-	await expect(page.getByTestId('undo-button')).toBeDisabled();
-	await expect(page.getByTestId('redo-button')).toBeDisabled();
+	const undo = page.getByTestId('undo-button');
+	const redo = page.getByTestId('redo-button');
+	// Nothing has happened yet, so neither direction is available.
+	await expect(undo).toBeDisabled();
+	await expect(redo).toBeDisabled();
 
 	await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
 	});
 	const node = page.getByTestId('system-node').filter({ hasText: 'J122515' });
 	await expect(node).toBeVisible();
-
-	// The journal entry arrives over the socket, enabling undo.
-	const undo = page.getByTestId('undo-button');
 	await expect(undo).toBeEnabled();
-	await undo.click();
-	await expect(node).toHaveCount(0);
 
-	// Undoing recorded its own entry; undoing that is the redo.
-	const redo = page.getByTestId('redo-button');
-	await expect(redo).toBeEnabled();
-	await redo.click();
-	await expect(node).toBeVisible();
+	// Walking back and forth repeatedly must come to rest each time, not keep offering a
+	// redo that toggles the same change on and off.
+	for (let i = 0; i < 3; i++) {
+		await undo.click();
+		await expect(node).toHaveCount(0);
+		await expect(undo).toBeDisabled();
+		await expect(redo).toBeEnabled();
+
+		await redo.click();
+		await expect(node).toBeVisible();
+		await expect(undo).toBeEnabled();
+		await expect(redo).toBeDisabled();
+	}
+
+	// And the walking never grew the history.
+	await page.getByTestId('history-button').click();
+	await expect(page.getByTestId('history-row')).toHaveCount(1);
+});
+
+test('a change after an undo branches, and the branch can be re-entered', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Branch');
+	const add = (sys: number, x: number) =>
+		api.post(`/api/maps/${mapId}/systems/add`, {
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+		});
+	await add(J122515, 200);
+	await add(JITA, 500);
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const wh = page.getByTestId('system-node').filter({ hasText: 'J122515' });
+	const jita = page.getByTestId('system-node').filter({ hasText: 'Jita' });
+	await expect(jita).toBeVisible();
+
+	// Undo the Jita placement, then do something else: Jita's step is not destroyed.
+	await page.getByTestId('undo-button').click();
+	await expect(jita).toHaveCount(0);
+	await add(AMARR, 800);
+	const amarr = page.getByTestId('system-node').filter({ hasText: 'Amarr' });
+	await expect(amarr).toBeVisible();
+	await expect(wh).toBeVisible();
+
+	// The abandoned step is still listed, struck through, and jumping to it swaps branches.
+	await page.getByTestId('history-button').click();
+	const undone = page.getByTestId('history-row').filter({ hasText: 'Jita' });
+	await expect(undone).toHaveAttribute('data-applied', 'false');
+	await undone.click();
+	await expect(jita).toBeVisible();
+	await expect(amarr).toHaveCount(0);
 });
 
 test('history lists what happened and who did it', async ({ page, api }) => {
@@ -76,7 +117,7 @@ test('history lists what happened and who did it', async ({ page, api }) => {
 	await expect(list.getByText(/Jita/)).toBeVisible();
 });
 
-test("a viewer cannot undo, and sees someone else's history", async ({ page, api }) => {
+test('a viewer cannot move the history but can read it', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E ViewerBar');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: JITA, x: 100, y: 100, alias: null }

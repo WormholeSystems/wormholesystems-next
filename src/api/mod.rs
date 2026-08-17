@@ -425,6 +425,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/maps/{id}/access/revoke", post(h::revoke_access))
         .route("/api/maps/{id}/events", get(h::list_map_events))
         .route("/api/maps/{id}/events/undo", post(h::undo_map_event))
+        .route("/api/maps/{id}/events/redo", post(h::redo_map_event))
+        .route("/api/maps/{id}/events/goto", post(h::goto_map_event))
         .route("/api/maps/{id}/watchlist", get(h::list_watchlist))
         .route("/api/maps/{id}/watchlist/add", post(h::add_watchlist_entry))
         .route(

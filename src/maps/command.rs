@@ -240,17 +240,19 @@ impl MapCommand {
 }
 
 /// Apply a command: authorize, mutate, and record — all in one transaction.
+///
+/// Recording also advances the map's history cursor onto the new step, so a change made
+/// after an undo branches off where the map is sitting rather than off the newest row.
 pub async fn execute(pool: &PgPool, actor: Actor, cmd: MapCommand) -> Result<CommandOutput> {
-    execute_as(pool, EventActor::Character(actor), cmd, None).await
+    execute_as(pool, EventActor::Character(actor), cmd).await
 }
 
-/// As [`execute`], for background tasks and for undo (which links the new row back to
-/// the row it reverts).
+/// As [`execute`], for background tasks, whose changes are recorded for the audit trail
+/// but never become undoable steps.
 pub(super) async fn execute_as(
     pool: &PgPool,
     actor: EventActor,
     cmd: MapCommand,
-    reverts_id: Option<i64>,
 ) -> Result<CommandOutput> {
     let map_id = cmd.map_id();
     let mut tx = pool.begin().await?;
@@ -258,7 +260,7 @@ pub(super) async fn execute_as(
         require_role_tx(&mut tx, map_id, character.user_id, cmd.required_role()).await?;
     }
     let effect = cmd.apply(&mut tx, actor).await?;
-    events_log::record(&mut tx, map_id, actor, &effect, reverts_id).await?;
+    events_log::record(&mut tx, map_id, actor, &effect).await?;
     tx.commit().await?;
     Ok(effect.output)
 }

@@ -53,8 +53,8 @@ import type { AccessSubject } from './types/AccessSubject';
 import type { SetAccess } from './types/SetAccess';
 import type { RevokeAccess } from './types/RevokeAccess';
 import type { UpdateMap } from './types/UpdateMap';
-import type { MapEventEntry } from './types/MapEventEntry';
-import type { UndoMapEvent } from './types/UndoMapEvent';
+import type { MapHistory } from './types/MapHistory';
+import type { GotoMapEvent } from './types/GotoMapEvent';
 import type { WatchlistEntry } from './types/WatchlistEntry';
 import type { ThreatAnalysis } from './types/ThreatAnalysis';
 import type { SystemSearchResult } from './types/SystemSearchResult';
@@ -217,8 +217,10 @@ export const api = {
 		post<number>(`/api/maps/${cmd.map_id}/connections/clean-stale`, cmd),
 
 	// History
-	listMapEvents: (mapId: number) => get<MapEventEntry[]>(`/api/maps/${mapId}/events`),
-	undoMapEvent: (cmd: UndoMapEvent) => post<null>(`/api/maps/${cmd.map_id}/events/undo`, cmd),
+	mapHistory: (mapId: number) => get<MapHistory>(`/api/maps/${mapId}/events`),
+	undoMapEvent: (mapId: number) => post<null>(`/api/maps/${mapId}/events/undo`, { map_id: mapId }),
+	redoMapEvent: (mapId: number) => post<null>(`/api/maps/${mapId}/events/redo`, { map_id: mapId }),
+	gotoMapEvent: (cmd: GotoMapEvent) => post<null>(`/api/maps/${cmd.map_id}/events/goto`, cmd),
 
 	// Signatures
 	signatureCatalog: () => get<SignatureCatalog>('/api/signature-types'),

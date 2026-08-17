@@ -19,7 +19,7 @@ use crate::maps::access::{AccessEntry, RevokeAccess, SetAccess};
 use crate::maps::connection::{
     AddConnection, CleanStaleConnections, RemoveConnection, SetConnectionStatus, StaleConnection,
 };
-use crate::maps::events_log::{MapEventEntry, UndoMapEvent};
+use crate::maps::events_log::{GotoMapEvent, MapHistory, MapIdBody};
 use crate::maps::jumps::{
     AddConnectionJump, ConnectionJump, RemoveConnectionJump, UpdateConnectionJump,
 };
@@ -1799,29 +1799,58 @@ pub async fn revoke_access(
 
 // --- History ---
 
-/// `GET /api/maps/{id}/events` — the map's recent command journal. Viewer+.
+/// `GET /api/maps/{id}/events` — the map's history tree and where it currently sits. Viewer+.
 pub async fn list_map_events(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(map_id): Path<i64>,
-) -> ApiResult<Vec<MapEventEntry>> {
+) -> ApiResult<MapHistory> {
     let actor = require_actor(&state.db, &jar).await?;
-    let entries = crate::maps::events_log::list_events(&state.db, actor, map_id).await?;
-    Ok(Json(entries))
+    let history = crate::maps::events_log::list_history(&state.db, actor, map_id).await?;
+    Ok(Json(history))
 }
 
-/// `POST /api/maps/{id}/events/undo` — revert one journal entry. Member+, own entries only.
-/// An undo can touch anything the original command did, so it publishes `HistoryChanged`
-/// and clients refetch the map rather than trying to reconstruct a targeted event.
+/// `POST /api/maps/{id}/events/undo` — step back to the previous point in the history.
+/// Member+. Moving the cursor can touch anything the steps it crosses did, so it publishes
+/// `HistoryChanged` and clients refetch rather than trying to reconstruct a targeted event.
 pub async fn undo_map_event(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(map_id): Path<i64>,
-    Json(cmd): Json<UndoMapEvent>,
+    Json(cmd): Json<MapIdBody>,
 ) -> ApiResult<()> {
     check_map_id(map_id, cmd.map_id)?;
     let actor = require_actor(&state.db, &jar).await?;
     crate::maps::events_log::undo(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::HistoryChanged { map_id });
+    Ok(Json(()))
+}
+
+/// `POST /api/maps/{id}/events/redo` — step forward onto the most recent next point. Member+.
+pub async fn redo_map_event(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<MapIdBody>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::events_log::redo(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::HistoryChanged { map_id });
+    Ok(Json(()))
+}
+
+/// `POST /api/maps/{id}/events/goto` — move the map onto any step, including one on a
+/// branch that was left behind by an undo. Member+.
+pub async fn goto_map_event(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<GotoMapEvent>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::events_log::goto(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
 }

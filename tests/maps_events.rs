@@ -1,5 +1,6 @@
-//! The map command journal: that every mutation records an entry, and that an entry's
-//! inverse actually restores what it described.
+//! The map history tree: that every mutation records a step, that a step's stored
+//! directions actually restore what they describe, and that moving the cursor around
+//! settles instead of drifting.
 
 mod common;
 
@@ -9,7 +10,9 @@ use vector::maps::connection::{
     AddConnection, RemoveConnection, add_connection, remove_connection,
 };
 use vector::maps::connection::{SetConnectionStatus, set_connection_status};
-use vector::maps::events_log::{UndoMapEvent, list_events, undo};
+use vector::maps::events_log::{
+    GotoMapEvent, MapEventEntry, MapHistory, MapIdBody, goto, list_history, redo, undo,
+};
 use vector::maps::map::{GetMap, get_map};
 use vector::maps::signatures::{
     AddSignature, RemoveSignature, add_signature, list_signatures, remove_signature,
@@ -46,6 +49,14 @@ async fn systems(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<MapSystemView>
         .systems
 }
 
+async fn placed(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<i64> {
+    systems(pool, actor, map_id)
+        .await
+        .iter()
+        .map(|s| s.solar_system_id)
+        .collect()
+}
+
 async fn connections(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<MapConnection> {
     get_map(pool, actor, GetMap { map_id })
         .await
@@ -53,13 +64,41 @@ async fn connections(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<MapConnect
         .connections
 }
 
-/// The newest journal entry.
-async fn head(pool: &PgPool, actor: Actor, map_id: i64) -> vector::maps::events_log::MapEventEntry {
-    list_events(pool, actor, map_id).await.unwrap().remove(0)
+async fn history(pool: &PgPool, actor: Actor, map_id: i64) -> MapHistory {
+    list_history(pool, actor, map_id).await.unwrap()
+}
+
+/// The newest journal row, which is also the head right after a change.
+async fn newest(pool: &PgPool, actor: Actor, map_id: i64) -> MapEventEntry {
+    history(pool, actor, map_id).await.entries.remove(0)
+}
+
+async fn step_back(pool: &PgPool, actor: Actor, map_id: i64) {
+    undo(pool, actor, MapIdBody { map_id }).await.unwrap()
+}
+
+async fn step_forward(pool: &PgPool, actor: Actor, map_id: i64) {
+    redo(pool, actor, MapIdBody { map_id }).await.unwrap()
+}
+
+async fn connect(pool: &PgPool, actor: Actor, map_id: i64, from: i64, to: i64) -> MapConnection {
+    add_connection(
+        pool,
+        actor,
+        AddConnection {
+            map_id,
+            from_system: from,
+            to_system: to,
+            kind: ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap()
 }
 
 #[sqlx::test]
-async fn every_mutation_records_an_entry(pool: PgPool) {
+async fn every_mutation_records_a_step_and_advances_the_cursor(pool: PgPool) {
     let w = world(&pool).await;
 
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
@@ -75,32 +114,109 @@ async fn every_mutation_records_an_entry(pool: PgPool) {
     )
     .await
     .unwrap();
-    add_connection(
+    connect(&pool, w.owner, w.map_id, a, b).await;
+
+    let h = history(&pool, w.owner, w.map_id).await;
+    // Newest first. Creating the map is not itself a map command.
+    assert_eq!(h.entries.len(), 4);
+    assert_eq!(h.entries[0].kind, "connections.added");
+    assert_eq!(h.entries[3].kind, "systems.added");
+    // The cursor sits on the newest step, and each step hangs off the one before it.
+    assert_eq!(h.head_event_id, Some(h.entries[0].id));
+    assert_eq!(h.entries[0].parent_id, Some(h.entries[1].id));
+    assert_eq!(h.entries[3].parent_id, None, "the first step is a root");
+    for e in &h.entries {
+        assert!(!e.label.is_empty(), "every step needs a label");
+        assert_eq!(e.character_id, Some(w.owner.character_id));
+        assert_eq!(e.character_name.as_deref(), Some("Char 1001"));
+        assert!(e.is_step);
+        assert!(
+            e.applied,
+            "nothing has been undone, so every step is in effect"
+        );
+    }
+    assert!(h.can_undo);
+    assert!(!h.can_redo);
+}
+
+/// The bug this model replaced: undo used to append a new journal row, so after one undo
+/// the buttons could only ever offer "redo", which toggled the same change on and off for
+/// ever and grew the journal on every press.
+#[sqlx::test]
+async fn undo_and_redo_settle_instead_of_toggling_for_ever(pool: PgPool) {
+    let w = world(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    let journal_len = history(&pool, w.owner, w.map_id).await.entries.len();
+
+    for _ in 0..3 {
+        step_back(&pool, w.owner, w.map_id).await;
+        let h = history(&pool, w.owner, w.map_id).await;
+        assert!(systems(&pool, w.owner, w.map_id).await.is_empty());
+        assert_eq!(h.head_event_id, None, "rewound past the only step");
+        assert!(!h.can_undo, "there is nothing further back");
+        assert!(h.can_redo);
+
+        step_forward(&pool, w.owner, w.map_id).await;
+        let h = history(&pool, w.owner, w.map_id).await;
+        assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 1);
+        assert!(h.can_undo);
+        assert!(!h.can_redo, "back at the tip, so there is nothing to redo");
+
+        // Walking the cursor never writes a new step.
+        assert_eq!(h.entries.len(), journal_len);
+    }
+
+    // And undoing at the root is refused rather than doing something surprising.
+    step_back(&pool, w.owner, w.map_id).await;
+    assert!(matches!(
+        undo(&pool, w.owner, MapIdBody { map_id: w.map_id }).await,
+        Err(MapError::Conflict(_))
+    ));
+}
+
+#[sqlx::test]
+async fn a_change_after_an_undo_branches_and_the_old_branch_stays_reachable(pool: PgPool) {
+    let w = world(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
+    let added_b = newest(&pool, w.owner, w.map_id).await.id;
+
+    // Undo B, then do something else: C branches off the same parent instead of erasing B.
+    step_back(&pool, w.owner, w.map_id).await;
+    place(&pool, w.owner, w.map_id, SYS_C, 200.0).await;
+    let added_c = newest(&pool, w.owner, w.map_id).await.id;
+
+    let h = history(&pool, w.owner, w.map_id).await;
+    let b = h.entries.iter().find(|e| e.id == added_b).unwrap();
+    let c = h.entries.iter().find(|e| e.id == added_c).unwrap();
+    assert_eq!(b.parent_id, c.parent_id, "B and C are siblings");
+    assert!(!b.applied, "B is on the abandoned branch");
+    assert!(c.applied);
+    assert_eq!(placed(&pool, w.owner, w.map_id).await, vec![SYS_A, SYS_C]);
+
+    // Redo prefers the newest branch, so it will not silently pull B back.
+    assert_eq!(h.redo_target, None, "C is already the tip of its branch");
+
+    // The abandoned branch is still reachable on purpose.
+    goto(
         &pool,
         w.owner,
-        AddConnection {
+        GotoMapEvent {
             map_id: w.map_id,
-            from_system: a,
-            to_system: b,
-            kind: ConnectionType::Wormhole,
-            size: None,
+            event_id: Some(added_b),
         },
     )
     .await
     .unwrap();
-
-    let events = list_events(&pool, w.owner, w.map_id).await.unwrap();
-    // Newest first. Creating the map is not itself a map command.
-    assert_eq!(events.len(), 4);
-    assert_eq!(events[0].kind, "connections.added");
-    assert_eq!(events[3].kind, "systems.added");
-    for e in &events {
-        assert!(!e.label.is_empty(), "every entry needs a label");
-        assert_eq!(e.character_id, Some(w.owner.character_id));
-        assert_eq!(e.character_name.as_deref(), Some("Char 1001"));
-        assert!(e.undoable, "a fresh character-made entry is undoable");
-        assert!(e.undone_at.is_none());
-    }
+    assert_eq!(
+        placed(&pool, w.owner, w.map_id).await,
+        vec![SYS_A, SYS_B],
+        "C is undone and B is back"
+    );
+    assert_eq!(
+        history(&pool, w.owner, w.map_id).await.head_event_id,
+        Some(added_b)
+    );
 }
 
 #[sqlx::test]
@@ -108,19 +224,7 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
-    add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a,
-            to_system: b,
-            kind: ConnectionType::Wormhole,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    connect(&pool, w.owner, w.map_id, a, b).await;
     add_signature(
         &pool,
         w.owner,
@@ -151,24 +255,23 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
         "removing a system takes its edges with it"
     );
 
-    let ev = head(&pool, w.owner, w.map_id).await;
-    assert_eq!(ev.kind, "systems.removed");
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
+    assert_eq!(
+        newest(&pool, w.owner, w.map_id).await.kind,
+        "systems.removed"
+    );
+    step_back(&pool, w.owner, w.map_id).await;
 
     let after = systems(&pool, w.owner, w.map_id).await;
     assert_eq!(after.len(), 2);
-    let restored = after.iter().find(|s| s.solar_system_id == SYS_B).unwrap();
     // The placement keeps its id, so anything referencing it still resolves.
-    assert_eq!(restored.id, b);
+    assert_eq!(
+        after
+            .iter()
+            .find(|s| s.solar_system_id == SYS_B)
+            .unwrap()
+            .id,
+        b
+    );
     assert_eq!(
         connections(&pool, w.owner, w.map_id).await.len(),
         1,
@@ -177,6 +280,22 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
     let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
     assert_eq!(sigs.len(), 1);
     assert_eq!(sigs[0].signature_id, "ABC-123");
+
+    // Redoing removes it again, and the ids survive the round trip so a second undo works.
+    step_forward(&pool, w.owner, w.map_id).await;
+    assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 1);
+    step_back(&pool, w.owner, w.map_id).await;
+    let after = systems(&pool, w.owner, w.map_id).await;
+    assert_eq!(after.len(), 2);
+    assert_eq!(
+        after
+            .iter()
+            .find(|s| s.solar_system_id == SYS_B)
+            .unwrap()
+            .id,
+        b,
+        "walking back and forth must not renumber the placement"
+    );
 }
 
 #[sqlx::test]
@@ -184,19 +303,7 @@ async fn undo_round_trips_a_connection_status_change(pool: PgPool) {
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
-    let conn = add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a,
-            to_system: b,
-            kind: ConnectionType::Wormhole,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    let conn = connect(&pool, w.owner, w.map_id, a, b).await;
     assert_eq!(conn.mass_status, None);
 
     set_connection_status(
@@ -215,28 +322,23 @@ async fn undo_round_trips_a_connection_status_change(pool: PgPool) {
     .await
     .unwrap();
 
-    let ev = head(&pool, w.owner, w.map_id).await;
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
-
+    step_back(&pool, w.owner, w.map_id).await;
     // The inverse clears the field rather than leaving it, which is the `Option<Option<_>>`
     // distinction the wire format depends on.
     assert_eq!(
         connections(&pool, w.owner, w.map_id).await[0].mass_status,
         None
     );
+
+    step_forward(&pool, w.owner, w.map_id).await;
+    assert_eq!(
+        connections(&pool, w.owner, w.map_id).await[0].mass_status,
+        Some(MassStatus::Critical)
+    );
 }
 
 #[sqlx::test]
-async fn redo_is_undoing_the_undo(pool: PgPool) {
+async fn undo_walks_back_through_several_steps_one_at_a_time(pool: PgPool) {
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     set_alias(
@@ -251,117 +353,53 @@ async fn redo_is_undoing_the_undo(pool: PgPool) {
     .await
     .unwrap();
 
-    let aliased = head(&pool, w.owner, w.map_id).await;
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: aliased.id,
-        },
-    )
-    .await
-    .unwrap();
+    step_back(&pool, w.owner, w.map_id).await;
     assert_eq!(systems(&pool, w.owner, w.map_id).await[0].alias, None);
 
-    // The undo recorded its own entry, pointing back at the one it reverted.
-    let undo_row = head(&pool, w.owner, w.map_id).await;
-    assert_eq!(undo_row.reverts_id, Some(aliased.id));
-    assert!(undo_row.undoable);
+    step_back(&pool, w.owner, w.map_id).await;
+    assert!(systems(&pool, w.owner, w.map_id).await.is_empty());
 
-    // Undoing that entry is the redo.
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: undo_row.id,
-        },
-    )
-    .await
-    .unwrap();
+    // Forward again in the same order.
+    step_forward(&pool, w.owner, w.map_id).await;
+    assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 1);
+    step_forward(&pool, w.owner, w.map_id).await;
     assert_eq!(
         systems(&pool, w.owner, w.map_id).await[0].alias.as_deref(),
         Some("Staging")
     );
 }
 
+/// The history belongs to the map, not to whoever happened to make the change: undo means
+/// "step this map back", so a member can reverse a teammate's last action.
 #[sqlx::test]
-async fn an_entry_can_only_be_undone_once(pool: PgPool) {
-    let w = world(&pool).await;
-    place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
-    let ev = head(&pool, w.owner, w.map_id).await;
-
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
-    assert!(matches!(
-        undo(
-            &pool,
-            w.owner,
-            UndoMapEvent {
-                map_id: w.map_id,
-                event_id: ev.id,
-            },
-        )
-        .await,
-        Err(MapError::Conflict(_))
-    ));
-
-    let entry = list_events(&pool, w.owner, w.map_id)
-        .await
-        .unwrap()
-        .into_iter()
-        .find(|e| e.id == ev.id)
-        .unwrap();
-    assert!(entry.undone_at.is_some());
-    assert!(!entry.undoable);
-}
-
-#[sqlx::test]
-async fn you_cannot_undo_someone_elses_change(pool: PgPool) {
+async fn any_member_can_step_the_map_back(pool: PgPool) {
     let w = world(&pool).await;
     let mate = member_with_role(&pool, w.owner, w.map_id, 1002, 2002, Role::Member).await;
     place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
-    let ev = head(&pool, mate, w.map_id).await;
 
-    assert!(matches!(
-        undo(
-            &pool,
-            mate,
-            UndoMapEvent {
-                map_id: w.map_id,
-                event_id: ev.id,
-            },
-        )
-        .await,
-        Err(MapError::Forbidden)
-    ));
+    step_back(&pool, mate, w.map_id).await;
+    assert!(systems(&pool, w.owner, w.map_id).await.is_empty());
 }
 
 #[sqlx::test]
-async fn history_is_viewer_readable_and_undo_is_member_only(pool: PgPool) {
+async fn history_is_viewer_readable_and_moving_it_is_member_only(pool: PgPool) {
     let w = world(&pool).await;
     let viewer = member_with_role(&pool, w.owner, w.map_id, 1003, 2003, Role::Viewer).await;
     place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
 
-    let seen = list_events(&pool, viewer, w.map_id).await.unwrap();
-    assert_eq!(seen.len(), 1);
+    assert_eq!(history(&pool, viewer, w.map_id).await.entries.len(), 1);
 
     assert!(matches!(
-        undo(
+        undo(&pool, viewer, MapIdBody { map_id: w.map_id }).await,
+        Err(MapError::Forbidden)
+    ));
+    assert!(matches!(
+        goto(
             &pool,
             viewer,
-            UndoMapEvent {
+            GotoMapEvent {
                 map_id: w.map_id,
-                event_id: seen[0].id,
+                event_id: None,
             },
         )
         .await,
@@ -370,24 +408,12 @@ async fn history_is_viewer_readable_and_undo_is_member_only(pool: PgPool) {
 }
 
 #[sqlx::test]
-async fn a_bulk_removal_undoes_as_one_entry(pool: PgPool) {
+async fn a_bulk_removal_undoes_as_one_step(pool: PgPool) {
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
     let c = place(&pool, w.owner, w.map_id, SYS_C, 200.0).await;
-    add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a,
-            to_system: b,
-            kind: ConnectionType::Wormhole,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    connect(&pool, w.owner, w.map_id, a, b).await;
 
     remove_systems(
         &pool,
@@ -400,20 +426,13 @@ async fn a_bulk_removal_undoes_as_one_entry(pool: PgPool) {
     .await
     .unwrap();
     assert!(systems(&pool, w.owner, w.map_id).await.is_empty());
+    assert_eq!(
+        newest(&pool, w.owner, w.map_id).await.entries_count,
+        3,
+        "the step counts what it touched"
+    );
 
-    let ev = head(&pool, w.owner, w.map_id).await;
-    assert_eq!(ev.entries_count, 3, "the entry counts what it touched");
-
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
+    step_back(&pool, w.owner, w.map_id).await;
     assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 3);
     assert_eq!(connections(&pool, w.owner, w.map_id).await.len(), 1);
 }
@@ -454,18 +473,7 @@ async fn undoing_a_signature_removal_brings_it_back(pool: PgPool) {
             .is_empty()
     );
 
-    let ev = head(&pool, w.owner, w.map_id).await;
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
-
+    step_back(&pool, w.owner, w.map_id).await;
     let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
     assert_eq!(sigs.len(), 1);
     assert_eq!(sigs[0].signature_id, "XYZ-999");
@@ -478,19 +486,7 @@ async fn removing_a_connection_and_undoing_it_keeps_the_endpoints(pool: PgPool) 
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
-    let conn = add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a,
-            to_system: b,
-            kind: ConnectionType::Wormhole,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    let conn = connect(&pool, w.owner, w.map_id, a, b).await;
 
     remove_connection(
         &pool,
@@ -503,18 +499,7 @@ async fn removing_a_connection_and_undoing_it_keeps_the_endpoints(pool: PgPool) 
     .await
     .unwrap();
 
-    let ev = head(&pool, w.owner, w.map_id).await;
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
-
+    step_back(&pool, w.owner, w.map_id).await;
     let conns = connections(&pool, w.owner, w.map_id).await;
     assert_eq!(conns.len(), 1);
     assert_eq!(conns[0].from_system, a);
@@ -527,7 +512,7 @@ async fn removing_a_connection_and_undoing_it_keeps_the_endpoints(pool: PgPool) 
 /// both back. This is the case a placement-only inverse would get wrong: the C endpoint
 /// stays (it is pinned), but the edge into it must come back too.
 #[sqlx::test]
-async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
+async fn cleaning_stale_connections_undoes_as_one_step(pool: PgPool) {
     use vector::maps::connection::{CleanStaleConnections, clean_stale_connections};
     use vector::maps::solar_system::{SetPinned, set_pinned};
 
@@ -535,7 +520,6 @@ async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
     let c = place(&pool, w.owner, w.map_id, SYS_C, 200.0).await;
-    // C is pinned, so it survives the sweep while B (bare and edgeless after it) does not.
     set_pinned(
         &pool,
         w.owner,
@@ -549,19 +533,7 @@ async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
     .unwrap();
 
     for (from, to) in [(a, b), (a, c)] {
-        let conn = add_connection(
-            &pool,
-            w.owner,
-            AddConnection {
-                map_id: w.map_id,
-                from_system: from,
-                to_system: to,
-                kind: ConnectionType::Wormhole,
-                size: None,
-            },
-        )
-        .await
-        .unwrap();
+        let conn = connect(&pool, w.owner, w.map_id, from, to).await;
         set_connection_status(
             &pool,
             w.owner,
@@ -578,12 +550,14 @@ async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
         .await
         .unwrap();
     }
-    // Age both marks past the sweep threshold.
-    sqlx::query("update map_connections set time_status_updated_at = now() - interval '2 hours' where map_id = $1")
-        .bind(w.map_id)
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "update map_connections set time_status_updated_at = now() - interval '2 hours'
+         where map_id = $1",
+    )
+    .bind(w.map_id)
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let removed =
         clean_stale_connections(&pool, w.owner, CleanStaleConnections { map_id: w.map_id })
@@ -591,24 +565,15 @@ async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
             .unwrap();
     assert_eq!(removed, 2);
     assert!(connections(&pool, w.owner, w.map_id).await.is_empty());
-    // A and B were bare, so they went with the edges; C is pinned and stays.
     let left = systems(&pool, w.owner, w.map_id).await;
     assert_eq!(left.len(), 1);
     assert_eq!(left[0].id, c);
 
-    let ev = head(&pool, w.owner, w.map_id).await;
-    assert_eq!(ev.kind, "connections.cleaned");
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: ev.id,
-        },
-    )
-    .await
-    .unwrap();
-
+    assert_eq!(
+        newest(&pool, w.owner, w.map_id).await.kind,
+        "connections.cleaned"
+    );
+    step_back(&pool, w.owner, w.map_id).await;
     assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 3);
     assert_eq!(
         connections(&pool, w.owner, w.map_id).await.len(),
@@ -616,18 +581,7 @@ async fn cleaning_stale_connections_undoes_as_one_entry(pool: PgPool) {
         "the edge into the pinned system must come back, not just the orphans' edges"
     );
 
-    // And redoing the sweep clears them again.
-    let redo = head(&pool, w.owner, w.map_id).await;
-    undo(
-        &pool,
-        w.owner,
-        UndoMapEvent {
-            map_id: w.map_id,
-            event_id: redo.id,
-        },
-    )
-    .await
-    .unwrap();
+    step_forward(&pool, w.owner, w.map_id).await;
     assert!(connections(&pool, w.owner, w.map_id).await.is_empty());
     assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 1);
 }
@@ -640,19 +594,7 @@ async fn a_freshly_critical_connection_is_not_swept(pool: PgPool) {
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let b = place(&pool, w.owner, w.map_id, SYS_B, 100.0).await;
-    let conn = add_connection(
-        &pool,
-        w.owner,
-        AddConnection {
-            map_id: w.map_id,
-            from_system: a,
-            to_system: b,
-            kind: ConnectionType::Wormhole,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    let conn = connect(&pool, w.owner, w.map_id, a, b).await;
     set_connection_status(
         &pool,
         w.owner,

@@ -17,7 +17,7 @@
 	import SystemInfoCard from './SystemInfoCard.svelte';
 	import ThreatCard from './ThreatCard.svelte';
 	import SignaturesPanel from '../SignaturesPanel.svelte';
-	import { PANELS, type PanelId, reorder, visiblePanels } from './layout';
+	import { PANELS, type PanelId, reorder, visiblePanels } from './registry';
 	import type { MapState } from '../map-state.svelte';
 
 	let { map }: { map: MapState } = $props();

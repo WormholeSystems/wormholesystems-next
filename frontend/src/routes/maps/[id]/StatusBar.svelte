@@ -250,15 +250,15 @@
 						size="icon"
 						class="size-7"
 						data-testid="undo-button"
-						disabled={!map.undoTarget}
-						onclick={() => map.undoTarget && map.undoEvent(map.undoTarget.id)}
+						disabled={!map.canUndo}
+						onclick={() => map.undo()}
 					>
 						<Undo2Icon />
 					</Button>
 				{/snippet}
 			</Tooltip.Trigger>
 			<Tooltip.Content>
-				{map.undoTarget ? `Undo: you ${map.undoTarget.label}` : 'Nothing of yours to undo'}
+				{map.headEntry ? `Undo: ${map.headEntry.label}` : 'Nothing to undo'}
 			</Tooltip.Content>
 		</Tooltip.Root>
 		<Tooltip.Root>
@@ -270,15 +270,15 @@
 						size="icon"
 						class="size-7"
 						data-testid="redo-button"
-						disabled={!map.redoTarget}
-						onclick={() => map.redoTarget && map.undoEvent(map.redoTarget.id)}
+						disabled={!map.canRedo}
+						onclick={() => map.redo()}
 					>
 						<Redo2Icon />
 					</Button>
 				{/snippet}
 			</Tooltip.Trigger>
 			<Tooltip.Content>
-				{map.redoTarget ? `Redo: put back what you ${map.redoTarget.label}` : 'Nothing to redo'}
+				{map.redoEntry ? `Redo: ${map.redoEntry.label}` : 'Nothing to redo'}
 			</Tooltip.Content>
 		</Tooltip.Root>
 	{/if}
@@ -312,27 +312,68 @@
 				</Button>
 			{/snippet}
 		</Popover.Trigger>
-		<Popover.Content class="w-80 p-0" align="end">
-			<div class="border-b border-border/50 px-3 py-2 text-xs font-medium">Recent changes</div>
-			{#if map.history.length === 0}
+		<Popover.Content class="w-96 p-0" align="end">
+			<div class="border-b border-border/50 px-3 py-2 text-xs font-medium">
+				History
+				<span class="ml-1 font-normal text-muted-foreground">
+					newest first; struck through means undone
+				</span>
+			</div>
+			{#if map.entries.length === 0}
 				<p class="px-3 py-6 text-center text-xs text-muted-foreground">Nothing yet.</p>
 			{:else}
 				<ul class="max-h-80 overflow-y-auto py-1" data-testid="history-list">
-					{#each map.history as entry (entry.id)}
-						<li
-							class={cn(
-								'flex items-baseline gap-2 px-3 py-1.5 text-xs',
-								entry.undone_at && 'text-muted-foreground line-through'
-							)}
-						>
-							<span class="flex-1 truncate">
-								<span class="text-muted-foreground">{entry.character_name ?? 'Vector'}</span>
-								{entry.label}
-							</span>
-							<span class="shrink-0 text-muted-foreground">{relative(entry.created_at)}</span>
+					{#each map.entries as entry (entry.id)}
+						{@const isHead = entry.id === map.history?.head_event_id}
+						<li>
+							<button
+								type="button"
+								class={cn(
+									'flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-xs',
+									entry.is_step && canWrite && 'hover:bg-accent',
+									!entry.is_step && 'cursor-default',
+									entry.is_step && !entry.applied && 'text-muted-foreground line-through',
+									isHead && 'bg-accent/50'
+								)}
+								data-testid="history-row"
+								data-applied={entry.applied}
+								data-head={isHead}
+								disabled={!entry.is_step || !canWrite || isHead}
+								title={entry.is_step
+									? isHead
+										? 'The map is here'
+										: 'Move the map to this point'
+									: 'Recorded automatically; not part of undo'}
+								onclick={() => map.gotoEvent(entry.id)}
+							>
+								<span
+									class={cn(
+										'mt-1 size-1.5 shrink-0 rounded-full',
+										isHead ? 'bg-amber-400' : entry.applied ? 'bg-border' : 'bg-transparent'
+									)}
+								></span>
+								<span class="flex-1 truncate">
+									<span class="text-muted-foreground">{entry.character_name ?? 'Vector'}</span>
+									{entry.label}
+								</span>
+								<span class="shrink-0 text-muted-foreground">{relative(entry.created_at)}</span>
+							</button>
 						</li>
 					{/each}
 				</ul>
+				{#if canWrite && map.history?.head_event_id != null}
+					<div class="border-t border-border/50 p-2">
+						<Button
+							variant="ghost"
+							size="sm"
+							class="w-full text-xs"
+							data-testid="history-rewind"
+							onclick={() => map.gotoEvent(null)}
+						>
+							Rewind to the start
+						</Button>
+					</div>
+				{/if}
 			{/if}
 		</Popover.Content>
 	</Popover.Root>
