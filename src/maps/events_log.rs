@@ -36,7 +36,8 @@ pub struct MapEventEntry {
     pub kind: String,
     pub label: String,
     pub entries_count: i32,
-    /// The step this one was applied on top of. `None` for a root, or for an audit row.
+    /// The step this one happened on top of. `None` for a root, or once retention has
+    /// dropped the ancestor it pointed at.
     pub parent_id: Option<i64>,
     /// Whether this row is a step in the tree. Audit-only rows (background writers) are
     /// shown in the history but cannot be jumped to.
@@ -78,11 +79,10 @@ pub(super) async fn record(
         Some(cmd) => Some(to_json(cmd)?),
         None => None,
     };
-    let parent_id = if is_step {
-        head_of(tx, map_id).await?
-    } else {
-        None
-    };
+    // Audit rows get a parent too, even though they are not steps. It is what lets the
+    // history show them at the point in the chain where they happened instead of floating
+    // loose; nothing ever descends from one, so they stay leaves.
+    let parent_id = head_of(tx, map_id).await?;
 
     let id = sqlx::query_scalar!(
         "insert into map_events

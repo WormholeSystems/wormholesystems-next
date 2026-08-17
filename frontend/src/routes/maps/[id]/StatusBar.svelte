@@ -21,12 +21,22 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { classMeta } from '$lib/map/classes';
+	import { historyRows } from './history-tree';
 	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
 
 	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
+	const rows = $derived(historyRows(map.entries));
+
+	// The trunk runs oldest-first, so the map's position is near the bottom of a long
+	// history. Binding the marker means this fires once the popover's rows are in the DOM,
+	// with no timer to guess at.
+	let headLabel = $state<HTMLElement | null>(null);
+	$effect(() => {
+		headLabel?.scrollIntoView({ block: 'nearest' });
+	});
 
 	// Where the acting pilot is, resolved against the map's own systems so we can show the
 	// class chip. A pilot outside the mapped chain still gets their system id.
@@ -315,48 +325,93 @@
 		<Popover.Content class="w-96 p-0" align="end">
 			<div class="border-b border-border/50 px-3 py-2 text-xs font-medium">
 				History
-				<span class="ml-1 font-normal text-muted-foreground">
-					newest first; struck through means undone
-				</span>
+				<span class="ml-1 font-normal text-muted-foreground">oldest first</span>
 			</div>
-			{#if map.entries.length === 0}
+			{#if rows.length === 0}
 				<p class="px-3 py-6 text-center text-xs text-muted-foreground">Nothing yet.</p>
 			{:else}
 				<ul class="max-h-80 overflow-y-auto py-1" data-testid="history-list">
-					{#each map.entries as entry (entry.id)}
+					{#each rows as row (row.entry.id)}
+						{@const entry = row.entry}
 						{@const isHead = entry.id === map.history?.head_event_id}
+						{@const navigable = entry.is_step && canWrite && !isHead}
 						<li>
 							<button
 								type="button"
 								class={cn(
-									'flex w-full items-baseline gap-2 px-3 py-1.5 text-left text-xs',
-									entry.is_step && canWrite && 'hover:bg-accent',
-									!entry.is_step && 'cursor-default',
-									entry.is_step && !entry.applied && 'text-muted-foreground line-through',
-									isHead && 'bg-accent/50'
+									'flex w-full items-stretch gap-0 text-left text-xs',
+									navigable && 'hover:bg-accent',
+									!navigable && 'cursor-default',
+									isHead && 'bg-accent/60'
 								)}
 								data-testid="history-row"
 								data-applied={entry.applied}
+								data-depth={row.depth}
 								data-head={isHead}
-								disabled={!entry.is_step || !canWrite || isHead}
+								disabled={!navigable}
 								title={entry.is_step
 									? isHead
 										? 'The map is here'
-										: 'Move the map to this point'
+										: entry.applied
+											? 'Rewind the map to this point'
+											: 'Return to this branch'
 									: 'Recorded automatically; not part of undo'}
 								onclick={() => map.gotoEvent(entry.id)}
 							>
-								<span
-									class={cn(
-										'mt-1 size-1.5 shrink-0 rounded-full',
-										isHead ? 'bg-amber-400' : entry.applied ? 'bg-border' : 'bg-transparent'
-									)}
-								></span>
-								<span class="flex-1 truncate">
-									<span class="text-muted-foreground">{entry.character_name ?? 'Vector'}</span>
-									{entry.label}
+								<!-- The graph gutter: one rail per level of nesting, then this row's dot.
+								     Every line is centred in a 16px cell, so a child's connector meets
+								     its parent's rail exactly. -->
+								{#each { length: row.depth } as _, i (i)}
+									<span class="relative w-4 shrink-0">
+										<span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-foreground/25"></span>
+									</span>
+								{/each}
+								<span class="relative w-4 shrink-0">
+									<span
+										class={cn(
+											'absolute left-1/2 w-px -translate-x-1/2 bg-foreground/25',
+											row.continues ? 'inset-y-0' : 'top-0 h-1/2'
+										)}
+									></span>
+									{#if row.depth > 0}
+										<span class="absolute top-1/2 right-1/2 h-px w-4 -translate-y-1/2 bg-foreground/25"
+										></span>
+									{/if}
+									<span
+										class={cn(
+											'absolute top-1/2 left-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-popover',
+											isHead
+												? 'bg-amber-400'
+												: !entry.is_step
+													? 'bg-transparent ring-0'
+													: entry.applied
+														? 'bg-foreground/60'
+														: 'bg-muted-foreground/40'
+										)}
+									></span>
 								</span>
-								<span class="shrink-0 text-muted-foreground">{relative(entry.created_at)}</span>
+								<span class="flex flex-1 items-baseline gap-2 py-1.5 pr-3 min-w-0">
+									<span
+										class={cn(
+											'flex-1 truncate',
+											!entry.is_step && 'text-muted-foreground italic',
+											entry.is_step && !entry.applied && 'text-muted-foreground'
+										)}
+									>
+										<span class="text-muted-foreground">{entry.character_name ?? 'Vector'}</span>
+										{entry.label}
+									</span>
+									{#if isHead}
+										<span
+											bind:this={headLabel}
+											class="shrink-0 font-mono text-[10px] tracking-wider text-amber-400 uppercase"
+										>
+											here
+										</span>
+									{:else}
+										<span class="shrink-0 text-muted-foreground">{relative(entry.created_at)}</span>
+									{/if}
+								</span>
 							</button>
 						</li>
 					{/each}

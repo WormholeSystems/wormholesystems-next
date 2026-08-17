@@ -94,11 +94,24 @@ test('a change after an undo branches, and the branch can be re-entered', async 
 	await expect(amarr).toBeVisible();
 	await expect(wh).toBeVisible();
 
-	// The abandoned step is still listed, struck through, and jumping to it swaps branches.
+	// The history draws the fork: the trunk stays at depth 0 and the abandoned step is
+	// indented under the point it forked from.
 	await page.getByTestId('history-button').click();
-	const undone = page.getByTestId('history-row').filter({ hasText: 'Jita' });
-	await expect(undone).toHaveAttribute('data-applied', 'false');
-	await undone.click();
+	const row = (name: string) => page.getByTestId('history-row').filter({ hasText: name });
+	await expect(row('J122515')).toHaveAttribute('data-depth', '0');
+	await expect(row('Amarr')).toHaveAttribute('data-depth', '0');
+	await expect(row('Amarr')).toHaveAttribute('data-head', 'true');
+	await expect(row('Jita')).toHaveAttribute('data-depth', '1');
+	await expect(row('Jita')).toHaveAttribute('data-applied', 'false');
+
+	// Parents come before their children, so the indentation reads as containment.
+	const order = await page.getByTestId('history-row').allTextContents();
+	expect(order.findIndex((t) => t.includes('J122515'))).toBeLessThan(
+		order.findIndex((t) => t.includes('Jita'))
+	);
+
+	// Jumping to the abandoned step swaps branches.
+	await row('Jita').click();
 	await expect(jita).toBeVisible();
 	await expect(amarr).toHaveCount(0);
 });
