@@ -50,6 +50,17 @@
 	const colWidth = $derived(gridWidth / layout.cols);
 	const rows = $derived(bottom(items));
 
+	/** Empty rows kept below the layout while arranging, so there is somewhere to drag a
+	 *  tile *to* when it is already at the bottom. */
+	const EDIT_SLACK_ROWS = 3;
+	/** Rows the grid had when the current gesture started. Holding the height at that floor
+	 *  stops the page shrinking under the pointer as tiles reflow, which would otherwise
+	 *  jump the scroll position mid-drag. */
+	let gestureFloor = $state(0);
+	const gridRows = $derived(
+		map.editingLayout ? Math.max(rows, gestureFloor) + EDIT_SLACK_ROWS : rows
+	);
+
 	/**
 	 * A drag or resize in flight.
 	 *
@@ -123,6 +134,7 @@
 		const origin = items.find((i) => i.i === id);
 		if (!origin) return;
 		(ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+		gestureFloor = rows;
 		gesture = { id, kind, startX: ev.clientX, startY: ev.clientY, origin, dx: 0, dy: 0, live: null };
 	}
 
@@ -146,6 +158,7 @@
 	function onPointerUp() {
 		const g = gesture;
 		gesture = null;
+		gestureFloor = 0;
 		if (g?.live) commit(g.live);
 	}
 
@@ -198,7 +211,7 @@
 	{@const held = gesture?.id === item.i ? floating : null}
 	<div
 		class={cn(
-			'absolute transition-[transform,width,height] duration-150',
+			'absolute transition-[left,top,width,height] duration-150',
 			// The held tile follows the pointer directly, so it must not animate or it would
 			// lag behind the cursor. Releasing re-enables the transition, which is what makes
 			// it glide into the slot the placeholder was showing.
@@ -206,9 +219,8 @@
 		)}
 		style:width="{held ? held.width : item.w * colWidth}px"
 		style:height="{held ? held.height : item.h * layout.row_height}px"
-		style:transform="translate({held ? held.left : item.x * colWidth}px, {held
-			? held.top
-			: item.y * layout.row_height}px)"
+		style:left="{held ? held.left : item.x * colWidth}px"
+		style:top="{held ? held.top : item.y * layout.row_height}px"
 		data-testid="panel-tile"
 		data-panel={item.i}
 		data-x={item.x}
@@ -315,13 +327,17 @@
 	</MapPanel>
 {/snippet}
 
-<!-- `data-dragging` is on while a gesture previews: committed positions only land once
-     it clears, so that is what to wait on rather than a timeout. -->
+<!-- `overflow-x: clip` rather than `hidden`: it keeps a tile's drop shadow, or a tile
+     mid-reflow, from widening the document and flashing a horizontal scrollbar, without
+     making this a scroll container or affecting the vertical flow. It does not clip the
+     map's context menus, which are `position: fixed` against the viewport.
+     `data-dragging` is on while a gesture previews: committed positions only land once it
+     clears, so that is what to wait on rather than a timeout. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	bind:this={gridEl}
-	class="relative w-full"
-	style:height="{rows * layout.row_height}px"
+	class="relative w-full overflow-x-clip"
+	style:height="{gridRows * layout.row_height}px"
 	data-testid="panel-grid"
 	data-breakpoint={activeKey}
 	data-dragging={gesture !== null}
@@ -343,8 +359,8 @@
 			data-h={placeholder.h}
 			style:width="{placeholder.w * colWidth}px"
 			style:height="{placeholder.h * layout.row_height}px"
-			style:transform="translate({placeholder.x * colWidth}px, {placeholder.y *
-				layout.row_height}px)"
+			style:left="{placeholder.x * colWidth}px"
+			style:top="{placeholder.y * layout.row_height}px"
 		></div>
 	{/if}
 	{#each shown as item (item.i)}

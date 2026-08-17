@@ -195,6 +195,46 @@ test('arranging never gives the window a horizontal scrollbar', async ({ page, a
 	expect(await overflows()).toBe(false);
 });
 
+test('a tile is not a containing block for the map context menu', async ({ page, api }) => {
+	// Tiles are placed with left/top rather than a transform on purpose: a transform makes
+	// the tile the containing block for `position: fixed` descendants, which silently threw
+	// the map's context menus off by the tile's own offset.
+	const mapId = await createMap(api, 'E2E Fixed');
+	await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null }
+	});
+	await page.setViewportSize({ width: 1700, height: 1000 });
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const canvas = (await page.getByTestId('map-canvas').boundingBox())!;
+	const at = { x: Math.round(canvas.x + 400), y: Math.round(canvas.y + 300) };
+	await page.mouse.click(at.x, at.y, { button: 'right' });
+
+	const menu = page.locator('.fixed.z-30').first();
+	await expect(menu).toBeVisible();
+	const box = (await menu.boundingBox())!;
+	expect(Math.round(box.x)).toBe(at.x);
+	expect(Math.round(box.y)).toBe(at.y);
+});
+
+test('arranging leaves room to drag a tile past the bottom', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Slack');
+	await page.setViewportSize({ width: 1700, height: 1000 });
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const height = () => page.evaluate(() => document.documentElement.scrollHeight);
+	const resting = await height();
+	await page.getByTestId('layout-toggle').click();
+	// Edit mode adds empty rows below the layout, so a tile already at the bottom still has
+	// somewhere to be dragged to.
+	expect(await height()).toBeGreaterThan(resting);
+
+	// Leaving puts the page back to the size the content actually needs.
+	await page.getByTestId('layout-exit').click();
+	await expect(page.getByTestId('layout-toolbar')).toHaveCount(0);
+	expect(await height()).toBe(resting);
+});
+
 test('arrow keys move a tile without a pointer', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Keyboard');
 	await page.setViewportSize({ width: 1700, height: 1000 });
