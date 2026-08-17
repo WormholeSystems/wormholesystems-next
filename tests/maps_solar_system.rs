@@ -5,8 +5,9 @@ mod common;
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
 use vector::maps::solar_system::{
-    AddSystem, MoveSystem, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetPinned, add_system,
-    move_system, remove_system, remove_systems, set_alias, set_home, set_pinned,
+    AddSystem, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetPinned,
+    SystemMove, add_system, move_system, move_systems, remove_system, remove_systems, set_alias,
+    set_home, set_pinned,
 };
 use vector::maps::{MapError, Role};
 
@@ -252,40 +253,23 @@ async fn move_and_alias_update_the_row(pool: PgPool) {
     ));
 }
 
-/// The home system and pinned systems are markers someone set on purpose. "Clear map" has
-/// always refused to take them; deleting a selection used to take them anyway, which made
-/// pinning a system mean nothing the moment a marquee crossed it.
+/// What "pinned" and "home" protect, exactly.
+///
+/// Pinned means the system does not move and does not get deleted. Home means it does not
+/// get deleted, but it can still be dragged around. Neither is an error to try: a marquee
+/// across the chain is the same gesture as selecting one system, and refusing the whole
+/// delete because the box happened to contain the home system would punish the gesture.
 #[sqlx::test]
-async fn a_pinned_or_home_system_survives_a_delete(pool: PgPool) {
+async fn pinned_and_home_systems_are_passed_over_rather_than_refused(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
     let pinned = place(&pool, w.owner, w.map_id, SYS_B, 200.0).await;
     let ordinary = place(&pool, w.owner, w.map_id, SYS_C, 400.0).await;
+    mark_home(&pool, w.owner, w.map_id, home).await;
+    pin(&pool, w.owner, w.map_id, pinned, true).await;
 
-    set_home(
-        &pool,
-        w.owner,
-        SetHome {
-            map_id: w.map_id,
-            map_solar_system_id: home,
-            value: true,
-        },
-    )
-    .await
-    .unwrap();
-    set_pinned(
-        &pool,
-        w.owner,
-        SetPinned {
-            map_id: w.map_id,
-            map_solar_system_id: pinned,
-            value: true,
-        },
-    )
-    .await
-    .unwrap();
-
-    // A selection spanning all three takes only the one that is not protected.
+    // A selection spanning all three takes only the one that is not protected, and says so
+    // by succeeding rather than by erroring.
     let removed = remove_systems(
         &pool,
         w.owner,
@@ -299,9 +283,8 @@ async fn a_pinned_or_home_system_survives_a_delete(pool: PgPool) {
     assert_eq!(removed, 1);
     assert_eq!(placed_ids(&pool, w.owner, w.map_id).await.len(), 2);
 
-    // Asking for only protected systems is refused outright rather than silently doing
-    // nothing, so the reason is visible.
-    let err = remove_systems(
+    // Selecting only protected systems is a quiet no-op, not a failure.
+    let removed = remove_systems(
         &pool,
         w.owner,
         RemoveSystems {
@@ -309,32 +292,165 @@ async fn a_pinned_or_home_system_survives_a_delete(pool: PgPool) {
             map_solar_system_ids: vec![home, pinned],
         },
     )
-    .await;
-    assert!(matches!(err, Err(MapError::Conflict(_))));
+    .await
+    .unwrap();
+    assert_eq!(removed, 0);
+    assert_eq!(placed_ids(&pool, w.owner, w.map_id).await.len(), 2);
 
-    // Unpinning gives the system back, so this is a guard rather than a life sentence.
-    set_pinned(
+    // Asking for one of them on its own is the same: nothing happens, nothing complains.
+    remove_system(
         &pool,
         w.owner,
-        SetPinned {
+        RemoveSystem {
+            map_id: w.map_id,
+            map_solar_system_id: home,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(placed_ids(&pool, w.owner, w.map_id).await.len(), 2);
+}
+
+#[sqlx::test]
+async fn unpinning_gives_the_system_back(pool: PgPool) {
+    let w = world(&pool).await;
+    let pinned = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    pin(&pool, w.owner, w.map_id, pinned, true).await;
+
+    remove_system(
+        &pool,
+        w.owner,
+        RemoveSystem {
             map_id: w.map_id,
             map_solar_system_id: pinned,
-            value: false,
         },
     )
     .await
     .unwrap();
-    let removed = remove_systems(
+    assert_eq!(placed_ids(&pool, w.owner, w.map_id).await.len(), 1);
+
+    // A guard, not a life sentence.
+    pin(&pool, w.owner, w.map_id, pinned, false).await;
+    remove_system(
         &pool,
         w.owner,
-        RemoveSystems {
+        RemoveSystem {
             map_id: w.map_id,
-            map_solar_system_ids: vec![pinned],
+            map_solar_system_id: pinned,
         },
     )
     .await
     .unwrap();
-    assert_eq!(removed, 1);
+    assert!(placed_ids(&pool, w.owner, w.map_id).await.is_empty());
+}
+
+#[sqlx::test]
+async fn a_pinned_system_will_not_move_but_the_home_system_will(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    let pinned = place(&pool, w.owner, w.map_id, SYS_B, 200.0).await;
+    mark_home(&pool, w.owner, w.map_id, home).await;
+    pin(&pool, w.owner, w.map_id, pinned, true).await;
+
+    // Being home says nothing about moving.
+    move_system(
+        &pool,
+        w.owner,
+        MoveSystem {
+            map_id: w.map_id,
+            map_solar_system_id: home,
+            x: 640.0,
+            y: 80.0,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        position(&pool, w.owner, w.map_id, home).await,
+        (640.0, 80.0)
+    );
+
+    // Pinning does, and the server holds it rather than trusting the client's drag lock.
+    move_system(
+        &pool,
+        w.owner,
+        MoveSystem {
+            map_id: w.map_id,
+            map_solar_system_id: pinned,
+            x: 900.0,
+            y: 900.0,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        position(&pool, w.owner, w.map_id, pinned).await,
+        (200.0, 0.0)
+    );
+
+    // Dragging a multi-selection moves everything in it except the pinned one.
+    move_systems(
+        &pool,
+        w.owner,
+        MoveSystems {
+            map_id: w.map_id,
+            moves: vec![
+                SystemMove {
+                    map_solar_system_id: home,
+                    x: 20.0,
+                    y: 20.0,
+                },
+                SystemMove {
+                    map_solar_system_id: pinned,
+                    x: 20.0,
+                    y: 20.0,
+                },
+            ],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(position(&pool, w.owner, w.map_id, home).await, (20.0, 20.0));
+    assert_eq!(
+        position(&pool, w.owner, w.map_id, pinned).await,
+        (200.0, 0.0)
+    );
+}
+
+async fn mark_home(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64) {
+    set_home(
+        pool,
+        actor,
+        SetHome {
+            map_id,
+            map_solar_system_id: id,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+async fn pin(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64, value: bool) {
+    set_pinned(
+        pool,
+        actor,
+        SetPinned {
+            map_id,
+            map_solar_system_id: id,
+            value,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+async fn position(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64) -> (f64, f64) {
+    let view = vector::maps::map::get_map(pool, actor, vector::maps::map::GetMap { map_id })
+        .await
+        .unwrap();
+    let s = view.systems.iter().find(|s| s.id == id).expect("placed");
+    (s.position_x, s.position_y)
 }
 
 async fn place(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, sys: i64, x: f64) -> i64 {

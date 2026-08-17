@@ -215,6 +215,14 @@ pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Re
     Ok(())
 }
 
+/// An effect that changed nothing.
+///
+/// Deliberately has no inverse, which is what keeps it out of the undo history: pressing
+/// delete on a pinned system should not leave a step that undoes to nothing.
+fn kept(kind: &'static str, label: &'static str) -> Effect {
+    Effect::new(kind, label, CommandOutput::Count(0)).entries(0)
+}
+
 pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> Result<Effect> {
     // Same guard as the bulk path: one door left open is how this comes back.
     let protected = sqlx::query_scalar!(
@@ -227,9 +235,7 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
     .await?
     .ok_or(MapError::NotFound)?;
     if protected {
-        return Err(MapError::Conflict(
-            "the home system and pinned systems cannot be removed; unpin it first".into(),
-        ));
+        return Ok(kept("systems.removed", "kept a protected system"));
     }
 
     let snapshot = capture_systems(tx, cmd.map_id, &[cmd.map_solar_system_id]).await?;
@@ -282,12 +288,13 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     .fetch_all(&mut **tx)
     .await?;
     let removable: Vec<i64> = rows.iter().filter(|r| !r.protected).map(|r| r.id).collect();
-    let kept = rows.len() - removable.len();
+    let held = rows.len() - removable.len();
 
     if removable.is_empty() {
-        return Err(MapError::Conflict(
-            "the home system and pinned systems cannot be removed; unpin it first".into(),
-        ));
+        // Selecting the home system and dragging a box over the chain are the same gesture.
+        // Refusing the whole delete would punish the second for containing the first, so a
+        // protected system is simply passed over.
+        return Ok(kept("systems.removed", "kept the protected systems"));
     }
 
     let snapshot = capture_systems(tx, cmd.map_id, &removable).await?;
@@ -305,9 +312,9 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     .rows_affected();
 
     // Say what was kept, so a selection that shrinks on the way through is not a mystery.
-    let label = match kept {
+    let label = match held {
         0 => format!("removed {}", snapshot.label()),
-        n => format!("removed {} (kept {n} pinned)", snapshot.label()),
+        n => format!("removed {} (kept {n} protected)", snapshot.label()),
     };
     Ok(
         Effect::new("systems.removed", label, CommandOutput::Count(deleted))
@@ -373,16 +380,23 @@ pub async fn move_system(pool: &PgPool, actor: Actor, cmd: MoveSystem) -> Result
 
 pub(super) async fn apply_move_system(tx: &mut Tx<'_>, cmd: MoveSystem) -> Result<Effect> {
     let before = sqlx::query!(
-        "select position_x, position_y from map_solar_systems where id = $1 and map_id = $2",
+        "select position_x, position_y, is_pinned from map_solar_systems
+         where id = $1 and map_id = $2",
         cmd.map_solar_system_id,
         cmd.map_id,
     )
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
+    // Pinning is what "this one does not move" means, so the server holds it too rather
+    // than trusting the client to keep the drag locked. Home is not pinned by being home:
+    // it can be dragged around like anything else.
+    if before.is_pinned {
+        return Ok(kept("systems.moved", "a pinned system stayed put"));
+    }
     sqlx::query!(
         "update map_solar_systems set position_x = $1, position_y = $2
-         where id = $3 and map_id = $4",
+         where id = $3 and map_id = $4 and not is_pinned",
         cmd.x,
         cmd.y,
         cmd.map_solar_system_id,
@@ -422,9 +436,10 @@ pub async fn move_systems(pool: &PgPool, actor: Actor, cmd: MoveSystems) -> Resu
 
 pub(super) async fn apply_move_systems(tx: &mut Tx<'_>, cmd: MoveSystems) -> Result<Effect> {
     let ids: Vec<i64> = cmd.moves.iter().map(|m| m.map_solar_system_id).collect();
+    // Only the ones that will actually move, so undo puts back exactly what shifted.
     let before: Vec<SystemMove> = sqlx::query!(
         "select id, position_x, position_y from map_solar_systems
-         where map_id = $1 and id = any($2)",
+         where map_id = $1 and id = any($2) and not is_pinned",
         cmd.map_id,
         &ids,
     )
@@ -438,10 +453,20 @@ pub(super) async fn apply_move_systems(tx: &mut Tx<'_>, cmd: MoveSystems) -> Res
     })
     .collect();
 
-    for m in &cmd.moves {
+    if before.is_empty() {
+        return Ok(kept("systems.moved", "the pinned systems stayed put"));
+    }
+
+    let movable: std::collections::HashSet<i64> =
+        before.iter().map(|m| m.map_solar_system_id).collect();
+    for m in cmd
+        .moves
+        .iter()
+        .filter(|m| movable.contains(&m.map_solar_system_id))
+    {
         sqlx::query!(
             "update map_solar_systems set position_x = $1, position_y = $2
-             where id = $3 and map_id = $4",
+             where id = $3 and map_id = $4 and not is_pinned",
             m.x,
             m.y,
             m.map_solar_system_id,
@@ -450,7 +475,7 @@ pub(super) async fn apply_move_systems(tx: &mut Tx<'_>, cmd: MoveSystems) -> Res
         .execute(&mut **tx)
         .await?;
     }
-    let count = cmd.moves.len();
+    let count = movable.len();
     let label = if count == 1 {
         "moved a system".to_string()
     } else {
