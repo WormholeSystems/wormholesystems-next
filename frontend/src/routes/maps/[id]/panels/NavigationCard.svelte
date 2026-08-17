@@ -175,38 +175,39 @@
 		return 'text-red-500';
 	});
 
-	// --- quick picks ---
-	const quickPicks = $derived.by(() => {
-		const picks: { id: number; label: string; icon: 'active' | 'character' | 'pinned' }[] = [];
+	// --- picker suggestions ---
+	//
+	// The systems worth routing to are nearly always already in play, so both pickers offer
+	// them before anything is typed. They live inside the picker rather than as chips beside
+	// it, so choosing one is unambiguous about which end it fills.
+	const suggestedIds = $derived.by(() => {
+		const picks: { id: number; reason: string; icon: 'selected' | 'location' | 'pinned' }[] = [];
 		const active = map.activeSystem;
 		if (active) {
-			picks.push({ id: active.solar_system_id, label: active.alias ?? active.name, icon: 'active' });
+			picks.push({ id: active.solar_system_id, reason: 'Selected system', icon: 'selected' });
 		}
 		const character = map.myCharacters.find((c) => c.online && c.solar_system_id !== null);
 		if (character?.solar_system_id != null && !picks.some((p) => p.id === character.solar_system_id)) {
-			picks.push({
-				id: character.solar_system_id,
-				label: resolved.get(character.solar_system_id)?.name ?? String(character.solar_system_id),
-				icon: 'character'
-			});
+			picks.push({ id: character.solar_system_id, reason: 'Where you are', icon: 'location' });
 		}
-		for (const entry of map.watchlist.filter((w) => w.is_pinned).slice(0, 3)) {
+		for (const entry of map.watchlist.filter((w) => w.is_pinned).slice(0, 5)) {
 			if (picks.some((p) => p.id === entry.solar_system_id)) continue;
-			picks.push({
-				id: entry.solar_system_id,
-				label: resolved.get(entry.solar_system_id)?.name ?? String(entry.solar_system_id),
-				icon: 'pinned'
-			});
+			picks.push({ id: entry.solar_system_id, reason: 'Pinned on the watchlist', icon: 'pinned' });
 		}
 		return picks;
 	});
 	$effect(() => {
-		needResolve(quickPicks.map((p) => p.id));
+		needResolve(suggestedIds.map((p) => p.id));
 	});
-	function pickInto(id: number) {
-		if (map.routeFromId === null) map.routeFromId = id;
-		else map.routeToId = id;
-	}
+	// Only those we can render as a proper row; an unresolved one would show as a bare id.
+	const suggestions = $derived(
+		suggestedIds
+			.map((p) => ({ system: resolved.get(p.id), reason: p.reason, icon: p.icon }))
+			.filter(
+				(p): p is { system: SystemSearchResult; reason: string; icon: typeof p.icon } =>
+					p.system !== undefined
+			)
+	);
 
 	// --- watchlist ---
 	const origin = $derived(map.routeOrigin);
@@ -412,6 +413,7 @@
 				<SystemCombobox
 					placeholder="Origin"
 					value={map.routeFromId}
+					{suggestions}
 					onpick={(id) => (map.routeFromId = id)}
 				/>
 				<Button variant="ghost" size="icon-xs" aria-label="Swap" onclick={swap}>
@@ -420,27 +422,10 @@
 				<SystemCombobox
 					placeholder="Destination"
 					value={map.routeToId}
+					{suggestions}
 					onpick={(id) => (map.routeToId = id)}
 				/>
 			</div>
-
-			{#if (map.routeFromId === null || map.routeToId === null) && quickPicks.length > 0}
-				<div class="flex flex-wrap gap-1.5" data-testid="quick-picks">
-					{#each quickPicks as pick (pick.id)}
-						<button
-							class="inline-flex items-center gap-1.5 rounded-md border border-border/40 bg-muted/30 px-2 py-1 text-xs transition-colors hover:bg-muted/60"
-							onclick={() => pickInto(pick.id)}
-						>
-							{pick.label}
-							{#if pick.icon === 'active'}
-								<MapPinIcon class="size-3 text-muted-foreground" />
-							{:else if pick.icon === 'character'}
-								<NavigationIcon class="size-3 text-muted-foreground" />
-							{/if}
-						</button>
-					{/each}
-				</div>
-			{/if}
 
 			{#if abResult === null && map.routeFromId !== null && map.routeToId !== null}
 				<p class="text-muted-foreground" data-testid="no-route">No route found</p>

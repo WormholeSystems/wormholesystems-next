@@ -222,16 +222,43 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await page.keyboard.press('Escape');
 });
 
-test('quick picks fill the route pickers', async ({ page, api }) => {
+test('the pickers suggest systems already in play, before anything is typed', async ({
+	page,
+	api
+}) => {
 	const mapId = await createMap(api, 'E2E NavPicks');
 	await addSystem(api, mapId, J122515, 200, 200);
 	await gotoApp(page, `/maps/${mapId}`);
 	await page.getByTestId('system-node').filter({ hasText: 'J122515' }).click();
 
-	const picks = page.getByTestId('quick-picks');
-	await expect(picks.getByText('J122515')).toBeVisible();
-	await picks.getByText('J122515').click();
+	// Opening a picker offers the selected system straight away, with why it is offered.
+	await page.getByTestId('system-picker-origin').click();
+	const suggestion = page.getByTestId('picker-suggestion').filter({ hasText: 'J122515' });
+	// A chip, not a result row: it says why it is offered on hover rather than in a column.
+	await expect(suggestion).toHaveAttribute('title', 'Selected system');
+	await suggestion.click();
 	await expect(page.getByTestId('system-picker-origin')).toContainText('J122515');
+
+	// The other end offers it too, and a suggestion already chosen here drops out of its own
+	// picker rather than offering a no-op.
+	await page.getByTestId('system-picker-destination').click();
+	await expect(page.getByTestId('picker-suggestion').filter({ hasText: 'J122515' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.getByTestId('system-picker-origin').click();
+	await expect(page.getByTestId('picker-suggestion').filter({ hasText: 'J122515' })).toHaveCount(0);
+});
+
+test('typing in a picker replaces the suggestions with search results', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E NavSearch');
+	await addSystem(api, mapId, J122515, 200, 200);
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.getByTestId('system-node').filter({ hasText: 'J122515' }).click();
+
+	await page.getByTestId('system-picker-origin').click();
+	await expect(page.getByTestId('picker-suggestion').first()).toBeVisible();
+	await page.getByPlaceholder('Search…').fill('Amarr');
+	await expect(page.getByTestId('picker-suggestion')).toHaveCount(0);
+	await expect(page.getByTestId('picker-result').filter({ hasText: 'Amarr' }).first()).toBeVisible();
 });
 
 test('viewers see the watchlist read-only', async ({ page, api, browser }) => {
