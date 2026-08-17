@@ -2,15 +2,19 @@
 	// Cmd+K over one map: jump to a placed system, or add one that is not on the map yet.
 	// Matching happens server-side (name, alias, occupier, and notes for members), so the
 	// Command's own filtering is off and the rows arrive already ranked.
+	//
+	// Rows are the shared SystemRow, on the shared tracks, so the palette lines up with every
+	// other system list. The extra cells (why it matched, the Add badge) are tracks appended
+	// around it rather than a hand-rolled layout.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	import { api } from '$lib/api/client';
 	import type { MapSearchHit } from '$lib/api/types/MapSearchHit';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Command from '$lib/components/ui/command';
-	import { classMeta } from '$lib/map/classes';
+	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
+	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { NODE_W, centerWorld, freePosition } from '$lib/map/helpers';
-	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
@@ -23,6 +27,10 @@
 	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
 	const onMap = $derived(results.filter((h) => h.map_solar_system_id !== null));
 	const offMap = $derived(results.filter((h) => h.map_solar_system_id === null));
+
+	// The four SystemRow tracks, with one appended for the match hint or the Add badge.
+	const TRACKS =
+		'grid w-full grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2';
 
 	$effect(() => {
 		if (open) {
@@ -41,6 +49,14 @@
 			})
 			.catch(() => {});
 	});
+
+	/** What to show in the trailing cell: the reason this row matched, when it was not the name. */
+	function hint(h: MapSearchHit): string | null {
+		if (h.note_excerpt) return h.note_excerpt;
+		if (h.matched === 'alias') return h.alias;
+		if (h.matched === 'occupier') return h.occupying_group;
+		return null;
+	}
 
 	function activate(hit: MapSearchHit) {
 		map.activeId = hit.map_solar_system_id;
@@ -63,7 +79,7 @@
 			'add',
 			api.addSystem({
 				map_id: map.mapId,
-				solar_system_id: hit.solar_system_id,
+				solar_system_id: hit.system.id,
 				x: at.x,
 				y: at.y,
 				alias: null
@@ -71,26 +87,6 @@
 		);
 	}
 </script>
-
-{#snippet row(hit: MapSearchHit)}
-	{@const meta = classMeta(hit.wormhole_class_id, hit.security)}
-	<div class="flex w-full items-center gap-2">
-		<span class={cn('w-8 shrink-0 font-mono text-xs', meta.token)}>{meta.short}</span>
-		<span class="shrink-0">{hit.name}</span>
-		{#if hit.alias}
-			<span class="shrink-0 text-xs text-muted-foreground">{hit.alias}</span>
-		{/if}
-		<span class="flex-1 truncate text-xs text-muted-foreground">
-			{#if hit.note_excerpt}
-				{hit.note_excerpt}
-			{:else if hit.matched === 'occupier' && hit.occupying_group}
-				{hit.occupying_group}
-			{:else}
-				{hit.region}
-			{/if}
-		</span>
-	</div>
-{/snippet}
 
 <Command.Dialog
 	bind:open
@@ -107,28 +103,35 @@
 			<Command.Group heading="On this map">
 				{#each onMap as hit (hit.map_solar_system_id)}
 					<Command.Item
-						value={`on-${hit.solar_system_id}`}
+						value={`on-${hit.system.id}`}
 						onSelect={() => activate(hit)}
 						data-testid="palette-hit"
 					>
-						{@render row(hit)}
+						<SystemMenu system={hit.system} class={TRACKS}>
+							<SystemRow system={hit.system} />
+							<span class="truncate text-xs text-muted-foreground" title={hint(hit) ?? undefined}>
+								{hint(hit) ?? ''}
+							</span>
+						</SystemMenu>
 					</Command.Item>
 				{/each}
 			</Command.Group>
 		{/if}
 		{#if canWrite && offMap.length > 0}
 			<Command.Group heading="Add to the map">
-				{#each offMap as hit (hit.solar_system_id)}
+				{#each offMap as hit (hit.system.id)}
 					<Command.Item
-						value={`off-${hit.solar_system_id}`}
+						value={`off-${hit.system.id}`}
 						onSelect={() => add(hit)}
 						data-testid="palette-add"
 					>
-						{@render row(hit)}
-						<Badge variant="outline" class="ml-auto gap-1 shrink-0">
-							<PlusIcon />
-							Add
-						</Badge>
+						<SystemMenu system={hit.system} class={TRACKS}>
+							<SystemRow system={hit.system} />
+							<Badge variant="outline" class="gap-1 shrink-0">
+								<PlusIcon />
+								Add
+							</Badge>
+						</SystemMenu>
 					</Command.Item>
 				{/each}
 			</Command.Group>

@@ -238,12 +238,10 @@ pub struct ThreatAnalysis {
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct MapSearchHit {
-    pub solar_system_id: i64,
+    /// The same payload every other system picker renders, so the palette's rows line up
+    /// with them instead of being styled by hand.
+    pub system: SystemSearchResult,
     pub map_solar_system_id: Option<i64>,
-    pub name: String,
-    pub region: String,
-    pub security: f64,
-    pub wormhole_class_id: Option<i32>,
     pub alias: Option<String>,
     pub occupying_group: Option<String>,
     /// The matching slice of the system's notes, when the query hit the notes. Member+ only.

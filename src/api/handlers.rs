@@ -396,6 +396,36 @@ pub struct SearchQuery {
     pub q: String,
 }
 
+/// Build the sovereignty holder from the joined columns. Shared by every query that selects
+/// a solar system for display, so the pickers cannot drift apart on what they show.
+fn sovereignty_of(
+    kind: Option<&str>,
+    id: Option<i64>,
+    name: Option<String>,
+    ticker: Option<String>,
+) -> Option<crate::maps::solar_system::Sovereignty> {
+    match (kind, id, name) {
+        (Some("alliance"), Some(id), Some(name)) => {
+            Some(crate::maps::solar_system::Sovereignty::Alliance {
+                id,
+                name,
+                ticker: ticker.unwrap_or_default(),
+            })
+        }
+        (Some("corporation"), Some(id), Some(name)) => {
+            Some(crate::maps::solar_system::Sovereignty::Corporation {
+                id,
+                name,
+                ticker: ticker.unwrap_or_default(),
+            })
+        }
+        (Some("faction"), Some(id), Some(name)) => {
+            Some(crate::maps::solar_system::Sovereignty::Faction { id, name })
+        }
+        _ => None,
+    }
+}
+
 /// `GET /api/systems/search?q=` — search the SDE solar systems by name. Prefix matches rank
 /// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
 pub async fn search_systems(
@@ -447,26 +477,12 @@ pub async fn search_systems(
     let results = rows
         .into_iter()
         .map(|row| {
-            let sovereignty = match (row.sov_kind.as_deref(), row.sov_id, row.sov_name) {
-                (Some("alliance"), Some(id), Some(name)) => {
-                    Some(crate::maps::solar_system::Sovereignty::Alliance {
-                        id,
-                        name,
-                        ticker: row.sov_ticker.unwrap_or_default(),
-                    })
-                }
-                (Some("corporation"), Some(id), Some(name)) => {
-                    Some(crate::maps::solar_system::Sovereignty::Corporation {
-                        id,
-                        name,
-                        ticker: row.sov_ticker.unwrap_or_default(),
-                    })
-                }
-                (Some("faction"), Some(id), Some(name)) => {
-                    Some(crate::maps::solar_system::Sovereignty::Faction { id, name })
-                }
-                _ => None,
-            };
+            let sovereignty = sovereignty_of(
+                row.sov_kind.as_deref(),
+                row.sov_id,
+                row.sov_name,
+                row.sov_ticker,
+            );
             SystemSearchResult {
                 id: row.id,
                 name: row.name,
@@ -1565,14 +1581,30 @@ pub async fn search_map(
     let contains = format!("%{q}%");
     let prefix = format!("{q}%");
 
+    // The same columns the standalone system search selects, so both build an identical
+    // SystemSearchResult and the pickers render the same way.
     let placed = sqlx::query!(
         r#"select mss.id as "map_solar_system_id!", ss.id as "solar_system_id!",
                   ss.name as "name!", r.name as "region!",
-                  ss.security_status as "security!", ss.wormhole_class_id,
+                  ss.security_status as "security!", ss.region_id, ss.constellation_id,
+                  ss.wormhole_class_id, ws.effect_name,
+                  case
+                      when sov.alliance_id is not null then 'alliance'
+                      when sov.corporation_id is not null then 'corporation'
+                      when sov.faction_id is not null then 'faction'
+                  end as "sov_kind?",
+                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
+                  coalesce(al.name, co.name, f.name) as "sov_name?",
+                  coalesce(al.ticker, co.ticker) as "sov_ticker?",
                   mss.alias, d.occupying_group, d.notes
            from map_solar_systems mss
            join solar_systems ss on ss.id = mss.solar_system_id
            join regions r on r.id = ss.region_id
+           left join wormhole_systems ws on ws.solar_system_id = ss.id
+           left join system_sovereignty sov on sov.solar_system_id = ss.id
+           left join alliances al on al.id = sov.alliance_id
+           left join corporations co on co.id = sov.corporation_id
+           left join factions f on f.id = sov.faction_id
            left join map_solar_system_details d
              on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
            where mss.map_id = $1
@@ -1588,10 +1620,10 @@ pub async fn search_map(
     .fetch_all(&state.db)
     .await?;
 
+    let lower = q.to_lowercase();
     let mut hits: Vec<MapSearchHit> = placed
         .into_iter()
         .map(|r| {
-            let lower = q.to_lowercase();
             let hit = |v: &Option<String>| {
                 v.as_ref()
                     .is_some_and(|s| s.to_lowercase().contains(&lower))
@@ -1606,12 +1638,23 @@ pub async fn search_map(
                 "notes"
             };
             MapSearchHit {
-                solar_system_id: r.solar_system_id,
+                system: SystemSearchResult {
+                    id: r.solar_system_id,
+                    name: r.name,
+                    security: r.security,
+                    region: r.region,
+                    region_id: r.region_id,
+                    constellation_id: r.constellation_id,
+                    wormhole_class_id: r.wormhole_class_id,
+                    effect_name: r.effect_name,
+                    sovereignty: sovereignty_of(
+                        r.sov_kind.as_deref(),
+                        r.sov_id,
+                        r.sov_name,
+                        r.sov_ticker,
+                    ),
+                },
                 map_solar_system_id: Some(r.map_solar_system_id),
-                name: r.name,
-                region: r.region,
-                security: r.security,
-                wormhole_class_id: r.wormhole_class_id,
                 alias: r.alias,
                 occupying_group: r.occupying_group,
                 note_excerpt: if matched == "notes" {
@@ -1625,12 +1668,26 @@ pub async fn search_map(
         .collect();
 
     // Then systems that are not on the map yet, so the palette doubles as "add".
-    let placed_ids: Vec<i64> = hits.iter().map(|h| h.solar_system_id).collect();
+    let placed_ids: Vec<i64> = hits.iter().map(|h| h.system.id).collect();
     let off_map = sqlx::query!(
         r#"select ss.id as "solar_system_id!", ss.name as "name!", r.name as "region!",
-                  ss.security_status as "security!", ss.wormhole_class_id
+                  ss.security_status as "security!", ss.region_id, ss.constellation_id,
+                  ss.wormhole_class_id, ws.effect_name,
+                  case
+                      when sov.alliance_id is not null then 'alliance'
+                      when sov.corporation_id is not null then 'corporation'
+                      when sov.faction_id is not null then 'faction'
+                  end as "sov_kind?",
+                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
+                  coalesce(al.name, co.name, f.name) as "sov_name?",
+                  coalesce(al.ticker, co.ticker) as "sov_ticker?"
            from solar_systems ss
            join regions r on r.id = ss.region_id
+           left join wormhole_systems ws on ws.solar_system_id = ss.id
+           left join system_sovereignty sov on sov.solar_system_id = ss.id
+           left join alliances al on al.id = sov.alliance_id
+           left join corporations co on co.id = sov.corporation_id
+           left join factions f on f.id = sov.faction_id
            where ss.name ilike $1 and ss.id <> all($2)
            order by (ss.name ilike $3) desc, length(ss.name), ss.name
            limit 10"#,
@@ -1641,12 +1698,18 @@ pub async fn search_map(
     .fetch_all(&state.db)
     .await?;
     hits.extend(off_map.into_iter().map(|r| MapSearchHit {
-        solar_system_id: r.solar_system_id,
+        system: SystemSearchResult {
+            id: r.solar_system_id,
+            name: r.name,
+            security: r.security,
+            region: r.region,
+            region_id: r.region_id,
+            constellation_id: r.constellation_id,
+            wormhole_class_id: r.wormhole_class_id,
+            effect_name: r.effect_name,
+            sovereignty: sovereignty_of(r.sov_kind.as_deref(), r.sov_id, r.sov_name, r.sov_ticker),
+        },
         map_solar_system_id: None,
-        name: r.name,
-        region: r.region,
-        security: r.security,
-        wormhole_class_id: r.wormhole_class_id,
         alias: None,
         occupying_group: None,
         note_excerpt: None,
