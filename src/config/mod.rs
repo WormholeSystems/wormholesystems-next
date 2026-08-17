@@ -14,6 +14,9 @@ pub struct Config {
     pub database_url: String,
     pub sso: SsoConfig,
     pub grid: GridConfig,
+    /// Where ESI lives. Overridable so the e2e suite can point the whole stack at a stub
+    /// and drive a pilot around without a live EVE session.
+    pub esi_base_url: String,
 }
 
 impl Config {
@@ -30,6 +33,8 @@ impl Config {
                 scopes: Scope::ALL.to_vec(),
             },
             grid: grid_from_env(),
+            esi_base_url: std::env::var("ESI_BASE_URL")
+                .unwrap_or_else(|_| crate::esi::BASE_URL.to_string()),
         })
     }
 }

@@ -44,7 +44,14 @@ async fn main() {
             .await
             .expect("could not reach the EVE SSO — check your network connection"),
     );
-    let esi = EsiClient::new();
+    if config.esi_base_url != vector::esi::BASE_URL {
+        println!("ESI: {}", config.esi_base_url);
+    }
+    let esi = EsiClient::with_config(
+        reqwest::Client::new(),
+        &config.esi_base_url,
+        vector::esi::COMPATIBILITY_DATE,
+    );
     let auth = Arc::new(Auth::new(sso.clone(), esi.clone()));
 
     let hub = vector::maps::MapHub::new();

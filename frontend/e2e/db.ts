@@ -161,3 +161,54 @@ export async function setActiveCharacter(characterId: number, session = E2E_SESS
 		db.query('update sessions set active_character_id = $1 where id = $2', [characterId, session])
 	);
 }
+
+const LOCATION_SCOPES = [
+	'esi-location.read_location.v1',
+	'esi-location.read_ship_type.v1',
+	'esi-location.read_online.v1'
+];
+
+/**
+ * Give a character a token the tracking poller will actually use: unexpired, and carrying
+ * the three location scopes. Without the far-future expiry the poller tries to refresh it
+ * against the real SSO and gives up on the character.
+ */
+export async function grantLocationScopes(characterId: number) {
+	await withDb(async (db) => {
+		await db.query('delete from esi_tokens where character_id = $1', [characterId]);
+		const token = await db.query(
+			`insert into esi_tokens (character_id, access_token, token_expires_at, refresh_token)
+			 values ($1, 'e2e-access-token', now() + interval '1 day', 'e2e-refresh-token')
+			 returning id`,
+			[characterId]
+		);
+		for (const name of LOCATION_SCOPES) {
+			const scope = await db.query(
+				`insert into esi_scopes (name) values ($1)
+				 on conflict (name) do update set name = excluded.name returning id`,
+				[name]
+			);
+			await db.query(
+				'insert into esi_token_scopes (token_id, scope_id) values ($1, $2) on conflict do nothing',
+				[token.rows[0].id, scope.rows[0].id]
+			);
+		}
+	});
+}
+
+/**
+ * Flag a character online without giving them a location, which is what the 60s tier-1
+ * poll does. Tier 2 (every 5s) only looks at characters already flagged online, so this is
+ * how a test opts into the fast loop without waiting a minute for the slow one.
+ */
+export async function setCharacterOnline(characterId: number) {
+	await withDb((db) =>
+		db.query(
+			`insert into character_status (character_id, online, solar_system_id, last_online_at)
+			 values ($1, true, null, now())
+			 on conflict (character_id) do update set
+			     online = true, solar_system_id = null, last_online_at = now(), updated_at = now()`,
+			[characterId]
+		)
+	);
+}

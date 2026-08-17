@@ -16,10 +16,20 @@ export default defineConfig({
 	globalTeardown: './e2e/global-teardown',
 	webServer: [
 		{
+			// Stands in for ESI so a pilot can be flown around without a live EVE session.
+			// Unscripted characters are proxied to the real thing, so it is harmless in
+			// front of a dev stack.
+			command: 'node e2e/esi-stub.mjs',
+			url: 'http://127.0.0.1:3999/_stub/hits/0',
+			reuseExistingServer: true,
+			timeout: 30_000
+		},
+		{
 			command: 'cargo run',
 			cwd: '..',
 			url: 'http://127.0.0.1:3000/api/grid-config',
 			reuseExistingServer: true,
+			env: { ESI_BASE_URL: 'http://127.0.0.1:3999' },
 			// First run compiles the API and may seed the SDE into a fresh database.
 			timeout: 300_000
 		},
