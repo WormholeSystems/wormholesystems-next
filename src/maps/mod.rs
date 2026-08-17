@@ -17,6 +17,7 @@ pub mod jumps;
 pub mod map;
 pub mod signatures;
 pub mod solar_system;
+pub mod tracking;
 pub mod watchlist;
 
 pub use command::{CommandOutput, EventActor, MapCommand, execute};

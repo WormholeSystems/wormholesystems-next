@@ -27,10 +27,11 @@ use super::solar_system::{
     AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveRestored, RemoveSystem, RemoveSystems,
     RestoreSystems, SetAlias, SetHome, SetNotes, SetOccupier, SetPinned, SetRally, SetStatus,
 };
+use super::tracking::TrackJump;
 use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
 use super::{
     Actor, MapConnection, MapSolarSystem, Role, Signature, connection, jumps, signatures,
-    solar_system, watchlist,
+    solar_system, tracking, watchlist,
 };
 
 /// An open transaction, threaded through every `apply_*` so the write and its audit
@@ -54,6 +55,15 @@ impl EventActor {
     }
 }
 
+/// Several commands applied as one. Only produced as an inverse: it lets a command whose
+/// undo is more than one step stay a single entry in the history, so a tracked jump that
+/// added a system, an edge and a signature link is one undo rather than three.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Sequence {
+    pub map_id: i64,
+    pub steps: Vec<MapCommand>,
+}
+
 /// Every way a map can change. Variants prefixed `Restore` are compensating commands:
 /// they exist only as the inverse of a removal and are not routed by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,6 +74,7 @@ pub enum MapCommand {
     RemoveSystems(RemoveSystems),
     RestoreSystems(RestoreSystems),
     RemoveRestored(RemoveRestored),
+    Sequence(Sequence),
     ClearMap(ClearMap),
     MoveSystem(MoveSystem),
     MoveSystems(MoveSystems),
@@ -78,6 +89,7 @@ pub enum MapCommand {
     SetConnectionStatus(SetConnectionStatus),
     RemoveConnection(RemoveConnection),
     CleanStaleConnections(CleanStaleConnections),
+    TrackJump(TrackJump),
     AddSignature(AddSignature),
     UpdateSignature(UpdateSignature),
     RemoveSignature(RemoveSignature),
@@ -150,6 +162,7 @@ impl MapCommand {
             MapCommand::RemoveSystems(c) => c.map_id,
             MapCommand::RestoreSystems(c) => c.map_id,
             MapCommand::RemoveRestored(c) => c.map_id,
+            MapCommand::Sequence(c) => c.map_id,
             MapCommand::ClearMap(c) => c.map_id,
             MapCommand::MoveSystem(c) => c.map_id,
             MapCommand::MoveSystems(c) => c.map_id,
@@ -164,6 +177,7 @@ impl MapCommand {
             MapCommand::SetConnectionStatus(c) => c.map_id,
             MapCommand::RemoveConnection(c) => c.map_id,
             MapCommand::CleanStaleConnections(c) => c.map_id,
+            MapCommand::TrackJump(c) => c.map_id,
             MapCommand::AddSignature(c) => c.map_id,
             MapCommand::UpdateSignature(c) => c.map_id,
             MapCommand::RemoveSignature(c) => c.map_id,
@@ -194,6 +208,7 @@ impl MapCommand {
             MapCommand::RemoveSystems(c) => solar_system::apply_remove_systems(tx, c).await,
             MapCommand::RestoreSystems(c) => solar_system::apply_restore_systems(tx, c).await,
             MapCommand::RemoveRestored(c) => solar_system::apply_remove_restored(tx, c).await,
+            MapCommand::Sequence(c) => apply_sequence(tx, c, actor).await,
             MapCommand::ClearMap(c) => solar_system::apply_clear_map(tx, c).await,
             MapCommand::MoveSystem(c) => solar_system::apply_move_system(tx, c).await,
             MapCommand::MoveSystems(c) => solar_system::apply_move_systems(tx, c).await,
@@ -210,6 +225,7 @@ impl MapCommand {
             }
             MapCommand::RemoveConnection(c) => connection::apply_remove_connection(tx, c).await,
             MapCommand::CleanStaleConnections(c) => connection::apply_clean_stale(tx, c).await,
+            MapCommand::TrackJump(c) => tracking::apply_track_jump(tx, c).await,
             MapCommand::AddSignature(c) => signatures::apply_add_signature(tx, c).await,
             MapCommand::UpdateSignature(c) => signatures::apply_update_signature(tx, c).await,
             MapCommand::RemoveSignature(c) => signatures::apply_remove_signature(tx, c).await,
@@ -237,6 +253,32 @@ impl MapCommand {
             }
         })
     }
+}
+
+/// Apply each step in order, and hand back the reversed inverses as one command, so
+/// undoing walks the steps backwards.
+async fn apply_sequence(tx: &mut Tx<'_>, cmd: Sequence, actor: EventActor) -> Result<Effect> {
+    let map_id = cmd.map_id;
+    let mut inverses = Vec::new();
+    let mut entries = 0;
+    for step in cmd.steps {
+        // Boxed because this is `apply` calling itself: the future would otherwise be
+        // infinitely sized.
+        let effect = Box::pin(step.apply(tx, actor)).await?;
+        entries += effect.entries;
+        if let Some(inverse) = effect.inverse {
+            inverses.push(inverse);
+        }
+    }
+    inverses.reverse();
+    Ok(
+        Effect::new("sequence", "several changes", CommandOutput::None)
+            .entries(entries.max(1))
+            .undo_with(MapCommand::Sequence(Sequence {
+                map_id,
+                steps: inverses,
+            })),
+    )
 }
 
 /// Apply a command: authorize, mutate, and record — all in one transaction.
