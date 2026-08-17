@@ -124,8 +124,11 @@
 			observe();
 		}, 15_000);
 		// The user socket fires when the character's status changes, which is how a jump is
-		// normally noticed within seconds.
-		const closeUserWs = openUserSocket(observe);
+		// normally noticed within seconds. Server-status news rides the same channel and
+		// says nothing about where anyone is.
+		const closeUserWs = openUserSocket((event) => {
+			if (event.type === 'character_status_changed') observe();
+		});
 		// Coming back to the tab is the other half: flying happens in the game client, so
 		// the jump has usually already happened by the time the map is looked at again.
 		window.addEventListener('focus', observe);

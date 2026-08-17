@@ -1,3 +1,5 @@
+import type { UserEvent } from '$lib/api/types/UserEvent';
+
 // Realtime sockets. Frames carry no payload we act on: each one only means "something
 // changed, refetch". The map socket reconnects with backoff and reports its state, because
 // a silently dead socket looks exactly like a quiet map.
@@ -64,9 +66,21 @@ export function openMapSocket(
 	};
 }
 
-/** Open the per-user channel (activity heartbeat + status pings). Returns a close function. */
-export function openUserSocket(onEvent: () => void): () => void {
+/**
+ * Open the per-user channel (activity heartbeat + status pings). Returns a close function.
+ *
+ * Unlike the map socket, the payload matters here: the channel carries both events
+ * addressed to this user and news that concerns everyone, and a client watching for one
+ * should not refetch on the other.
+ */
+export function openUserSocket(onEvent: (event: UserEvent) => void): () => void {
 	const ws = new WebSocket(socketUrl('/ws/user'));
-	ws.onmessage = () => onEvent();
+	ws.onmessage = (frame) => {
+		try {
+			onEvent(JSON.parse(frame.data as string) as UserEvent);
+		} catch {
+			// A frame we cannot read is not worth acting on.
+		}
+	};
 	return () => ws.close();
 }

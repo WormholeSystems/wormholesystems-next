@@ -17,6 +17,7 @@ use tokio::time::{MissedTickBehavior, interval};
 
 use crate::esi::EsiClient;
 use crate::esi::sovereignty::SovereigntySystem;
+use crate::server_status::ServerWatch;
 use crate::tracking::run_bounded;
 
 /// How often to refresh sovereignty. It changes slowly (alliance-level territory), so an hour
@@ -27,15 +28,20 @@ const INTERVAL: Duration = Duration::from_secs(60 * 60);
 const CONCURRENCY: usize = 16;
 
 /// Spawn the sync loop. Returns immediately; the loop runs for the process lifetime.
-pub fn start(pool: PgPool, esi: EsiClient) {
-    tokio::spawn(sync_loop(pool, esi));
+pub fn start(pool: PgPool, esi: EsiClient, server: ServerWatch) {
+    tokio::spawn(sync_loop(pool, esi, server));
 }
 
-async fn sync_loop(pool: PgPool, esi: EsiClient) {
+async fn sync_loop(pool: PgPool, esi: EsiClient, server: ServerWatch) {
     let mut ticker = interval(INTERVAL);
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         ticker.tick().await;
+        // Sovereignty does not move while nobody is playing, and the call would fail
+        // anyway. The next tick picks it up once Tranquility is back.
+        if !server.should_poll() {
+            continue;
+        }
         sync_once(&pool, &esi).await;
     }
 }

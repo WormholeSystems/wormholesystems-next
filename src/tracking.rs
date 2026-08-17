@@ -20,6 +20,7 @@ use crate::db::PgTokenStore;
 use crate::esi::scopes::Scope;
 use crate::esi::{EsiClient, Sso};
 use crate::maps::MapHub;
+use crate::server_status::ServerWatch;
 use crate::user_channel::{UserEvent, UserHub};
 
 /// Max ESI requests in flight per tick — the one tuning knob. Raise to fit more characters
@@ -35,22 +36,41 @@ struct Due {
 
 /// Spawn the polling loops. Returns immediately; the loops run for the process lifetime.
 /// `maps` receives `ConnectionChanged` events when a transit lands on a mapped hole.
-pub fn start(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub, maps: MapHub) {
+pub fn start(
+    pool: PgPool,
+    sso: Arc<Sso>,
+    esi: EsiClient,
+    users: UserHub,
+    maps: MapHub,
+    server: ServerWatch,
+) {
     tokio::spawn(tier_one(
         pool.clone(),
         sso.clone(),
         esi.clone(),
         users.clone(),
+        server.clone(),
     ));
-    tokio::spawn(tier_two(pool, sso, esi, users, maps));
+    tokio::spawn(tier_two(pool, sso, esi, users, maps, server));
 }
 
 /// Tier 1: online state, every 60s, for every character of an active user.
-async fn tier_one(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
+async fn tier_one(
+    pool: PgPool,
+    sso: Arc<Sso>,
+    esi: EsiClient,
+    users: UserHub,
+    server: ServerWatch,
+) {
     let mut ticker = interval(Duration::from_secs(60));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         ticker.tick().await;
+        // Nobody can be online while the server is not, and every call would fail against
+        // the error limit. See [`crate::server_status`].
+        if !server.should_poll() {
+            continue;
+        }
         match active_characters(&pool, false).await {
             Ok(due) => {
                 run_bounded(&due, CONCURRENCY, |d| {
@@ -64,11 +84,21 @@ async fn tier_one(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub) {
 }
 
 /// Tier 2: location + ship, every 5s, for currently-online characters of active users.
-async fn tier_two(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub, maps: MapHub) {
+async fn tier_two(
+    pool: PgPool,
+    sso: Arc<Sso>,
+    esi: EsiClient,
+    users: UserHub,
+    maps: MapHub,
+    server: ServerWatch,
+) {
     let mut ticker = interval(Duration::from_secs(5));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         ticker.tick().await;
+        if !server.should_poll() {
+            continue;
+        }
         match active_characters(&pool, true).await {
             Ok(due) => {
                 run_bounded(&due, CONCURRENCY, |d| {

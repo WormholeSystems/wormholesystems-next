@@ -57,6 +57,10 @@ async fn main() {
     let hub = vector::maps::MapHub::new();
     let user_hub = vector::user_channel::UserHub::new();
 
+    // Background: is Tranquility up? Everything below that talks to ESI gates on it, so it
+    // is started first.
+    let server = vector::server_status::start(db.clone(), esi.clone(), user_hub.clone());
+
     // Background: poll live character status for active users (no queue; in-process). Pings
     // each user's private channel when their character's status changes.
     vector::tracking::start(
@@ -65,10 +69,11 @@ async fn main() {
         esi.clone(),
         user_hub.clone(),
         hub.clone(),
+        server.clone(),
     );
 
     // Background: keep sovereignty (and its alliance/corp entities) current for map display.
-    vector::sovereignty::start(db.clone(), esi.clone());
+    vector::sovereignty::start(db.clone(), esi.clone(), server.clone());
 
     // Background: killmail ingest + daily threat analysis (gated by ZKB_LISTEN=1).
     vector::killmails::start(db.clone(), esi.clone());
@@ -88,6 +93,7 @@ async fn main() {
         hub,
         user_hub,
         grid: config.grid,
+        server,
     };
 
     let app = Router::new()

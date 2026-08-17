@@ -11,6 +11,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import EveImage from '$lib/components/EveImage.svelte';
+	import ServerStatus from '$lib/components/ServerStatus.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { openUserSocket } from '$lib/ws';
 
@@ -30,7 +31,9 @@
 		refetchStatus();
 		// The user socket doubles as the activity heartbeat; each event means "your
 		// status changed".
-		return openUserSocket(refetchStatus);
+		return openUserSocket((event) => {
+			if (event.type === 'character_status_changed') refetchStatus();
+		});
 	});
 
 	async function switchCharacter(id: number) {
@@ -71,6 +74,7 @@
 					<span class="tracking-wide">{status.solar_system ?? '—'}</span>
 				</span>
 			{/if}
+			<ServerStatus signedIn={me !== null} />
 			<ThemeToggle />
 			{#if me}
 				<DropdownMenu.Root>

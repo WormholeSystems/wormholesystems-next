@@ -482,6 +482,7 @@ pub fn router() -> Router<AppState> {
             "/api/maps/{id}/systems/{mss}/details",
             get(h::system_details),
         )
+        .route("/api/server-status", get(h::server_status))
         .route("/api/maps/{id}/track-jump", post(h::track_jump))
         .route("/api/maps/{id}/connections/add", post(h::add_connection))
         .route(

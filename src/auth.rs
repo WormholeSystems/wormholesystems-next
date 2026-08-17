@@ -20,6 +20,8 @@ pub struct AppState {
     pub hub: crate::maps::MapHub,
     pub user_hub: crate::user_channel::UserHub,
     pub grid: crate::maps::GridConfig,
+    /// The latest Tranquility status, for the header indicator.
+    pub server: crate::server_status::ServerWatch,
 }
 
 pub struct Auth {

@@ -1,0 +1,233 @@
+//! Is Tranquility up?
+//!
+//! Two jobs. The visible one is the header indicator: players online, and EVE's own clock.
+//! The load-bearing one is the gate — during downtime every authenticated ESI call fails,
+//! and hammering a server that is rebooting just burns through the error limit for nothing.
+//! So the pollers that talk to ESI ask [`ServerWatch::should_poll`] before each tick, and
+//! this loop is the only one that keeps running, because it is what notices the recovery.
+
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+use tokio::sync::watch;
+use tokio::time::{MissedTickBehavior, interval};
+
+use crate::esi::EsiClient;
+use crate::user_channel::{UserEvent, UserHub};
+
+/// How often to ask. Matches legacy: a minute is well inside the downtime window and
+/// nowhere near ESI's rate limit. `SERVER_STATUS_POLL_SECS` tightens it, which the e2e
+/// stack does so a test can take the server down without waiting out a real minute.
+fn poll_interval() -> Duration {
+    let secs = std::env::var("SERVER_STATUS_POLL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(60);
+    Duration::from_secs(secs.max(1))
+}
+
+/// What the server is doing, as one word for the client to render.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerState {
+    /// Nothing polled yet — this process just started.
+    Unknown,
+    Online,
+    /// Up, but only CCP can log in.
+    Vip,
+    /// ESI answered and said nobody is playing: downtime, or a crash.
+    Offline,
+    /// ESI itself could not be reached, so Tranquility's state is anyone's guess.
+    Unreachable,
+}
+
+impl ServerState {
+    /// Whether it is worth making an ESI call right now.
+    ///
+    /// `Unknown` counts as yes: a process that has just started should not sit idle waiting
+    /// for its first status poll, and a single failed call is cheap. `Vip` counts as yes
+    /// too — the few characters that *are* online are still worth tracking.
+    pub fn worth_polling(self) -> bool {
+        !matches!(self, ServerState::Offline | ServerState::Unreachable)
+    }
+
+    /// What a successful `/status` reply means. ESI keeps answering through downtime with
+    /// the last figures it had, so zero players is the only reliable sign the server has
+    /// gone away; VIP is reported separately and outranks the count.
+    pub fn classify(vip: bool, players: i64) -> ServerState {
+        if vip {
+            ServerState::Vip
+        } else if players > 0 {
+            ServerState::Online
+        } else {
+            ServerState::Offline
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct ServerStatus {
+    pub state: ServerState,
+    pub players: i64,
+    #[ts(optional)]
+    pub server_version: Option<String>,
+    /// When this run of the server started, for the uptime readout.
+    #[ts(optional)]
+    pub start_time: Option<DateTime<Utc>>,
+    /// When we last asked. A stale value here means *our* poller is stuck, not the server.
+    #[ts(optional)]
+    pub checked_at: Option<DateTime<Utc>>,
+}
+
+impl ServerStatus {
+    /// The starting point: we have not asked yet, and assume the best until we have.
+    pub fn unknown() -> Self {
+        ServerStatus {
+            state: ServerState::Unknown,
+            players: 0,
+            server_version: None,
+            start_time: None,
+            checked_at: None,
+        }
+    }
+}
+
+/// A cheap handle on the latest status. Clone it into anything that needs to check.
+#[derive(Clone)]
+pub struct ServerWatch(watch::Receiver<ServerStatus>);
+
+impl ServerWatch {
+    pub fn current(&self) -> ServerStatus {
+        self.0.borrow().clone()
+    }
+
+    /// Whether an ESI-backed poller should do its work this tick.
+    pub fn should_poll(&self) -> bool {
+        self.0.borrow().state.worth_polling()
+    }
+}
+
+/// Spawn the status loop. Returns the handle the other pollers gate on.
+pub fn start(pool: PgPool, esi: EsiClient, users: UserHub) -> ServerWatch {
+    let (tx, rx) = watch::channel(ServerStatus::unknown());
+    tokio::spawn(async move {
+        // Start from the last known value so a restart does not blank the header, then
+        // correct it on the first poll a moment later.
+        if let Ok(Some(stored)) = load(&pool).await {
+            let _ = tx.send(stored);
+        }
+
+        let mut ticker = interval(poll_interval());
+        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            let status = poll(&esi).await;
+            if let Err(err) = save(&pool, &status).await {
+                eprintln!("could not store the server status: {err}");
+            }
+            // Only tell the clients when something actually changed; the players count
+            // moves constantly and nobody needs a push every minute for it.
+            let changed = {
+                let previous = tx.borrow();
+                previous.state != status.state || previous.server_version != status.server_version
+            };
+            let _ = tx.send(status);
+            if changed {
+                users.broadcast(UserEvent::ServerStatusChanged);
+            }
+        }
+    });
+    ServerWatch(rx)
+}
+
+async fn poll(esi: &EsiClient) -> ServerStatus {
+    let now = Utc::now();
+    match esi.server_status().await {
+        Ok(tq) => ServerStatus {
+            state: ServerState::classify(tq.vip, tq.players),
+            players: tq.players,
+            server_version: Some(tq.server_version),
+            start_time: Some(tq.start_time),
+            checked_at: Some(now),
+        },
+        Err(_) => ServerStatus {
+            state: ServerState::Unreachable,
+            players: 0,
+            server_version: None,
+            start_time: None,
+            checked_at: Some(now),
+        },
+    }
+}
+
+pub async fn load(pool: &PgPool) -> sqlx::Result<Option<ServerStatus>> {
+    let row = sqlx::query!(
+        "select reachable, players, server_version, start_time, vip, checked_at
+         from server_status where id"
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|r| ServerStatus {
+        state: if r.reachable {
+            ServerState::classify(r.vip, r.players)
+        } else {
+            ServerState::Unreachable
+        },
+        players: r.players,
+        server_version: r.server_version,
+        start_time: r.start_time,
+        checked_at: Some(r.checked_at),
+    }))
+}
+
+async fn save(pool: &PgPool, status: &ServerStatus) -> sqlx::Result<()> {
+    sqlx::query!(
+        "insert into server_status (id, reachable, players, server_version, start_time, vip,
+                                    checked_at)
+         values (true, $1, $2, $3, $4, $5, now())
+         on conflict (id) do update set
+             reachable = excluded.reachable,
+             players = excluded.players,
+             server_version = excluded.server_version,
+             start_time = excluded.start_time,
+             vip = excluded.vip,
+             checked_at = excluded.checked_at",
+        status.state != ServerState::Unreachable,
+        status.players,
+        status.server_version.as_deref(),
+        status.start_time,
+        status.state == ServerState::Vip,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_reply_is_classified_by_vip_then_by_headcount() {
+        assert_eq!(ServerState::classify(false, 24_000), ServerState::Online);
+        assert_eq!(ServerState::classify(false, 0), ServerState::Offline);
+        // VIP wins even with players on: they are CCP, and nobody else can get in.
+        assert_eq!(ServerState::classify(true, 12), ServerState::Vip);
+        assert_eq!(ServerState::classify(true, 0), ServerState::Vip);
+    }
+
+    #[test]
+    fn only_a_server_known_to_be_gone_stops_the_pollers() {
+        // Not yet asked, and VIP, both still worth a call: the first is ignorance, and the
+        // second is a server that is genuinely up.
+        assert!(ServerState::Unknown.worth_polling());
+        assert!(ServerState::Online.worth_polling());
+        assert!(ServerState::Vip.worth_polling());
+        assert!(!ServerState::Offline.worth_polling());
+        assert!(!ServerState::Unreachable.worth_polling());
+    }
+}

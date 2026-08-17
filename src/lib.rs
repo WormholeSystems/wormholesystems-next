@@ -7,6 +7,7 @@ pub mod killmails;
 pub mod maps;
 pub mod sde;
 pub mod seed;
+pub mod server_status;
 pub mod session;
 pub mod sovereignty;
 pub mod tracking;

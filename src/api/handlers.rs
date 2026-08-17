@@ -1913,6 +1913,14 @@ pub async fn list_map_events(
     Ok(Json(history))
 }
 
+/// `GET /api/server-status` — what Tranquility is doing. Public: the header shows it
+/// signed in or not, and it is the same figure ESI serves to anyone.
+pub async fn server_status(
+    State(state): State<AppState>,
+) -> ApiResult<crate::server_status::ServerStatus> {
+    Ok(Json(state.server.current()))
+}
+
 /// `POST /api/maps/{id}/track-jump` — record a jump: place the system, connect it, and
 /// link the signature it turned out to be. Member+. One command, so it undoes as one step;
 /// it can touch a system, a connection and a signature at once, so clients just refetch.

@@ -15,6 +15,7 @@ pub mod token;
 pub mod character;
 pub mod entities;
 pub mod sovereignty;
+pub mod status;
 pub mod ui;
 
 // These read as "unused" only because nothing consumes the crate yet (it's a binary);
@@ -28,6 +29,7 @@ pub use {
     scopes::Scope,
     sovereignty::SovereigntySystem,
     sso::{Sso, SsoConfig},
+    status::TranquilityStatus,
     token::{Token, TokenStore},
 };
 

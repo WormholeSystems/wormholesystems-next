@@ -14,6 +14,16 @@ export default defineConfig({
 	},
 	globalSetup: './e2e/global-setup',
 	globalTeardown: './e2e/global-teardown',
+	projects: [
+		{ name: 'app', testIgnore: /esi-driven\.spec\.ts/ },
+		{
+			// Tranquility's status is process-global: taking the server down affects every
+			// request the API makes, so these run on their own once the rest is finished.
+			name: 'esi-driven',
+			testMatch: /esi-driven\.spec\.ts/,
+			dependencies: ['app']
+		}
+	],
 	webServer: [
 		{
 			// Stands in for ESI so a pilot can be flown around without a live EVE session.
@@ -29,7 +39,11 @@ export default defineConfig({
 			cwd: '..',
 			url: 'http://127.0.0.1:3000/api/grid-config',
 			reuseExistingServer: true,
-			env: { ESI_BASE_URL: 'http://127.0.0.1:3999' },
+			env: {
+				ESI_BASE_URL: 'http://127.0.0.1:3999',
+				// Tight enough that a test can take Tranquility down and see the effect.
+				SERVER_STATUS_POLL_SECS: '2'
+			},
 			// First run compiles the API and may seed the SDE into a fresh database.
 			timeout: 300_000
 		},

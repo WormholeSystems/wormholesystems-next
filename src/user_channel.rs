@@ -1,9 +1,9 @@
 //! Per-user private realtime channel — the server side of the `/ws/user` socket.
 //!
-//! Like [`MapHub`](crate::maps::MapHub) but keyed by `user_id` and routed explicitly: only
-//! the addressed user's connections receive an event. Today it carries status-change pings
-//! (the client refetches on receipt); the payload is server-only — the client just reacts to
-//! a message arriving.
+//! Like [`MapHub`](crate::maps::MapHub) but keyed by `user_id`. Most events are routed
+//! explicitly, so only the addressed user's connections receive them; a few concern
+//! everyone and go out to every live channel. It is the socket every signed-in client
+//! already holds open, which is why global news rides it rather than a second one.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -20,6 +20,8 @@ const CHANNEL_CAPACITY: usize = 64;
 pub enum UserEvent {
     /// One of the user's characters had its tracked status updated — refetch.
     CharacterStatusChanged { character_id: i64 },
+    /// Tranquility went up, went down, or changed version. Sent to everyone.
+    ServerStatusChanged,
 }
 
 /// In-process bus of per-user channels. Cheaply cloneable; hold one in app state.
@@ -51,5 +53,11 @@ impl UserHub {
         {
             channels.remove(&user_id);
         }
+    }
+
+    /// Send an event to every connected user, dropping the channels nobody is listening on.
+    pub fn broadcast(&self, event: UserEvent) {
+        let mut channels = self.channels.lock().expect("user hub poisoned");
+        channels.retain(|_, tx| tx.send(event.clone()).is_ok());
     }
 }

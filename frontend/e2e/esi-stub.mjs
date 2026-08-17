@@ -14,6 +14,8 @@ const UPSTREAM = process.env.ESI_STUB_UPSTREAM ?? 'https://esi.evetech.net';
 
 /** character_id -> {online, solar_system_id, ship_type_id, ship_name, ship_item_id} */
 const pilots = new Map();
+/** Tranquility's own status, or null to let the real one through. */
+let tranquility = null;
 /** character_id -> how many times the API has asked about them, so tests can wait for a poll. */
 const hits = new Map();
 
@@ -58,6 +60,18 @@ const server = createServer(async (req, res) => {
 	if (url.pathname === '/_stub/reset' && req.method === 'POST') {
 		pilots.clear();
 		hits.clear();
+		tranquility = null;
+		return json(res, 200, { ok: true });
+	}
+
+	// Take Tranquility up, down, or into VIP. `unreachable` makes /status fail outright,
+	// which is what the app sees when ESI itself is having a bad day.
+	if (url.pathname === '/_stub/server' && req.method === 'PUT') {
+		tranquility = await readJson(req);
+		return json(res, 200, { ok: true });
+	}
+	if (url.pathname === '/_stub/server' && req.method === 'DELETE') {
+		tranquility = null;
 		return json(res, 200, { ok: true });
 	}
 
@@ -86,7 +100,18 @@ const server = createServer(async (req, res) => {
 		return json(res, 200, { hits: hits.get(Number(seen[1])) ?? 0 });
 	}
 
-	// --- the ESI surface the tracking poller uses ---
+	// --- the ESI surface the app uses ---
+
+	if (url.pathname === '/status' && req.method === 'GET') {
+		if (!tranquility) return proxy(req, res, url);
+		if (tranquility.unreachable) return json(res, 503, { error: 'ESI is in maintenance mode' });
+		return json(res, 200, {
+			players: tranquility.players ?? 0,
+			server_version: tranquility.server_version ?? '2500000',
+			start_time: tranquility.start_time ?? '2026-08-17T11:00:00Z',
+			vip: tranquility.vip ?? false
+		});
+	}
 
 	const character = url.pathname.match(/^\/characters\/(\d+)\/(online|location|ship)$/);
 	if (character && req.method === 'GET') {
