@@ -269,3 +269,72 @@ async fn a_viewer_cannot_build_the_chain(pool: PgPool) {
     let err = track_jump(&pool, viewer, jump(w.map_id, a, SYS_B)).await;
     assert!(matches!(err, Err(MapError::Forbidden)));
 }
+
+/// The mass side of the same jump. `record_transit` runs whether or not anyone is looking
+/// at the map, so a jump through an unmapped hole leaves a pending row; the connection the
+/// prompt eventually creates has to pick it up, or the mass is silently lost.
+#[sqlx::test]
+async fn the_connection_claims_the_transit_recorded_before_it_existed(pool: PgPool) {
+    let w = world(&pool).await;
+    let hub = vector::maps::MapHub::new();
+    let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+
+    sqlx::query(
+        "insert into categories (id, name, published) values (6, 'Ship', true)
+         on conflict do nothing",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "insert into groups (id, category_id, name, published) values (25, 6, 'Frigate', true)
+         on conflict do nothing",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("insert into types (id, group_id, name, published, mass) values (587, 25, 'Rifter', true, 1067000)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "insert into character_status (character_id, online, ship_type_id) values ($1, true, 587)
+         on conflict (character_id) do update set ship_type_id = 587",
+    )
+    .bind(w.owner.character_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "insert into map_user_settings (map_id, user_id, tracking_allowed) values ($1, $2, true)
+         on conflict (map_id, user_id) do update set tracking_allowed = true",
+    )
+    .bind(w.map_id)
+    .bind(w.owner.user_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // The pilot flies through before the hole is on the map.
+    vector::maps::jumps::record_transit(&pool, &hub, w.owner.character_id, SYS_A, SYS_B)
+        .await
+        .unwrap();
+    let pending: i64 =
+        sqlx::query_scalar("select count(*) from map_connection_jumps where connection_id is null")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(pending, 1);
+
+    track_jump(&pool, w.owner, jump(w.map_id, a, SYS_B))
+        .await
+        .unwrap();
+
+    let claimed: i64 = sqlx::query_scalar(
+        "select count(*) from map_connection_jumps where connection_id is not null",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(claimed, 1);
+}
