@@ -535,12 +535,20 @@
 					{/if}
 					{#if route}
 						<RoutePopover {map} steps={route.route}>
-							<span class="cursor-pointer font-mono text-xs font-medium {badgeTone(route.jumps)}">
+							<span
+								class="cursor-pointer text-xs font-medium {badgeTone(route.jumps)}"
+								data-testid="route-jumps-badge"
+							>
 								{route.jumps}j
 							</span>
 						</RoutePopover>
 					{:else}
-						<span class="font-mono text-[10px] text-muted-foreground/60">--</span>
+						<!-- `nowrap` because a hyphen is a line-break opportunity: with every row
+						     unreachable the column's min-content collapses to one dash and the
+						     pair wraps, making every row a line taller. -->
+						<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">
+							--
+						</span>
 					{/if}
 					{#if canWrite}
 						<span class="flex items-center justify-end gap-1">
@@ -680,7 +688,7 @@
 							<span class="col-span-4 truncate text-muted-foreground">{result.id}</span>
 						{/if}
 						<RoutePopover {map} steps={result.route}>
-							<span class="cursor-pointer font-mono text-xs font-medium {badgeTone(result.jumps)}">
+							<span class="cursor-pointer text-xs font-medium {badgeTone(result.jumps)}">
 								{result.jumps}j
 							</span>
 						</RoutePopover>

@@ -261,6 +261,38 @@ test('typing in a picker replaces the suggestions with search results', async ({
 	await expect(page.getByTestId('picker-result').filter({ hasText: 'Amarr' }).first()).toBeVisible();
 });
 
+test('unreachable watchlist rows stay the same height as reachable ones', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E WatchHeight');
+	await addSystem(api, mapId, JITA, 200, 200);
+	// Amarr is gate-reachable from Jita; the wormhole system is not reachable at all.
+	for (const sys of [AMARR, J122515]) {
+		await api.post(`/api/maps/${mapId}/watchlist/add`, {
+			data: { map_id: mapId, solar_system_id: sys }
+		});
+	}
+
+	// With an origin, one row shows jumps and the other shows the no-route dashes.
+	await gotoApp(page, `/maps/${mapId}?system=${JITA}`);
+	await expect(page.getByTestId('watchlist-row')).toHaveCount(2);
+	await expect(page.getByTestId('route-jumps-badge').first()).toBeVisible();
+	const mixed = await page
+		.getByTestId('watchlist-row')
+		.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+
+	// With no origin at all, every row shows the dashes. A hyphen is a break opportunity,
+	// so without care the column collapses to one dash and every row grows a line.
+	await gotoApp(page, `/maps/${mapId}`);
+	await expect(page.getByTestId('watchlist-row')).toHaveCount(2);
+	const none = await page
+		.getByTestId('watchlist-row')
+		.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+
+	expect(new Set([...mixed, ...none]).size).toBe(1);
+});
+
 test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E RouteWH');
 	const a = await addSystem(api, mapId, J122515, 200, 200);

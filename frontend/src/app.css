@@ -215,6 +215,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Digits share one advance width, so counts line up down a column without having to
+       reach for a monospace font to get it. */
+    font-variant-numeric: tabular-nums;
   }
 
   button:not(:disabled),
