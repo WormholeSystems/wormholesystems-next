@@ -105,10 +105,10 @@ test('a change after an undo branches, and the branch can be re-entered', async 
 	await expect(row('Jita')).toHaveAttribute('data-depth', '1');
 	await expect(row('Jita')).toHaveAttribute('data-applied', 'false');
 
-	// Parents come before their children, so the indentation reads as containment.
+	// Newest first, so the most recent work is at the top without scrolling.
 	const order = await page.getByTestId('history-row').allTextContents();
-	expect(order.findIndex((t) => t.includes('J122515'))).toBeLessThan(
-		order.findIndex((t) => t.includes('Jita'))
+	expect(order.findIndex((t) => t.includes('Amarr'))).toBeLessThan(
+		order.findIndex((t) => t.includes('J122515'))
 	);
 
 	// Jumping to the abandoned step swaps branches.

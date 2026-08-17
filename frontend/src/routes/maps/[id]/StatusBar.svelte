@@ -325,7 +325,7 @@
 		<Popover.Content class="w-96 p-0" align="end">
 			<div class="border-b border-border/50 px-3 py-2 text-xs font-medium">
 				History
-				<span class="ml-1 font-normal text-muted-foreground">oldest first</span>
+				<span class="ml-1 font-normal text-muted-foreground">newest first</span>
 			</div>
 			{#if rows.length === 0}
 				<p class="px-3 py-6 text-center text-xs text-muted-foreground">Nothing yet.</p>
@@ -359,31 +359,33 @@
 									: 'Recorded automatically; not part of undo'}
 								onclick={() => map.gotoEvent(entry.id)}
 							>
-								<!-- The graph gutter: one rail per level of nesting, then this row's dot.
-								     Every line is centred in a 16px cell, so a child's connector meets
-								     its parent's rail exactly. -->
-								{#each { length: row.depth } as _, i (i)}
+								<!-- The graph gutter: a rail for each line still open above this row,
+								     then this row's own dot. Every line is centred in a 16px cell, so a
+								     branch's connector meets the rail it left exactly. -->
+								{#each row.rails as passing, i (i)}
 									<span class="relative w-4 shrink-0">
-										<span class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-foreground/25"></span>
+										{#if passing}
+											<span
+												class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-foreground/25"
+											></span>
+										{/if}
 									</span>
 								{/each}
 								<span class="relative w-4 shrink-0">
+									{#if row.railUp}
+										<span
+											class="absolute top-0 bottom-1/2 left-1/2 w-px -translate-x-1/2 bg-foreground/25"
+										></span>
+									{/if}
+									{#if row.railDown}
+										<span
+											class="absolute top-1/2 bottom-0 left-1/2 w-px -translate-x-1/2 bg-foreground/25"
+										></span>
+									{/if}
 									{#if row.forks}
-										<!-- The branch starts here: come out of the parent's rail and turn down. -->
+										<!-- Where this line left the one it branched from. -->
 										<span
 											class="absolute top-1/2 right-1/2 h-px w-4 -translate-y-1/2 bg-foreground/25"
-										></span>
-										{#if row.continues}
-											<span
-												class="absolute top-1/2 bottom-0 left-1/2 w-px -translate-x-1/2 bg-foreground/25"
-											></span>
-										{/if}
-									{:else}
-										<span
-											class={cn(
-												'absolute left-1/2 w-px -translate-x-1/2 bg-foreground/25',
-												row.continues ? 'inset-y-0' : 'top-0 h-1/2'
-											)}
 										></span>
 									{/if}
 									<span

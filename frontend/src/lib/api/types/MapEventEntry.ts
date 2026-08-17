@@ -6,7 +6,8 @@ export type MapEventEntry = { id: number, map_id: number, character_id: number |
  */
 character_name: string | null, kind: string, label: string, entries_count: number, 
 /**
- * The step this one was applied on top of. `None` for a root, or for an audit row.
+ * The step this one happened on top of. `None` for a root, or once retention has
+ * dropped the ancestor it pointed at.
  */
 parent_id: number | null, 
 /**
