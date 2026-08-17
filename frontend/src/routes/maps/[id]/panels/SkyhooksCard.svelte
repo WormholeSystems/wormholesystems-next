@@ -15,6 +15,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { findRoutes, jumpTone } from '$lib/routing/algorithm';
@@ -207,28 +208,31 @@
 			</span>
 			{#snippet actions()}
 				{@render layoutActions?.()}
-				<ToggleGroup.Root
-					type="single"
-					size="sm"
-					variant="outline"
+				<!-- Tabs rather than a toggle group: the choice is exclusive, and a toggle's
+				     "on" background is the same colour as its hover, so the selected one was
+				     only distinguishable by accident. The line variant marks it with an
+				     underline as well as full-strength text. -->
+				<Tabs.Root
 					value={kind}
 					onValueChange={(v) => v && (kind = v as PlanetKind)}
+					class="w-fit"
 					data-testid="skyhook-kinds"
 				>
-					{#each choices as choice (choice.key)}
-						<ToggleGroup.Item
-							value={choice.key}
-							aria-label="Show {choice.label}"
-							class="h-6 px-1.5 text-[10px]"
-							data-testid="skyhook-kind-{choice.key}"
-						>
-							{choice.label}
-							{#if counts[choice.key] > 0}
-								<span class="ml-1 font-mono text-amber-400">{counts[choice.key]}</span>
-							{/if}
-						</ToggleGroup.Item>
-					{/each}
-				</ToggleGroup.Root>
+					<Tabs.List variant="line" class="h-6">
+						{#each choices as choice (choice.key)}
+							<Tabs.Trigger
+								value={choice.key}
+								class="px-1 text-[10px]"
+								data-testid="skyhook-kind-{choice.key}"
+							>
+								{choice.label}
+								{#if counts[choice.key] > 0}
+									<span class="font-mono text-amber-400">{counts[choice.key]}</span>
+								{/if}
+							</Tabs.Trigger>
+						{/each}
+					</Tabs.List>
+				</Tabs.Root>
 				<ToggleGroup.Root
 					type="multiple"
 					size="sm"
