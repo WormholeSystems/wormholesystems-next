@@ -138,6 +138,13 @@ fn map_view_round_trips() {
             description: None,
             image_url: None,
             created_at: ts(),
+            naming: vector::maps::map::MapNaming {
+                alias_scheme: "numeric".into(),
+                ignored_alias: "HOME".into(),
+                bookmark_wormhole: "{alias} {sig} {class}".into(),
+                bookmark_kspace: "{alias} {class} {sig} {name} {region}".into(),
+                bookmark_return: "*{alias} {sig} {class}".into(),
+            },
         },
         role: vector::maps::Role::Member,
         character_has_access: true,

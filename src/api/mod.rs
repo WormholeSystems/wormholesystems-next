@@ -96,6 +96,12 @@ pub struct MapUserSettings {
     /// Worst wormhole mass still routed through: `stable` / `reduced` / `critical`.
     pub route_allow_mass_status: String,
     pub route_use_evescout: bool,
+    /// Ask which signature was jumped, rather than mapping the hole unlinked.
+    pub prompt_for_signature: bool,
+    /// Prefill the jump dialog's alias from the chain's naming scheme.
+    pub suggest_alias: bool,
+    /// Put the new connection's bookmark on the clipboard once the jump is mapped.
+    pub copy_bookmark: bool,
     /// Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
     /// its saved position, so unhiding puts it back where it was.
     pub hidden_panels: Vec<String>,
@@ -210,6 +216,15 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub route_use_evescout: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub prompt_for_signature: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub suggest_alias: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub copy_bookmark: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
     pub hidden_panels: Option<Vec<String>>,

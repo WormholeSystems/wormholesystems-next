@@ -22,6 +22,18 @@ route_allow_time_status: string,
  */
 route_allow_mass_status: string, route_use_evescout: boolean, 
 /**
+ * Ask which signature was jumped, rather than mapping the hole unlinked.
+ */
+prompt_for_signature: boolean, 
+/**
+ * Prefill the jump dialog's alias from the chain's naming scheme.
+ */
+suggest_alias: boolean, 
+/**
+ * Put the new connection's bookmark on the clipboard once the jump is mapped.
+ */
+copy_bookmark: boolean, 
+/**
  * Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
  * its saved position, so unhiding puts it back where it was.
  */

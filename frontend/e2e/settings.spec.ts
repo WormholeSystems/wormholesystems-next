@@ -60,3 +60,29 @@ test('a viewer sees the roles but cannot change them', async ({ page, api }) => 
 	await expect(viewerPage.getByTestId('map-name-input')).toBeDisabled();
 	await ctx.close();
 });
+
+test('chain naming previews as you type and survives a reload', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Naming');
+	await gotoApp(page, `/maps/${mapId}/settings`);
+
+	// The defaults are legacy's, so an untouched map already names things sensibly.
+	await expect(page.getByTestId('alias-preview')).toHaveText('1, 2, 3, 11');
+	await expect(page.getByTestId('bookmark_wormhole-preview')).toHaveText('1a ABC C5');
+	await expect(page.getByTestId('bookmark_kspace-preview')).toHaveText('1b HS ABC Jita The Forge');
+
+	// Alphabetical skips H, L, N and P, which belong to the k-space exits.
+	await page.getByTestId('alias-scheme').getByText('Alphabetical').click();
+	await expect(page.getByTestId('alias-preview')).toHaveText('A, B, C, AA');
+
+	await page.getByTestId('bookmark_wormhole').fill('{alias} {sig} {class} {wh} {life}');
+	await expect(page.getByTestId('bookmark_wormhole-preview')).toHaveText('1a ABC C5 H296 EOL');
+
+	await page.getByTestId('save-naming').click();
+	await expect(page.getByTestId('save-naming')).toBeDisabled();
+
+	await page.reload();
+	await expect(page.getByTestId('bookmark_wormhole')).toHaveValue(
+		'{alias} {sig} {class} {wh} {life}'
+	);
+	await expect(page.getByTestId('alias-preview')).toHaveText('A, B, C, AA');
+});

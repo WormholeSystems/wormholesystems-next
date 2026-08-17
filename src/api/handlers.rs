@@ -811,7 +811,8 @@ pub async fn map_user_settings(
     let row = sqlx::query!(
         "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first,
                 route_preference, security_penalty, route_allow_time_status,
-                route_allow_mass_status, route_use_evescout, hidden_panels, layout_breakpoints
+                route_allow_mass_status, route_use_evescout, prompt_for_signature,
+                suggest_alias, copy_bookmark, hidden_panels, layout_breakpoints
          from map_user_settings where map_id = $1 and user_id = $2",
         map_id,
         actor.user_id,
@@ -829,6 +830,9 @@ pub async fn map_user_settings(
             route_allow_time_status: r.route_allow_time_status,
             route_allow_mass_status: r.route_allow_mass_status,
             route_use_evescout: r.route_use_evescout,
+            prompt_for_signature: r.prompt_for_signature,
+            suggest_alias: r.suggest_alias,
+            copy_bookmark: r.copy_bookmark,
             hidden_panels: r.hidden_panels,
             layout_breakpoints: r
                 .layout_breakpoints
@@ -846,6 +850,9 @@ pub async fn map_user_settings(
             route_allow_time_status: "critical".into(),
             route_allow_mass_status: "reduced".into(),
             route_use_evescout: false,
+            prompt_for_signature: true,
+            suggest_alias: true,
+            copy_bookmark: false,
             hidden_panels: Vec::new(),
             layout_breakpoints: None,
         },
@@ -905,12 +912,14 @@ pub async fn update_map_user_settings(
              (map_id, user_id, tracking_allowed, show_threat_level,
               compact_signature_list, show_statics_first,
               route_preference, security_penalty, route_allow_time_status,
-              route_allow_mass_status, route_use_evescout, hidden_panels, layout_breakpoints)
+              route_allow_mass_status, route_use_evescout, prompt_for_signature,
+              suggest_alias, copy_bookmark, hidden_panels, layout_breakpoints)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
                  coalesce($10, 'reduced'), coalesce($11, false),
-                 coalesce($12, '{}'::text[]), $13)
+                 coalesce($12, true), coalesce($13, true), coalesce($14, false),
+                 coalesce($15, '{}'::text[]), $16)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -921,12 +930,16 @@ pub async fn update_map_user_settings(
              route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),
              route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),
              route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),
-             hidden_panels = coalesce($12, map_user_settings.hidden_panels),
-             layout_breakpoints = coalesce($13, map_user_settings.layout_breakpoints),
+             prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),
+             suggest_alias = coalesce($13, map_user_settings.suggest_alias),
+             copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),
+             hidden_panels = coalesce($15, map_user_settings.hidden_panels),
+             layout_breakpoints = coalesce($16, map_user_settings.layout_breakpoints),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
                    route_allow_time_status, route_allow_mass_status, route_use_evescout,
+                   prompt_for_signature, suggest_alias, copy_bookmark,
                    hidden_panels, layout_breakpoints",
         map_id,
         actor.user_id,
@@ -939,6 +952,9 @@ pub async fn update_map_user_settings(
         body.route_allow_time_status,
         body.route_allow_mass_status,
         body.route_use_evescout,
+        body.prompt_for_signature,
+        body.suggest_alias,
+        body.copy_bookmark,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
     )
@@ -954,6 +970,9 @@ pub async fn update_map_user_settings(
         route_allow_time_status: row.route_allow_time_status,
         route_allow_mass_status: row.route_allow_mass_status,
         route_use_evescout: row.route_use_evescout,
+        prompt_for_signature: row.prompt_for_signature,
+        suggest_alias: row.suggest_alias,
+        copy_bookmark: row.copy_bookmark,
         hidden_panels: row.hidden_panels,
         layout_breakpoints: row
             .layout_breakpoints

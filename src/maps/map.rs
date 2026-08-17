@@ -26,6 +26,70 @@ pub struct Map {
     pub description: Option<String>,
     pub image_url: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub naming: MapNaming,
+}
+
+/// How a map names its chain. Map-wide rather than per-user, because an alias is written
+/// on the map for everyone and a bookmark folder in three conventions is unreadable.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct MapNaming {
+    /// `numeric` (`1`, `11`, `12`) or `alphabetical` (`A`, `AB`, with `H/L/N/P` reserved
+    /// for k-space exits).
+    pub alias_scheme: String,
+    /// The alias that sits outside the chain, e.g. `HOME`.
+    pub ignored_alias: String,
+    pub bookmark_wormhole: String,
+    pub bookmark_kspace: String,
+    pub bookmark_return: String,
+}
+
+pub const ALIAS_SCHEMES: [&str; 2] = ["numeric", "alphabetical"];
+
+impl MapNaming {
+    pub fn validate(&self) -> Result<()> {
+        if !ALIAS_SCHEMES.contains(&self.alias_scheme.as_str()) {
+            return Err(MapError::Validation(format!(
+                "unknown alias scheme {}",
+                self.alias_scheme
+            )));
+        }
+        // A blank format renders as an empty bookmark name, which the game silently
+        // replaces with a generic one and the whole convention is lost.
+        for (label, format) in [
+            ("wormhole", &self.bookmark_wormhole),
+            ("k-space", &self.bookmark_kspace),
+            ("return", &self.bookmark_return),
+        ] {
+            if format.trim().is_empty() {
+                return Err(MapError::Validation(format!(
+                    "the {label} bookmark format must not be blank"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A row selected with the map columns, assembled into the nested shape the client sees.
+macro_rules! map_from_row {
+    ($row:expr) => {{
+        let row = $row;
+        Map {
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            image_url: row.image_url,
+            created_at: row.created_at,
+            naming: MapNaming {
+                alias_scheme: row.alias_scheme,
+                ignored_alias: row.ignored_alias,
+                bookmark_wormhole: row.bookmark_wormhole,
+                bookmark_kspace: row.bookmark_kspace,
+                bookmark_return: row.bookmark_return,
+            },
+        }
+    }};
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -53,15 +117,17 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     }
 
     let mut tx = pool.begin().await?;
-    let map = sqlx::query_as!(
-        Map,
-        "insert into maps (name, description) values ($1, $2)
-         returning id, name, description, image_url, created_at",
-        cmd.name.trim(),
-        cmd.description.as_deref(),
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let map = map_from_row!(
+        sqlx::query!(
+            "insert into maps (name, description) values ($1, $2)
+             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 bookmark_wormhole, bookmark_kspace, bookmark_return",
+            cmd.name.trim(),
+            cmd.description.as_deref(),
+        )
+        .fetch_one(&mut *tx)
+        .await?
+    );
     sqlx::query!(
         "insert into map_access (map_id, subject_type, subject_id, role)
          values ($1, $2, $3, $4)",
@@ -91,6 +157,11 @@ pub struct UpdateMap {
     #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub image_url: Option<Option<String>>,
+    /// All-or-nothing: the naming block is edited as one form, so a partial payload here
+    /// would only ever mean a half-saved form.
+    #[serde(default)]
+    #[ts(optional)]
+    pub naming: Option<MapNaming>,
 }
 
 impl UpdateMap {
@@ -99,6 +170,9 @@ impl UpdateMap {
             && name.trim().is_empty()
         {
             return Err(MapError::Validation("name must not be blank".into()));
+        }
+        if let Some(naming) = &self.naming {
+            naming.validate()?;
         }
         Ok(())
     }
@@ -110,14 +184,16 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
 
     let mut tx = pool.begin().await?;
-    let current = sqlx::query_as!(
-        Map,
-        "select id, name, description, image_url, created_at from maps where id = $1",
-        cmd.map_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(MapError::NotFound)?;
+    let current = map_from_row!(
+        sqlx::query!(
+            "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 bookmark_wormhole, bookmark_kspace, bookmark_return from maps where id = $1",
+            cmd.map_id,
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(MapError::NotFound)?
+    );
 
     let name = match cmd.name {
         Some(name) => name.trim().to_string(),
@@ -125,18 +201,29 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     };
     let description = cmd.description.unwrap_or(current.description);
     let image_url = cmd.image_url.unwrap_or(current.image_url);
+    let naming = cmd.naming.unwrap_or(current.naming);
 
-    let map = sqlx::query_as!(
-        Map,
-        "update maps set name = $1, description = $2, image_url = $3 where id = $4
-         returning id, name, description, image_url, created_at",
-        name,
-        description,
-        image_url,
-        cmd.map_id,
-    )
-    .fetch_one(&mut *tx)
-    .await?;
+    let map = map_from_row!(
+        sqlx::query!(
+            "update maps set name = $1, description = $2, image_url = $3,
+                    alias_scheme = $5, ignored_alias = $6, bookmark_wormhole = $7,
+                    bookmark_kspace = $8, bookmark_return = $9
+             where id = $4
+             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 bookmark_wormhole, bookmark_kspace, bookmark_return",
+            name,
+            description,
+            image_url,
+            cmd.map_id,
+            naming.alias_scheme,
+            naming.ignored_alias,
+            naming.bookmark_wormhole,
+            naming.bookmark_kspace,
+            naming.bookmark_return,
+        )
+        .fetch_one(&mut *tx)
+        .await?
+    );
     tx.commit().await?;
     Ok(map)
 }
@@ -160,7 +247,9 @@ pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<(
 /// Every map the user can access, paired with their effective role on it.
 pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> {
     let rows = sqlx::query!(
-        r#"select m.id, m.name, m.description, m.image_url, m.created_at, ma.role as "role!: Role"
+        r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,
+                  m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
+                  ma.role as "role!: Role"
            from maps m
            join map_access ma on ma.map_id = m.id
            where ma.subject_id in (
@@ -180,16 +269,11 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
     // highest role per map.
     let mut out: Vec<(Map, Role)> = Vec::new();
     for r in rows {
-        let map = Map {
-            id: r.id,
-            name: r.name,
-            description: r.description,
-            image_url: r.image_url,
-            created_at: r.created_at,
-        };
+        let role = r.role;
+        let map = map_from_row!(r);
         match out.iter_mut().find(|(m, _)| m.id == map.id) {
-            Some((_, role)) => *role = (*role).max(r.role),
-            None => out.push((map, r.role)),
+            Some((_, existing)) => *existing = (*existing).max(role),
+            None => out.push((map, role)),
         }
     }
     Ok(out)
@@ -206,14 +290,16 @@ pub struct GetMap {
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
     let role = require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
 
-    let map = sqlx::query_as!(
-        Map,
-        "select id, name, description, image_url, created_at from maps where id = $1",
-        cmd.map_id,
-    )
-    .fetch_optional(pool)
-    .await?
-    .ok_or(MapError::NotFound)?;
+    let map = map_from_row!(
+        sqlx::query!(
+            "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 bookmark_wormhole, bookmark_kspace, bookmark_return from maps where id = $1",
+            cmd.map_id,
+        )
+        .fetch_optional(pool)
+        .await?
+        .ok_or(MapError::NotFound)?
+    );
 
     // Statics are 1-to-many, so fetch them in one query for the whole map and group by
     // system rather than joining (which would multiply the system rows).

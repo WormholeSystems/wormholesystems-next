@@ -24,6 +24,7 @@
 	import { historyRows } from './history-tree';
 	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
+	import TrackingSettings from './TrackingSettings.svelte';
 
 	let { map }: { map: MapState } = $props();
 
@@ -248,6 +249,7 @@
 			'tracking_allowed',
 			'tracking-toggle'
 		)}
+		<TrackingSettings {map} />
 		{@render toggle(
 			'Threat rings',
 			map.userSettings.show_threat_level,

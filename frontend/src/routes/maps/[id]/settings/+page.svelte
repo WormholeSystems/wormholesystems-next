@@ -11,12 +11,14 @@
 	import { api } from '$lib/api/client';
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { AccessSubject } from '$lib/api/types/AccessSubject';
+	import type { MapNaming } from '$lib/api/types/MapNaming';
 	import type { MapView } from '$lib/api/types/MapView';
 	import type { Role } from '$lib/api/types/Role';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import EveImage from '$lib/components/EveImage.svelte';
+	import NamingCard from './NamingCard.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { cn } from '$lib/utils';
@@ -89,6 +91,10 @@
 		act(api.updateMap({ map_id: mapId, name: next }));
 	}
 
+	function saveNaming(naming: MapNaming) {
+		act(api.updateMap({ map_id: mapId, naming }));
+	}
+
 	function grant() {
 		// A pasted id has no cached name; grant it as a character and let the next load
 		// resolve whatever it turns out to be.
@@ -159,6 +165,10 @@
 			</div>
 		</Card.Content>
 	</Card.Root>
+
+	{#if view}
+		<NamingCard naming={view.map.naming} disabled={!canManage} onsave={saveNaming} />
+	{/if}
 
 	<Card.Root>
 		<Card.Header>
