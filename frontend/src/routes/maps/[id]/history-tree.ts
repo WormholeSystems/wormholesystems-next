@@ -1,15 +1,15 @@
 // Laying the history tree out as a list of rows.
 //
-// The path the map is currently on is the trunk and stays at depth 0 however long it gets,
-// so an ordinary linear history reads as a plain list. Only a real fork indents, and only
-// the side that was abandoned, which keeps a stray undo visible without pushing everything
-// that follows it sideways.
+// Indentation tracks divergence, not the cursor: a step with a single child carries straight
+// on at the same depth whether or not the map is currently sitting on it, so rewinding to an
+// earlier point leaves the line straight instead of stepping every later change sideways.
+// Only a step with more than one child forks, and then just the sides that were not taken.
 
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 
 export interface HistoryRow {
 	entry: MapEventEntry;
-	/** Indent level. 0 is the trunk; each abandoned fork adds one. */
+	/** Indent level. 0 is the main line; each fork not taken adds one. */
 	depth: number;
 	/** Whether the rail carries on below this row, or stops at its dot. */
 	continues: boolean;
@@ -39,22 +39,24 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 	const rows: HistoryRow[] = [];
 	const walk = (parent: number | null, depth: number) => {
 		const children = byParent.get(parent) ?? [];
-		// At most one child carries on the path the map is on; it keeps the trunk's depth.
-		const trunk = children.find((c) => c.is_step && c.applied);
-		for (const child of children) {
-			if (child === trunk) continue;
-			if (!child.is_step) {
-				// A background change is an annotation on the chain, not a branch off it.
-				rows.push({ entry: child, depth, continues: true });
-				continue;
-			}
-			rows.push({ entry: child, depth: depth + 1, continues: true });
-			walk(child.id, depth + 1);
+		// A background change is an annotation on the line, not a fork off it.
+		for (const note of children.filter((c) => !c.is_step)) {
+			rows.push({ entry: note, depth, continues: true });
 		}
-		if (trunk) {
-			rows.push({ entry: trunk, depth, continues: true });
-			walk(trunk.id, depth);
+
+		const steps = children.filter((c) => c.is_step);
+		if (steps.length === 0) return;
+		// One child always carries the line on at this depth. Prefer the one the map is on,
+		// so the current path stays straight; with the cursor rewound past all of them,
+		// prefer the newest, so the line people last worked on is the one that stays straight.
+		const main = steps.find((c) => c.applied) ?? steps[steps.length - 1];
+		for (const step of steps) {
+			if (step === main) continue;
+			rows.push({ entry: step, depth: depth + 1, continues: true });
+			walk(step.id, depth + 1);
 		}
+		rows.push({ entry: main, depth, continues: true });
+		walk(main.id, depth);
 	};
 	walk(null, 0);
 

@@ -116,6 +116,37 @@ test('a change after an undo branches, and the branch can be re-entered', async 
 	await expect(amarr).toHaveCount(0);
 });
 
+test('rewinding a straight history keeps it straight', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Straight');
+	const add = (sys: number, x: number) =>
+		api.post(`/api/maps/${mapId}/systems/add`, {
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+		});
+	await add(J122515, 200);
+	await add(JITA, 500);
+	await add(AMARR, 800);
+	await gotoApp(page, `/maps/${mapId}`);
+
+	// Step back to the very first change. Nothing has diverged, so nothing should indent:
+	// the later steps are simply ahead of where the map is sitting.
+	await page.getByTestId('undo-button').click();
+	await expect(page.getByTestId('system-node')).toHaveCount(2);
+	await page.getByTestId('undo-button').click();
+	await expect(page.getByTestId('system-node')).toHaveCount(1);
+
+	await page.getByTestId('history-button').click();
+	const rows = page.getByTestId('history-row');
+	await expect(rows).toHaveCount(3);
+	for (const depth of await rows.evaluateAll((els) =>
+		els.map((e) => e.getAttribute('data-depth'))
+	)) {
+		expect(depth).toBe('0');
+	}
+	// The ones ahead of the cursor are still marked as not in effect.
+	await expect(rows.filter({ hasText: 'Amarr' })).toHaveAttribute('data-applied', 'false');
+	await expect(rows.filter({ hasText: 'J122515' })).toHaveAttribute('data-applied', 'true');
+});
+
 test('history lists what happened and who did it', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E History');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
