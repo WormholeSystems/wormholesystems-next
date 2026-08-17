@@ -138,13 +138,14 @@ pub struct LayoutItem {
 
 /// Panels the layout may refer to. The server keeps its own copy so a bad payload is a
 /// 400 rather than a page that renders a tile nothing knows how to draw.
-pub const PANEL_IDS: [&str; 6] = [
+pub const PANEL_IDS: [&str; 7] = [
     "map",
     "navigation",
     "system-info",
     "threat",
     "signatures",
     "notes",
+    "characters",
 ];
 const BREAKPOINT_KEYS: [&str; 4] = ["xs", "sm", "md", "lg"];
 
@@ -292,7 +293,8 @@ pub struct SignatureCatalog {
     pub types: Vec<SignatureTypeInfo>,
 }
 
-/// An online, tracked character on the map (presence), for the node pilot rows.
+/// An online, tracked character on the map (presence), for the node pilot rows and the
+/// pilots card.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct MapCharacter {
@@ -301,8 +303,16 @@ pub struct MapCharacter {
     pub corporation_ticker: String,
     pub solar_system_id: Option<i64>,
     pub ship_type_id: Option<i64>,
+    /// The name the pilot gave the hull, which is not the hull's type.
     pub ship_name: Option<String>,
     pub ship_type: Option<String>,
+    /// The hull's inventory group, so the client can tell a covert-ops scanner from a
+    /// combat ship without shipping a table of hull names.
+    pub ship_group_id: Option<i64>,
+    /// Docked in a station or structure: on the map, but not on grid.
+    pub is_docked: bool,
+    /// One of the viewer's own characters, so their alts can be told apart at a glance.
+    pub is_mine: bool,
 }
 
 /// One organisation in a system's threat top list.

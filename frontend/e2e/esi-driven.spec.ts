@@ -4,7 +4,9 @@ import {
 	grantAccess,
 	grantLocationScopes,
 	setCharacterOnline,
-	setCharacterPresence
+	markUserActive,
+	setCharacterPresence,
+	withDb
 } from './db';
 
 // Everything that needs the API's own ESI poller to run: Tranquility's status, the gate it
@@ -20,6 +22,7 @@ import {
 const STUB = 'http://127.0.0.1:3999';
 const J122515 = 31001882;
 const J005482 = 31002515;
+const JITA = 30000142;
 
 type Playwright = typeof import('@playwright/test');
 type Api = import('@playwright/test').APIRequestContext;
@@ -241,9 +244,9 @@ async function createMap(api: Api, name: string) {
 	return (await res.json()).id as number;
 }
 
-async function addSystem(api: Api, mapId: number, solarSystemId: number) {
+async function addSystem(api: Api, mapId: number, solarSystemId: number, x = 200) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null }
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -265,13 +268,71 @@ async function graph(api: Api, mapId: number) {
 	};
 }
 
+test('a pilot moving shows up on everyone else\u2019s map, not just their own', async ({
+	api,
+	browser,
+	playwright
+}) => {
+	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
+
+	const mapId = await createMap(api, 'E2E PilotsLive');
+	await addSystem(api, mapId, J122515);
+	await addSystem(api, mapId, JITA, 500);
+
+	// The pilot who flies, and a second member who is only watching.
+	const flyer = await createIdentity(15);
+	await grantAccess(mapId, flyer.characterId, 'member');
+	await grantLocationScopes(flyer.characterId);
+	await setCharacterOnline(flyer.characterId);
+	await withDb((db) =>
+		db.query(
+			`insert into map_user_settings (map_id, user_id, tracking_allowed) values ($1, $2, true)
+			 on conflict (map_id, user_id) do update set tracking_allowed = true`,
+			[mapId, flyer.userId]
+		)
+	);
+	await stubPilot(playwright, flyer.characterId, { online: true, solar_system_id: J122515 });
+	// The flyer has their own tab open somewhere; without recent activity the poller would
+	// rightly ignore them and there would be nothing to broadcast.
+	await markUserActive(flyer.userId);
+
+	const watcher = await createIdentity(16);
+	await grantAccess(mapId, watcher.characterId, 'member');
+	const ctx = await browser.newContext();
+	await ctx.addCookies([
+		{ name: 'vector_session', value: watcher.session, domain: 'localhost', path: '/' }
+	]);
+	const page = await ctx.newPage();
+
+	try {
+		await page.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);
+		await page.waitForSelector('html[data-hydrated="true"]');
+		await page.waitForSelector('[data-testid="panel-grid"]');
+
+		const row = page.getByTestId('characters-card').getByTestId('pilot-row');
+		// The pilot appears as soon as they are known to be online; where they are follows
+		// on the next location poll, so the location needs its own wait.
+		await expect(row).toHaveCount(1, { timeout: 25_000 });
+		await expect(row).toContainText('J122515', { timeout: 25_000 });
+
+		// The watcher never touches their own tab. The pilot's move reaches them over the
+		// map socket, which is the whole point of the map-wide presence event.
+		await stubPilot(playwright, flyer.characterId, { online: true, solar_system_id: JITA });
+		await expect(row).toContainText('Jita', { timeout: 25_000 });
+	} finally {
+		await stubPilot(playwright, flyer.characterId, { online: false });
+		await setCharacterPresence(flyer.characterId, JITA, false);
+		await ctx.close();
+	}
+});
+
 test('the poller drives the whole jump, from ESI to the prompt', async ({
 	api,
 	browser,
 	playwright
 }) => {
 	const mapId = await createMap(api, 'E2E TrackingLive');
-	await addSystem(api, mapId, J122515, null);
+	await addSystem(api, mapId, J122515);
 
 	const identity = await createIdentity(12);
 	await grantAccess(mapId, identity.characterId, 'member');

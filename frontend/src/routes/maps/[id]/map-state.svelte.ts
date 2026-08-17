@@ -123,6 +123,10 @@ export class MapState {
 	routeFromId = $state<number | null>(null);
 	routeToId = $state<number | null>(null);
 	routePath = $state<number[]>([]);
+	// A row hovered in a side panel: the node it names lights up, and its route temporarily
+	// replaces the pinned A→B highlight. Owned here so any card can point at the map.
+	hoveredSystemId = $state<number | null>(null);
+	hoverPath = $state<number[] | null>(null);
 	// Systems the router steers around (per map, persisted locally).
 	ignoredSystems = $state<Set<number>>(new Set());
 	// The static routing data, fetched once and shared: the navigation card plans routes

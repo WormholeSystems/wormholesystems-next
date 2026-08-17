@@ -263,6 +263,16 @@ export function findRoutes(
 	return out;
 }
 
+/**
+ * The colour a jump count is shown in: green is next door, amber is a trip, red is far.
+ * Shared so the watchlist and the pilots card cannot drift apart on what "close" means.
+ */
+export function jumpTone(jumps: number): string {
+	if (jumps < 8) return 'text-green-400';
+	if (jumps < 15) return 'text-amber-400';
+	return 'text-red-400';
+}
+
 export interface ClosestSystem {
 	id: number;
 	jumps: number;

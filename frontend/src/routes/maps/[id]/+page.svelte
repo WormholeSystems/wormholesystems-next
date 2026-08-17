@@ -135,7 +135,12 @@
 		window.addEventListener('focus', observe);
 		const closeWs = openMapSocket(
 			s.mapId,
-			() => s.refetch(),
+			(event) => {
+				// Pilot movement is its own event so a busy chain does not refetch the whole
+				// graph every five seconds just because someone is flying.
+				if (event?.type === 'characters_changed') s.fetchCharacters();
+				else s.refetch();
+			},
 			(state) => (s.socket = state)
 		);
 		return () => {
@@ -674,6 +679,7 @@
 				node={s}
 				nodeH={map.nodeH}
 				selected={map.selected.has(s.id)}
+				highlighted={map.hoveredSystemId === s.id}
 				pos={map.positions.get(s.id) ?? { x: 0, y: 0 }}
 				sigCounts={sigCountsBySystem.get(s.solar_system_id) ?? {
 					total: 0,

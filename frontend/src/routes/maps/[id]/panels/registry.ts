@@ -9,7 +9,14 @@
 
 import { type GridItem, bottom, compact } from '$lib/layout/grid';
 
-export type PanelId = 'map' | 'navigation' | 'system-info' | 'threat' | 'signatures' | 'notes';
+export type PanelId =
+	| 'map'
+	| 'navigation'
+	| 'system-info'
+	| 'threat'
+	| 'signatures'
+	| 'notes'
+	| 'characters';
 
 export interface PanelMeta {
 	id: PanelId;
@@ -70,6 +77,14 @@ export const PANELS: PanelMeta[] = [
 		minW: 2,
 		minH: 2,
 		removable: true
+	},
+	{
+		id: 'characters',
+		label: 'Pilots',
+		description: 'Everyone sharing their location on this map, and how far away they are.',
+		minW: 2,
+		minH: 3,
+		removable: true
 	}
 ];
 
@@ -126,7 +141,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('signatures', 0, 10, 1, 4),
 			item('navigation', 0, 14, 1, 4),
 			item('threat', 0, 18, 1, 3),
-			item('notes', 0, 21, 1, 2)
+			item('notes', 0, 21, 1, 2),
+			item('characters', 0, 23, 1, 3)
 		]
 	},
 	sm: {
@@ -138,7 +154,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('signatures', 1, 7, 1, 4),
 			item('navigation', 0, 10, 1, 4),
 			item('threat', 1, 11, 1, 3),
-			item('notes', 0, 14, 2, 2)
+			item('notes', 0, 14, 2, 2),
+			item('characters', 0, 16, 2, 3)
 		]
 	},
 	md: {
@@ -150,7 +167,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('signatures', 2, 8, 2, 4),
 			item('navigation', 0, 11, 2, 4),
 			item('threat', 2, 12, 2, 3),
-			item('notes', 0, 15, 2, 2)
+			item('notes', 0, 15, 2, 2),
+			item('characters', 2, 15, 2, 3)
 		]
 	},
 	lg: {
@@ -162,7 +180,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('signatures', 7, 5, 3, 4),
 			item('system-info', 0, 9, 3, 3),
 			item('threat', 3, 9, 4, 3),
-			item('notes', 7, 9, 3, 3)
+			item('notes', 7, 9, 3, 3),
+			item('characters', 0, 12, 5, 3)
 		]
 	}
 };

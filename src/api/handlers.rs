@@ -1000,7 +1000,9 @@ pub async fn map_characters(
     }
     let rows = sqlx::query!(
         r#"select c.id as character_id, c.name, co.ticker as corporation_ticker,
-                  s.solar_system_id, s.ship_type_id, s.ship_name, t.name as "ship_type?"
+                  s.solar_system_id, s.ship_type_id, s.ship_name, t.name as "ship_type?",
+                  t.group_id as "ship_group_id?", s.is_docked as "is_docked!",
+                  (c.user_id = $2) as "is_mine!"
            from characters c
            join users u on u.id = c.user_id
            join map_user_settings mus
@@ -1030,6 +1032,7 @@ pub async fn map_characters(
                  )
            order by c.name"#,
         map_id,
+        actor.user_id,
     )
     .fetch_all(&state.db)
     .await?;
@@ -1043,6 +1046,9 @@ pub async fn map_characters(
                 ship_type_id: r.ship_type_id,
                 ship_name: r.ship_name,
                 ship_type: r.ship_type,
+                ship_group_id: r.ship_group_id,
+                is_docked: r.is_docked,
+                is_mine: r.is_mine,
             })
             .collect(),
     ))

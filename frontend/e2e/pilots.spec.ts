@@ -1,0 +1,154 @@
+import { expect, gotoApp, test } from './fixtures';
+import { createIdentity, grantAccess, setCharacterPresence, withDb } from './db';
+
+// The pilots card: who is sharing their location on this map, ordered by who can act, and
+// how far each of them is from where you are looking.
+
+const J122515 = 31001882; // C5
+const J005482 = 31002515; // C2
+const JITA = 30000142;
+
+const CAPSULE = 670;
+const MACHARIEL = 17738;
+const BUZZARD = 11192; // Covert Ops
+
+type Api = import('@playwright/test').APIRequestContext;
+
+async function createMap(api: Api, name: string) {
+	const res = await api.post('/api/maps', { data: { name } });
+	expect(res.ok()).toBe(true);
+	return (await res.json()).id as number;
+}
+
+async function addSystem(
+	api: Api,
+	mapId: number,
+	solarSystemId: number,
+	alias: string | null,
+	x = 200
+) {
+	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias }
+	});
+	expect(res.ok()).toBe(true);
+	return (await res.json()).id as number;
+}
+
+/** Another member of the map, sharing their location, flying a named hull. */
+async function addPilot(
+	api: Api,
+	mapId: number,
+	slot: number,
+	system: number,
+	ship: { typeId: number; docked?: boolean }
+) {
+	const identity = await createIdentity(slot);
+	await grantAccess(mapId, identity.characterId, 'member');
+	await setCharacterPresence(identity.characterId, system);
+	await withDb((db) =>
+		db.query(
+			`insert into map_user_settings (map_id, user_id, tracking_allowed) values ($1, $2, true)
+			 on conflict (map_id, user_id) do update set tracking_allowed = true`,
+			[mapId, identity.userId]
+		)
+	);
+	await withDb((db) =>
+		db.query(
+			`update character_status set ship_type_id = $2, ship_name = 'A ship',
+			     station_id = $3
+			 where character_id = $1`,
+			[identity.characterId, ship.typeId, ship.docked ? 60003760 : null]
+		)
+	);
+	return identity;
+}
+
+test('pilots are listed with the ones who can act first', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Pilots');
+	await addSystem(api, mapId, J122515, 'HOME');
+
+	await addPilot(api, mapId, 20, J122515, { typeId: CAPSULE });
+	await addPilot(api, mapId, 21, J122515, { typeId: MACHARIEL, docked: true });
+	await addPilot(api, mapId, 22, J122515, { typeId: BUZZARD });
+	await addPilot(api, mapId, 23, J122515, { typeId: MACHARIEL });
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	const card = page.getByTestId('characters-card');
+	await expect(card).toBeVisible();
+
+	// Ready first, then the scanner, then the docked pilot, then the pod.
+	await expect
+		.poll(async () => card.getByTestId('pilot-row').count(), { timeout: 10_000 })
+		.toBe(4);
+	const order = await card.getByTestId('pilot-row').evaluateAll((rows) =>
+		rows.map((r) => (r as HTMLElement).dataset.pilot)
+	);
+	expect(order).toEqual([
+		'E2E Extra 23', // flying something
+		'E2E Extra 22', // scanner
+		'E2E Extra 21', // docked
+		'E2E Extra 20' // pod
+	]);
+
+	// Nobody is hidden, and the ones who cannot act are dimmed rather than dropped.
+	const dimmed = await card.getByTestId('pilot-row').evaluateAll((rows) =>
+		rows.map((r) => (r as HTMLElement).className.includes('opacity-50'))
+	);
+	expect(dimmed).toEqual([false, false, true, true]);
+});
+
+test('distance is measured from the system you are looking at', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E PilotsDistance');
+	const home = await addSystem(api, mapId, J122515, 'HOME');
+	const next = await addSystem(api, mapId, J005482, '1', 500);
+	await api.post(`/api/maps/${mapId}/connections/add`, {
+		data: { map_id: mapId, from_system: home, to_system: next, kind: 'wormhole' }
+	});
+
+	await addPilot(api, mapId, 24, J005482, { typeId: MACHARIEL });
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	const row = page.getByTestId('characters-card').getByTestId('pilot-row');
+	await expect(row).toHaveCount(1);
+	// One wormhole away from the system in focus.
+	await expect(row.getByTestId('pilot-jumps')).toHaveText('1j', { timeout: 10_000 });
+
+	// Look at the pilot's own system and the same pilot is now zero jumps away, because the
+	// card measures from wherever the map is focused, like the watchlist does.
+	await page.getByTestId('system-node').filter({ hasText: 'J005482' }).click();
+	await expect(row.getByTestId('pilot-jumps')).toHaveText('0j');
+});
+
+test('a pilot outside the chain still shows where they are', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E PilotsOffMap');
+	await addSystem(api, mapId, J122515, 'HOME');
+	await addPilot(api, mapId, 25, JITA, { typeId: MACHARIEL });
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	const row = page.getByTestId('characters-card').getByTestId('pilot-row');
+	await expect(row).toHaveCount(1);
+	// Not a placement on the map, so it has to be resolved by name rather than looked up.
+	await expect(row).toContainText('Jita');
+});
+
+test('viewers do not get a pilot list at all', async ({ api, browser }) => {
+	const mapId = await createMap(api, 'E2E PilotsViewer');
+	await addSystem(api, mapId, J122515, 'HOME');
+	await addPilot(api, mapId, 26, J122515, { typeId: MACHARIEL });
+
+	const viewer = await createIdentity(27);
+	await grantAccess(mapId, viewer.characterId, 'viewer');
+	const ctx = await browser.newContext();
+	await ctx.addCookies([
+		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+	]);
+	const page = await ctx.newPage();
+	await page.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);
+	await page.waitForSelector('[data-testid="panel-grid"]');
+
+	// Presence is member-gated on the server, so the card is there but empty rather than
+	// leaking who is online.
+	await expect(page.getByTestId('characters-card')).toBeVisible();
+	await expect(page.getByTestId('pilots-empty')).toBeVisible();
+	await ctx.close();
+});

@@ -15,6 +15,7 @@
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import { cn } from '$lib/utils';
 	import NavigationCard from './NavigationCard.svelte';
+	import CharactersCard from './CharactersCard.svelte';
 	import NotesCard from './NotesCard.svelte';
 	import SystemInfoCard from './SystemInfoCard.svelte';
 	import ThreatCard from './ThreatCard.svelte';
@@ -82,7 +83,13 @@
 		live: GridItem[] | null;
 	} | null>(null);
 
-	const shown = $derived(gesture?.live ?? items);
+	// Rendered in a fixed order, never the engine's. Tiles are positioned with left/top, so
+	// DOM order buys nothing, and letting it follow the layout means every move reorders a
+	// keyed `each` — which detaches the focused tile and drops focus, so a second arrow key
+	// goes nowhere.
+	const shown = $derived(
+		[...(gesture?.live ?? items)].sort((a, b) => a.i.localeCompare(b.i))
+	);
 
 	/** Where the dragged tile will land, in grid units. */
 	const placeholder = $derived(
@@ -254,6 +261,8 @@
 				{:else}
 					{@render empty(item.i as PanelId, meta.label)}
 				{/if}
+			{:else if item.i === 'characters'}
+				<CharactersCard {map} />
 			{:else if item.i === 'notes'}
 				{#if map.activeSystem}
 					<NotesCard {map} system={map.activeSystem} />

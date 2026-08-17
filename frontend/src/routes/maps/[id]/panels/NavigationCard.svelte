@@ -40,6 +40,7 @@
 		findClosestSystems,
 		findRoute,
 		findRoutes,
+		jumpTone as badgeTone,
 		type DynamicEdge,
 		type RouteGraph,
 		type RouteResult,
@@ -96,10 +97,9 @@
 		return findRoute(graph, map.routeFromId, map.routeToId, routingSettings, map.ignoredSystems);
 	});
 	const abPath = $derived(abResult?.route.map((s) => s.id) ?? []);
-	// Watchlist-row hover temporarily overrides the pinned A→B highlight.
-	let hoverPath = $state<number[] | null>(null);
+	// A hovered row anywhere on the page temporarily overrides the pinned A→B highlight.
 	$effect(() => {
-		map.routePath = hoverPath ?? abPath;
+		map.routePath = map.hoverPath ?? abPath;
 	});
 	const jumpTone = $derived.by(() => {
 		const j = abResult?.jumps ?? 0;
@@ -207,12 +207,6 @@
 			return cmp * dir;
 		});
 	});
-
-	function badgeTone(jumps: number): string {
-		if (jumps < 8) return 'text-green-400';
-		if (jumps < 15) return 'text-amber-400';
-		return 'text-red-400';
-	}
 
 	// --- add-to-watchlist search (header plus) ---
 	let addOpen = $state(false);
@@ -454,8 +448,8 @@
 					class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
 					data-testid="watchlist-row"
 					role="listitem"
-					onmouseenter={() => (hoverPath = route?.route.map((s) => s.id) ?? null)}
-					onmouseleave={() => (hoverPath = null)}
+					onmouseenter={() => (map.hoverPath = route?.route.map((s) => s.id) ?? null)}
+					onmouseleave={() => (map.hoverPath = null)}
 				>
 					{#if r}
 						<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
@@ -610,8 +604,8 @@
 								toggleFindRow(result.id);
 							}
 						}}
-						onmouseenter={() => (hoverPath = result.route.map((s) => s.id))}
-						onmouseleave={() => (hoverPath = null)}
+						onmouseenter={() => (map.hoverPath = result.route.map((s) => s.id))}
+						onmouseleave={() => (map.hoverPath = null)}
 					>
 						{#if r}
 							<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
@@ -651,8 +645,8 @@
 									class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
 									data-testid="find-station"
 									role="listitem"
-									onmouseenter={() => (hoverPath = result.route.map((step) => step.id))}
-									onmouseleave={() => (hoverPath = null)}
+									onmouseenter={() => (map.hoverPath = result.route.map((step) => step.id))}
+									onmouseleave={() => (map.hoverPath = null)}
 								>
 									<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
 									<span class="truncate" title={station.name}>{station.name}</span>

@@ -40,6 +40,7 @@
 		nodeH,
 		selected,
 		active = false,
+		highlighted = false,
 		pos,
 		sigCounts,
 		connectionCount,
@@ -55,6 +56,8 @@
 		nodeH: number;
 		selected: boolean;
 		active?: boolean;
+		/** Pointed at from a side panel row, so it can be found without reading labels. */
+		highlighted?: boolean;
 		pos: { x: number; y: number };
 		sigCounts: SigCounts;
 		connectionCount: number;
@@ -116,6 +119,7 @@
 		class="group/node absolute flex flex-col justify-center rounded border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm transition-colors duration-200
 			{selected ? 'bg-amber-100 dark:bg-amber-900' : ''}
 			{active ? 'z-10 ring-2 ring-amber-500 ring-offset-2 ring-offset-background' : ''}
+			{highlighted ? 'z-20 outline-2 outline-yellow-500' : ''}
 			{threatRing ? 'ring-2' : ''}
 			hover:z-20 hover:outline-2 hover:outline-yellow-500"
 		style:--tw-ring-color={threatRing ? `var(--color-threat-${threatRing})` : null}

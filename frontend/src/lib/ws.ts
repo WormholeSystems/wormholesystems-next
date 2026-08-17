@@ -1,3 +1,4 @@
+import type { MapEvent } from '$lib/api/types/MapEvent';
 import type { UserEvent } from '$lib/api/types/UserEvent';
 
 // Realtime sockets. Frames carry no payload we act on: each one only means "something
@@ -18,10 +19,13 @@ const MAX_RETRY_MS = 15_000;
  * Open the per-map event stream. `onEvent` fires per frame and once per successful
  * reconnect, since anything missed while the socket was down has to be picked up by a
  * refetch. Returns a close function that also stops the retry loop.
+ *
+ * The event is passed through so a caller can refetch only what changed; it is `null` on
+ * the reconnect catch-up, which means "you missed something, reload everything".
  */
 export function openMapSocket(
 	mapId: number,
-	onEvent: () => void,
+	onEvent: (event: MapEvent | null) => void,
 	onState?: (state: SocketState) => void
 ): () => void {
 	let ws: WebSocket | null = null;
@@ -42,10 +46,17 @@ export function openMapSocket(
 			onState?.('open');
 			if (reconnecting) {
 				reconnecting = false;
-				onEvent();
+				onEvent(null);
 			}
 		};
-		ws.onmessage = () => onEvent();
+		ws.onmessage = (frame) => {
+			try {
+				onEvent(JSON.parse(frame.data as string) as MapEvent);
+			} catch {
+				// Unreadable frame: fall back to a full refetch rather than ignoring it.
+				onEvent(null);
+			}
+		};
 		ws.onclose = () => {
 			if (closed) return;
 			reconnecting = true;

@@ -212,3 +212,12 @@ export async function setCharacterOnline(characterId: number) {
 		)
 	);
 }
+
+/**
+ * Mark a user as recently active, as their own open tab would via the socket heartbeat.
+ * The tracking poller ignores users who have not been seen in five minutes, so a pilot
+ * nobody is watching from is never polled.
+ */
+export async function markUserActive(userId: number) {
+	await withDb((db) => db.query('update users set last_active_at = now() where id = $1', [userId]));
+}

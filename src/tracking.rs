@@ -49,6 +49,7 @@ pub fn start(
         sso.clone(),
         esi.clone(),
         users.clone(),
+        maps.clone(),
         server.clone(),
     ));
     tokio::spawn(tier_two(pool, sso, esi, users, maps, server));
@@ -60,6 +61,7 @@ async fn tier_one(
     sso: Arc<Sso>,
     esi: EsiClient,
     users: UserHub,
+    maps: MapHub,
     server: ServerWatch,
 ) {
     let mut ticker = interval(Duration::from_secs(60));
@@ -74,7 +76,14 @@ async fn tier_one(
         match active_characters(&pool, false).await {
             Ok(due) => {
                 run_bounded(&due, CONCURRENCY, |d| {
-                    poll_online(pool.clone(), sso.clone(), esi.clone(), users.clone(), d)
+                    poll_online(
+                        pool.clone(),
+                        sso.clone(),
+                        esi.clone(),
+                        users.clone(),
+                        maps.clone(),
+                        d,
+                    )
                 })
                 .await
             }
@@ -183,7 +192,14 @@ where
 
 /// Poll one character's online state (tier 1). Errors (missing scope, ESI failure) skip the
 /// character — the next tick retries.
-async fn poll_online(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub, due: Due) {
+async fn poll_online(
+    pool: PgPool,
+    sso: Arc<Sso>,
+    esi: EsiClient,
+    users: UserHub,
+    maps: MapHub,
+    due: Due,
+) {
     let store = PgTokenStore::new(pool.clone());
     let Ok(token) = sso
         .access_token(&store, due.character_id, Scope::ReadOnline)
@@ -224,6 +240,7 @@ async fn poll_online(pool: PgPool, sso: Arc<Sso>, esi: EsiClient, users: UserHub
                 character_id: due.character_id,
             },
         );
+        announce_presence(&pool, &maps, due.user_id).await;
     }
 }
 
@@ -313,5 +330,26 @@ async fn poll_location_ship(
             due.user_id,
             UserEvent::CharacterStatusChanged { character_id: id },
         );
+        announce_presence(&pool, &maps, due.user_id).await;
+    }
+}
+
+/// Tell every map this user shares their position with that its pilot list moved.
+///
+/// The per-user ping above only reaches the pilot's own tabs. Without this, everyone else
+/// on the map sees a stale pilot list until the next presence poll, which is the gap the
+/// legacy app closed with a map-wide broadcast.
+async fn announce_presence(pool: &PgPool, maps: &MapHub, user_id: i64) {
+    let Ok(map_ids) = sqlx::query_scalar!(
+        "select map_id from map_user_settings where user_id = $1 and tracking_allowed",
+        user_id,
+    )
+    .fetch_all(pool)
+    .await
+    else {
+        return;
+    };
+    for map_id in map_ids {
+        maps.publish(crate::maps::MapEvent::CharactersChanged { map_id });
     }
 }
