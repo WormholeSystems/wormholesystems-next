@@ -145,6 +145,9 @@ create table map_user_settings (
     copy_bookmark           boolean not null default false,
     -- Which half of the chain the killmails card shows: all / jspace / kspace.
     killmail_filter         text not null default 'all',
+    -- Hides a finished chain from this user's map list without deleting it for everyone
+    -- else. Per-user because one group's dead chain is another's staging map.
+    is_archived             boolean not null default false,
     -- Panels this user hides, and the per-breakpoint tile positions. Null layout means
     -- "the built-in arrangement", so a map nobody has customised renders from defaults.
     hidden_panels           text[] not null default '{}',

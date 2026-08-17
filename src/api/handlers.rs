@@ -724,12 +724,55 @@ pub async fn threat_analysis(
 pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult<Vec<MapEntry>> {
     let actor = require_actor(&state.db, &jar).await?;
     let maps = crate::maps::map::list_maps(&state.db, actor.user_id).await?;
+    let ids: Vec<i64> = maps.iter().map(|(m, _)| m.id).collect();
+
+    // The counts in one pass rather than a query per card. Each is a scalar subquery so a
+    // map with nothing on it still comes back as a zero rather than falling out of a join.
+    let stats = sqlx::query!(
+        r#"select m.id,
+                  (select count(*) from map_solar_systems s where s.map_id = m.id)
+                      as "systems!",
+                  (select count(*) from map_connections c where c.map_id = m.id)
+                      as "connections!",
+                  (select count(*) from map_access a where a.map_id = m.id) as "members!",
+                  coalesce((select mus.is_archived from map_user_settings mus
+                             where mus.map_id = m.id and mus.user_id = $2), false)
+                      as "archived!",
+                  (select max(e.created_at) from map_events e where e.map_id = m.id)
+                      as "last_activity?",
+                  (select count(*)
+                     from map_user_settings mus
+                     join characters c on c.user_id = mus.user_id
+                     join character_status cs on cs.character_id = c.id and cs.online
+                     join map_solar_systems ms
+                          on ms.map_id = m.id and ms.solar_system_id = cs.solar_system_id
+                    where mus.map_id = m.id and mus.tracking_allowed) as "pilots!"
+           from maps m
+           where m.id = any($1)"#,
+        &ids,
+        actor.user_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let by_id: std::collections::HashMap<i64, _> = stats.into_iter().map(|r| (r.id, r)).collect();
     Ok(Json(
         maps.into_iter()
-            .map(|(m, role)| MapEntry {
-                id: m.id,
-                name: m.name,
-                role: role.as_str().to_string(),
+            .map(|(m, role)| {
+                let s = by_id.get(&m.id);
+                MapEntry {
+                    id: m.id,
+                    name: m.name,
+                    description: m.description,
+                    role: role.as_str().to_string(),
+                    system_count: s.map_or(0, |s| s.systems),
+                    connection_count: s.map_or(0, |s| s.connections),
+                    member_count: s.map_or(0, |s| s.members),
+                    pilots_online: s.map_or(0, |s| s.pilots),
+                    last_activity: s.and_then(|s| s.last_activity),
+                    is_archived: s.is_some_and(|s| s.archived),
+                    created_at: m.created_at,
+                }
             })
             .collect(),
     ))
@@ -739,6 +782,11 @@ pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult
 #[ts(export)]
 pub struct CreateMapBody {
     pub name: String,
+    /// What the map is for. Optional, and blank counts as absent rather than as an empty
+    /// description nobody meant to write.
+    #[serde(default)]
+    #[ts(optional)]
+    pub description: Option<String>,
 }
 
 /// `POST /api/maps` — create a map owned by the active character.
@@ -753,7 +801,7 @@ pub async fn create_map(
         actor,
         crate::maps::map::CreateMap {
             name: body.name,
-            description: None,
+            description: body.description.filter(|d| !d.trim().is_empty()),
         },
     )
     .await?;
@@ -812,7 +860,7 @@ pub async fn map_user_settings(
         "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first,
                 route_preference, security_penalty, route_allow_time_status,
                 route_allow_mass_status, route_use_evescout, prompt_for_signature,
-                suggest_alias, copy_bookmark, killmail_filter, hidden_panels,
+                suggest_alias, copy_bookmark, killmail_filter, is_archived, hidden_panels,
                 layout_breakpoints
          from map_user_settings where map_id = $1 and user_id = $2",
         map_id,
@@ -835,6 +883,7 @@ pub async fn map_user_settings(
             suggest_alias: r.suggest_alias,
             copy_bookmark: r.copy_bookmark,
             killmail_filter: r.killmail_filter,
+            is_archived: r.is_archived,
             hidden_panels: r.hidden_panels,
             layout_breakpoints: r
                 .layout_breakpoints
@@ -856,6 +905,7 @@ pub async fn map_user_settings(
             suggest_alias: true,
             copy_bookmark: false,
             killmail_filter: "all".into(),
+            is_archived: false,
             hidden_panels: Vec::new(),
             layout_breakpoints: None,
         },
@@ -916,14 +966,15 @@ pub async fn update_map_user_settings(
               compact_signature_list, show_statics_first,
               route_preference, security_penalty, route_allow_time_status,
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
-              suggest_alias, copy_bookmark, killmail_filter, hidden_panels,
+              suggest_alias, copy_bookmark, killmail_filter, is_archived, hidden_panels,
               layout_breakpoints)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
                  coalesce($10, 'reduced'), coalesce($11, false),
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
-                 coalesce($15, 'all'), coalesce($16, '{}'::text[]), $17)
+                 coalesce($15, 'all'), coalesce($16, false),
+                 coalesce($17, '{}'::text[]), $18)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -938,14 +989,15 @@ pub async fn update_map_user_settings(
              suggest_alias = coalesce($13, map_user_settings.suggest_alias),
              copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),
              killmail_filter = coalesce($15, map_user_settings.killmail_filter),
-             hidden_panels = coalesce($16, map_user_settings.hidden_panels),
-             layout_breakpoints = coalesce($17, map_user_settings.layout_breakpoints),
+             is_archived = coalesce($16, map_user_settings.is_archived),
+             hidden_panels = coalesce($17, map_user_settings.hidden_panels),
+             layout_breakpoints = coalesce($18, map_user_settings.layout_breakpoints),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
                    route_allow_time_status, route_allow_mass_status, route_use_evescout,
                    prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
-                   hidden_panels, layout_breakpoints",
+                   is_archived, hidden_panels, layout_breakpoints",
         map_id,
         actor.user_id,
         body.tracking_allowed,
@@ -961,6 +1013,7 @@ pub async fn update_map_user_settings(
         body.suggest_alias,
         body.copy_bookmark,
         body.killmail_filter,
+        body.is_archived,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
     )
@@ -980,6 +1033,7 @@ pub async fn update_map_user_settings(
         suggest_alias: row.suggest_alias,
         copy_bookmark: row.copy_bookmark,
         killmail_filter: row.killmail_filter,
+        is_archived: row.is_archived,
         hidden_panels: row.hidden_panels,
         layout_breakpoints: row
             .layout_breakpoints

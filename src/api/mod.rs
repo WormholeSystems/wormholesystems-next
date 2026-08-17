@@ -60,7 +60,23 @@ pub struct CharacterRef {
 pub struct MapEntry {
     pub id: i64,
     pub name: String,
+    #[ts(optional)]
+    pub description: Option<String>,
     pub role: String,
+    /// How big the chain is right now.
+    pub system_count: i64,
+    pub connection_count: i64,
+    /// How many people can see it, counting every grant however it was made.
+    pub member_count: i64,
+    /// Tracked pilots currently online in one of its systems, which is the difference
+    /// between a map being live and merely existing.
+    pub pilots_online: i64,
+    /// When the chain last changed. `None` for a map nobody has touched yet.
+    #[ts(optional)]
+    pub last_activity: Option<chrono::DateTime<chrono::Utc>>,
+    /// Hidden from this user's list. Per-user, so archiving does not touch anyone else.
+    pub is_archived: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// A solar system matched by the "add system" search, with just enough to display and pick.
@@ -104,6 +120,7 @@ pub struct MapUserSettings {
     pub copy_bookmark: bool,
     /// Which half of the chain the killmails card shows: `all` / `jspace` / `kspace`.
     pub killmail_filter: String,
+    pub is_archived: bool,
     /// Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
     /// its saved position, so unhiding puts it back where it was.
     pub hidden_panels: Vec<String>,
@@ -233,6 +250,9 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub killmail_filter: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub is_archived: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
     pub hidden_panels: Option<Vec<String>>,

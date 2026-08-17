@@ -150,7 +150,8 @@ export const api = {
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),
-	createMap: (name: string) => post<Map>('/api/maps', { name }),
+	createMap: (name: string, description?: string) =>
+		post<Map>('/api/maps', { name, description }),
 	deleteMap: (mapId: number) => del<null>(`/api/maps/${mapId}`),
 	fetchMap: (mapId: number) => get<MapView>(`/api/maps/${mapId}`),
 	listSignatures: (mapId: number) => get<Signature[]>(`/api/maps/${mapId}/signatures`),

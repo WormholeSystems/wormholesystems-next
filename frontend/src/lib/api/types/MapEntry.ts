@@ -3,4 +3,25 @@
 /**
  * A map in the user's list, with their role on it.
  */
-export type MapEntry = { id: number, name: string, role: string, };
+export type MapEntry = { id: number, name: string, description?: string, role: string, 
+/**
+ * How big the chain is right now.
+ */
+system_count: number, connection_count: number, 
+/**
+ * How many people can see it, counting every grant however it was made.
+ */
+member_count: number, 
+/**
+ * Tracked pilots currently online in one of its systems, which is the difference
+ * between a map being live and merely existing.
+ */
+pilots_online: number, 
+/**
+ * When the chain last changed. `None` for a map nobody has touched yet.
+ */
+last_activity?: string, 
+/**
+ * Hidden from this user's list. Per-user, so archiving does not touch anyone else.
+ */
+is_archived: boolean, created_at: string, };
