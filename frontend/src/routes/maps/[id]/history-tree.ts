@@ -13,6 +13,11 @@ export interface HistoryRow {
 	depth: number;
 	/** Whether the rail carries on below this row, or stops at its dot. */
 	continues: boolean;
+	/**
+	 * Whether this row starts its indent level, so it is the one that connects back to the
+	 * parent's rail. Rows below it on the same branch just carry their own line down.
+	 */
+	forks: boolean;
 }
 
 /**
@@ -41,7 +46,7 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 		const children = byParent.get(parent) ?? [];
 		// A background change is an annotation on the line, not a fork off it.
 		for (const note of children.filter((c) => !c.is_step)) {
-			rows.push({ entry: note, depth, continues: true });
+			rows.push({ entry: note, depth, continues: true, forks: false });
 		}
 
 		const steps = children.filter((c) => c.is_step);
@@ -52,10 +57,12 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 		const main = steps.find((c) => c.applied) ?? steps[steps.length - 1];
 		for (const step of steps) {
 			if (step === main) continue;
-			rows.push({ entry: step, depth: depth + 1, continues: true });
+			// Only this row hangs off the parent's rail; whatever follows it on the branch is
+			// reached by walking down from here, at the same depth.
+			rows.push({ entry: step, depth: depth + 1, continues: true, forks: true });
 			walk(step.id, depth + 1);
 		}
-		rows.push({ entry: main, depth, continues: true });
+		rows.push({ entry: main, depth, continues: true, forks: false });
 		walk(main.id, depth);
 	};
 	walk(null, 0);

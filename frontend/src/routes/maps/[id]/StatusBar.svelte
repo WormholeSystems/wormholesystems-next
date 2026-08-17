@@ -347,6 +347,7 @@
 								data-testid="history-row"
 								data-applied={entry.applied}
 								data-depth={row.depth}
+								data-forks={row.forks}
 								data-head={isHead}
 								disabled={!navigable}
 								title={entry.is_step
@@ -367,14 +368,22 @@
 									</span>
 								{/each}
 								<span class="relative w-4 shrink-0">
-									<span
-										class={cn(
-											'absolute left-1/2 w-px -translate-x-1/2 bg-foreground/25',
-											row.continues ? 'inset-y-0' : 'top-0 h-1/2'
-										)}
-									></span>
-									{#if row.depth > 0}
-										<span class="absolute top-1/2 right-1/2 h-px w-4 -translate-y-1/2 bg-foreground/25"
+									{#if row.forks}
+										<!-- The branch starts here: come out of the parent's rail and turn down. -->
+										<span
+											class="absolute top-1/2 right-1/2 h-px w-4 -translate-y-1/2 bg-foreground/25"
+										></span>
+										{#if row.continues}
+											<span
+												class="absolute top-1/2 bottom-0 left-1/2 w-px -translate-x-1/2 bg-foreground/25"
+											></span>
+										{/if}
+									{:else}
+										<span
+											class={cn(
+												'absolute left-1/2 w-px -translate-x-1/2 bg-foreground/25',
+												row.continues ? 'inset-y-0' : 'top-0 h-1/2'
+											)}
 										></span>
 									{/if}
 									<span

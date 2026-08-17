@@ -7,6 +7,7 @@ import { ageStaleConnections, createIdentity, grantAccess } from './db';
 const J122515 = 31001882; // C5, Wolf-Rayet Star
 const JITA = 30000142;
 const AMARR = 30002187;
+const DODIXIE = 30002659;
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
@@ -145,6 +146,39 @@ test('rewinding a straight history keeps it straight', async ({ page, api }) => 
 	// The ones ahead of the cursor are still marked as not in effect.
 	await expect(rows.filter({ hasText: 'Amarr' })).toHaveAttribute('data-applied', 'false');
 	await expect(rows.filter({ hasText: 'J122515' })).toHaveAttribute('data-applied', 'true');
+});
+
+test('only the first row of a branch connects back to the line it left', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E Connectors');
+	const add = (sys: number, x: number) =>
+		api.post(`/api/maps/${mapId}/systems/add`, {
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+		});
+	await add(J122515, 200);
+	await add(JITA, 500);
+	await add(AMARR, 800);
+	await gotoApp(page, `/maps/${mapId}`);
+
+	// Rewind behind both, then diverge: Jita and Amarr become a two-step abandoned branch.
+	await page.getByTestId('undo-button').click();
+	await expect(page.getByTestId('system-node')).toHaveCount(2);
+	await page.getByTestId('undo-button').click();
+	await expect(page.getByTestId('system-node')).toHaveCount(1);
+	await add(DODIXIE, 1100);
+	await expect(page.getByTestId('system-node').filter({ hasText: 'Dodixie' })).toBeVisible();
+
+	await page.getByTestId('history-button').click();
+	const row = (name: string) => page.getByTestId('history-row').filter({ hasText: name });
+	// The whole branch sits at one indent; it does not staircase.
+	await expect(row('Jita')).toHaveAttribute('data-depth', '1');
+	await expect(row('Amarr')).toHaveAttribute('data-depth', '1');
+	// Only the step that left the line draws a connector back to it.
+	await expect(row('Jita')).toHaveAttribute('data-forks', 'true');
+	await expect(row('Amarr')).toHaveAttribute('data-forks', 'false');
+	await expect(row('Dodixie')).toHaveAttribute('data-forks', 'false');
 });
 
 test('history lists what happened and who did it', async ({ page, api }) => {
