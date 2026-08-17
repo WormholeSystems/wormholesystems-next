@@ -61,6 +61,8 @@ pub enum MapEvent {
     /// A tracked pilot on this map moved, changed ship, or came on/offline. Sent to the
     /// whole map, unlike the per-user status ping, because everyone's pilot list shows it.
     CharactersChanged { map_id: i64 },
+    /// Something died in one of this map's systems.
+    KillmailReceived { map_id: i64 },
     /// The command journal grew or an entry was undone, so open clients should refetch
     /// the history (and, after an undo, the map itself).
     HistoryChanged { map_id: i64 },
@@ -77,6 +79,7 @@ impl MapEvent {
             | MapEvent::SystemDetailsChanged { map_id, .. }
             | MapEvent::ConnectionChanged { map_id, .. }
             | MapEvent::CharactersChanged { map_id }
+            | MapEvent::KillmailReceived { map_id }
             | MapEvent::SignatureChanged { map_id, .. }
             | MapEvent::AccessChanged { map_id }
             | MapEvent::WatchlistChanged { map_id }

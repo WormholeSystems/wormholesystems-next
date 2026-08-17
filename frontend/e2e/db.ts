@@ -221,3 +221,54 @@ export async function setCharacterOnline(characterId: number) {
 export async function markUserActive(userId: number) {
 	await withDb((db) => db.query('update users set last_active_at = now() where id = $1', [userId]));
 }
+
+/** A killmail as the ingest would have stored it, for tests that need one to exist. */
+export async function seedKillmail(kill: {
+	id: number;
+	solarSystemId: number;
+	minutesAgo: number;
+	victimShipTypeId: number;
+	totalValue: number;
+	attackerCount: number;
+	isSolo?: boolean;
+	isNpc?: boolean;
+	victimCharacterId?: number;
+	finalBlowShipTypeId?: number;
+}) {
+	await withDb((db) =>
+		db.query(
+			`insert into killmails (
+				 id, hash, solar_system_id, time, orgs,
+				 victim_character_id, victim_ship_type_id, total_value, attacker_count,
+				 is_solo, is_npc, final_blow_ship_type_id
+			 )
+			 values ($1, 'e2e-hash', $2, now() - make_interval(mins => $3), '[]'::jsonb,
+			         $4, $5, $6, $7, $8, $9, $10)
+			 on conflict (id) do update set
+			     solar_system_id = excluded.solar_system_id,
+			     time = excluded.time,
+			     victim_ship_type_id = excluded.victim_ship_type_id,
+			     total_value = excluded.total_value,
+			     attacker_count = excluded.attacker_count,
+			     is_solo = excluded.is_solo,
+			     is_npc = excluded.is_npc`,
+			[
+				kill.id,
+				kill.solarSystemId,
+				kill.minutesAgo,
+				kill.victimCharacterId ?? null,
+				kill.victimShipTypeId,
+				kill.totalValue,
+				kill.attackerCount,
+				kill.isSolo ?? false,
+				kill.isNpc ?? false,
+				kill.finalBlowShipTypeId ?? null
+			]
+		)
+	);
+}
+
+/** Remove seeded killmails so a rerun starts clean. */
+export async function clearKillmails(ids: number[]) {
+	await withDb((db) => db.query('delete from killmails where id = any($1)', [ids]));
+}

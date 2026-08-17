@@ -153,6 +153,8 @@ export class MapState {
 	// The history tree plus where the map sits in it, and the live socket state behind
 	// the status dot.
 	history = $state<MapHistory | null>(null);
+	/** Bumped when a kill lands in one of this map's systems, so cards can refetch. */
+	killmailTick = $state(0);
 	// Connections critical for over an hour, offered for a one-click sweep.
 	stale = $state<StaleConnection[]>([]);
 	socket = $state<SocketState>('connecting');

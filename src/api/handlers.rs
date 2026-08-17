@@ -812,7 +812,8 @@ pub async fn map_user_settings(
         "select tracking_allowed, show_threat_level, compact_signature_list, show_statics_first,
                 route_preference, security_penalty, route_allow_time_status,
                 route_allow_mass_status, route_use_evescout, prompt_for_signature,
-                suggest_alias, copy_bookmark, hidden_panels, layout_breakpoints
+                suggest_alias, copy_bookmark, killmail_filter, hidden_panels,
+                layout_breakpoints
          from map_user_settings where map_id = $1 and user_id = $2",
         map_id,
         actor.user_id,
@@ -833,6 +834,7 @@ pub async fn map_user_settings(
             prompt_for_signature: r.prompt_for_signature,
             suggest_alias: r.suggest_alias,
             copy_bookmark: r.copy_bookmark,
+            killmail_filter: r.killmail_filter,
             hidden_panels: r.hidden_panels,
             layout_breakpoints: r
                 .layout_breakpoints
@@ -853,6 +855,7 @@ pub async fn map_user_settings(
             prompt_for_signature: true,
             suggest_alias: true,
             copy_bookmark: false,
+            killmail_filter: "all".into(),
             hidden_panels: Vec::new(),
             layout_breakpoints: None,
         },
@@ -913,13 +916,14 @@ pub async fn update_map_user_settings(
               compact_signature_list, show_statics_first,
               route_preference, security_penalty, route_allow_time_status,
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
-              suggest_alias, copy_bookmark, hidden_panels, layout_breakpoints)
+              suggest_alias, copy_bookmark, killmail_filter, hidden_panels,
+              layout_breakpoints)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
                  coalesce($10, 'reduced'), coalesce($11, false),
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
-                 coalesce($15, '{}'::text[]), $16)
+                 coalesce($15, 'all'), coalesce($16, '{}'::text[]), $17)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -933,13 +937,14 @@ pub async fn update_map_user_settings(
              prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),
              suggest_alias = coalesce($13, map_user_settings.suggest_alias),
              copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),
-             hidden_panels = coalesce($15, map_user_settings.hidden_panels),
-             layout_breakpoints = coalesce($16, map_user_settings.layout_breakpoints),
+             killmail_filter = coalesce($15, map_user_settings.killmail_filter),
+             hidden_panels = coalesce($16, map_user_settings.hidden_panels),
+             layout_breakpoints = coalesce($17, map_user_settings.layout_breakpoints),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
                    route_allow_time_status, route_allow_mass_status, route_use_evescout,
-                   prompt_for_signature, suggest_alias, copy_bookmark,
+                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                    hidden_panels, layout_breakpoints",
         map_id,
         actor.user_id,
@@ -955,6 +960,7 @@ pub async fn update_map_user_settings(
         body.prompt_for_signature,
         body.suggest_alias,
         body.copy_bookmark,
+        body.killmail_filter,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
     )
@@ -973,6 +979,7 @@ pub async fn update_map_user_settings(
         prompt_for_signature: row.prompt_for_signature,
         suggest_alias: row.suggest_alias,
         copy_bookmark: row.copy_bookmark,
+        killmail_filter: row.killmail_filter,
         hidden_panels: row.hidden_panels,
         layout_breakpoints: row
             .layout_breakpoints
@@ -1917,6 +1924,40 @@ pub async fn list_map_events(
     let actor = require_actor(&state.db, &jar).await?;
     let history = crate::maps::events_log::list_history(&state.db, actor, map_id).await?;
     Ok(Json(history))
+}
+
+/// `GET /api/maps/{id}/killmails` — recent kills in this map's systems, newest first.
+/// Viewer+, like reading the graph: a killmail is public record on zKillboard anyway.
+pub async fn map_killmails(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<crate::killmails::MapKillmail>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    if crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
+        .await?
+        .is_none()
+    {
+        return Err(ApiError::from(crate::maps::MapError::NotFound));
+    }
+    let filter = sqlx::query_scalar!(
+        "select killmail_filter from map_user_settings where map_id = $1 and user_id = $2",
+        map_id,
+        actor.user_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or_else(|| "all".into());
+
+    Ok(Json(
+        crate::killmails::list_for_map(
+            &state.db,
+            map_id,
+            crate::killmails::KillmailFilter::from_db(&filter),
+            50,
+        )
+        .await?,
+    ))
 }
 
 /// `GET /api/skyhooks` — every skyhook currently or shortly raidable. Public EVE data, so

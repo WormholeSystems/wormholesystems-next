@@ -34,6 +34,10 @@ suggest_alias: boolean,
  */
 copy_bookmark: boolean, 
 /**
+ * Which half of the chain the killmails card shows: `all` / `jspace` / `kspace`.
+ */
+killmail_filter: string, 
+/**
  * Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
  * its saved position, so unhiding puts it back where it was.
  */

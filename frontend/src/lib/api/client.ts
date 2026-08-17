@@ -40,6 +40,7 @@ import type { SetWaypointAllBody } from './types/SetWaypointAllBody';
 import type { SetWaypointBody } from './types/SetWaypointBody';
 import type { ServerStatus } from './types/ServerStatus';
 import type { Signature } from './types/Signature';
+import type { MapKillmail } from './types/MapKillmail';
 import type { Skyhook } from './types/Skyhook';
 import type { TrackJump } from './types/TrackJump';
 import type { ShipSearchResult } from './types/ShipSearchResult';
@@ -178,6 +179,7 @@ export const api = {
 
 	serverStatus: () => get<ServerStatus>('/api/server-status'),
 	skyhooks: () => get<Skyhook[]>('/api/skyhooks'),
+	mapKillmails: (mapId: number) => get<MapKillmail[]>(`/api/maps/${mapId}/killmails`),
 
 	// A tracked jump: places the system, connects it, and links the signature in one
 	// undoable step. The response is empty; the socket drives the refetch.

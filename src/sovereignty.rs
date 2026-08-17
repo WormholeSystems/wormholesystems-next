@@ -8,24 +8,20 @@
 //! refreshed in a week), and upserts the per-system holder. Factions come from the SDE, so
 //! they're never fetched.
 
-use std::collections::HashSet;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use tokio::time::{MissedTickBehavior, interval};
 
+use crate::entities::{self, EntityKind};
 use crate::esi::EsiClient;
 use crate::esi::sovereignty::SovereigntySystem;
 use crate::server_status::ServerWatch;
-use crate::tracking::run_bounded;
 
 /// How often to refresh sovereignty. It changes slowly (alliance-level territory), so an hour
 /// is gentle on ESI while keeping the map reasonably fresh.
 const INTERVAL: Duration = Duration::from_secs(60 * 60);
-
-/// Max concurrent entity fetches per tick.
-const CONCURRENCY: usize = 16;
 
 /// Spawn the sync loop. Returns immediately; the loop runs for the process lifetime.
 pub fn start(pool: PgPool, esi: EsiClient, server: ServerWatch) {
@@ -73,102 +69,16 @@ async fn sync_once(pool: &PgPool, esi: &EsiClient) {
 /// Fetch + upsert every alliance and corporation named by a claim that we don't already have
 /// fresh. Failures are skipped (the next tick retries); factions are SDE-seeded, never fetched.
 async fn resolve_entities(pool: &PgPool, esi: &EsiClient, systems: &[SovereigntySystem]) {
-    let mut alliance_ids = HashSet::new();
-    let mut corporation_ids = HashSet::new();
+    let mut alliance_ids = Vec::new();
+    let mut corporation_ids = Vec::new();
     for system in systems {
         if let Some(claim) = &system.claim.alliance {
-            alliance_ids.insert(claim.alliance_id);
-            corporation_ids.insert(claim.corporation_id);
+            alliance_ids.push(claim.alliance_id);
+            corporation_ids.push(claim.corporation_id);
         }
     }
-
-    let alliances = stale_ids(pool, EntityKind::Alliance, &alliance_ids).await;
-    run_bounded(&alliances, CONCURRENCY, |id| {
-        fetch_alliance(pool.clone(), esi.clone(), id)
-    })
-    .await;
-
-    let corporations = stale_ids(pool, EntityKind::Corporation, &corporation_ids).await;
-    run_bounded(&corporations, CONCURRENCY, |id| {
-        fetch_corporation(pool.clone(), esi.clone(), id)
-    })
-    .await;
-}
-
-#[derive(Clone, Copy)]
-enum EntityKind {
-    Alliance,
-    Corporation,
-}
-
-/// Of `ids`, the ones we should (re)fetch: missing entirely, or refreshed over a week ago.
-async fn stale_ids(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> Vec<i64> {
-    let ids: Vec<i64> = ids.iter().copied().collect();
-    let fresh = match kind {
-        EntityKind::Alliance => {
-            sqlx::query_scalar!(
-                "select id from alliances
-             where id = any($1) and updated_at > now() - interval '7 days'",
-                &ids,
-            )
-            .fetch_all(pool)
-            .await
-        }
-        EntityKind::Corporation => {
-            sqlx::query_scalar!(
-                "select id from corporations
-             where id = any($1) and updated_at > now() - interval '7 days'",
-                &ids,
-            )
-            .fetch_all(pool)
-            .await
-        }
-    };
-    let fresh: HashSet<i64> = match fresh {
-        Ok(rows) => rows.into_iter().collect(),
-        Err(err) => {
-            eprintln!("sovereignty entity freshness check failed: {err}");
-            return Vec::new();
-        }
-    };
-    ids.into_iter().filter(|id| !fresh.contains(id)).collect()
-}
-
-async fn fetch_alliance(pool: PgPool, esi: EsiClient, id: i64) {
-    let Ok(alliance) = esi.alliance(id).await else {
-        return;
-    };
-    let _ = sqlx::query!(
-        "insert into alliances (id, name, ticker) values ($1, $2, $3)
-         on conflict (id) do update set
-             name = excluded.name, ticker = excluded.ticker, updated_at = now()",
-        id,
-        alliance.name,
-        alliance.ticker,
-    )
-    .execute(&pool)
-    .await;
-}
-
-async fn fetch_corporation(pool: PgPool, esi: EsiClient, id: i64) {
-    let Ok(corporation) = esi.corporation(id).await else {
-        return;
-    };
-    let _ = sqlx::query!(
-        "insert into corporations (id, name, ticker, alliance_id, faction_id)
-         values ($1, $2, $3, $4, $5)
-         on conflict (id) do update set
-             name = excluded.name, ticker = excluded.ticker,
-             alliance_id = excluded.alliance_id, faction_id = excluded.faction_id,
-             updated_at = now()",
-        id,
-        corporation.name,
-        corporation.ticker,
-        corporation.alliance_id,
-        corporation.faction_id,
-    )
-    .execute(&pool)
-    .await;
+    entities::ensure(pool, esi, EntityKind::Alliance, &alliance_ids).await;
+    entities::ensure(pool, esi, EntityKind::Corporation, &corporation_ids).await;
 }
 
 /// Upsert one system's holder: alliance, faction, or none (unclaimed → remove any row).

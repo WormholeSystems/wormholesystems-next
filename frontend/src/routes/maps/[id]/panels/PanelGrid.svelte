@@ -16,6 +16,7 @@
 	import { cn } from '$lib/utils';
 	import NavigationCard from './NavigationCard.svelte';
 	import CharactersCard from './CharactersCard.svelte';
+	import KillmailsCard from './KillmailsCard.svelte';
 	import NotesCard from './NotesCard.svelte';
 	import SkyhooksCard from './SkyhooksCard.svelte';
 	import SystemInfoCard from './SystemInfoCard.svelte';
@@ -266,6 +267,8 @@
 				<CharactersCard {map} />
 			{:else if item.i === 'skyhooks'}
 				<SkyhooksCard {map} />
+			{:else if item.i === 'killmails'}
+				<KillmailsCard {map} />
 			{:else if item.i === 'notes'}
 				{#if map.activeSystem}
 					<NotesCard {map} system={map.activeSystem} />

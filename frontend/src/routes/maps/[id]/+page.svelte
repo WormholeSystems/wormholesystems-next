@@ -139,6 +139,9 @@
 				// Pilot movement is its own event so a busy chain does not refetch the whole
 				// graph every five seconds just because someone is flying.
 				if (event?.type === 'characters_changed') s.fetchCharacters();
+				// A kill changes nothing about the graph, so only the card that shows them
+				// reacts rather than the whole page refetching.
+				else if (event?.type === 'killmail_received') s.killmailTick += 1;
 				else s.refetch();
 			},
 			(state) => (s.socket = state)

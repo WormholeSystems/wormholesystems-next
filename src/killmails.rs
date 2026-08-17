@@ -17,6 +17,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use sqlx::PgPool;
 
+use crate::entities::EntityKind;
 use crate::esi::EsiClient;
 
 const DEFAULT_BASE: &str = "https://r2z2.zkillboard.com";
@@ -25,6 +26,8 @@ const ANALYSIS_WINDOW_DAYS: i32 = 90;
 const MIN_ACTIVE_DAYS: i64 = 5;
 const TOP_ORGS: i64 = 10;
 const HOSTILE_THRESHOLD: i64 = 50;
+/// How far back the killmails card looks, and therefore how far back names are resolved.
+pub const CARD_WINDOW_DAYS: i32 = 7;
 const ACTIVE_THRESHOLD: i64 = 15;
 
 /// The compact per-killmail org record persisted in `killmails.orgs`.
@@ -105,19 +108,20 @@ fn http_client() -> reqwest::Client {
 }
 
 /// Spawn the ingest + analysis loops (gated by `ZKB_LISTEN=1`).
-pub fn start(pool: PgPool, esi: EsiClient) {
+pub fn start(pool: PgPool, esi: EsiClient, maps: crate::maps::MapHub) {
     if std::env::var("ZKB_LISTEN").as_deref() != Ok("1") {
         return;
     }
     let base = std::env::var("ZKB_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE.to_string());
-    tokio::spawn(listen(pool.clone(), base));
+    tokio::spawn(listen(pool.clone(), base, maps));
+    tokio::spawn(resolve_loop(pool.clone(), esi.clone()));
     tokio::spawn(analysis_loop(pool, esi));
 }
 
-async fn listen(pool: PgPool, base: String) {
+async fn listen(pool: PgPool, base: String, maps: crate::maps::MapHub) {
     let http = http_client();
     loop {
-        match ingest_next(&pool, &http, &base).await {
+        match ingest_next(&pool, &http, &base, &maps).await {
             Ok(true) => tokio::time::sleep(Duration::from_millis(500)).await,
             Ok(false) => tokio::time::sleep(Duration::from_secs(10)).await,
             Err(err) => {
@@ -128,11 +132,219 @@ async fn listen(pool: PgPool, base: String) {
     }
 }
 
+/// One entity as a killmail row names it: a portrait, and something to call them.
+#[derive(Debug, Clone, serde::Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct KillParty {
+    #[ts(optional)]
+    pub character_id: Option<i64>,
+    #[ts(optional)]
+    pub character_name: Option<String>,
+    #[ts(optional)]
+    pub corporation_id: Option<i64>,
+    #[ts(optional)]
+    pub corporation_ticker: Option<String>,
+    #[ts(optional)]
+    pub alliance_id: Option<i64>,
+    #[ts(optional)]
+    pub alliance_ticker: Option<String>,
+    #[ts(optional)]
+    pub ship_type_id: Option<i64>,
+    #[ts(optional)]
+    pub ship_name: Option<String>,
+}
+
+/// A killmail as the card shows it.
+///
+/// Only what a row renders, rather than the raw payload: the ESI body carries every
+/// attacker and every destroyed item, which for fifty kills is orders of magnitude more
+/// than the handful of fields on screen.
+#[derive(Debug, Clone, serde::Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct MapKillmail {
+    pub id: i64,
+    pub solar_system_id: i64,
+    pub system_name: String,
+    pub region: String,
+    pub security_status: f64,
+    #[ts(optional)]
+    pub wormhole_class_id: Option<i64>,
+    pub time: chrono::DateTime<chrono::Utc>,
+    pub victim: KillParty,
+    pub final_blow: KillParty,
+    #[ts(optional)]
+    pub total_value: Option<f64>,
+    pub attacker_count: i32,
+    pub is_npc: bool,
+    pub is_solo: bool,
+}
+
+/// Which half of the chain a map's killmail card is showing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KillmailFilter {
+    All,
+    Wormhole,
+    KnownSpace,
+}
+
+impl KillmailFilter {
+    pub fn from_db(value: &str) -> KillmailFilter {
+        match value {
+            "jspace" => KillmailFilter::Wormhole,
+            "kspace" => KillmailFilter::KnownSpace,
+            _ => KillmailFilter::All,
+        }
+    }
+}
+
+/// Recent kills in the systems currently on a map, newest first.
+///
+/// Bounded by time as well as by count, which legacy is not: with only a row cap, a quiet
+/// chain shows kills from a year ago as though they were news.
+pub async fn list_for_map(
+    pool: &PgPool,
+    map_id: i64,
+    filter: KillmailFilter,
+    limit: i64,
+) -> sqlx::Result<Vec<MapKillmail>> {
+    let wormholes_only = matches!(filter, KillmailFilter::Wormhole);
+    let kspace_only = matches!(filter, KillmailFilter::KnownSpace);
+    let rows = sqlx::query!(
+        r#"select k.id, k.solar_system_id, k.time, k.total_value,
+                  coalesce(k.attacker_count, 0) as "attacker_count!",
+                  k.is_npc, k.is_solo,
+                  ss.name as system_name, r.name as region, ss.security_status,
+                  ws.wormhole_class_id as "wormhole_class_id?",
+                  k.victim_character_id, vc.name as "victim_character_name?",
+                  k.victim_corporation_id, vco.ticker as "victim_corporation_ticker?",
+                  k.victim_alliance_id, va.ticker as "victim_alliance_ticker?",
+                  k.victim_ship_type_id, vt.name as "victim_ship_name?",
+                  k.final_blow_character_id, fc.name as "final_blow_character_name?",
+                  k.final_blow_corporation_id, fco.ticker as "final_blow_corporation_ticker?",
+                  k.final_blow_alliance_id, fa.ticker as "final_blow_alliance_ticker?",
+                  k.final_blow_ship_type_id, ft.name as "final_blow_ship_name?"
+           from killmails k
+           join map_solar_systems mss
+               on mss.map_id = $1 and mss.solar_system_id = k.solar_system_id
+           join solar_systems ss on ss.id = k.solar_system_id
+           join constellations c on c.id = ss.constellation_id
+           join regions r on r.id = c.region_id
+           left join wormhole_systems ws on ws.solar_system_id = ss.id
+           left join eve_characters vc on vc.id = k.victim_character_id
+           left join corporations vco on vco.id = k.victim_corporation_id
+           left join alliances va on va.id = k.victim_alliance_id
+           left join types vt on vt.id = k.victim_ship_type_id
+           left join eve_characters fc on fc.id = k.final_blow_character_id
+           left join corporations fco on fco.id = k.final_blow_corporation_id
+           left join alliances fa on fa.id = k.final_blow_alliance_id
+           left join types ft on ft.id = k.final_blow_ship_type_id
+           where k.time >= now() - make_interval(days => $2)
+             -- Rows from before the ingest kept any detail would render as blank lines.
+             and k.victim_ship_type_id is not null
+             and (not $3 or ws.solar_system_id is not null)
+             and (not $4 or ws.solar_system_id is null)
+           order by k.time desc
+           limit $5"#,
+        map_id,
+        CARD_WINDOW_DAYS,
+        wormholes_only,
+        kspace_only,
+        limit,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| MapKillmail {
+            id: r.id,
+            solar_system_id: r.solar_system_id,
+            system_name: r.system_name,
+            region: r.region,
+            security_status: r.security_status,
+            wormhole_class_id: r.wormhole_class_id.map(i64::from),
+            time: r.time,
+            victim: KillParty {
+                character_id: r.victim_character_id,
+                character_name: r.victim_character_name,
+                corporation_id: r.victim_corporation_id,
+                corporation_ticker: r.victim_corporation_ticker,
+                alliance_id: r.victim_alliance_id,
+                alliance_ticker: r.victim_alliance_ticker,
+                ship_type_id: r.victim_ship_type_id,
+                ship_name: r.victim_ship_name,
+            },
+            final_blow: KillParty {
+                character_id: r.final_blow_character_id,
+                character_name: r.final_blow_character_name,
+                corporation_id: r.final_blow_corporation_id,
+                corporation_ticker: r.final_blow_corporation_ticker,
+                alliance_id: r.final_blow_alliance_id,
+                alliance_ticker: r.final_blow_alliance_ticker,
+                ship_type_id: r.final_blow_ship_type_id,
+                ship_name: r.final_blow_ship_name,
+            },
+            total_value: r.total_value,
+            attacker_count: r.attacker_count,
+            is_npc: r.is_npc,
+            is_solo: r.is_solo,
+        })
+        .collect())
+}
+
+/// Put names to the ids on recent killmails.
+///
+/// Deliberately a separate loop rather than part of the ingest: a killmail must be
+/// recorded whether or not ESI is answering, and the names are only needed by the time
+/// someone looks at the card. Runs often enough that a fresh kill is named within a
+/// minute or two of arriving.
+async fn resolve_loop(pool: PgPool, esi: EsiClient) {
+    loop {
+        resolve_recent(&pool, &esi).await;
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+}
+
+async fn resolve_recent(pool: &PgPool, esi: &EsiClient) {
+    // The window matches what the card can show, so we never fetch a name nobody will
+    // read. `distinct` because a busy system is the same few corps over and over.
+    let Ok(rows) = sqlx::query!(
+        r#"select distinct victim_character_id, victim_corporation_id, victim_alliance_id,
+                  final_blow_character_id, final_blow_corporation_id, final_blow_alliance_id
+           from killmails
+           where time >= now() - make_interval(days => $1)"#,
+        CARD_WINDOW_DAYS,
+    )
+    .fetch_all(pool)
+    .await
+    else {
+        return;
+    };
+
+    let mut characters = Vec::new();
+    let mut corporations = Vec::new();
+    let mut alliances = Vec::new();
+    for row in rows {
+        characters.extend(row.victim_character_id);
+        characters.extend(row.final_blow_character_id);
+        corporations.extend(row.victim_corporation_id);
+        corporations.extend(row.final_blow_corporation_id);
+        alliances.extend(row.victim_alliance_id);
+        alliances.extend(row.final_blow_alliance_id);
+    }
+    // Organisations first: they name the most rows per fetch, so if the run is cut short
+    // by a rate limit the card still reads better than it did.
+    crate::entities::ensure(pool, esi, EntityKind::Alliance, &alliances).await;
+    crate::entities::ensure(pool, esi, EntityKind::Corporation, &corporations).await;
+    crate::entities::ensure(pool, esi, EntityKind::Character, &characters).await;
+}
+
 /// Fetch and persist the next killmail in the sequence. Returns whether one was found.
 async fn ingest_next(
     pool: &PgPool,
     http: &reqwest::Client,
     base: &str,
+    maps: &crate::maps::MapHub,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let cursor: Option<i64> = sqlx::query_scalar("select sequence_id from zkb_state")
         .fetch_optional(pool)
@@ -209,9 +421,29 @@ async fn ingest_next(
         .bind(detail.final_blow_ship_type_id)
         .execute(pool)
         .await?;
+        announce(pool, maps, solar_system_id).await;
     }
     advance(pool, next).await?;
     Ok(true)
+}
+
+/// Tell every map holding this system that something died in it.
+///
+/// The event carries no payload: what a client should show depends on its own filter and
+/// its own list, so it refetches rather than trying to splice one row in.
+async fn announce(pool: &PgPool, maps: &crate::maps::MapHub, solar_system_id: i64) {
+    let Ok(map_ids) = sqlx::query_scalar!(
+        "select distinct map_id from map_solar_systems where solar_system_id = $1",
+        solar_system_id,
+    )
+    .fetch_all(pool)
+    .await
+    else {
+        return;
+    };
+    for map_id in map_ids {
+        maps.publish(crate::maps::MapEvent::KillmailReceived { map_id });
+    }
 }
 
 async fn advance(pool: &PgPool, seq: i64) -> Result<(), sqlx::Error> {

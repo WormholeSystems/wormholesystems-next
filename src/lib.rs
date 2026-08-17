@@ -2,6 +2,7 @@ pub mod api;
 pub mod auth;
 pub mod config;
 pub mod db;
+pub mod entities;
 pub mod esi;
 pub mod killmails;
 pub mod maps;

@@ -102,6 +102,8 @@ pub struct MapUserSettings {
     pub suggest_alias: bool,
     /// Put the new connection's bookmark on the clipboard once the jump is mapped.
     pub copy_bookmark: bool,
+    /// Which half of the chain the killmails card shows: `all` / `jspace` / `kspace`.
+    pub killmail_filter: String,
     /// Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
     /// its saved position, so unhiding puts it back where it was.
     pub hidden_panels: Vec<String>,
@@ -138,7 +140,7 @@ pub struct LayoutItem {
 
 /// Panels the layout may refer to. The server keeps its own copy so a bad payload is a
 /// 400 rather than a page that renders a tile nothing knows how to draw.
-pub const PANEL_IDS: [&str; 8] = [
+pub const PANEL_IDS: [&str; 9] = [
     "map",
     "navigation",
     "system-info",
@@ -147,6 +149,7 @@ pub const PANEL_IDS: [&str; 8] = [
     "notes",
     "characters",
     "skyhooks",
+    "killmails",
 ];
 const BREAKPOINT_KEYS: [&str; 4] = ["xs", "sm", "md", "lg"];
 
@@ -227,6 +230,9 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub copy_bookmark: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub killmail_filter: Option<String>,
     #[serde(default)]
     #[ts(optional)]
     pub hidden_panels: Option<Vec<String>>,
@@ -495,6 +501,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/server-status", get(h::server_status))
         .route("/api/skyhooks", get(h::skyhooks))
+        .route("/api/maps/{id}/killmails", get(h::map_killmails))
         .route("/api/maps/{id}/track-jump", post(h::track_jump))
         .route("/api/maps/{id}/connections/add", post(h::add_connection))
         .route(
@@ -606,7 +613,9 @@ mod layout_tests {
 
     #[test]
     fn rejects_a_panel_the_client_could_not_draw() {
-        let bad = layout(10, vec![tile("killmails", 0, 0, 2, 2)]);
+        // Deliberately a name no panel will ever have; naming a plausible future one
+        // means the test quietly stops testing anything the day it ships.
+        let bad = layout(10, vec![tile("not-a-panel", 0, 0, 2, 2)]);
         assert!(validate_layouts(&bad).is_err());
     }
 
