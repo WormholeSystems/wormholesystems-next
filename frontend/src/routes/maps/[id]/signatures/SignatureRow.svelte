@@ -188,9 +188,9 @@
 				{#if sig.group === 'unknown'}
 					<span class="text-muted-foreground">Category</span>
 				{:else}
-					<span class="flex items-center gap-1">
+					<span class="flex min-w-0 items-center gap-1">
 						<cat.icon class="size-3 shrink-0 {cat.color}" />
-						{cat.abbrev}
+						<span class="truncate">{cat.abbrev}</span>
 					</span>
 				{/if}
 			</Select.Trigger>

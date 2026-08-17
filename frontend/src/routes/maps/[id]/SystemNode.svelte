@@ -24,6 +24,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { classMeta, destClassMeta, isWormholeClass } from '$lib/map/classes';
 	import { NODE_W, statusColor } from '$lib/map/helpers';
 	import EffectBadge from './EffectBadge.svelte';
@@ -149,7 +150,11 @@
 
 		<!-- Row 1: class, alias/name/occupier, icon cluster. -->
 		<div class="flex min-w-0 items-center gap-1">
-			<span class="shrink-0 font-medium" style:color="var(--color-{cls.token})">{cls.short}</span>
+			<ClassBadge
+				classId={node.wormhole_class_id}
+				security={node.security_status}
+				class="shrink-0 font-medium"
+			/>
 			{#if node.alias}
 				<span class="shrink-0 font-medium text-foreground">{node.alias}</span>
 				<span class="truncate text-muted-foreground">{node.name}</span>

@@ -69,7 +69,7 @@
 {#snippet typeLabel(t: SignatureTypeInfo)}
 	{#if t.signature !== null && sig.group === 'wormhole'}
 		{@const dest = destClassMeta(t.target_class)}
-		<span class="flex items-center gap-1.5 font-mono">
+		<span class="flex min-w-0 items-center gap-1.5 font-mono">
 			{t.signature}
 			<span style="color: var(--color-{dest.token})">{dest.short}</span>
 			{#if t.extra}

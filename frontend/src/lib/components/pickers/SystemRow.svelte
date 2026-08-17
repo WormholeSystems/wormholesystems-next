@@ -5,11 +5,11 @@
 	// and rows use `grid-cols-subgrid`, so every list aligns and resizes together.
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import EveImage from '$lib/components/EveImage.svelte';
-	import { classMeta, effectTextColor } from '$lib/map/classes';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
+	import { effectTextColor } from '$lib/map/classes';
 
 	let { system }: { system: SystemSearchResult } = $props();
 
-	const c = $derived(classMeta(system.wormhole_class_id, system.security));
 	const sov = $derived(system.sovereignty);
 	const sovTitle = $derived(
 		sov === null || sov === undefined
@@ -20,7 +20,7 @@
 	);
 </script>
 
-<span class="truncate font-mono text-xs" style="color: var(--color-{c.token})">{c.short}</span>
+<ClassBadge classId={system.wormhole_class_id} security={system.security} class="truncate text-xs" />
 <span class="min-w-0 truncate text-foreground">{system.name}</span>
 <span class="min-w-0 truncate text-xs text-muted-foreground">{system.region}</span>
 {#if system.effect_name}

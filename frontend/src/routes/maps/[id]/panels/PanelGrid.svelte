@@ -228,12 +228,7 @@
 		data-w={item.w}
 		data-h={item.h}
 	>
-		<div
-			class={cn(
-				'relative h-full',
-				map.editingLayout && 'outline-2 outline-dashed outline-muted-foreground/60 -outline-offset-1'
-			)}
-		>
+		<div class="relative h-full">
 			{#if item.i === 'map'}
 				<div class="h-full">{@render canvas()}</div>
 			{:else if item.i === 'navigation'}
@@ -303,12 +298,27 @@
 				></button>
 				<button
 					type="button"
-					class="absolute right-0 bottom-0 z-30 size-5 cursor-se-resize bg-muted-foreground/40 hover:bg-muted-foreground/70"
+					class="group/resize absolute right-[3px] bottom-[3px] z-40 flex size-6 cursor-se-resize items-end justify-end p-1.5"
 					aria-label="Resize {meta.label}"
 					data-testid="tile-resize"
 					data-panel={item.i}
 					onpointerdown={(ev) => onPointerDown(ev, item.i as PanelId, 'resize')}
-				></button>
+				>
+					<!-- The corner grip: two strokes, as legacy drew it. The button around it is
+					     bigger than the mark so it stays easy to grab. -->
+					<span
+						class="size-2 border-r-2 border-b-2 border-muted-foreground/70 group-hover/resize:border-foreground"
+					></span>
+				</button>
+				<!-- The frame is a sibling drawn over the content, not an outline on it: as an
+				     outline it was painted underneath the panel's own header background.
+				     It is inset so it stays within its own card: tiles sit flush, so frames
+				     drawn on the edges would meet at every seam and read as one heavy line
+				     rather than as two cards. -->
+				<div
+					class="pointer-events-none absolute inset-[3px] z-40 border-2 border-dashed border-muted-foreground/60"
+					data-testid="tile-frame"
+				></div>
 			{/if}
 		</div>
 	</div>

@@ -20,7 +20,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { classMeta } from '$lib/map/classes';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { historyRows } from './history-tree';
 	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
@@ -208,8 +208,10 @@
 	{#if pilot?.online && pilot.solar_system_id !== null}
 		<span class="hidden items-center gap-1.5 text-xs text-muted-foreground lg:flex">
 			{#if pilotSystem}
-				{@const meta = classMeta(pilotSystem.wormhole_class_id, pilotSystem.security_status)}
-				<span class={cn('font-mono', meta.token)}>{meta.short}</span>
+				<ClassBadge
+					classId={pilotSystem.wormhole_class_id}
+					security={pilotSystem.security_status}
+				/>
 				<span class="text-foreground">{pilotSystem.name}</span>
 			{:else}
 				<span>Outside the chain</span>

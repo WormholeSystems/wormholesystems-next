@@ -15,7 +15,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
-	import { classMeta } from '$lib/map/classes';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import SystemRow from './SystemRow.svelte';
 
 	let {
@@ -112,9 +112,7 @@
 							title={s.reason}
 							onclick={() => choose(s.system)}
 						>
-							<span class="font-mono {classMeta(s.system.wormhole_class_id, s.system.security).token}">
-								{classMeta(s.system.wormhole_class_id, s.system.security).short}
-							</span>
+							<ClassBadge classId={s.system.wormhole_class_id} security={s.system.security} />
 							{s.system.name}
 							{#if s.icon === 'selected'}
 								<MapPinIcon class="size-3 text-muted-foreground" />

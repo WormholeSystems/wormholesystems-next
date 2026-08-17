@@ -11,6 +11,7 @@
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { classMeta, destClassMeta, effectTextColor, isWormholeClass } from '$lib/map/classes';
 
 	let { system, layoutActions }: { system: MapSystemView; layoutActions?: import('svelte').Snippet } =
@@ -50,7 +51,7 @@
 	<MapPanelContent>
 		<div class="border-b border-border/50 px-3 py-3">
 			<div class="flex items-center gap-2">
-				<span style:color="var(--color-{cls.token})">{cls.short}</span>
+				<ClassBadge classId={system.wormhole_class_id} security={system.security_status} />
 				<span class="truncate text-sm font-medium">
 					{#if system.alias}
 						{system.alias} <span class="text-muted-foreground">({system.name})</span>

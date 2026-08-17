@@ -9,7 +9,7 @@
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import * as Select from '$lib/components/ui/select';
-	import { classMeta } from '$lib/map/classes';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { typeById } from '$lib/map/signatures';
 	import type { MapState } from '../map-state.svelte';
 
@@ -93,11 +93,12 @@
 {#snippet connLabel(entry: { conn: MapConnection; target: MapSystemView | null })}
 	{@const t = entry.target}
 	{#if t}
-		{@const cls = classMeta(t.wormhole_class_id, t.security_status)}
 		<span class="inline-flex min-w-0 items-center gap-1">
-			<span class="w-5 shrink-0 text-center" style="color: var(--color-{cls.token})">
-				{cls.short}
-			</span>
+			<ClassBadge
+				classId={t.wormhole_class_id}
+				security={t.security_status}
+				class="w-5 shrink-0 text-center"
+			/>
 			{#if t.alias}
 				<span class="shrink-0 font-medium">{t.alias}</span>
 			{/if}

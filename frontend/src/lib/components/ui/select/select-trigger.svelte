@@ -24,6 +24,11 @@
 	)}
 	{...restProps}
 >
-	{@render children?.()}
-	<ChevronDownIcon class="size-3.5 text-muted-foreground pointer-events-none" />
+	<!-- The label is held in a shrinkable, clipping box so a long one cannot push the
+	     chevron out of the trigger. The chevron then sits at the same place on every row,
+	     which is what makes a column of selects read as a column. -->
+	<span class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+		{@render children?.()}
+	</span>
+	<ChevronDownIcon class="size-3.5 shrink-0 text-muted-foreground pointer-events-none" />
 </SelectPrimitive.Trigger>

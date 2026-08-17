@@ -390,12 +390,16 @@
 								</Command.Empty>
 								<Command.Group>
 									{#each addResults as s (s.id)}
-										<Command.Item
-											value={String(s.id)}
-											onSelect={() => addToWatchlist(s.id)}
-											class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content] items-center gap-x-2"
-										>
-											<SystemRow system={s} />
+										<Command.Item value={String(s.id)} onSelect={() => addToWatchlist(s.id)}>
+											<!-- The grid goes on an inner element, not on the item: the item always
+											     appends its own check icon, which as a fifth cell would wrap onto a
+											     second grid row and double the row height. -->
+											<SystemMenu
+												system={s}
+												class="grid w-full grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content] items-center gap-x-2"
+											>
+												<SystemRow system={s} />
+											</SystemMenu>
 										</Command.Item>
 									{/each}
 								</Command.Group>
