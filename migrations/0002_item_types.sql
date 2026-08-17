@@ -1,6 +1,6 @@
--- SDE item-type reference: categories → groups → types (+ market groups) and the
--- dogma attribute catalogue. See docs/database/types.md. Reloaded from the SDE.
--- Ids are bigint throughout (avoids FK type mismatches and large-id overflow).
+-- ---------------------------------------------------------------------------
+-- Item types (SDE): categories -> groups -> types, plus the dogma catalogue
+-- ---------------------------------------------------------------------------
 
 create table categories (
     id        bigint primary key,
@@ -17,7 +17,7 @@ create table groups (
 
 create table market_groups (
     id              bigint primary key,
-    -- self-referential; deferrable so a bulk seed needn't order parents before children
+    -- Self-referential; deferrable so a bulk seed needn't order parents before children.
     parent_group_id bigint references market_groups (id) deferrable initially deferred,
     name            text not null,
     has_types       boolean not null default false

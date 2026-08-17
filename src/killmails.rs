@@ -230,11 +230,11 @@ pub async fn list_for_map(
            join constellations c on c.id = ss.constellation_id
            join regions r on r.id = c.region_id
            left join wormhole_systems ws on ws.solar_system_id = ss.id
-           left join eve_characters vc on vc.id = k.victim_character_id
+           left join characters vc on vc.id = k.victim_character_id
            left join corporations vco on vco.id = k.victim_corporation_id
            left join alliances va on va.id = k.victim_alliance_id
            left join types vt on vt.id = k.victim_ship_type_id
-           left join eve_characters fc on fc.id = k.final_blow_character_id
+           left join characters fc on fc.id = k.final_blow_character_id
            left join corporations fco on fco.id = k.final_blow_corporation_id
            left join alliances fa on fa.id = k.final_blow_alliance_id
            left join types ft on ft.id = k.final_blow_ship_type_id

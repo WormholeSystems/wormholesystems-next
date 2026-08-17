@@ -153,8 +153,14 @@ pub async fn persist_identity(
     let user_id = match (link_user_id, existing) {
         // Linking a character to the already-signed-in user.
         (Some(user_id), _) => user_id,
-        // Returning login: same owner hash → same account.
-        (None, Some(c)) if c.owner_hash == claims.owner_hash => c.user_id,
+        // Returning login: same owner hash → same account. A character we merely resolved
+        // the name of has neither, and falls through to a fresh account like any new one.
+        (None, Some(c))
+            if c.owner_hash.as_deref() == Some(claims.owner_hash.as_str())
+                && c.user_id.is_some() =>
+        {
+            c.user_id.expect("guarded above")
+        }
         // Transfer (owner hash changed) or brand-new character → a fresh account.
         (None, _) => {
             sqlx::query_scalar!("insert into users default values returning id")

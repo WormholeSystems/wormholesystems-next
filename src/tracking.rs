@@ -132,11 +132,11 @@ async fn tier_two(
 async fn active_characters(pool: &PgPool, online_only: bool) -> Result<Vec<Due>, sqlx::Error> {
     let rows = if online_only {
         sqlx::query!(
-            "select c.id, c.user_id
+            r#"select c.id, c.user_id as "user_id!"
              from characters c
              join users u on u.id = c.user_id
              join character_status s on s.character_id = c.id
-             where u.last_active_at > now() - interval '5 minutes' and s.online"
+             where u.last_active_at > now() - interval '5 minutes' and s.online"#
         )
         .fetch_all(pool)
         .await?
@@ -148,10 +148,10 @@ async fn active_characters(pool: &PgPool, online_only: bool) -> Result<Vec<Due>,
         .collect()
     } else {
         sqlx::query!(
-            "select c.id, c.user_id
+            r#"select c.id, c.user_id as "user_id!"
              from characters c
              join users u on u.id = c.user_id
-             where u.last_active_at > now() - interval '5 minutes'"
+             where u.last_active_at > now() - interval '5 minutes'"#
         )
         .fetch_all(pool)
         .await?

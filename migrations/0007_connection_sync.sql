@@ -1,6 +1,6 @@
--- Connection life-cycle state (mass / time / size) + keeping it in sync with the linked
--- signatures. See docs/database/mapping.md (the connection<->signature sync section) and
--- docs/features/maps.md.
+-- ---------------------------------------------------------------------------
+-- Keeping a connection and its signatures in agreement
+-- ---------------------------------------------------------------------------
 --
 -- A wormhole's life-cycle state lives on BOTH the connection and its signature(s), because
 -- either can exist without the other: a connection can be drawn before anyone scans, and a
@@ -10,8 +10,8 @@
 --
 --   * MERGE on link: per field, the most-severe (worst) non-null value wins. A connection
 --     marked "<4h" (eol) linked to a sig scanned "<1h" (critical) becomes critical.
---   * PROPAGATE on edit: an explicit edit to any member overwrites the whole group verbatim,
---     so corrections and downgrades (e.g. back to stable) flow through.
+--   * PROPAGATE on edit: an explicit edit to any member overwrites the whole group
+--     verbatim, so corrections and downgrades (e.g. back to stable) flow through.
 --
 -- Because a linked group is always fully consistent (every merge/propagate equalises all
 -- three fields), propagating all three on a single-field edit is safe -- the untouched two
@@ -20,11 +20,6 @@
 -- Severity order (worst last): mass stable<reduced<critical; time stable<eol<critical;
 -- size xl<large<medium<small (smallest = most restrictive = "worst"). Mirrors the ordered
 -- Rust enums in src/maps/mod.rs.
-
-alter table map_connections add column if not exists mass_status text;
-alter table map_connections add column if not exists time_status text;
-alter table map_connections add column if not exists size        text;
-alter table map_connections add column if not exists updated_at   timestamptz not null default now();
 
 -- Severity rank of each enum value. NULL (unknown) ranks as NULL so it is ignored when
 -- picking the worst non-null value, and a known value always wins over unknown.
@@ -117,3 +112,21 @@ $$;
 
 create or replace trigger map_conn_sync after update on map_connections
     for each row execute function map_conn_sync();
+
+-- Stamp the lifetime change on either side, whichever path did the writing.
+create or replace function map_stamp_time_status() returns trigger language plpgsql as $$
+begin
+    if new.time_status is distinct from old.time_status then
+        new.time_status_updated_at = now();
+    end if;
+    return new;
+end;
+$$;
+
+create trigger signatures_stamp_time_status
+    before update on signatures
+    for each row execute function map_stamp_time_status();
+
+create trigger map_connections_stamp_time_status
+    before update on map_connections
+    for each row execute function map_stamp_time_status();

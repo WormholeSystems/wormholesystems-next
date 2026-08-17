@@ -1,17 +1,18 @@
--- Custom static reference, seeded from data/static/*.json. See docs/database/static.md.
--- Wormhole class ids are plain integers (the wormhole_class_id encoding). Enum-like
--- columns (e.g. `kind`) are text, validated by Rust enums rather than PG enum types.
+-- ---------------------------------------------------------------------------
+-- Static reference, seeded from data/static/*.json
+-- ---------------------------------------------------------------------------
 
 create table wormhole_types (
-    code              text primary key,
-    type_id           bigint not null references types (id),
-    dest_class        integer,
-    is_static         boolean,
-    max_mass_per_jump bigint,
-    total_mass        bigint,
-    mass_regen        bigint,
-    lifetime_hours    double precision,
-    sibling_groups    jsonb
+    code               text primary key,
+    type_id            bigint not null references types (id),
+    dest_class         integer,
+    is_static          boolean,
+    max_mass_per_jump  bigint,
+    total_mass         bigint,
+    mass_regen         bigint,
+    lifetime_hours     double precision,
+    signature_strength double precision,
+    sibling_groups     jsonb
 );
 
 create table wormhole_type_sources (
@@ -33,10 +34,15 @@ create table wormhole_effect_modifiers (
     primary key (effect_name, kind, stat, wormhole_class_id)
 );
 
+-- `threat_level` and `threat_analyzed_at` are the output of the daily killmail analysis
+-- further down, cached here because every map node reads them.
 create table wormhole_systems (
-    solar_system_id   bigint primary key references solar_systems (id),
-    wormhole_class_id integer not null,
-    effect_name       text references wormhole_effects (name)
+    solar_system_id    bigint primary key references solar_systems (id),
+    wormhole_class_id  integer not null,
+    effect_name        text references wormhole_effects (name),
+    is_shattered       boolean not null default false,
+    threat_level       text not null default 'unknown',
+    threat_analyzed_at timestamptz
 );
 
 create table wormhole_system_statics (
@@ -69,4 +75,18 @@ create table signature_type_spawn_areas (
 
 create table jove_observatories (
     solar_system_id bigint primary key references solar_systems (id)
+);
+
+-- Which SDE build is currently loaded, so startup can skip the (large) re-seed when
+-- nothing has changed. `seed_revision` bumps when the *format* changes rather than the
+-- source data. Single-row table: the boolean primary key defaults to true and is checked,
+-- so a second row can never exist.
+create table sde_build (
+    id            boolean primary key default true,
+    build_number  bigint not null,
+    release_date  timestamptz,
+    seed_revision int not null default 0,
+    loaded_at     timestamptz not null default now(),
+
+    check (id)
 );

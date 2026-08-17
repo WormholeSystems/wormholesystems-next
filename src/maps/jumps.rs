@@ -398,16 +398,22 @@ pub async fn record_transit(
         None => 0,
     };
 
+    // Only a character someone signed in with has movements to share; the rest are names
+    // we resolved for a killmail.
+    let Some(user_id) = character.user_id else {
+        return Ok(());
+    };
+
     // Maps where this character's user shares their movements.
     let map_ids = sqlx::query_scalar!(
         "select map_id from map_user_settings where user_id = $1 and tracking_allowed",
-        character.user_id,
+        user_id,
     )
     .fetch_all(pool)
     .await?;
 
     for map_id in map_ids {
-        if effective_role(pool, map_id, character.user_id)
+        if effective_role(pool, map_id, user_id)
             .await?
             .is_none_or(|r| r < Role::Member)
         {

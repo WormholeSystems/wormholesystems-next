@@ -4,6 +4,10 @@
 //! need to show a name. This is the one place that turns an id into a row: ask what we
 //! already know, fetch only the rest, and keep it until it goes stale.
 //!
+//! Characters resolved here land in `characters` alongside the ones people sign in with,
+//! without a `user_id`. That column is what separates the two: everything that cares about
+//! whose character it is already filters on it.
+//!
 //! Nothing here belongs on an ingest path. Resolving is a background errand that runs
 //! *after* the thing that needed it was recorded, so a slow or rate-limited ESI can never
 //! hold up writing a killmail.
@@ -52,7 +56,7 @@ pub async fn unresolved(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> 
     let fresh = match kind {
         EntityKind::Character => {
             sqlx::query_scalar!(
-                "select id from eve_characters
+                "select id from characters
                  where id = any($1) and updated_at > now() - interval '7 days'",
                 &ids,
             )
@@ -100,9 +104,15 @@ async fn fetch_character(pool: PgPool, esi: EsiClient, id: i64) {
     let Ok(character) = esi.character_public(id).await else {
         return;
     };
+    // Two things to be careful of. The upsert leaves `user_id` and `owner_hash` alone, so
+    // resolving a name never disturbs whose login a character is. And the affiliations are
+    // foreign keys, so an organisation we have not resolved yet is stored as null rather
+    // than failing the whole insert and losing the name with it.
     let _ = sqlx::query!(
-        "insert into eve_characters (id, name, corporation_id, alliance_id)
-         values ($1, $2, $3, $4)
+        "insert into characters (id, name, corporation_id, alliance_id)
+         values ($1, $2,
+                 (select id from corporations where id = $3),
+                 (select id from alliances where id = $4))
          on conflict (id) do update set
              name = excluded.name,
              corporation_id = excluded.corporation_id,
@@ -123,7 +133,8 @@ async fn fetch_corporation(pool: PgPool, esi: EsiClient, id: i64) {
     };
     let _ = sqlx::query!(
         "insert into corporations (id, name, ticker, alliance_id, faction_id)
-         values ($1, $2, $3, $4, $5)
+         values ($1, $2, $3, (select id from alliances where id = $4),
+                 (select id from factions where id = $5))
          on conflict (id) do update set
              name = excluded.name, ticker = excluded.ticker,
              alliance_id = excluded.alliance_id, faction_id = excluded.faction_id,
@@ -145,7 +156,10 @@ async fn fetch_alliance(pool: PgPool, esi: EsiClient, id: i64) {
     let _ = sqlx::query!(
         "insert into alliances
              (id, name, ticker, creator_corporation_id, executor_corporation_id, faction_id)
-         values ($1, $2, $3, $4, $5, $6)
+         values ($1, $2, $3,
+                 (select id from corporations where id = $4),
+                 (select id from corporations where id = $5),
+                 (select id from factions where id = $6))
          on conflict (id) do update set
              name = excluded.name, ticker = excluded.ticker,
              creator_corporation_id = excluded.creator_corporation_id,
