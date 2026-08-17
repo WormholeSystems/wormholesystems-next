@@ -156,6 +156,45 @@ test('a resize grows freely while the ghost snaps', async ({ page, api }) => {
 	await page.mouse.up();
 });
 
+test('arranging never gives the window a horizontal scrollbar', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Overflow');
+	await page.setViewportSize({ width: 1700, height: 1000 });
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.getByTestId('layout-toggle').click();
+
+	const overflows = () =>
+		page.evaluate(
+			() => document.documentElement.scrollWidth > document.documentElement.clientWidth
+		);
+	expect(await overflows()).toBe(false);
+
+	// Drag a tile hard right, well past the edge of the grid.
+	const shield = page.locator('[data-testid="tile-shield"][data-panel="notes"]');
+	await shield.scrollIntoViewIfNeeded();
+	const grip = (await shield.boundingBox())!;
+	await page.mouse.move(grip.x + 60, grip.y + 20);
+	await page.mouse.down();
+	await page.mouse.move(grip.x + 70, grip.y + 30);
+	await page.mouse.move(grip.x + 60 + 600, grip.y + 20, { steps: 6 });
+	expect(await overflows()).toBe(false);
+	await page.mouse.up();
+	await expect(page.getByTestId('panel-grid')).toHaveAttribute('data-dragging', 'false');
+	expect(await overflows()).toBe(false);
+
+	// And the same while resizing past the right-hand edge.
+	const handle = page.locator('[data-testid="tile-resize"][data-panel="notes"]');
+	await handle.scrollIntoViewIfNeeded();
+	const corner = (await handle.boundingBox())!;
+	await page.mouse.move(corner.x + 2, corner.y + 2);
+	await page.mouse.down();
+	await page.mouse.move(corner.x + 12, corner.y + 12);
+	await page.mouse.move(corner.x + 2 + 800, corner.y + 2, { steps: 6 });
+	expect(await overflows()).toBe(false);
+	await page.mouse.up();
+	await expect(page.getByTestId('panel-grid')).toHaveAttribute('data-dragging', 'false');
+	expect(await overflows()).toBe(false);
+});
+
 test('arrow keys move a tile without a pointer', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Keyboard');
 	await page.setViewportSize({ width: 1700, height: 1000 });

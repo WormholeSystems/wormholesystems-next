@@ -83,10 +83,14 @@
 		const left = g.origin.x * colWidth;
 		const top = g.origin.y * layout.row_height;
 		if (g.kind === 'move') {
+			const width = g.origin.w * colWidth;
+			// Held inside the grid rather than tracking the pointer past the edges: a tile
+			// cannot land outside, and letting it hang off the right would widen the document
+			// and give the whole window a horizontal scrollbar mid-drag.
 			return {
-				left: left + g.dx,
-				top: top + g.dy,
-				width: g.origin.w * colWidth,
+				left: clamp(left + g.dx, 0, Math.max(0, gridWidth - width)),
+				top: Math.max(0, top + g.dy),
+				width,
 				height: g.origin.h * layout.row_height
 			};
 		}

@@ -142,6 +142,9 @@ test('route settings: preference persists; lifetime tolerance drops EOL holes', 
 	await page.getByTestId('setting-route_preference').click();
 	await page.getByRole('option', { name: 'Safer' }).click();
 	await page.keyboard.press('Escape');
+	// The header only reads 'Safer' once the server has confirmed the setting, so this is
+	// what makes the reload below a real test of persistence rather than a race with it.
+	await expect(page.getByTestId('navigation-card').getByText('Safer')).toBeVisible();
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
 	await expect(page.getByTestId('navigation-card').getByText('Safer')).toBeVisible();

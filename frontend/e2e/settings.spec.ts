@@ -17,7 +17,10 @@ test('renaming the map shows up on the map itself', async ({ page, api }) => {
 	await expect(input).toHaveValue('E2E Before');
 	await input.fill('E2E After');
 	await page.getByTestId('rename-button').click();
-	await expect(input).toHaveValue('E2E After');
+	// Save goes disabled once the reloaded map carries the new name, which is the signal
+	// that the write landed. Re-checking the input would pass instantly, since `fill` had
+	// already set it, and navigating then aborts the request in flight.
+	await expect(page.getByTestId('rename-button')).toBeDisabled();
 
 	await gotoApp(page, `/maps/${mapId}`);
 	await expect(page.getByTestId('status-bar-name')).toHaveText('E2E After');
