@@ -92,6 +92,53 @@ pub async fn unresolved(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> 
     ids.into_iter().filter(|id| !fresh.contains(id)).collect()
 }
 
+/// Name a large batch of characters in as few calls as possible.
+///
+/// The per-character endpoint is one request each, which is fine for the handful a live
+/// killmail mentions and hopeless for the tens of thousands in a year of history. The bulk
+/// endpoint takes a thousand ids at a time and returns only names, which is all a killmail
+/// row asks of a character anyway.
+///
+/// Ids already known and still fresh are skipped, so re-running an import costs nothing.
+pub async fn ensure_character_names(pool: &PgPool, esi: &EsiClient, ids: &[i64]) -> usize {
+    let wanted: HashSet<i64> = ids.iter().copied().filter(|id| *id > 0).collect();
+    if wanted.is_empty() {
+        return 0;
+    }
+    let missing = unresolved(pool, EntityKind::Character, &wanted).await;
+    let mut named = 0usize;
+    for chunk in missing.chunks(1000) {
+        let Ok(rows) = esi.universe_names(chunk).await else {
+            // A batch containing one dead id fails as a whole. Skipping it costs those
+            // names until the next run rather than the whole import.
+            continue;
+        };
+        let (ids, names): (Vec<i64>, Vec<String>) = rows
+            .into_iter()
+            .filter(|r| r.category == "character")
+            .map(|r| (r.id, r.name))
+            .collect();
+        if ids.is_empty() {
+            continue;
+        }
+        // Name only: this must never disturb whose login a character is, nor overwrite an
+        // affiliation the richer per-character fetch has already established.
+        let written = sqlx::query!(
+            "insert into characters (id, name)
+             select * from unnest($1::bigint[], $2::text[])
+             on conflict (id) do update set name = excluded.name, updated_at = now()",
+            &ids,
+            &names,
+        )
+        .execute(pool)
+        .await
+        .map(|r| r.rows_affected() as usize)
+        .unwrap_or(0);
+        named += written;
+    }
+    named
+}
+
 async fn fetch(pool: PgPool, esi: EsiClient, kind: EntityKind, id: i64) {
     match kind {
         EntityKind::Character => fetch_character(pool, esi, id).await,

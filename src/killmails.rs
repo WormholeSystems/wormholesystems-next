@@ -680,13 +680,41 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
 
         let mut files = Vec::new();
         collect_json_files(&extract_dir, &mut files)?;
+
+        // Every entity the day mentions, deduped before anything is fetched. A busy day is
+        // tens of thousands of killmails naming a few thousand distinct pilots and a few
+        // hundred organisations, so resolving per killmail would be almost entirely
+        // repeated work.
+        let mut day_characters: std::collections::HashSet<i64> = std::collections::HashSet::new();
+        let mut day_corporations: std::collections::HashSet<i64> = std::collections::HashSet::new();
+        let mut day_alliances: std::collections::HashSet<i64> = std::collections::HashSet::new();
+
         let mut inserted = 0usize;
-        for chunk in files.chunks(500) {
+        // Rows go in a few thousand at a time. The statement binds fixed arrays rather than
+        // one placeholder per value, so the batch is bounded by memory rather than by
+        // Postgres's parameter limit.
+        for chunk in files.chunks(2_000) {
             let mut ids = Vec::new();
             let mut hashes = Vec::new();
             let mut systems = Vec::new();
             let mut times = Vec::new();
             let mut orgs_json = Vec::new();
+            // The archives carry the ESI body but not zKillboard's block, so everything
+            // except the ISK value and the solo/NPC flags comes through. Writing what we
+            // have matters: the card ignores rows with no victim ship, so a backfill that
+            // stored only the bare minimum would import history nobody could see.
+            let mut victim_chars: Vec<Option<i64>> = Vec::new();
+            let mut victim_corps: Vec<Option<i64>> = Vec::new();
+            let mut victim_allis: Vec<Option<i64>> = Vec::new();
+            let mut victim_ships: Vec<Option<i64>> = Vec::new();
+            let mut values: Vec<Option<f64>> = Vec::new();
+            let mut attackers: Vec<Option<i32>> = Vec::new();
+            let mut npcs: Vec<bool> = Vec::new();
+            let mut solos: Vec<bool> = Vec::new();
+            let mut fb_chars: Vec<Option<i64>> = Vec::new();
+            let mut fb_corps: Vec<Option<i64>> = Vec::new();
+            let mut fb_allis: Vec<Option<i64>> = Vec::new();
+            let mut fb_ships: Vec<Option<i64>> = Vec::new();
             for path in chunk {
                 let Ok(text) = std::fs::read_to_string(path) else {
                     continue;
@@ -706,11 +734,42 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
                 systems.push(system);
                 times.push(time.to_string());
                 orgs_json.push(serde_json::to_value(extract_orgs(&km))?);
+
+                let d = extract_detail(&km, &serde_json::Value::Null);
+                day_characters.extend(d.victim_character_id);
+                day_characters.extend(d.final_blow_character_id);
+                day_corporations.extend(d.victim_corporation_id);
+                day_corporations.extend(d.final_blow_corporation_id);
+                day_alliances.extend(d.victim_alliance_id);
+                day_alliances.extend(d.final_blow_alliance_id);
+
+                victim_chars.push(d.victim_character_id);
+                victim_corps.push(d.victim_corporation_id);
+                victim_allis.push(d.victim_alliance_id);
+                victim_ships.push(d.victim_ship_type_id);
+                values.push(d.total_value);
+                attackers.push(d.attacker_count);
+                npcs.push(d.is_npc);
+                solos.push(d.is_solo);
+                fb_chars.push(d.final_blow_character_id);
+                fb_corps.push(d.final_blow_corporation_id);
+                fb_allis.push(d.final_blow_alliance_id);
+                fb_ships.push(d.final_blow_ship_type_id);
             }
             let n = sqlx::query(
-                "insert into killmails (id, hash, solar_system_id, time, orgs)
+                "insert into killmails (
+                     id, hash, solar_system_id, time, orgs,
+                     victim_character_id, victim_corporation_id, victim_alliance_id,
+                     victim_ship_type_id, total_value, attacker_count, is_npc, is_solo,
+                     final_blow_character_id, final_blow_corporation_id,
+                     final_blow_alliance_id, final_blow_ship_type_id
+                 )
                  select * from unnest($1::bigint[], $2::text[], $3::bigint[],
-                                      $4::text[]::timestamptz[], $5::jsonb[])
+                                      $4::text[]::timestamptz[], $5::jsonb[],
+                                      $6::bigint[], $7::bigint[], $8::bigint[], $9::bigint[],
+                                      $10::double precision[], $11::int[], $12::boolean[],
+                                      $13::boolean[], $14::bigint[], $15::bigint[],
+                                      $16::bigint[], $17::bigint[])
                  on conflict (id) do nothing",
             )
             .bind(&ids)
@@ -718,12 +777,39 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
             .bind(&systems)
             .bind(&times)
             .bind(&orgs_json)
+            .bind(&victim_chars)
+            .bind(&victim_corps)
+            .bind(&victim_allis)
+            .bind(&victim_ships)
+            .bind(&values)
+            .bind(&attackers)
+            .bind(&npcs)
+            .bind(&solos)
+            .bind(&fb_chars)
+            .bind(&fb_corps)
+            .bind(&fb_allis)
+            .bind(&fb_ships)
             .execute(pool)
             .await?
             .rows_affected();
             inserted += n as usize;
         }
-        println!("{} killmails ({} new)", files.len(), inserted);
+        // Organisations first and one at a time, because their tickers are what a row
+        // shows and only the per-entity endpoint returns them; there are few enough that
+        // it stays cheap. Characters then go through the thousand-at-a-time bulk endpoint.
+        let alliances: Vec<i64> = day_alliances.into_iter().collect();
+        let corporations: Vec<i64> = day_corporations.into_iter().collect();
+        let characters: Vec<i64> = day_characters.into_iter().collect();
+        crate::entities::ensure(pool, esi, EntityKind::Alliance, &alliances).await;
+        crate::entities::ensure(pool, esi, EntityKind::Corporation, &corporations).await;
+        let named = crate::entities::ensure_character_names(pool, esi, &characters).await;
+
+        println!(
+            "{} killmails ({inserted} new), named {named} of {} pilots and resolved {} orgs",
+            files.len(),
+            characters.len(),
+            alliances.len() + corporations.len()
+        );
 
         std::fs::remove_file(&archive).ok();
         std::fs::remove_dir_all(&extract_dir).ok();

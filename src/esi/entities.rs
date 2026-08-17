@@ -38,7 +38,25 @@ pub struct Affiliation {
     pub faction_id: Option<i64>,
 }
 
+/// One id resolved by the bulk name endpoint. `category` says which kind it turned out to
+/// be: `character`, `corporation`, `alliance`, `solar_system`, and so on.
+#[derive(Debug, Clone, Deserialize)]
+pub struct UniverseName {
+    pub id: i64,
+    pub name: String,
+    pub category: String,
+}
+
 impl EsiClient {
+    /// Names for up to 1000 ids of any kind, in one call.
+    ///
+    /// The per-entity endpoints return far more (a corporation's ticker, a character's
+    /// corp), so this is only worth reaching for when a name is genuinely all that is
+    /// needed and the list is long — importing a year of killmails, say.
+    pub async fn universe_names(&self, ids: &[i64]) -> Result<Vec<UniverseName>> {
+        self.post_json("/universe/names", &ids, None).await
+    }
+
     pub async fn corporation(&self, corporation_id: i64) -> Result<Corporation> {
         self.get_json(&format!("/corporations/{corporation_id}"), None)
             .await

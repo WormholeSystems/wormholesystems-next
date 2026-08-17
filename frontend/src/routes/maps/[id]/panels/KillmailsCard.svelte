@@ -50,9 +50,21 @@
 
 	// A kill anywhere on the map bumps the tick; refetch rather than splice, because what
 	// belongs in the list depends on this viewer's own filter.
+	// The set of systems the list covers, as a value rather than an array identity: the
+	// graph is refetched constantly and a new array each time would mean refetching kills
+	// on every one of them.
+	const systemKey = $derived(
+		map.systems
+			.map((s) => s.solar_system_id)
+			.sort((a, b) => a - b)
+			.join(',')
+	);
+
 	$effect(() => {
-		// Both the server-side filter and a fresh kill change what belongs in the list.
+		// The list is scoped to the map's systems, so adding one is as much a change as a
+		// fresh kill arriving or the filter moving.
 		filter;
+		systemKey;
 		map.killmailTick;
 		load();
 	});

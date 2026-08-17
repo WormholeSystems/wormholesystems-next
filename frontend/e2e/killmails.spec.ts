@@ -144,6 +144,31 @@ test('a solo kill is marked, and the filter narrows to one half of the chain', a
 	await expect(card.locator(`[data-kill="${KSPACE}"]`)).toBeVisible({ timeout: 10_000 });
 });
 
+test('adding a system pulls in its kills straight away', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E KillsAdd');
+	await addSystem(api, mapId, J122515, 200);
+
+	// A kill in a system that is not on the map yet.
+	await seedKillmail({
+		id: KSPACE,
+		solarSystemId: JITA,
+		minutesAgo: 4,
+		victimShipTypeId: SLASHER,
+		totalValue: 9_000_000,
+		attackerCount: 2
+	});
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	const card = page.getByTestId('killmails-card');
+	await expect(card).toBeVisible();
+	await expect(card.locator(`[data-kill="${KSPACE}"]`)).toHaveCount(0);
+
+	// Putting the system on the map brings its history with it. The list is scoped to the
+	// map's systems, so changing that set has to refetch, not wait for the next kill.
+	await addSystem(api, mapId, JITA, 500);
+	await expect(card.locator(`[data-kill="${KSPACE}"]`)).toBeVisible({ timeout: 15_000 });
+});
+
 test('a killmail row right-clicks to the system menu', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E KillsMenu');
 	await addSystem(api, mapId, J122515, 200);
