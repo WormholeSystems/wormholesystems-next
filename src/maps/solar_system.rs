@@ -216,9 +216,28 @@ pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Re
 }
 
 pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> Result<Effect> {
+    // Same guard as the bulk path: one door left open is how this comes back.
+    let protected = sqlx::query_scalar!(
+        r#"select (is_home or is_pinned) as "protected!" from map_solar_systems
+           where id = $1 and map_id = $2"#,
+        cmd.map_solar_system_id,
+        cmd.map_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(MapError::NotFound)?;
+    if protected {
+        return Err(MapError::Conflict(
+            "the home system and pinned systems cannot be removed; unpin it first".into(),
+        ));
+    }
+
     let snapshot = capture_systems(tx, cmd.map_id, &[cmd.map_solar_system_id]).await?;
+    // The predicate lives on the delete, not only in the check above: a guard a caller has
+    // to remember is a guard that eventually gets forgotten.
     let deleted = sqlx::query!(
-        "delete from map_solar_systems where id = $1 and map_id = $2",
+        "delete from map_solar_systems
+         where id = $1 and map_id = $2 and not is_home and not is_pinned",
         cmd.map_solar_system_id,
         cmd.map_id,
     )
@@ -250,16 +269,46 @@ pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> 
 }
 
 pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) -> Result<Effect> {
-    let snapshot = capture_systems(tx, cmd.map_id, &cmd.map_solar_system_ids).await?;
-    let deleted = sqlx::query!(
-        "delete from map_solar_systems where map_id = $1 and id = any($2)",
+    // The home system and pinned systems are deliberate markers, and "clear map" already
+    // refuses to take them. Removing them here regardless made pinning mean nothing: a
+    // marquee across the chain quietly took the one system you had pinned so it would not
+    // move.
+    let rows = sqlx::query!(
+        r#"select id, (is_home or is_pinned) as "protected!"
+           from map_solar_systems where map_id = $1 and id = any($2)"#,
         cmd.map_id,
         &cmd.map_solar_system_ids,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+    let removable: Vec<i64> = rows.iter().filter(|r| !r.protected).map(|r| r.id).collect();
+    let kept = rows.len() - removable.len();
+
+    if removable.is_empty() {
+        return Err(MapError::Conflict(
+            "the home system and pinned systems cannot be removed; unpin it first".into(),
+        ));
+    }
+
+    let snapshot = capture_systems(tx, cmd.map_id, &removable).await?;
+    // Repeating the predicate on the delete is deliberate: the query that removes rows
+    // carries the rule, so it holds even if the selection above is ever changed or a new
+    // caller arrives that does not know about it. `clear_map` has always worked this way.
+    let deleted = sqlx::query!(
+        "delete from map_solar_systems
+         where map_id = $1 and id = any($2) and not is_home and not is_pinned",
+        cmd.map_id,
+        &removable,
     )
     .execute(&mut **tx)
     .await?
     .rows_affected();
-    let label = format!("removed {}", snapshot.label());
+
+    // Say what was kept, so a selection that shrinks on the way through is not a mystery.
+    let label = match kept {
+        0 => format!("removed {}", snapshot.label()),
+        n => format!("removed {} (kept {n} pinned)", snapshot.label()),
+    };
     Ok(
         Effect::new("systems.removed", label, CommandOutput::Count(deleted))
             .entries(deleted as i64)

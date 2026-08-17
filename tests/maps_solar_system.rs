@@ -2,11 +2,11 @@
 
 mod common;
 
-use common::{SYS_A, member_with_role, world};
+use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
 use vector::maps::solar_system::{
-    AddSystem, MoveSystem, RemoveSystem, SetAlias, add_system, move_system, remove_system,
-    set_alias,
+    AddSystem, MoveSystem, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetPinned, add_system,
+    move_system, remove_system, remove_systems, set_alias, set_home, set_pinned,
 };
 use vector::maps::{MapError, Role};
 
@@ -250,4 +250,116 @@ async fn move_and_alias_update_the_row(pool: PgPool) {
         .await,
         Err(MapError::NotFound),
     ));
+}
+
+/// The home system and pinned systems are markers someone set on purpose. "Clear map" has
+/// always refused to take them; deleting a selection used to take them anyway, which made
+/// pinning a system mean nothing the moment a marquee crossed it.
+#[sqlx::test]
+async fn a_pinned_or_home_system_survives_a_delete(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    let pinned = place(&pool, w.owner, w.map_id, SYS_B, 200.0).await;
+    let ordinary = place(&pool, w.owner, w.map_id, SYS_C, 400.0).await;
+
+    set_home(
+        &pool,
+        w.owner,
+        SetHome {
+            map_id: w.map_id,
+            map_solar_system_id: home,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
+    set_pinned(
+        &pool,
+        w.owner,
+        SetPinned {
+            map_id: w.map_id,
+            map_solar_system_id: pinned,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    // A selection spanning all three takes only the one that is not protected.
+    let removed = remove_systems(
+        &pool,
+        w.owner,
+        RemoveSystems {
+            map_id: w.map_id,
+            map_solar_system_ids: vec![home, pinned, ordinary],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(removed, 1);
+    assert_eq!(placed_ids(&pool, w.owner, w.map_id).await.len(), 2);
+
+    // Asking for only protected systems is refused outright rather than silently doing
+    // nothing, so the reason is visible.
+    let err = remove_systems(
+        &pool,
+        w.owner,
+        RemoveSystems {
+            map_id: w.map_id,
+            map_solar_system_ids: vec![home, pinned],
+        },
+    )
+    .await;
+    assert!(matches!(err, Err(MapError::Conflict(_))));
+
+    // Unpinning gives the system back, so this is a guard rather than a life sentence.
+    set_pinned(
+        &pool,
+        w.owner,
+        SetPinned {
+            map_id: w.map_id,
+            map_solar_system_id: pinned,
+            value: false,
+        },
+    )
+    .await
+    .unwrap();
+    let removed = remove_systems(
+        &pool,
+        w.owner,
+        RemoveSystems {
+            map_id: w.map_id,
+            map_solar_system_ids: vec![pinned],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(removed, 1);
+}
+
+async fn place(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, sys: i64, x: f64) -> i64 {
+    add_system(
+        pool,
+        actor,
+        AddSystem {
+            map_id,
+            solar_system_id: sys,
+            x,
+            y: 0.0,
+            alias: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
+}
+
+async fn placed_ids(pool: &PgPool, actor: vector::maps::Actor, map_id: i64) -> Vec<i64> {
+    vector::maps::map::get_map(pool, actor, vector::maps::map::GetMap { map_id })
+        .await
+        .unwrap()
+        .systems
+        .iter()
+        .map(|s| s.id)
+        .collect()
 }
