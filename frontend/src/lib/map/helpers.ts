@@ -38,8 +38,21 @@ export function centerWorld(
 }
 
 /**
- * The first free, non-overlapping, grid-snapped slot at/after `base` (scanning right then
- * down in node-sized steps), so a newly added system doesn't land on top of another.
+ * Clear space kept between placed nodes, in grid cells.
+ *
+ * Nodes used to be laid out exactly a node-width apart, which put them flush against each
+ * other: legible enough on a fresh map, but a chain built by flying it reads as one solid
+ * bar. Four cells is the smallest gap that still looks deliberate at the zoom levels the
+ * map is actually used at.
+ */
+export const NODE_GAP_CELLS = 4;
+
+/**
+ * The first free, grid-snapped slot at/after `base`, scanning right then down.
+ *
+ * "Free" means far enough from every placed node to leave [`NODE_GAP_CELLS`] of clear
+ * space, not merely non-overlapping — so passing a node's own position returns the spot
+ * beside it rather than on top of it, and callers do not each invent their own offset.
  */
 export function freePosition(
 	systems: MapSystemView[],
@@ -47,18 +60,23 @@ export function freePosition(
 	g: GridConfig
 ): { x: number; y: number } {
 	const nodeH = 2 * g.cell_size;
+	const gap = NODE_GAP_CELLS * g.cell_size;
+	const stepX = NODE_W + gap;
+	const stepY = nodeH + gap;
 	const snap = (v: number) => Math.round(v / g.cell_size) * g.cell_size;
-	const overlaps = (x: number, y: number) =>
-		systems.some((s) => Math.abs(x - s.position_x) < NODE_W && Math.abs(y - s.position_y) < nodeH);
+	const crowded = (x: number, y: number) =>
+		systems.some(
+			(s) => Math.abs(x - s.position_x) < stepX && Math.abs(y - s.position_y) < stepY
+		);
 	const bx = snap(base.x);
 	const by = snap(base.y);
-	const cols = Math.max(1, Math.floor(g.world_width / NODE_W));
-	const rows = Math.max(1, Math.floor(g.world_height / nodeH));
+	const cols = Math.max(1, Math.floor(g.world_width / stepX));
+	const rows = Math.max(1, Math.floor(g.world_height / stepY));
 	for (let r = 0; r < rows; r++) {
 		for (let c = 0; c < cols; c++) {
-			const x = snap(clamp(bx + c * NODE_W, 0, g.world_width - NODE_W));
-			const y = snap(clamp(by + r * nodeH, 0, g.world_height - nodeH));
-			if (!overlaps(x, y)) return { x, y };
+			const x = snap(clamp(bx + c * stepX, 0, g.world_width - NODE_W));
+			const y = snap(clamp(by + r * stepY, 0, g.world_height - nodeH));
+			if (!crowded(x, y)) return { x, y };
 		}
 	}
 	return { x: bx, y: by };

@@ -113,10 +113,10 @@
 			}
 		});
 		s.loadUserSettings();
-		s.loadMyCharacters().then(() => tracker.observe());
+		tracker.refresh();
 		s.loadIgnored();
 		s.fetchCharacters();
-		const observe = () => s.loadMyCharacters().then(() => tracker.observe());
+		const observe = () => tracker.refresh();
 		// Presence has no realtime push yet; poll while the page is open. Own characters
 		// ride along, so a missed push still gets the jump noticed within the interval.
 		const presence = setInterval(() => {

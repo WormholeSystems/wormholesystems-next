@@ -37,17 +37,32 @@ async function setServer(
 }
 
 /** What the API believes, which only its own poller can set. */
-async function apiState(api: import('@playwright/test').APIRequestContext) {
+async function apiStatus(api: Api) {
 	const res = await api.get('/api/server-status');
-	return res.ok() ? ((await res.json()).state as string) : 'unreachable';
+	return res.ok()
+		? ((await res.json()) as { state: string; players: number })
+		: { state: 'unreachable', players: 0 };
 }
 
-/** Whether the API is wired to the stub at all, so these tests can bow out politely. */
-async function stubIsWired(api: import('@playwright/test').APIRequestContext, playwright: Playwright) {
-	await setServer(playwright, { players: 12_345 });
+async function apiState(api: Api) {
+	return (await apiStatus(api)).state;
+}
+
+/**
+ * Whether the API is wired to the stub, so these tests can bow out politely against a dev
+ * stack still on the real ESI.
+ *
+ * It waits for an implausible headcount rather than for `online`: Tranquility is usually
+ * up, so "the API says online" would be satisfied by reality and the guard would wave
+ * through tests that cannot possibly pass.
+ */
+const WIRED_MARKER = 12_345;
+
+async function stubIsWired(api: Api, playwright: Playwright) {
+	await setServer(playwright, { players: WIRED_MARKER });
 	const deadline = Date.now() + 15_000;
 	while (Date.now() < deadline) {
-		if ((await apiState(api)) === 'online') return true;
+		if ((await apiStatus(api)).players === WIRED_MARKER) return true;
 		await new Promise((resolve) => setTimeout(resolve, 500));
 	}
 	return false;
@@ -69,7 +84,11 @@ test('the header reports the server, and says so when it is down', async ({
 	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
 
 	await setServer(playwright, { players: 24_512 });
-	await expect.poll(() => apiState(api), { timeout: 15_000 }).toBe('online');
+	// Wait for the count, not just the state: the guard above already left it `online`, so
+	// polling on the state alone would pass before the new figure had landed.
+	await expect
+		.poll(async () => (await apiStatus(api)).players, { timeout: 15_000 })
+		.toBe(24_512);
 
 	await gotoApp(page, '/maps');
 	const indicator = page.getByTestId('server-status');

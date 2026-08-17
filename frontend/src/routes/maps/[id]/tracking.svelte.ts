@@ -11,7 +11,7 @@ import type { Signature } from '$lib/api/types/Signature';
 import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
 import { aliasTargetKind, suggestAlias, type AliasScheme } from '$lib/alias';
-import { NODE_W, freePosition } from '$lib/map/helpers';
+import { freePosition } from '$lib/map/helpers';
 import { classMeta, isWormholeClass } from '$lib/map/classes';
 import { loadCatalog, typeById } from '$lib/map/signatures';
 import { groupSignatures, type SignatureGroups } from '$lib/signatures/compatibility';
@@ -75,12 +75,32 @@ export class JumpTracker {
 	private seenCharacterId: number | null = null;
 	private seenSystemId: number | null = null;
 
+	// Refreshes are serialised rather than overlapped: two in flight can come back out of
+	// order, and an older reply landing after a newer one reads as a jump in the wrong
+	// direction. A trigger arriving mid-flight is coalesced into one follow-up run.
+	private refreshing: Promise<void> | null = null;
+	private pending = false;
+
 	constructor(map: MapState) {
 		this.map = map;
 	}
 
 	private get enabled(): boolean {
 		return this.map.userSettings?.tracking_allowed === true;
+	}
+
+	/** Reload where the pilot is and take a reading. Safe to call from several triggers. */
+	refresh(): Promise<void> {
+		this.pending = true;
+		if (this.refreshing) return this.refreshing;
+		this.refreshing = (async () => {
+			while (this.pending) {
+				this.pending = false;
+				await this.map.loadMyCharacters();
+				this.observe();
+			}
+		})().finally(() => (this.refreshing = null));
+		return this.refreshing;
 	}
 
 	/**
@@ -229,11 +249,11 @@ export class JumpTracker {
 		});
 	}
 
-	/** The first free slot to the right of the system jumped from. */
+	/** The first free slot beside the system jumped from. */
 	private placeNear(origin: MapSystemView): { x: number; y: number } {
 		return freePosition(
 			this.map.systems,
-			{ x: origin.position_x + NODE_W, y: origin.position_y },
+			{ x: origin.position_x, y: origin.position_y },
 			this.map.grid
 		);
 	}

@@ -157,25 +157,27 @@ test('a jump through a scanned hole places the system, connects it and links the
 	await pilot.close();
 });
 
-test('a gate hop builds nothing, and an unscanned jump maps the hole without asking', async ({
-	api,
-	browser,
-	playwright
-}) => {
+test('a gate hop builds nothing', async ({ api, browser, playwright }) => {
 	const mapId = await createMap(api, 'E2E TrackingGate');
 	await addSystem(api, mapId, JITA, null);
 	const pilot = await openAsPilot(browser, playwright, 10, mapId, JITA);
 
-	await jumpTo(pilot.page, pilot.identity.characterId, PERIMETER);
-
 	// Taking a gate is travel, not a discovery: no prompt, and nothing added.
+	await jumpTo(pilot.page, pilot.identity.characterId, PERIMETER);
 	await expect(pilot.page.getByTestId('tracking-dialog')).toBeHidden();
 	await pilot.page.waitForTimeout(500);
 	expect((await graph(api, mapId)).systems).toHaveLength(1);
 
-	// Back through the same gate, then out of Jita through a hole nobody scanned: with no
-	// signature to offer there is nothing to ask, so it is mapped straight away.
-	await jumpTo(pilot.page, pilot.identity.characterId, JITA);
+	await pilot.close();
+});
+
+test('an unscanned hole is mapped without asking', async ({ api, browser, playwright }) => {
+	const mapId = await createMap(api, 'E2E TrackingUnscanned');
+	await addSystem(api, mapId, JITA, null);
+	const pilot = await openAsPilot(browser, playwright, 14, mapId, JITA);
+
+	// Nothing was scanned here, so there is no signature to offer and nothing to ask: the
+	// hole goes on the map unlinked rather than being lost.
 	await jumpTo(pilot.page, pilot.identity.characterId, J122515);
 	await expect
 		.poll(async () => (await graph(api, mapId)).systems.length, { timeout: 10_000 })

@@ -85,11 +85,10 @@
 
 	function connectFrom(id: number) {
 		map.linkFrom = id;
-		// Land the connected system just right of its source node.
+		// Anchor on the source node itself; the placement helper steps out from there and
+		// owns the spacing, so every way of adding a system leaves the same gap.
 		const s = map.systems.find((s) => s.id === id);
-		map.searchAnchor = s
-			? { x: s.position_x + NODE_W + 2 * map.grid.cell_size, y: s.position_y }
-			: null;
+		map.searchAnchor = s ? { x: s.position_x, y: s.position_y } : null;
 		map.searchOpen = true;
 		close();
 	}
