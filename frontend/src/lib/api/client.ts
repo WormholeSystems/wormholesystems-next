@@ -6,6 +6,9 @@ import type { AddConnectionJump } from './types/AddConnectionJump';
 import type { AddSignature } from './types/AddSignature';
 import type { AddSystem } from './types/AddSystem';
 import type { CharacterRef } from './types/CharacterRef';
+import type { MapAlert } from './types/MapAlert';
+import type { MapAlertEvent } from './types/MapAlertEvent';
+import type { SaveAlert } from './types/SaveAlert';
 import type { ScopeStatus } from './types/ScopeStatus';
 import type { ConnectionJump } from './types/ConnectionJump';
 import type { CharacterStatus } from './types/CharacterStatus';
@@ -99,6 +102,14 @@ function get<T>(path: string): Promise<T> {
 function post<T>(path: string, body: unknown): Promise<T> {
 	return request<T>(path, {
 		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+}
+
+function put<T>(path: string, body: unknown): Promise<T> {
+	return request<T>(path, {
+		method: 'PUT',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body)
 	});
@@ -219,6 +230,18 @@ export const api = {
 	// Access / settings
 	updateMap: (cmd: UpdateMap) => post<Map>(`/api/maps/${cmd.map_id}/update`, cmd),
 	listAccess: (mapId: number) => get<AccessEntry[]>(`/api/maps/${mapId}/access`),
+
+	// --- Discord alerts ---
+	listAlerts: (mapId: number) => get<MapAlert[]>(`/api/maps/${mapId}/alerts`),
+	alertEvents: (mapId: number) => get<MapAlertEvent[]>(`/api/maps/${mapId}/alerts/events`),
+	createAlert: (mapId: number, body: SaveAlert) =>
+		post<MapAlert>(`/api/maps/${mapId}/alerts`, body),
+	updateAlert: (mapId: number, alertId: number, body: SaveAlert) =>
+		put<MapAlert>(`/api/maps/${mapId}/alerts/${alertId}`, body),
+	setAlertActive: (mapId: number, alertId: number, isActive: boolean) =>
+		post<MapAlert>(`/api/maps/${mapId}/alerts/${alertId}/active`, { is_active: isActive }),
+	deleteAlert: (mapId: number, alertId: number) =>
+		del<null>(`/api/maps/${mapId}/alerts/${alertId}`),
 	searchAccessSubjects: (query: string) =>
 		get<AccessSubject[]>(`/api/access-subjects/search?q=${encodeURIComponent(query)}`),
 	setAccess: (cmd: SetAccess) => post<null>(`/api/maps/${cmd.map_id}/access/set`, cmd),

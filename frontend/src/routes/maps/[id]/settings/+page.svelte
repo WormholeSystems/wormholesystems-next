@@ -170,6 +170,23 @@
 		<NamingCard naming={view.map.naming} disabled={!canManage} onsave={saveNaming} />
 	{/if}
 
+	{#if canManage}
+		<Card.Root>
+			<Card.Header>
+				<Card.Title>Discord alerts</Card.Title>
+				<Card.Description>
+					Have the map tell a channel when something dies nearby, or when the chain reaches
+					somewhere worth knowing about.
+				</Card.Description>
+			</Card.Header>
+			<Card.Content>
+				<Button variant="outline" href="/maps/{mapId}/settings/alerts" data-testid="alerts-link">
+					Manage alerts
+				</Button>
+			</Card.Content>
+		</Card.Root>
+	{/if}
+
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Access</Card.Title>
