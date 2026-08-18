@@ -89,14 +89,34 @@ impl MapEvent {
 }
 
 /// The in-process event bus. Cheaply cloneable (an `Arc` inside) — hold one in app state.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MapHub {
     channels: Arc<Mutex<HashMap<i64, broadcast::Sender<MapEvent>>>>,
+    /// Every event on every map, for background work that cannot know which maps to watch.
+    all: broadcast::Sender<MapEvent>,
+}
+
+impl Default for MapHub {
+    fn default() -> Self {
+        MapHub {
+            channels: Arc::default(),
+            all: broadcast::channel(CHANNEL_CAPACITY).0,
+        }
+    }
 }
 
 impl MapHub {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Every map's events in one stream.
+    ///
+    /// A background consumer that falls behind is told it lagged and carries on from the
+    /// present, which for alerts is the right trade: a missed placement costs a message,
+    /// where blocking the publisher would cost the map change itself.
+    pub fn subscribe_all(&self) -> broadcast::Receiver<MapEvent> {
+        self.all.subscribe()
     }
 
     /// Subscribe to a map's events, creating its channel on first use. Each connected
@@ -112,6 +132,7 @@ impl MapHub {
     /// Publish an event to its map. A no-op if nobody is watching that map; if the last
     /// subscriber has gone, the channel is pruned so idle maps don't leak.
     pub fn publish(&self, event: MapEvent) {
+        let _ = self.all.send(event.clone());
         let map_id = event.map_id();
         let mut channels = self.channels.lock().expect("map hub poisoned");
         if let Some(tx) = channels.get(&map_id)

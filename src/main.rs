@@ -92,8 +92,21 @@ async fn main() {
     // Background: mirror the raidable skyhooks CCP is currently advertising.
     vector::skyhooks::start(db.clone(), esi.clone(), server.clone());
 
+    // Background: Discord alerts. One runtime shared by everything that can fire one; the
+    // stargate graph it holds is the expensive part and is the same for all of them.
+    let alerts = match vector::alerts::Runtime::load(&db).await {
+        Ok(runtime) => Some(Arc::new(runtime)),
+        Err(err) => {
+            eprintln!("alerts disabled, could not load the stargate graph: {err}");
+            None
+        }
+    };
+    if let Some(alerts) = alerts.clone() {
+        vector::alerts::start(db.clone(), hub.clone(), alerts);
+    }
+
     // Background: killmail ingest + daily threat analysis (gated by ZKB_LISTEN=1).
-    vector::killmails::start(db.clone(), esi.clone(), hub.clone());
+    vector::killmails::start(db.clone(), esi.clone(), hub.clone(), alerts);
 
     // Background: purge stale signatures (legacy expiry: 3d wormholes, 7d sites).
     vector::maps::signatures::start_expiry(db.clone(), hub.clone());

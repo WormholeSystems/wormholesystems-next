@@ -148,7 +148,12 @@ fn http_client() -> reqwest::Client {
 ///
 /// `KILLMAIL_BACKFILL_DAYS` overrides how much history a boot fills in; 0 turns it off, which
 /// is what the e2e harness does — the tests want a database they seeded, not a real quarter.
-pub fn start(pool: PgPool, esi: EsiClient, maps: crate::maps::MapHub) {
+pub fn start(
+    pool: PgPool,
+    esi: EsiClient,
+    maps: crate::maps::MapHub,
+    alerts: Option<std::sync::Arc<crate::alerts::Runtime>>,
+) {
     if std::env::var("ZKB_LISTEN").as_deref() != Ok("1") {
         return;
     }
@@ -157,7 +162,7 @@ pub fn start(pool: PgPool, esi: EsiClient, maps: crate::maps::MapHub) {
         .ok()
         .and_then(|d| d.parse().ok())
         .unwrap_or(BACKFILL_DAYS);
-    tokio::spawn(listen(pool.clone(), base, maps));
+    tokio::spawn(listen(pool.clone(), base, maps, alerts));
     tokio::spawn(resolve_loop(pool.clone(), esi.clone()));
     if days > 0 {
         tokio::spawn(backfill_loop(pool.clone(), esi.clone(), days));
@@ -165,19 +170,15 @@ pub fn start(pool: PgPool, esi: EsiClient, maps: crate::maps::MapHub) {
     tokio::spawn(analysis_loop(pool, esi));
 }
 
-async fn listen(pool: PgPool, base: String, maps: crate::maps::MapHub) {
+async fn listen(
+    pool: PgPool,
+    base: String,
+    maps: crate::maps::MapHub,
+    alerts: Option<std::sync::Arc<crate::alerts::Runtime>>,
+) {
     let http = http_client();
-    // Loaded once here rather than in `start`: a failure to read the graph should cost the
-    // alerts, not the ingest.
-    let alerts = match crate::alerts::Runtime::load(&pool).await {
-        Ok(runtime) => Some(runtime),
-        Err(err) => {
-            eprintln!("alerts disabled, could not load the stargate graph: {err}");
-            None
-        }
-    };
     loop {
-        match ingest_next(&pool, &http, &base, &maps, alerts.as_ref()).await {
+        match ingest_next(&pool, &http, &base, &maps, alerts.as_deref()).await {
             Ok(true) => tokio::time::sleep(Duration::from_millis(500)).await,
             Ok(false) => tokio::time::sleep(Duration::from_secs(10)).await,
             Err(err) => {
@@ -575,7 +576,7 @@ async fn advance(pool: &PgPool, seq: i64) -> Result<(), sqlx::Error> {
 
 /// The organisations participating in a killmail (victim + every attacker), alliance
 /// preferred over corporation, each org at most once.
-pub fn extract_orgs(esi: &EsiKillmail) -> Vec<Org> {
+fn extract_orgs(esi: &EsiKillmail) -> Vec<Org> {
     let mut seen = std::collections::HashSet::new();
     let mut orgs = Vec::new();
     let mut push = |entity: &Participant| {

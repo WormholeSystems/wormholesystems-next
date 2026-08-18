@@ -12,6 +12,7 @@
 pub mod delivery;
 pub mod filters;
 pub mod killmail;
+pub mod place;
 pub mod proximity;
 
 use serde::{Deserialize, Serialize};
@@ -46,6 +47,42 @@ impl Runtime {
     pub async fn killmail(&self, pool: &PgPool, kill: &killmail::Kill) {
         killmail::evaluate(pool, &self.http, &self.universe, kill).await;
     }
+
+    /// Re-evaluate a map's proximity alerts after its shape changed.
+    pub async fn placed(&self, pool: &PgPool, map_id: i64, map_solar_system_id: i64) {
+        place::evaluate(
+            pool,
+            &self.http,
+            &self.universe,
+            map_id,
+            map_solar_system_id,
+        )
+        .await;
+    }
+}
+
+/// Watch every map for the changes alerts care about.
+///
+/// A subscriber rather than a hook in the command dispatcher: alerts are an audience for
+/// map changes, not a participant in them, and nothing here should be able to fail a
+/// placement. Dropping events when it falls behind is the same trade.
+pub fn start(pool: PgPool, hub: crate::maps::MapHub, runtime: std::sync::Arc<Runtime>) {
+    tokio::spawn(async move {
+        let mut events = hub.subscribe_all();
+        loop {
+            match events.recv().await {
+                Ok(crate::maps::MapEvent::SystemAdded {
+                    map_id,
+                    map_solar_system_id,
+                }) => {
+                    runtime.placed(&pool, map_id, map_solar_system_id).await;
+                }
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            }
+        }
+    });
 }
 
 /// What an alert watches for.
