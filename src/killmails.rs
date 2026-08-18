@@ -32,6 +32,8 @@ const TOP_ORGS: i64 = 10;
 const HOSTILE_THRESHOLD: i64 = 50;
 /// How far back the killmails card looks, and therefore how far back names are resolved.
 pub const CARD_WINDOW_DAYS: i32 = 7;
+/// How many rows the card asks for. A recent feed, not an archive.
+pub const CARD_LIMIT: i64 = 60;
 const ACTIVE_THRESHOLD: i64 = 15;
 
 /// The compact per-killmail org record persisted in `killmails.orgs`.
@@ -255,7 +257,29 @@ pub async fn list_for_map(
     let wormholes_only = matches!(filter, KillmailFilter::Wormhole);
     let kspace_only = matches!(filter, KillmailFilter::KnownSpace);
     let rows = sqlx::query!(
-        r#"select k.id, k.solar_system_id, k.time, k.total_value,
+        r#"with ranked as (
+               -- Round-robin over the map's systems: the newest kill in each, then the
+               -- second newest in each, and so on until the page is full. Ordering purely
+               -- by time lets one trade hub take every row — Jita alone can out-kill a
+               -- whole chain several times over — and the card is there to say what died
+               -- in *your* systems, not to rank them by traffic.
+               select k.id,
+                      row_number() over (
+                          partition by k.solar_system_id order by k.time desc
+                      ) as rn
+               from killmails k
+               join map_solar_systems mss
+                   on mss.map_id = $1 and mss.solar_system_id = k.solar_system_id
+               left join wormhole_systems ws on ws.solar_system_id = k.solar_system_id
+               where k.time >= now() - make_interval(days => $2)
+                 -- Rows from before the ingest kept any detail would render as blank lines.
+                 and k.victim_ship_type_id is not null
+                 and (not $3 or ws.solar_system_id is not null)
+                 and (not $4 or ws.solar_system_id is null)
+               order by rn, k.time desc
+               limit $5
+           )
+           select k.id, k.solar_system_id, k.time, k.total_value,
                   coalesce(k.attacker_count, 0) as "attacker_count!",
                   k.is_npc, k.is_solo,
                   ss.name as system_name, r.name as region, ss.security_status,
@@ -269,8 +293,7 @@ pub async fn list_for_map(
                   k.final_blow_alliance_id, fa.ticker as "final_blow_alliance_ticker?",
                   k.final_blow_ship_type_id, ft.name as "final_blow_ship_name?"
            from killmails k
-           join map_solar_systems mss
-               on mss.map_id = $1 and mss.solar_system_id = k.solar_system_id
+           join ranked on ranked.id = k.id
            join solar_systems ss on ss.id = k.solar_system_id
            join constellations c on c.id = ss.constellation_id
            join regions r on r.id = c.region_id
@@ -283,13 +306,7 @@ pub async fn list_for_map(
            left join corporations fco on fco.id = k.final_blow_corporation_id
            left join alliances fa on fa.id = k.final_blow_alliance_id
            left join types ft on ft.id = k.final_blow_ship_type_id
-           where k.time >= now() - make_interval(days => $2)
-             -- Rows from before the ingest kept any detail would render as blank lines.
-             and k.victim_ship_type_id is not null
-             and (not $3 or ws.solar_system_id is not null)
-             and (not $4 or ws.solar_system_id is null)
-           order by k.time desc
-           limit $5"#,
+           order by k.time desc"#,
         map_id,
         CARD_WINDOW_DAYS,
         wormholes_only,

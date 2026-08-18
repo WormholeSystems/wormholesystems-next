@@ -2020,7 +2020,7 @@ pub async fn map_killmails(
             &state.db,
             map_id,
             crate::killmails::KillmailFilter::from_db(&filter),
-            50,
+            crate::killmails::CARD_LIMIT,
         )
         .await?,
     ))

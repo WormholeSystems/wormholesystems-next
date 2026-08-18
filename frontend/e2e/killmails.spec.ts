@@ -7,6 +7,7 @@ import { clearKillmails, seedKillmail } from './db';
 // Rows are asserted by their own seeded ids rather than by count: the ingest is live
 // against zKillboard, so a real kill can land in any system at any moment.
 
+const J155207 = 31002402; // a second wormhole, so the busy-system test sees no real traffic
 const J122515 = 31001882; // C5
 const JITA = 30000142;
 const AMARR = 30002187; // never placed on the test map
@@ -19,7 +20,10 @@ const RECENT = 900000001;
 const OLD = 900000002;
 const ELSEWHERE = 900000003;
 const KSPACE = 900000004;
-const SEEDED = [RECENT, OLD, ELSEWHERE, KSPACE];
+// A block of ids for the flooding test, well clear of the singles above.
+const FLOOD = Array.from({ length: 55 }, (_, i) => 900001000 + i);
+const QUIET = 900000005;
+const SEEDED = [RECENT, OLD, ELSEWHERE, KSPACE, QUIET, ...FLOOD];
 
 type Api = import('@playwright/test').APIRequestContext;
 
@@ -167,6 +171,39 @@ test('adding a system pulls in its kills straight away', async ({ page, api }) =
 	// map's systems, so changing that set has to refetch, not wait for the next kill.
 	await addSystem(api, mapId, JITA, 500);
 	await expect(card.locator(`[data-kill="${KSPACE}"]`)).toBeVisible({ timeout: 15_000 });
+});
+
+test('a busy system cannot crowd the rest of the map out of the list', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E KillsFair');
+	await addSystem(api, mapId, J122515, 200);
+	await addSystem(api, mapId, J155207, 500);
+
+	// One kill in the quiet system, then more recent kills in the other than the card has
+	// room for. Ordered purely by time, every row would belong to the busy system and the
+	// quiet one would vanish — which is exactly what a trade hub does to a real chain.
+	await seedKillmail({
+		id: QUIET,
+		solarSystemId: J155207,
+		minutesAgo: 90,
+		victimShipTypeId: LOKI,
+		totalValue: 3_000_000_000,
+		attackerCount: 6
+	});
+	for (const [i, id] of FLOOD.entries()) {
+		await seedKillmail({
+			id,
+			solarSystemId: J122515,
+			minutesAgo: i + 1,
+			victimShipTypeId: SLASHER,
+			totalValue: 5_000_000,
+			attackerCount: 2
+		});
+	}
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+	const card = page.getByTestId('killmails-card');
+	await expect(card.locator(`[data-kill="${FLOOD[0]}"]`)).toBeVisible({ timeout: 10_000 });
+	await expect(card.locator(`[data-kill="${QUIET}"]`)).toBeVisible();
 });
 
 test('a killmail row right-clicks to the system menu', async ({ page, api }) => {
