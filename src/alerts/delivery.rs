@@ -1,0 +1,221 @@
+//! Getting a message to Discord.
+//!
+//! Webhook delivery only, for now: a channel webhook needs no bot, no permissions and no
+//! OAuth, so it is the destination somebody can set up in a minute. Bot delivery (direct
+//! messages, and channels the bot can post in) shares the embed and the retry, and lands
+//! on top of this.
+//!
+//! Discord rate-limits per webhook and answers 429 with `retry_after`. Honouring it is not
+//! optional: ignoring it gets the whole application limited, not just the one webhook.
+
+use std::time::Duration;
+
+use serde::Serialize;
+
+/// Colours from EVE's security bands, so an embed reads the way the map does.
+pub fn security_color(security: f64) -> u32 {
+    match security {
+        s if s >= 0.9 => 0x2f_ef_ef,
+        s if s >= 0.8 => 0x48_f0_c0,
+        s if s >= 0.7 => 0x00_ef_47,
+        s if s >= 0.6 => 0x00_f0_00,
+        s if s >= 0.5 => 0x00_ff_00,
+        s if s >= 0.4 => 0xd7_7700,
+        s if s >= 0.3 => 0xf0_60_00,
+        s if s >= 0.2 => 0xf0_48_00,
+        s if s >= 0.1 => 0xd7_30_00,
+        s if s > 0.0 => 0xf0_00_00,
+        _ => 0xf0_00_f0,
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Field {
+    pub name: String,
+    pub value: String,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub inline: bool,
+}
+
+impl Field {
+    pub fn new(name: impl Into<String>, value: impl Into<String>, inline: bool) -> Field {
+        Field {
+            name: name.into(),
+            value: value.into(),
+            inline,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Embed {
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub color: u32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<Field>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thumbnail: Option<Image>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub footer: Option<Footer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Image {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Footer {
+    pub text: String,
+}
+
+/// One message: the ping, if any, plus the embed that carries the detail.
+#[derive(Debug, Clone, Serialize)]
+pub struct Message {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    pub embeds: Vec<Embed>,
+    pub allowed_mentions: AllowedMentions,
+}
+
+/// Discord will ping anything mentioned in the text unless told otherwise, so every
+/// message states exactly what it is allowed to reach.
+#[derive(Debug, Clone, Serialize)]
+pub struct AllowedMentions {
+    pub parse: Vec<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub users: Vec<String>,
+}
+
+impl Message {
+    pub fn new(embed: Embed) -> Message {
+        Message {
+            content: None,
+            embeds: vec![embed],
+            allowed_mentions: AllowedMentions {
+                parse: Vec::new(),
+                roles: Vec::new(),
+                users: Vec::new(),
+            },
+        }
+    }
+
+    /// Ping a role, and allow only that role to be pinged.
+    pub fn mention_role(mut self, role_id: &str) -> Message {
+        self.content = Some(format!("<@&{role_id}>"));
+        self.allowed_mentions.roles = vec![role_id.to_string()];
+        self
+    }
+
+    pub fn mention_user(mut self, user_id: &str) -> Message {
+        self.content = Some(format!("<@{user_id}>"));
+        self.allowed_mentions.users = vec![user_id.to_string()];
+        self
+    }
+
+    pub fn mention_everyone(mut self) -> Message {
+        self.content = Some("@everyone".to_string());
+        self.allowed_mentions.parse = vec!["everyone"];
+        self
+    }
+}
+
+/// Why a send failed, and whether the alert should stop trying.
+#[derive(Debug)]
+pub enum SendError {
+    /// The destination is gone: a deleted webhook or channel. Retrying will not help.
+    Gone,
+    /// Anything else — network, 5xx, exhausted retries.
+    Failed(String),
+}
+
+const ATTEMPTS: usize = 3;
+
+/// Post a message to a Discord webhook, honouring rate limits.
+pub async fn post_webhook(
+    http: &reqwest::Client,
+    url: &str,
+    message: &Message,
+) -> Result<(), SendError> {
+    let mut last = String::new();
+    for attempt in 0..ATTEMPTS {
+        let response = match http.post(url).json(message).send().await {
+            Ok(response) => response,
+            Err(err) => {
+                last = err.to_string();
+                tokio::time::sleep(backoff(attempt)).await;
+                continue;
+            }
+        };
+        let status = response.status();
+        if status.is_success() {
+            return Ok(());
+        }
+        // 404 is a webhook somebody deleted, 401/403 one whose token was rotated. None of
+        // those come back on their own, so the alert is told to stop rather than retry
+        // forever against a destination that no longer exists.
+        if matches!(status.as_u16(), 401 | 403 | 404) {
+            return Err(SendError::Gone);
+        }
+        if status.as_u16() == 429 {
+            let wait = retry_after(&response).unwrap_or_else(|| backoff(attempt));
+            last = format!("rate limited, waited {}ms", wait.as_millis());
+            tokio::time::sleep(wait).await;
+            continue;
+        }
+        last = format!("discord returned {status}");
+        tokio::time::sleep(backoff(attempt)).await;
+    }
+    Err(SendError::Failed(last))
+}
+
+fn retry_after(response: &reqwest::Response) -> Option<Duration> {
+    let seconds: f64 = response
+        .headers()
+        .get("retry-after")?
+        .to_str()
+        .ok()?
+        .parse()
+        .ok()?;
+    // A minute is already absurd for a webhook; anything beyond it is a bug or a ban, and
+    // holding the task open for it helps nobody.
+    Some(Duration::from_secs_f64(seconds.clamp(0.0, 60.0)))
+}
+
+fn backoff(attempt: usize) -> Duration {
+    Duration::from_millis(250 * 2u64.pow(attempt as u32))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn security_colors_follow_the_bands() {
+        assert_eq!(security_color(1.0), security_color(0.9));
+        assert_ne!(security_color(0.5), security_color(0.4));
+        // Wormholes and nullsec share the "no security" colour.
+        assert_eq!(security_color(-0.99), security_color(0.0));
+    }
+
+    #[test]
+    fn a_message_pings_only_what_it_names() {
+        let message = Message::new(Embed::default()).mention_role("42");
+        assert_eq!(message.content.as_deref(), Some("<@&42>"));
+        assert_eq!(message.allowed_mentions.roles, vec!["42".to_string()]);
+        assert!(message.allowed_mentions.parse.is_empty());
+    }
+
+    #[test]
+    fn backoff_grows() {
+        assert!(backoff(0) < backoff(1) && backoff(1) < backoff(2));
+    }
+}

@@ -6,6 +6,7 @@
 //! server-side — never sent by the client. Each mutating handler publishes the matching
 //! [`MapEvent`](crate::maps::MapEvent) to the hub after the action commits.
 
+pub mod alerts;
 pub mod handlers;
 pub mod ws;
 
@@ -13,7 +14,7 @@ use axum::Json;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum_extra::extract::CookieJar;
 use serde_json::json;
 
@@ -510,7 +511,7 @@ async fn session_actor(db: &sqlx::PgPool, jar: &CookieJar) -> Result<Option<Acto
 }
 
 /// The auth guard: the acting character, or 401.
-async fn require_actor(db: &sqlx::PgPool, jar: &CookieJar) -> Result<Actor, ApiError> {
+pub(crate) async fn require_actor(db: &sqlx::PgPool, jar: &CookieJar) -> Result<Actor, ApiError> {
     session_actor(db, jar)
         .await?
         .ok_or_else(ApiError::unauthorized)
@@ -605,6 +606,22 @@ pub fn router() -> Router<AppState> {
         .route("/api/maps/{id}/access", get(h::list_access))
         .route("/api/maps/{id}/access/set", post(h::set_access))
         .route("/api/maps/{id}/access/revoke", post(h::revoke_access))
+        .route(
+            "/api/maps/{id}/alerts",
+            get(alerts::list_alerts).post(alerts::create_alert),
+        )
+        .route(
+            "/api/maps/{id}/alerts/events",
+            get(alerts::list_alert_events),
+        )
+        .route(
+            "/api/maps/{id}/alerts/{alert_id}",
+            put(alerts::update_alert).delete(alerts::delete_alert),
+        )
+        .route(
+            "/api/maps/{id}/alerts/{alert_id}/active",
+            post(alerts::set_alert_active),
+        )
         .route("/api/maps/{id}/events", get(h::list_map_events))
         .route("/api/maps/{id}/events/undo", post(h::undo_map_event))
         .route("/api/maps/{id}/events/redo", post(h::redo_map_event))

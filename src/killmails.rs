@@ -167,8 +167,17 @@ pub fn start(pool: PgPool, esi: EsiClient, maps: crate::maps::MapHub) {
 
 async fn listen(pool: PgPool, base: String, maps: crate::maps::MapHub) {
     let http = http_client();
+    // Loaded once here rather than in `start`: a failure to read the graph should cost the
+    // alerts, not the ingest.
+    let alerts = match crate::alerts::Runtime::load(&pool).await {
+        Ok(runtime) => Some(runtime),
+        Err(err) => {
+            eprintln!("alerts disabled, could not load the stargate graph: {err}");
+            None
+        }
+    };
     loop {
-        match ingest_next(&pool, &http, &base, &maps).await {
+        match ingest_next(&pool, &http, &base, &maps, alerts.as_ref()).await {
             Ok(true) => tokio::time::sleep(Duration::from_millis(500)).await,
             Ok(false) => tokio::time::sleep(Duration::from_secs(10)).await,
             Err(err) => {
@@ -392,6 +401,7 @@ async fn ingest_next(
     http: &reqwest::Client,
     base: &str,
     maps: &crate::maps::MapHub,
+    alerts: Option<&crate::alerts::Runtime>,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let cursor: Option<i64> = sqlx::query_scalar("select sequence_id from zkb_state")
         .fetch_optional(pool)
@@ -469,9 +479,71 @@ async fn ingest_next(
         .execute(pool)
         .await?;
         announce(pool, maps, solar_system_id).await;
+        if let Some(alerts) = alerts {
+            alert_on(pool, alerts, km.killmail_id, solar_system_id, &detail).await;
+        }
     }
     advance(pool, next).await?;
     Ok(true)
+}
+
+/// Offer the kill to the Discord alerts watching for one.
+///
+/// Names are resolved from what is already stored rather than fetched: a message that says
+/// "Someone lost a Loki" the moment it happens beats a complete one a minute later, and the
+/// resolver fills those names in for the next kill anyway.
+async fn alert_on(
+    pool: &PgPool,
+    alerts: &crate::alerts::Runtime,
+    killmail_id: i64,
+    solar_system_id: i64,
+    detail: &Detail,
+) {
+    use crate::alerts::filters::Candidates;
+    let named = sqlx::query!(
+        r#"select vc.name as "victim_name?", vt.name as "victim_ship?",
+                  fc.name as "attacker_name?", vt.group_id as "victim_ship_group?",
+                  ft.group_id as "attacker_ship_group?"
+           from (select 1) as one
+           left join characters vc on vc.id = $1
+           left join characters fc on fc.id = $2
+           left join types vt on vt.id = $3
+           left join types ft on ft.id = $4"#,
+        detail.victim_character_id,
+        detail.final_blow_character_id,
+        detail.victim_ship_type_id,
+        detail.final_blow_ship_type_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    let kill = crate::alerts::killmail::Kill {
+        id: killmail_id,
+        solar_system_id,
+        candidates: Candidates {
+            victim_character: detail.victim_character_id,
+            victim_corporation: detail.victim_corporation_id,
+            victim_alliance: detail.victim_alliance_id,
+            victim_ship_type: detail.victim_ship_type_id,
+            victim_ship_group: named.as_ref().and_then(|n| n.victim_ship_group),
+            attacker_character: detail.final_blow_character_id,
+            attacker_corporation: detail.final_blow_corporation_id,
+            attacker_alliance: detail.final_blow_alliance_id,
+            attacker_ship_type: detail.final_blow_ship_type_id,
+            attacker_ship_group: named.as_ref().and_then(|n| n.attacker_ship_group),
+        },
+        victim_name: named.as_ref().and_then(|n| n.victim_name.clone()),
+        victim_ship: named.as_ref().and_then(|n| n.victim_ship.clone()),
+        victim_ship_type_id: detail.victim_ship_type_id,
+        attacker_name: named.as_ref().and_then(|n| n.attacker_name.clone()),
+        total_value: detail.total_value,
+        attacker_count: detail.attacker_count,
+        is_solo: detail.is_solo,
+        is_npc: detail.is_npc,
+    };
+    alerts.killmail(pool, &kill).await;
 }
 
 /// Tell every map holding this system that something died in it.
