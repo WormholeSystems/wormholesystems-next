@@ -10,7 +10,11 @@
 //! kills; the summed kills decide the threat level: >= 50 critical, >= 15 high, else
 //! unknown.
 //!
-//! Both loops only run when `ZKB_LISTEN=1` (dev machines shouldn't hammer zKillboard).
+//! Backfill: the live stream only carries kills from now on, so a fresh instance starts
+//! blind. On boot the last 90 days of EVE Ref's daily archives are imported for whatever is
+//! missing, which is the same window the analysis looks over.
+//!
+//! These loops only run when `ZKB_LISTEN=1` (dev machines shouldn't hammer zKillboard).
 
 use std::time::Duration;
 
@@ -138,14 +142,24 @@ fn http_client() -> reqwest::Client {
         .expect("http client")
 }
 
-/// Spawn the ingest + analysis loops (gated by `ZKB_LISTEN=1`).
+/// Spawn the ingest, backfill and analysis loops (gated by `ZKB_LISTEN=1`).
+///
+/// `KILLMAIL_BACKFILL_DAYS` overrides how much history a boot fills in; 0 turns it off, which
+/// is what the e2e harness does — the tests want a database they seeded, not a real quarter.
 pub fn start(pool: PgPool, esi: EsiClient, maps: crate::maps::MapHub) {
     if std::env::var("ZKB_LISTEN").as_deref() != Ok("1") {
         return;
     }
     let base = std::env::var("ZKB_BASE_URL").unwrap_or_else(|_| DEFAULT_BASE.to_string());
+    let days = std::env::var("KILLMAIL_BACKFILL_DAYS")
+        .ok()
+        .and_then(|d| d.parse().ok())
+        .unwrap_or(BACKFILL_DAYS);
     tokio::spawn(listen(pool.clone(), base, maps));
     tokio::spawn(resolve_loop(pool.clone(), esi.clone()));
+    if days > 0 {
+        tokio::spawn(backfill_loop(pool.clone(), esi.clone(), days));
+    }
     tokio::spawn(analysis_loop(pool, esi));
 }
 
@@ -720,153 +734,230 @@ fn read_archive(bytes: &[u8]) -> std::io::Result<Vec<ArchivedKill>> {
     Ok(kills)
 }
 
-/// Backfill killmails from EVE Ref's daily archives (`vector killmails-backfill <days>`),
-/// most recent day first. Each day is one `killmails-YYYY-MM-DD.tar.bz2` download, read in
-/// memory and bulk-inserted (existing ids untouched, so the live listener's rows are kept).
-/// Ends with a threat analysis run so the data shows up immediately.
-pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), BoxError> {
-    let http = http_client();
+/// How far back a boot fills, matching the window threat analysis looks over: a fresh
+/// instance is otherwise useless for months, since the live listener only ever sees kills
+/// that happen from now on.
+pub const BACKFILL_DAYS: u32 = 90;
+
+/// The days in the last `days` that are not imported yet, most recent first.
+async fn missing_days(pool: &PgPool, days: u32) -> Result<Vec<chrono::NaiveDate>, BoxError> {
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs() as i64;
-    for offset in 1..=i64::from(days) {
-        let day = chrono::DateTime::from_timestamp(now_secs - offset * 86_400, 0)
-            .expect("valid timestamp")
-            .date_naive();
-        let name = format!("killmails-{}.tar.bz2", day.format("%Y-%m-%d"));
-        let url = format!(
-            "https://data.everef.net/killmails/{}/{name}",
-            day.format("%Y")
-        );
+    let wanted: Vec<chrono::NaiveDate> = (1..=i64::from(days))
+        .map(|offset| {
+            chrono::DateTime::from_timestamp(now_secs - offset * 86_400, 0)
+                .expect("valid timestamp")
+                .date_naive()
+        })
+        .collect();
+    let done: std::collections::HashSet<chrono::NaiveDate> = sqlx::query_scalar!(
+        "select day from killmail_imports where day = any($1)",
+        &wanted
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect();
+    Ok(wanted.into_iter().filter(|d| !done.contains(d)).collect())
+}
 
+/// Import one archived day. `Ok(None)` when EVE Ref has nothing for it yet.
+async fn import_day(
+    pool: &PgPool,
+    esi: &EsiClient,
+    http: &reqwest::Client,
+    day: chrono::NaiveDate,
+) -> Result<Option<String>, BoxError> {
+    let name = format!("killmails-{}.tar.bz2", day.format("%Y-%m-%d"));
+    let url = format!(
+        "https://data.everef.net/killmails/{}/{name}",
+        day.format("%Y")
+    );
+
+    let res = http.get(&url).send().await?;
+    if res.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let bytes = res.error_for_status()?.bytes().await?;
+    let kills = tokio::task::spawn_blocking(move || read_archive(&bytes)).await??;
+
+    // Every entity the day mentions, deduped before anything is fetched. A busy day is
+    // tens of thousands of killmails naming a few thousand distinct pilots and a few
+    // hundred organisations, so resolving per killmail would be almost entirely
+    // repeated work.
+    let mut day_characters: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    let mut day_corporations: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    let mut day_alliances: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    for k in &kills {
+        day_characters.extend(k.detail.victim_character_id);
+        day_characters.extend(k.detail.final_blow_character_id);
+        day_corporations.extend(k.detail.victim_corporation_id);
+        day_corporations.extend(k.detail.final_blow_corporation_id);
+        day_alliances.extend(k.detail.victim_alliance_id);
+        day_alliances.extend(k.detail.final_blow_alliance_id);
+    }
+
+    let mut inserted = 0usize;
+    // Rows go in a few thousand at a time. The statement binds fixed arrays rather than
+    // one placeholder per value, so the batch is bounded by memory rather than by
+    // Postgres's parameter limit.
+    for chunk in kills.chunks(2_000) {
+        let mut ids = Vec::new();
+        let mut hashes = Vec::new();
+        let mut systems = Vec::new();
+        let mut times = Vec::new();
+        let mut orgs_json = Vec::new();
+        let mut victim_chars: Vec<Option<i64>> = Vec::new();
+        let mut victim_corps: Vec<Option<i64>> = Vec::new();
+        let mut victim_allis: Vec<Option<i64>> = Vec::new();
+        let mut victim_ships: Vec<Option<i64>> = Vec::new();
+        let mut values: Vec<Option<f64>> = Vec::new();
+        let mut attackers: Vec<Option<i32>> = Vec::new();
+        let mut npcs: Vec<bool> = Vec::new();
+        let mut solos: Vec<bool> = Vec::new();
+        let mut fb_chars: Vec<Option<i64>> = Vec::new();
+        let mut fb_corps: Vec<Option<i64>> = Vec::new();
+        let mut fb_allis: Vec<Option<i64>> = Vec::new();
+        let mut fb_ships: Vec<Option<i64>> = Vec::new();
+        for km in chunk {
+            let d = &km.detail;
+            ids.push(km.id);
+            hashes.push(km.hash.clone());
+            systems.push(km.solar_system_id);
+            times.push(km.time.clone());
+            orgs_json.push(km.orgs.clone());
+
+            victim_chars.push(d.victim_character_id);
+            victim_corps.push(d.victim_corporation_id);
+            victim_allis.push(d.victim_alliance_id);
+            victim_ships.push(d.victim_ship_type_id);
+            values.push(d.total_value);
+            attackers.push(d.attacker_count);
+            npcs.push(d.is_npc);
+            solos.push(d.is_solo);
+            fb_chars.push(d.final_blow_character_id);
+            fb_corps.push(d.final_blow_corporation_id);
+            fb_allis.push(d.final_blow_alliance_id);
+            fb_ships.push(d.final_blow_ship_type_id);
+        }
+        let n = sqlx::query(
+            "insert into killmails (
+                 id, hash, solar_system_id, time, orgs,
+                 victim_character_id, victim_corporation_id, victim_alliance_id,
+                 victim_ship_type_id, total_value, attacker_count, is_npc, is_solo,
+                 final_blow_character_id, final_blow_corporation_id,
+                 final_blow_alliance_id, final_blow_ship_type_id
+             )
+             select * from unnest($1::bigint[], $2::text[], $3::bigint[],
+                                  $4::text[]::timestamptz[], $5::jsonb[],
+                                  $6::bigint[], $7::bigint[], $8::bigint[], $9::bigint[],
+                                  $10::double precision[], $11::int[], $12::boolean[],
+                                  $13::boolean[], $14::bigint[], $15::bigint[],
+                                  $16::bigint[], $17::bigint[])
+             on conflict (id) do nothing",
+        )
+        .bind(&ids)
+        .bind(&hashes)
+        .bind(&systems)
+        .bind(&times)
+        .bind(&orgs_json)
+        .bind(&victim_chars)
+        .bind(&victim_corps)
+        .bind(&victim_allis)
+        .bind(&victim_ships)
+        .bind(&values)
+        .bind(&attackers)
+        .bind(&npcs)
+        .bind(&solos)
+        .bind(&fb_chars)
+        .bind(&fb_corps)
+        .bind(&fb_allis)
+        .bind(&fb_ships)
+        .execute(pool)
+        .await?
+        .rows_affected();
+        inserted += n as usize;
+    }
+    // Organisations first and one at a time, because their tickers are what a row
+    // shows and only the per-entity endpoint returns them; there are few enough that
+    // it stays cheap. Characters then go through the thousand-at-a-time bulk endpoint.
+    let alliances: Vec<i64> = day_alliances.into_iter().collect();
+    let corporations: Vec<i64> = day_corporations.into_iter().collect();
+    let characters: Vec<i64> = day_characters.into_iter().collect();
+    crate::entities::ensure(pool, esi, EntityKind::Alliance, &alliances).await;
+    crate::entities::ensure(pool, esi, EntityKind::Corporation, &corporations).await;
+    let named = crate::entities::ensure_character_names(pool, esi, &characters).await;
+
+    sqlx::query!(
+        "insert into killmail_imports (day, killmails) values ($1, $2)
+         on conflict (day) do update set killmails = excluded.killmails, imported_at = now()",
+        day,
+        kills.len() as i32,
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(Some(format!(
+        "{} killmails ({inserted} new), named {named} of {} pilots and resolved {} orgs",
+        kills.len(),
+        characters.len(),
+        alliances.len() + corporations.len()
+    )))
+}
+
+/// Backfill killmails from EVE Ref's daily archives (`vector killmails-backfill <days>`),
+/// most recent day first. Days already in the ledger are skipped, so re-running only fetches
+/// what is missing. Ends with a threat analysis run so the data shows up immediately.
+pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), BoxError> {
+    let http = http_client();
+    let missing = missing_days(pool, days).await?;
+    println!("{} of the last {days} days to import", missing.len());
+    for day in missing {
         print!("{day}: downloading… ");
-        let res = http.get(&url).send().await?;
-        if res.status() == reqwest::StatusCode::NOT_FOUND {
-            println!("no archive");
-            continue;
+        use std::io::Write;
+        std::io::stdout().flush().ok();
+        match import_day(pool, esi, &http, day).await? {
+            Some(summary) => println!("{summary}"),
+            None => println!("no archive"),
         }
-        let bytes = res.error_for_status()?.bytes().await?;
-        let kills = tokio::task::spawn_blocking(move || read_archive(&bytes)).await??;
-
-        // Every entity the day mentions, deduped before anything is fetched. A busy day is
-        // tens of thousands of killmails naming a few thousand distinct pilots and a few
-        // hundred organisations, so resolving per killmail would be almost entirely
-        // repeated work.
-        let mut day_characters: std::collections::HashSet<i64> = std::collections::HashSet::new();
-        let mut day_corporations: std::collections::HashSet<i64> = std::collections::HashSet::new();
-        let mut day_alliances: std::collections::HashSet<i64> = std::collections::HashSet::new();
-        for k in &kills {
-            day_characters.extend(k.detail.victim_character_id);
-            day_characters.extend(k.detail.final_blow_character_id);
-            day_corporations.extend(k.detail.victim_corporation_id);
-            day_corporations.extend(k.detail.final_blow_corporation_id);
-            day_alliances.extend(k.detail.victim_alliance_id);
-            day_alliances.extend(k.detail.final_blow_alliance_id);
-        }
-
-        let mut inserted = 0usize;
-        // Rows go in a few thousand at a time. The statement binds fixed arrays rather than
-        // one placeholder per value, so the batch is bounded by memory rather than by
-        // Postgres's parameter limit.
-        for chunk in kills.chunks(2_000) {
-            let mut ids = Vec::new();
-            let mut hashes = Vec::new();
-            let mut systems = Vec::new();
-            let mut times = Vec::new();
-            let mut orgs_json = Vec::new();
-            let mut victim_chars: Vec<Option<i64>> = Vec::new();
-            let mut victim_corps: Vec<Option<i64>> = Vec::new();
-            let mut victim_allis: Vec<Option<i64>> = Vec::new();
-            let mut victim_ships: Vec<Option<i64>> = Vec::new();
-            let mut values: Vec<Option<f64>> = Vec::new();
-            let mut attackers: Vec<Option<i32>> = Vec::new();
-            let mut npcs: Vec<bool> = Vec::new();
-            let mut solos: Vec<bool> = Vec::new();
-            let mut fb_chars: Vec<Option<i64>> = Vec::new();
-            let mut fb_corps: Vec<Option<i64>> = Vec::new();
-            let mut fb_allis: Vec<Option<i64>> = Vec::new();
-            let mut fb_ships: Vec<Option<i64>> = Vec::new();
-            for km in chunk {
-                let d = &km.detail;
-                ids.push(km.id);
-                hashes.push(km.hash.clone());
-                systems.push(km.solar_system_id);
-                times.push(km.time.clone());
-                orgs_json.push(km.orgs.clone());
-
-                victim_chars.push(d.victim_character_id);
-                victim_corps.push(d.victim_corporation_id);
-                victim_allis.push(d.victim_alliance_id);
-                victim_ships.push(d.victim_ship_type_id);
-                values.push(d.total_value);
-                attackers.push(d.attacker_count);
-                npcs.push(d.is_npc);
-                solos.push(d.is_solo);
-                fb_chars.push(d.final_blow_character_id);
-                fb_corps.push(d.final_blow_corporation_id);
-                fb_allis.push(d.final_blow_alliance_id);
-                fb_ships.push(d.final_blow_ship_type_id);
-            }
-            let n = sqlx::query(
-                "insert into killmails (
-                     id, hash, solar_system_id, time, orgs,
-                     victim_character_id, victim_corporation_id, victim_alliance_id,
-                     victim_ship_type_id, total_value, attacker_count, is_npc, is_solo,
-                     final_blow_character_id, final_blow_corporation_id,
-                     final_blow_alliance_id, final_blow_ship_type_id
-                 )
-                 select * from unnest($1::bigint[], $2::text[], $3::bigint[],
-                                      $4::text[]::timestamptz[], $5::jsonb[],
-                                      $6::bigint[], $7::bigint[], $8::bigint[], $9::bigint[],
-                                      $10::double precision[], $11::int[], $12::boolean[],
-                                      $13::boolean[], $14::bigint[], $15::bigint[],
-                                      $16::bigint[], $17::bigint[])
-                 on conflict (id) do nothing",
-            )
-            .bind(&ids)
-            .bind(&hashes)
-            .bind(&systems)
-            .bind(&times)
-            .bind(&orgs_json)
-            .bind(&victim_chars)
-            .bind(&victim_corps)
-            .bind(&victim_allis)
-            .bind(&victim_ships)
-            .bind(&values)
-            .bind(&attackers)
-            .bind(&npcs)
-            .bind(&solos)
-            .bind(&fb_chars)
-            .bind(&fb_corps)
-            .bind(&fb_allis)
-            .bind(&fb_ships)
-            .execute(pool)
-            .await?
-            .rows_affected();
-            inserted += n as usize;
-        }
-        // Organisations first and one at a time, because their tickers are what a row
-        // shows and only the per-entity endpoint returns them; there are few enough that
-        // it stays cheap. Characters then go through the thousand-at-a-time bulk endpoint.
-        let alliances: Vec<i64> = day_alliances.into_iter().collect();
-        let corporations: Vec<i64> = day_corporations.into_iter().collect();
-        let characters: Vec<i64> = day_characters.into_iter().collect();
-        crate::entities::ensure(pool, esi, EntityKind::Alliance, &alliances).await;
-        crate::entities::ensure(pool, esi, EntityKind::Corporation, &corporations).await;
-        let named = crate::entities::ensure_character_names(pool, esi, &characters).await;
-
-        println!(
-            "{} killmails ({inserted} new), named {named} of {} pilots and resolved {} orgs",
-            kills.len(),
-            characters.len(),
-            alliances.len() + corporations.len()
-        );
     }
 
     println!("running threat analysis…");
     analyze(pool, esi).await?;
     println!("backfill complete.");
     Ok(())
+}
+
+/// Background: fill in the archived days this instance is missing.
+///
+/// Runs once per boot rather than on a schedule, because the live listener covers everything
+/// from startup onwards; the archives only exist to give a new instance a past. Sequential
+/// and unhurried, since nothing is waiting on it.
+async fn backfill_loop(pool: PgPool, esi: EsiClient, days: u32) {
+    let http = http_client();
+    let missing = match missing_days(&pool, days).await {
+        Ok(days) => days,
+        Err(err) => return eprintln!("killmail backfill: {err}"),
+    };
+    if missing.is_empty() {
+        return;
+    }
+    println!("killmail backfill: {} days missing", missing.len());
+    let mut imported = 0usize;
+    for day in missing {
+        match import_day(&pool, &esi, &http, day).await {
+            Ok(Some(_)) => imported += 1,
+            Ok(None) => {}
+            Err(err) => eprintln!("killmail backfill {day}: {err}"),
+        }
+    }
+    println!("killmail backfill: {imported} days imported");
+    if imported > 0
+        && let Err(err) = analyze(&pool, &esi).await
+    {
+        eprintln!("threat analysis after backfill failed: {err}");
+    }
 }
 
 type BoxError = Box<dyn std::error::Error>;

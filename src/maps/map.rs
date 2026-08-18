@@ -138,9 +138,24 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     )
     .execute(&mut *tx)
     .await?;
+    // Resolved by name rather than by id so an unseeded database quietly starts with an
+    // empty watchlist instead of failing the whole creation on a foreign key.
+    sqlx::query!(
+        "insert into map_watchlist (map_id, solar_system_id, is_pinned)
+         select $1, id, true from solar_systems where name = any($2)",
+        map.id,
+        &TRADE_HUBS.map(String::from)[..],
+    )
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(map)
 }
+
+/// Seeded onto every new map's watchlist, pinned, as legacy's `CreateMapAction` does. A
+/// chain is worth mapping mostly for what it is close to, and that is nearly always one of
+/// these; a map that starts empty makes you type them in before it can tell you anything.
+const TRADE_HUBS: [&str; 5] = ["Jita", "Amarr", "Dodixie", "Rens", "Hek"];
 
 /// A partial update of a map's fields. `None` leaves a field unchanged; `Some(None)`
 /// explicitly clears a nullable field.

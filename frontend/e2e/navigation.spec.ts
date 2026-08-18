@@ -49,7 +49,7 @@ async function setRoute(page: import('@playwright/test').Page, from: string, to:
 	await pickSystem(page, 'system-picker-destination', to.toLowerCase(), to);
 }
 
-test('watchlist: add, unified origin badge, pin, remove, reload persistence', async ({
+test('watchlist: defaults, add, unified origin badge, pin, remove, reload persistence', async ({
 	page,
 	api
 }) => {
@@ -57,13 +57,17 @@ test('watchlist: add, unified origin badge, pin, remove, reload persistence', as
 	await addSystem(api, mapId, JITA, 200, 200);
 	await gotoApp(page, `/maps/${mapId}`);
 
-	// Add Amarr via the header plus.
+	// Every new map arrives with the five trade hubs watched.
+	const rows = page.getByTestId('watchlist-row');
+	await expect(rows).toHaveCount(5);
+
+	// Add one that is not a hub, via the header plus.
 	await page.getByTestId('watchlist-add').click();
-	await page.getByPlaceholder('Watch a system…').fill('amarr');
-	await page.getByRole('option', { name: /Amarr/ }).first().click();
-	const row = page.getByTestId('watchlist-row');
-	await expect(row).toHaveCount(1);
-	await expect(row.getByText('Amarr')).toBeVisible();
+	await page.getByPlaceholder('Watch a system…').fill('ashab');
+	await page.getByRole('option', { name: /Ashab/ }).first().click();
+	await expect(rows).toHaveCount(6);
+
+	const row = rows.filter({ hasText: 'Amarr' });
 	// No origin yet → no jump count.
 	await expect(row.getByText('--')).toBeVisible();
 
@@ -82,18 +86,23 @@ test('watchlist: add, unified origin badge, pin, remove, reload persistence', as
 	await expect(lastHop).toBeVisible();
 	await page.keyboard.press('Escape');
 
-	// Pin marks the entry and survives a reload (server-side rows).
-	await row.getByLabel('Pin Amarr').click();
+	// The hubs come pinned; pinning the one we added survives a reload (server-side rows).
+	await rows.filter({ hasText: 'Ashab' }).getByLabel('Pin Ashab').click();
 	await expect
-		.poll(async () => (await (await api.get(`/api/maps/${mapId}/watchlist`)).json())[0].is_pinned)
+		.poll(async () => {
+			const list = await (await api.get(`/api/maps/${mapId}/watchlist`)).json();
+			return list.every((e: { is_pinned: boolean }) => e.is_pinned);
+		})
 		.toBe(true);
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
-	await expect(page.getByTestId('watchlist-row')).toHaveCount(1);
+	await expect(rows).toHaveCount(6);
 
-	// Remove empties the list.
-	await page.getByTestId('watchlist-row').getByLabel('Remove Amarr').click();
-	await expect(page.getByTestId('watchlist-row')).toHaveCount(0);
+	// Removing every row shows the empty state.
+	for (const name of ['Ashab', 'Jita', 'Amarr', 'Dodixie', 'Rens', 'Hek']) {
+		await rows.filter({ hasText: name }).getByLabel(`Remove ${name}`).click();
+	}
+	await expect(rows).toHaveCount(0);
 	await expect(page.getByText('Watchlist empty')).toBeVisible();
 });
 
@@ -267,7 +276,8 @@ test('unreachable watchlist rows stay the same height as reachable ones', async 
 }) => {
 	const mapId = await createMap(api, 'E2E WatchHeight');
 	await addSystem(api, mapId, JITA, 200, 200);
-	// Amarr is gate-reachable from Jita; the wormhole system is not reachable at all.
+	// Amarr is gate-reachable from Jita (and already there as a default hub); the wormhole
+	// system is not reachable at all.
 	for (const sys of [AMARR, J122515]) {
 		await api.post(`/api/maps/${mapId}/watchlist/add`, {
 			data: { map_id: mapId, solar_system_id: sys }
@@ -276,7 +286,7 @@ test('unreachable watchlist rows stay the same height as reachable ones', async 
 
 	// With an origin, one row shows jumps and the other shows the no-route dashes.
 	await gotoApp(page, `/maps/${mapId}?system=${JITA}`);
-	await expect(page.getByTestId('watchlist-row')).toHaveCount(2);
+	await expect(page.getByTestId('watchlist-row')).toHaveCount(6);
 	await expect(page.getByTestId('route-jumps-badge').first()).toBeVisible();
 	const mixed = await page
 		.getByTestId('watchlist-row')
@@ -285,7 +295,7 @@ test('unreachable watchlist rows stay the same height as reachable ones', async 
 	// With no origin at all, every row shows the dashes. A hyphen is a break opportunity,
 	// so without care the column collapses to one dash and every row grows a line.
 	await gotoApp(page, `/maps/${mapId}`);
-	await expect(page.getByTestId('watchlist-row')).toHaveCount(2);
+	await expect(page.getByTestId('watchlist-row')).toHaveCount(6);
 	const none = await page
 		.getByTestId('watchlist-row')
 		.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
@@ -343,7 +353,7 @@ test('viewers see the watchlist read-only', async ({ page, api, browser }) => {
 	await viewerPage.waitForSelector('html[data-hydrated="true"]');
 
 	const row = viewerPage.getByTestId('watchlist-row');
-	await expect(row).toHaveCount(1);
+	await expect(row).toHaveCount(5);
 	await expect(viewerPage.getByTestId('watchlist-add')).toHaveCount(0);
 	await expect(row.getByLabel(/^Pin/)).toHaveCount(0);
 	await expect(row.getByLabel(/^Remove/)).toHaveCount(0);

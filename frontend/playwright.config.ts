@@ -43,7 +43,10 @@ export default defineConfig({
 				ESI_BASE_URL: 'http://127.0.0.1:3999',
 				// Tight enough that a test can take Tranquility down and see the effect.
 				SERVER_STATUS_POLL_SECS: '2',
-				SKYHOOK_POLL_SECS: '2'
+				SKYHOOK_POLL_SECS: '2',
+				// Tests seed the killmails they assert on; a real 90-day import would download
+				// several gigabytes before the first spec ran.
+				KILLMAIL_BACKFILL_DAYS: '0'
 			},
 			// First run compiles the API and may seed the SDE into a fresh database.
 			timeout: 300_000
