@@ -19,8 +19,6 @@ impl CharacterLocation {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CharacterShip {
-    /// Unique per ship instance; a change means the pilot swapped ships.
-    pub ship_item_id: i64,
     pub ship_name: String,
     pub ship_type_id: i64,
 }

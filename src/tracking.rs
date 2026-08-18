@@ -300,29 +300,22 @@ async fn poll_location_ship(
         && let Ok(ship) = esi.character_ship(&token, id).await
         && let Ok(Some(row)) = sqlx::query!(
             r#"with prev as (
-                 select ship_type_id, ship_name, ship_item_id
-                 from character_status where character_id = $1
+                 select ship_type_id, ship_name from character_status where character_id = $1
              )
              update character_status
-             set ship_type_id = $2, ship_name = $3, ship_item_id = $4,
-                 ship_updated_at = case when ship_item_id is distinct from $4 then now()
-                                        else ship_updated_at end,
-                 updated_at = now()
+             set ship_type_id = $2, ship_name = $3, updated_at = now()
              where character_id = $1
              returning (select ship_type_id from prev) as "prev_ship_type_id?",
-                       (select ship_name from prev) as "prev_ship_name?",
-                       (select ship_item_id from prev) as "prev_ship_item_id?""#,
+                       (select ship_name from prev) as "prev_ship_name?""#,
             id,
             ship.ship_type_id,
             ship.ship_name,
-            ship.ship_item_id,
         )
         .fetch_optional(&pool)
         .await
     {
         changed |= row.prev_ship_type_id != Some(ship.ship_type_id)
-            || row.prev_ship_name.as_deref() != Some(ship.ship_name.as_str())
-            || row.prev_ship_item_id != Some(ship.ship_item_id);
+            || row.prev_ship_name.as_deref() != Some(ship.ship_name.as_str());
     }
 
     if changed {

@@ -12,7 +12,7 @@ import { createServer } from 'node:http';
 const PORT = Number(process.env.ESI_STUB_PORT ?? 3999);
 const UPSTREAM = process.env.ESI_STUB_UPSTREAM ?? 'https://esi.evetech.net';
 
-/** character_id -> {online, solar_system_id, ship_type_id, ship_name, ship_item_id} */
+/** character_id -> {online, solar_system_id, ship_type_id, ship_name} */
 const pilots = new Map();
 /** Tranquility's own status, or null to let the real one through. */
 let tranquility = null;
@@ -176,8 +176,7 @@ const server = createServer(async (req, res) => {
 			online: body.online ?? true,
 			solar_system_id: body.solar_system_id ?? null,
 			ship_type_id: body.ship_type_id ?? 587,
-			ship_name: body.ship_name ?? "Someone's Rifter",
-			ship_item_id: body.ship_item_id ?? 1_000_000_000 + id
+			ship_name: body.ship_name ?? "Someone's Rifter"
 		});
 		return json(res, 200, { ok: true });
 	}
@@ -244,7 +243,6 @@ const server = createServer(async (req, res) => {
 			});
 		}
 		return json(res, 200, {
-			ship_item_id: pilot.ship_item_id,
 			ship_name: pilot.ship_name,
 			ship_type_id: pilot.ship_type_id
 		});
