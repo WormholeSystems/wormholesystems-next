@@ -42,8 +42,12 @@ pub async fn actor_for_session(
     }))
 }
 
-/// Open a 30-day session for a user acting as `character_id`. Returns the opaque id to put
-/// in the cookie.
+/// Open a 30-day session for a user. Returns the opaque id to put in the cookie.
+///
+/// The session starts as the user's preferred character rather than as `character_id`, the
+/// one that just signed in: which alt the SSO happened to hand back is not a choice the
+/// user made, and the preferred one is. It only falls back to `character_id` for a user
+/// with no preference at all.
 pub async fn create_session(
     pool: &PgPool,
     user_id: i64,
@@ -52,7 +56,9 @@ pub async fn create_session(
     let id = Uuid::new_v4().to_string();
     sqlx::query!(
         "insert into sessions (id, user_id, active_character_id, expires_at)
-         values ($1, $2, $3, now() + interval '30 days')",
+         values ($1, $2,
+                 coalesce((select id from characters where user_id = $2 and is_preferred), $3),
+                 now() + interval '30 days')",
         id,
         user_id,
         character_id,
@@ -101,6 +107,52 @@ pub async fn set_active_character(
     .await?
     .rows_affected();
     Ok(updated > 0)
+}
+
+/// Choose the character new sessions start as. Verifies it belongs to `user_id`, and
+/// clears the old preference first: at most one per user is a unique index, not a
+/// convention.
+pub async fn set_preferred_character(
+    pool: &PgPool,
+    user_id: i64,
+    character_id: i64,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query!(
+        "update characters set is_preferred = false where user_id = $1 and is_preferred",
+        user_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+    let updated = sqlx::query!(
+        "update characters set is_preferred = true where id = $1 and user_id = $2",
+        character_id,
+        user_id,
+    )
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    if updated == 0 {
+        tx.rollback().await?;
+        return Ok(false);
+    }
+    tx.commit().await?;
+    Ok(true)
+}
+
+/// Give a user a preferred character if they have none, so removing the preferred one does
+/// not leave the account without a default. Lowest character id wins; there is nothing
+/// better to go on.
+pub async fn ensure_preferred_character(pool: &PgPool, user_id: i64) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "update characters set is_preferred = true
+         where id = (select id from characters where user_id = $1 order by id limit 1)
+           and not exists (select 1 from characters where user_id = $1 and is_preferred)",
+        user_id,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 /// Resolve the SSO login to a user and persist the character. Returns the owning `user_id`

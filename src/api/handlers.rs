@@ -130,14 +130,14 @@ pub async fn my_scopes(
     ))
 }
 
-/// `GET /api/me/characters` — the user's characters, marking the active one.
+/// `GET /api/me/characters` — the user's characters, marking the active and preferred ones.
 pub async fn my_characters(
     State(state): State<AppState>,
     jar: CookieJar,
 ) -> ApiResult<Vec<CharacterRef>> {
     let actor = require_actor(&state.db, &jar).await?;
     let rows = sqlx::query!(
-        r#"select c.id, c.name, coalesce(s.online, false) as "online!",
+        r#"select c.id, c.name, c.is_preferred, coalesce(s.online, false) as "online!",
                   case when s.online then s.solar_system_id end as "solar_system_id?"
            from characters c
            left join character_status s on s.character_id = c.id
@@ -152,6 +152,7 @@ pub async fn my_characters(
                 character_id: r.id,
                 name: r.name,
                 is_active: r.id == actor.character_id,
+                is_preferred: r.is_preferred,
                 online: r.online,
                 solar_system_id: r.solar_system_id,
             })
@@ -176,6 +177,21 @@ pub async fn switch_character(
     };
     let ok =
         crate::session::set_active_character(&state.db, &session_id, body.character_id).await?;
+    if !ok {
+        return Err(ApiError::bad_request("that character isn't yours"));
+    }
+    Ok(Json(()))
+}
+
+/// `POST /api/me/preferred-character` — choose which character new sessions start as.
+pub async fn preferred_character(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(body): Json<CharacterIdBody>,
+) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let ok = crate::session::set_preferred_character(&state.db, actor.user_id, body.character_id)
+        .await?;
     if !ok {
         return Err(ApiError::bad_request("that character isn't yours"));
     }
@@ -240,6 +256,9 @@ pub async fn remove_character(
     )
     .execute(&state.db)
     .await?;
+
+    // Removing the preferred character leaves the account without one, so hand the flag on.
+    crate::session::ensure_preferred_character(&state.db, actor.user_id).await?;
     Ok(Json(()))
 }
 

@@ -136,6 +136,8 @@ export const api = {
 		post<null>('/api/me/switch-character', { character_id: characterId }),
 	removeCharacter: (characterId: number) =>
 		post<null>('/api/me/remove-character', { character_id: characterId }),
+	setPreferredCharacter: (characterId: number) =>
+		post<null>('/api/me/preferred-character', { character_id: characterId }),
 
 	// ESI waypoints
 	setWaypoint: (body: SetWaypointBody) => post<null>('/api/waypoints', body),

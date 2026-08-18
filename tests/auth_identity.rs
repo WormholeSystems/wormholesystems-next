@@ -5,8 +5,8 @@
 use sqlx::PgPool;
 use vector::esi::jwt::Claims;
 use vector::session::{
-    Entity, actor_for_session, create_session, delete_session, persist_identity,
-    set_active_character,
+    Entity, actor_for_session, create_session, delete_session, ensure_preferred_character,
+    persist_identity, set_active_character, set_preferred_character,
 };
 
 fn claims(character_id: i64, owner_hash: &str) -> Claims {
@@ -169,4 +169,87 @@ async fn session_lifecycle_and_character_switch(pool: PgPool) {
     // Logout invalidates the session.
     delete_session(&pool, &session).await.unwrap();
     assert!(actor_for_session(&pool, &session).await.unwrap().is_none());
+}
+
+#[sqlx::test]
+async fn a_new_session_starts_as_the_preferred_character(pool: PgPool) {
+    let user = persist_identity(&pool, &claims(100, "h1"), corp(2001), None, None)
+        .await
+        .unwrap();
+    persist_identity(&pool, &claims(200, "h2"), corp(2001), None, Some(user))
+        .await
+        .unwrap();
+
+    // Signing in as the alt still lands on the preferred character: which one the SSO
+    // handed back is not a choice the user made.
+    let session = create_session(&pool, user, 200).await.unwrap();
+    let actor = actor_for_session(&pool, &session).await.unwrap().unwrap();
+    assert_eq!(actor.character_id, 100);
+
+    // Preferring the alt moves the default; the character switcher is per session and is
+    // left alone.
+    assert!(set_preferred_character(&pool, user, 200).await.unwrap());
+    assert!(is_preferred(&pool, 200).await);
+    assert!(!is_preferred(&pool, 100).await, "at most one per user");
+    assert_eq!(
+        actor_for_session(&pool, &session)
+            .await
+            .unwrap()
+            .unwrap()
+            .character_id,
+        100,
+        "an open session keeps acting as whoever it was"
+    );
+
+    let next = create_session(&pool, user, 100).await.unwrap();
+    assert_eq!(
+        actor_for_session(&pool, &next)
+            .await
+            .unwrap()
+            .unwrap()
+            .character_id,
+        200
+    );
+}
+
+#[sqlx::test]
+async fn preferring_a_character_of_another_account_is_refused(pool: PgPool) {
+    let user = persist_identity(&pool, &claims(100, "h1"), corp(2001), None, None)
+        .await
+        .unwrap();
+    persist_identity(&pool, &claims(300, "h3"), corp(2001), None, None)
+        .await
+        .unwrap();
+
+    assert!(!set_preferred_character(&pool, user, 300).await.unwrap());
+    assert!(
+        is_preferred(&pool, 100).await,
+        "the refused write leaves the old preference alone"
+    );
+}
+
+#[sqlx::test]
+async fn an_account_left_without_a_preference_gets_one_back(pool: PgPool) {
+    let user = persist_identity(&pool, &claims(100, "h1"), corp(2001), None, None)
+        .await
+        .unwrap();
+    persist_identity(&pool, &claims(200, "h2"), corp(2001), None, Some(user))
+        .await
+        .unwrap();
+
+    // Removing the preferred character is what leaves the gap.
+    sqlx::query("delete from characters where id = 100")
+        .execute(&pool)
+        .await
+        .unwrap();
+    ensure_preferred_character(&pool, user).await.unwrap();
+    assert!(is_preferred(&pool, 200).await);
+
+    // And it does not steal the flag from an account that already has one.
+    persist_identity(&pool, &claims(400, "h4"), corp(2001), None, Some(user))
+        .await
+        .unwrap();
+    ensure_preferred_character(&pool, user).await.unwrap();
+    assert!(is_preferred(&pool, 200).await);
+    assert!(!is_preferred(&pool, 400).await);
 }

@@ -49,6 +49,8 @@ pub struct CharacterRef {
     pub character_id: i64,
     pub name: String,
     pub is_active: bool,
+    /// The one new sessions start as, chosen on the characters page.
+    pub is_preferred: bool,
     pub online: bool,
     /// Where the character is right now, when online and tracked. Drives the paste
     /// system-mismatch warning.
@@ -538,6 +540,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/me/discord/unlink", post(h::unlink_discord))
         .route("/api/me/switch-character", post(h::switch_character))
         .route("/api/me/remove-character", post(h::remove_character))
+        .route("/api/me/preferred-character", post(h::preferred_character))
         .route("/api/waypoints", post(h::set_waypoint))
         .route("/api/waypoints/all", post(h::set_waypoint_all))
         .route("/api/grid-config", get(h::grid_config))

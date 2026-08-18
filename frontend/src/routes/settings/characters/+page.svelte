@@ -1,11 +1,12 @@
 <script lang="ts">
-	// The characters signed in to this account: which one is acting, what EVE lets Vector
-	// see for them, and how to add or drop one.
+	// The characters signed in to this account: which one is acting, which one you start as,
+	// what EVE lets Vector see for them, and how to add or drop one.
 	//
 	// Permissions live here rather than on a map, because they are granted per character at
 	// the EVE SSO and apply everywhere. Adding one is the same login flow with `?link=true`.
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import StarIcon from '@lucide/svelte/icons/star';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { api } from '$lib/api/client';
@@ -85,7 +86,8 @@
 			<div class="flex flex-col gap-1.5">
 				<Card.Title>Characters</Card.Title>
 				<Card.Description>
-					The active one is who the map acts as. Switching is instant and changes nothing else.
+					The active one is who the map acts as. Switching is instant and changes nothing
+					else. The starred one is who you start as when you sign in on a new device.
 				</Card.Description>
 			</div>
 			<Button variant="outline" size="sm" href="/auth/login?link=true" data-testid="add-character">
@@ -114,6 +116,26 @@
 							{character.online ? 'Online' : 'Offline'}
 						</span>
 					</span>
+					{#if character.is_preferred}
+						<span
+							class="flex size-8 shrink-0 items-center justify-center text-amber-400"
+							title="New sessions start as this character"
+							data-testid="preferred-character"
+						>
+							<StarIcon class="size-4 fill-current" />
+						</span>
+					{:else}
+						<Button
+							variant="ghost"
+							size="icon"
+							class="size-8 text-muted-foreground/50 hover:text-foreground"
+							aria-label="Start new sessions as {character.name}"
+							onclick={() => act(api.setPreferredCharacter(character.character_id))}
+							data-testid="prefer-character"
+						>
+							<StarIcon class="size-4" />
+						</Button>
+					{/if}
 					{#if character.is_active}
 						<Badge variant="outline" class="gap-1 shrink-0">
 							<CheckCircleIcon />
