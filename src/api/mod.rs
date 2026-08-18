@@ -93,6 +93,9 @@ pub struct SystemSearchResult {
     /// Wormhole effect, for J-space rows (shown where k-space rows show sovereignty).
     pub effect_name: Option<String>,
     pub sovereignty: Option<crate::maps::solar_system::Sovereignty>,
+    /// The statics a wormhole always has. Empty for k-space, and the whole reason to pick
+    /// one chain over another, so a row that offers to add a system says where it leads.
+    pub statics: Vec<crate::maps::solar_system::Static>,
 }
 
 /// A user's per-map preferences.

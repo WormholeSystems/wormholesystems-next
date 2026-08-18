@@ -170,7 +170,9 @@
 			// Skyhooks only exist in sovereign nullsec, so neither of these can apply.
 			wormhole_class_id: null,
 			effect_name: null,
-			sovereignty: skyhook.sovereignty ?? null
+			sovereignty: skyhook.sovereignty ?? null,
+			// Skyhooks are nullsec; a k-space system has no statics.
+			statics: []
 		};
 	}
 

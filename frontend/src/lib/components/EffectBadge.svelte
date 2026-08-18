@@ -1,22 +1,39 @@
 <script lang="ts">
 	// The wormhole effect badge: a lettered colored circle (legacy palette); clicking it
 	// opens a popover listing every modifier at this system's class.
+	//
+	// Shared by the map node and every system list, so an effect looks the same wherever it
+	// appears and a search result costs one glyph instead of a column of prose.
+	//
+	// The modifiers are fetched when the popover opens rather than on mount: a list of
+	// wormholes would otherwise fire a request per row for a table nobody has asked to see.
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
 	import { api } from '$lib/api/client';
 	import type { EffectModifier } from '$lib/api/types/EffectModifier';
 	import * as Popover from '$lib/components/ui/popover';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 
-	let { name, wormholeClassId }: { name: string; wormholeClassId: number } = $props();
+	let {
+		name,
+		wormholeClassId,
+		/**
+		 * Whether clicking opens the modifier table. Off inside a list row: the click would
+		 * have to be taken from the row, which is there to be clicked.
+		 */
+		detail = true
+	}: { name: string; wormholeClassId: number; detail?: boolean } = $props();
 
 	const token = $derived(name.toLowerCase().replaceAll(' ', '-'));
 	const letter = $derived(name === 'Wolf-Rayet Star' ? 'W' : name.charAt(0).toUpperCase());
 	const darkText = $derived(name === 'Cataclysmic Variable');
 
 	let mods = $state<EffectModifier[]>([]);
+	let open = $state(false);
 
 	$effect(() => {
+		if (!open) return;
 		api
 			.effectModifiers(name, wormholeClassId)
 			.then((m) => (mods = m))
@@ -24,7 +41,28 @@
 	});
 </script>
 
-<Popover.Root>
+{#snippet circle()}
+	<span
+		class="flex size-[14px] shrink-0 items-center justify-center rounded-full text-[9px] font-semibold {darkText
+			? 'text-neutral-950'
+			: 'text-white'}"
+		style="background-color: var(--color-{token})"
+	>
+		{letter}
+	</span>
+{/snippet}
+
+{#if !detail}
+	<Tooltip.Provider delayDuration={300}>
+		<Tooltip.Root>
+			<Tooltip.Trigger aria-label={name} class="flex cursor-help">
+				{@render circle()}
+			</Tooltip.Trigger>
+			<Tooltip.Content>{name}</Tooltip.Content>
+		</Tooltip.Root>
+	</Tooltip.Provider>
+{:else}
+<Popover.Root bind:open>
 	<Popover.Trigger
 		aria-label={name}
 		class="flex size-[14px] shrink-0 cursor-help items-center justify-center rounded-full text-[9px] font-semibold {darkText
@@ -62,3 +100,4 @@
 		{/each}
 	</Popover.Content>
 </Popover.Root>
+{/if}

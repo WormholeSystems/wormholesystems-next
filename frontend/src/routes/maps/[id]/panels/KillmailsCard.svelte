@@ -88,7 +88,9 @@
 			constellation_id: 0,
 			wormhole_class_id: kill.wormhole_class_id ?? null,
 			effect_name: null,
-			sovereignty: null
+			sovereignty: null,
+			// The row names a system it already knows; statics are not part of a kill.
+			statics: []
 		};
 	}
 

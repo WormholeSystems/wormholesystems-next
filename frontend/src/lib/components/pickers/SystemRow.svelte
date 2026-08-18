@@ -1,12 +1,20 @@
 <script lang="ts">
 	// One solar system result row, shared by every system picker: colored class, name,
-	// region, then the holder — sovereignty for k-space, the wormhole effect for J-space.
+	// region, then the holder — statics and effect for J-space, sovereignty for k-space.
 	// The cells are grid items; the parent owns the track sizes (see SYSTEM_ROW_COLUMNS)
 	// and rows use `grid-cols-subgrid`, so every list aligns and resizes together.
+	//
+	// The last cell says the same things a map node does, drawn the same way: the static
+	// destinations as coloured class letters and the effect as its lettered circle. Spelling
+	// "Wolf-Rayet Star" out took a column of prose to say what one glyph says, and it said
+	// nothing about where the hole leads, which is the thing you pick a wormhole for.
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import EffectBadge from '$lib/components/EffectBadge.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
-	import { effectTextColor } from '$lib/map/classes';
+	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { destClassMeta } from '$lib/map/classes';
 
 	let { system }: { system: SystemSearchResult } = $props();
 
@@ -23,13 +31,35 @@
 <ClassBadge classId={system.wormhole_class_id} security={system.security} class="truncate text-xs" />
 <span class="min-w-0 truncate text-foreground">{system.name}</span>
 <span class="min-w-0 truncate text-xs text-muted-foreground">{system.region}</span>
-{#if system.effect_name}
-	<span
-		class="min-w-0 truncate text-right text-xs {effectTextColor(system.effect_name)}"
-		title={system.effect_name}
-	>
-		{system.effect_name}
-	</span>
+{#if system.statics.length > 0 || system.effect_name}
+	<!-- Its own provider: these rows appear inside dialogs and popovers that have none, and
+	     a missing provider is a crash rather than a missing tooltip. -->
+	<Tooltip.Provider delayDuration={500}>
+		<span class="flex items-center justify-end gap-1">
+			{#each system.statics as st (st.code)}
+				{@const dest = destClassMeta(st.dest_class)}
+				<Tooltip.Root>
+					<Tooltip.Trigger
+						class="cursor-help text-[10px] font-medium"
+						data-testid="row-static"
+						style="color: var(--color-{dest.token})"
+					>
+						{dest.short}
+					</Tooltip.Trigger>
+					<Tooltip.Content class="p-0" side="bottom">
+						<StaticDetails static={st} />
+					</Tooltip.Content>
+				</Tooltip.Root>
+			{/each}
+			{#if system.effect_name}
+				<EffectBadge
+					name={system.effect_name}
+					wormholeClassId={system.wormhole_class_id ?? 0}
+					detail={false}
+				/>
+			{/if}
+		</span>
+	</Tooltip.Provider>
 {:else if sov}
 	<!-- Logo only; the holder's ticker and name live in the hover tooltip. -->
 	<span class="flex items-center justify-end">

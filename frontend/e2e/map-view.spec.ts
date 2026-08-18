@@ -38,7 +38,7 @@ test('search dialog adds a system to the map', async ({ page, api }) => {
 	expect(Math.abs(pos.top - 480)).toBeLessThanOrEqual(40);
 });
 
-test('search rows show class letters and the effect column', async ({ page, api }) => {
+test('search rows show class letters, statics and the effect badge', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E SearchRows');
 	await gotoApp(page, `/maps/${mapId}`);
 
@@ -47,18 +47,23 @@ test('search rows show class letters and the effect column', async ({ page, api 
 	await page.getByRole('button', { name: 'Add solar system' }).click();
 	const input = page.getByPlaceholder('System, alias, occupier or notes…');
 
-	// A wormhole row: class label plus its effect in the last column.
+	// A wormhole row says what a map node says: its class, where its statics lead, and the
+	// effect as the same lettered circle rather than a column of prose.
 	await input.fill('J122515');
 	const whRow = page.locator('[data-slot="command-item"]', { hasText: 'J122515' });
 	await expect(whRow).toBeVisible();
-	await expect(whRow.getByText('C5', { exact: true })).toBeVisible();
-	await expect(whRow.getByText('Wolf-Rayet Star')).toBeVisible();
+	await expect(whRow.getByTestId('class-badge')).toHaveText('C5');
+	// J122515 is a C5 whose one static (H296) leads to another C5.
+	await expect(whRow.getByTestId('row-static')).toHaveText(['C5']);
+	await expect(whRow.getByLabel('Wolf-Rayet Star')).toHaveText('W');
 
 	// A k-space row: the class letter, not the raw security number.
 	await input.fill('jita');
 	const jitaRow = page.locator('[data-slot="command-item"]', { hasText: 'Jita' }).first();
-	await expect(jitaRow.getByText('H', { exact: true })).toBeVisible();
+	await expect(jitaRow.getByTestId('class-badge')).toHaveText('H');
 	await expect(jitaRow.getByText('0.9')).toHaveCount(0);
+	// k-space has no statics, so that cell carries the sovereignty logo instead.
+	await expect(jitaRow.getByTestId('row-static')).toHaveCount(0);
 	await page.keyboard.press('Escape');
 });
 

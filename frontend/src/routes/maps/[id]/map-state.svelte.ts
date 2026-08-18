@@ -332,7 +332,8 @@ export class MapState {
 				constellation_id: placed.constellation_id,
 				wormhole_class_id: placed.wormhole_class_id,
 				effect_name: placed.effect_name,
-				sovereignty: placed.sovereignty
+				sovereignty: placed.sovereignty,
+				statics: placed.statics
 			};
 		}
 		return this.resolvedSystems.get(solarSystemId) ?? null;

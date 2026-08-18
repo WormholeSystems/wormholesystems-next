@@ -27,7 +27,7 @@
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { classMeta, destClassMeta, isWormholeClass } from '$lib/map/classes';
 	import { NODE_W, statusColor } from '$lib/map/helpers';
-	import EffectBadge from './EffectBadge.svelte';
+	import EffectBadge from '$lib/components/EffectBadge.svelte';
 
 	export interface SigCounts {
 		total: number;

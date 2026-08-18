@@ -446,6 +446,43 @@ fn sovereignty_of(
     }
 }
 
+/// The statics of every wormhole among `ids`, grouped by system.
+///
+/// One query for the whole page rather than a join on the search itself: statics are
+/// one-to-many, so joining would multiply the rows the search worked to rank.
+async fn statics_for(
+    db: &sqlx::PgPool,
+    ids: &[i64],
+) -> Result<std::collections::HashMap<i64, Vec<crate::maps::solar_system::Static>>, ApiError> {
+    use crate::maps::solar_system::Static;
+    let mut out: std::collections::HashMap<i64, Vec<Static>> = std::collections::HashMap::new();
+    if ids.is_empty() {
+        return Ok(out);
+    }
+    let rows = sqlx::query!(
+        "select wss.solar_system_id, wt.code, wt.dest_class,
+                wt.total_mass, wt.max_mass_per_jump, wt.lifetime_hours, wt.signature_strength
+         from wormhole_system_statics wss
+         join wormhole_types wt on wt.code = wss.wormhole_code
+         where wss.solar_system_id = any($1)
+         order by wt.dest_class nulls last, wt.code",
+        ids,
+    )
+    .fetch_all(db)
+    .await?;
+    for row in rows {
+        out.entry(row.solar_system_id).or_default().push(Static {
+            code: row.code,
+            dest_class: row.dest_class,
+            total_mass: row.total_mass,
+            max_jump_mass: row.max_mass_per_jump,
+            lifetime_hours: row.lifetime_hours,
+            signature_strength: row.signature_strength,
+        });
+    }
+    Ok(out)
+}
+
 /// `GET /api/systems/search?q=` — search the SDE solar systems by name. Prefix matches rank
 /// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
 pub async fn search_systems(
@@ -494,6 +531,8 @@ pub async fn search_systems(
     )
     .fetch_all(&state.db)
     .await?;
+    let mut statics =
+        statics_for(&state.db, &rows.iter().map(|r| r.id).collect::<Vec<_>>()).await?;
     let results = rows
         .into_iter()
         .map(|row| {
@@ -504,6 +543,7 @@ pub async fn search_systems(
                 row.sov_ticker,
             );
             SystemSearchResult {
+                statics: statics.remove(&row.id).unwrap_or_default(),
                 id: row.id,
                 name: row.name,
                 security: row.security,
@@ -656,6 +696,8 @@ pub async fn resolve_systems(
     )
     .fetch_all(&state.db)
     .await?;
+    let mut statics =
+        statics_for(&state.db, &rows.iter().map(|r| r.id).collect::<Vec<_>>()).await?;
     let results = rows
         .into_iter()
         .map(|row| {
@@ -680,6 +722,7 @@ pub async fn resolve_systems(
                 _ => None,
             };
             SystemSearchResult {
+                statics: statics.remove(&row.id).unwrap_or_default(),
                 id: row.id,
                 name: row.name,
                 security: row.security,
@@ -1762,6 +1805,11 @@ pub async fn search_map(
     .await?;
 
     let lower = q.to_lowercase();
+    let mut statics = statics_for(
+        &state.db,
+        &placed.iter().map(|r| r.solar_system_id).collect::<Vec<_>>(),
+    )
+    .await?;
     let mut hits: Vec<MapSearchHit> = placed
         .into_iter()
         .map(|r| {
@@ -1780,6 +1828,7 @@ pub async fn search_map(
             };
             MapSearchHit {
                 system: SystemSearchResult {
+                    statics: statics.remove(&r.solar_system_id).unwrap_or_default(),
                     id: r.solar_system_id,
                     name: r.name,
                     security: r.security,
@@ -1838,8 +1887,17 @@ pub async fn search_map(
     )
     .fetch_all(&state.db)
     .await?;
+    let mut off_statics = statics_for(
+        &state.db,
+        &off_map
+            .iter()
+            .map(|r| r.solar_system_id)
+            .collect::<Vec<_>>(),
+    )
+    .await?;
     hits.extend(off_map.into_iter().map(|r| MapSearchHit {
         system: SystemSearchResult {
+            statics: off_statics.remove(&r.solar_system_id).unwrap_or_default(),
             id: r.solar_system_id,
             name: r.name,
             security: r.security,
