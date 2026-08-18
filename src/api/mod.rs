@@ -410,8 +410,23 @@ pub struct MapSearchHit {
     pub occupying_group: Option<String>,
     /// The matching slice of the system's notes, when the query hit the notes. Member+ only.
     pub note_excerpt: Option<String>,
-    /// Why this row matched: `name`, `alias`, `occupier`, or `notes`.
+    /// The organisation that made this system a hit, when the query named a threat group.
+    #[ts(optional)]
+    pub threat: Option<ThreatMatch>,
+    /// Why this row matched: `name`, `alias`, `occupier`, `notes`, or `threat`.
     pub matched: String,
+}
+
+/// An organisation the threat analysis found operating in a system, as the palette shows it.
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct ThreatMatch {
+    pub entity_id: i64,
+    /// `alliance` or `corporation`.
+    pub entity_type: String,
+    pub name: String,
+    /// Kills this organisation has in this system over the analysis window.
+    pub kills: i32,
 }
 
 /// A grantable subject from the access-subject search.

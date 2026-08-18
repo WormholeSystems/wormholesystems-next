@@ -30,10 +30,32 @@
 	let generation = 0;
 
 	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
+	// Threat hits are systems too, but they answer a different question — where does this
+	// corp operate — so they get their own section rather than being mixed into results
+	// that matched by name.
+	const threats = $derived(results.filter((h) => h.threat));
+	/**
+	 * One section per organisation, the way legacy's threat search reads.
+	 *
+	 * Flat rows would repeat the name you just typed on every line and squeeze the kill
+	 * count — the one number that differs between them — out of the cell.
+	 */
+	const threatGroups = $derived.by(() => {
+		const groups = new Map<number, { name: string; kind: string; total: number; hits: MapSearchHit[] }>();
+		for (const hit of threats) {
+			const t = hit.threat!;
+			const group = groups.get(t.entity_id) ?? { name: t.name, kind: t.entity_type, total: 0, hits: [] };
+			group.total += t.kills;
+			group.hits.push(hit);
+			groups.set(t.entity_id, group);
+		}
+		return [...groups.entries()].map(([id, group]) => ({ id, ...group }));
+	});
+	const named = $derived(results.filter((h) => !h.threat));
 	/** Opened from "connect to a new system": every pick becomes a connection as well. */
 	const linking = $derived(map.linkFrom !== null);
-	const onMap = $derived(results.filter((h) => h.map_solar_system_id !== null));
-	const offMap = $derived(results.filter((h) => h.map_solar_system_id === null));
+	const onMap = $derived(named.filter((h) => h.map_solar_system_id !== null));
+	const offMap = $derived(named.filter((h) => h.map_solar_system_id === null));
 
 	// The list owns the tracks; rows are subgrids of them. Both groups sit in the one grid,
 	// so an on-map row and an off-map row line up with each other, not just within a group.
@@ -111,6 +133,12 @@
 		);
 	}
 
+	/** Jump to it if it is already placed, otherwise put it on the map. */
+	function open_(hit: MapSearchHit) {
+		if (hit.map_solar_system_id !== null) activate(hit);
+		else if (canWrite) add(hit);
+	}
+
 	function add(hit: MapSearchHit) {
 		const from = map.linkFrom;
 		// Where the caller asked for it: the point the map was right-clicked, or the node the
@@ -180,6 +208,34 @@
 				</Command.Item>
 			{/each}
 		{/if}
+		{#each threatGroups as group (group.id)}
+			<div class="{HEADING} flex items-center gap-2" data-testid="palette-threat-group">
+				<span class="min-w-0 truncate text-foreground" title="{group.name} ({group.kind})">
+					{group.name}
+				</span>
+				<span class="ml-auto shrink-0 font-mono whitespace-nowrap tabular-nums text-muted-foreground/60">
+					{group.hits.length} × {group.total.toLocaleString()} kills
+				</span>
+			</div>
+			{#each group.hits as hit (hit.system.id)}
+				<Command.Item
+					value={`threat-${group.id}-${hit.system.id}`}
+					onSelect={() => open_(hit)}
+					class={ROW}
+					data-testid="palette-threat"
+				>
+					<SystemMenu system={hit.system} class={CELLS}>
+						<SystemRow system={hit.system} />
+						<span
+							class="text-right font-mono text-xs tabular-nums text-muted-foreground"
+							data-testid="palette-threat-kills"
+						>
+							{hit.threat?.kills.toLocaleString()}
+						</span>
+					</SystemMenu>
+				</Command.Item>
+			{/each}
+		{/each}
 		{#if canWrite && offMap.length > 0}
 			<div class={HEADING}>{linking ? 'Add and connect' : 'Add to the map'}</div>
 			{#each offMap as hit (hit.system.id)}

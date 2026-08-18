@@ -12,7 +12,7 @@ use super::{
     ApiError, ApiResult, CharacterRef, CharacterStatus, CharacterSummary, EveScoutConnection,
     MapCharacter, MapEntry, MapSearchHit, MapUserSettings, ShipSearchResult, SignatureCatalog,
     SignatureCategoryInfo, SignatureTypeInfo, SystemSearchResult, ThreatAnalysis, ThreatEntity,
-    UpdateMapUserSettings, check_map_id, require_actor, session_actor, session_id,
+    ThreatMatch, UpdateMapUserSettings, check_map_id, require_actor, session_actor, session_id,
 };
 use crate::auth::AppState;
 use crate::maps::access::{AccessEntry, RevokeAccess, SetAccess};
@@ -666,6 +666,11 @@ pub async fn resolve_systems(
         .filter_map(|s| s.trim().parse().ok())
         .take(200)
         .collect();
+    Ok(Json(systems_for(&state.db, &ids).await?))
+}
+
+/// Display data for a set of solar systems, in the shape every picker renders.
+async fn systems_for(db: &sqlx::PgPool, ids: &[i64]) -> Result<Vec<SystemSearchResult>, ApiError> {
     let rows = sqlx::query!(
         r#"
         select s.id,
@@ -692,12 +697,11 @@ pub async fn resolve_systems(
         left join corporations co on co.id = sov.corporation_id
         left join factions f on f.id = sov.faction_id
         where s.id = any($1)"#,
-        &ids,
+        ids,
     )
-    .fetch_all(&state.db)
+    .fetch_all(db)
     .await?;
-    let mut statics =
-        statics_for(&state.db, &rows.iter().map(|r| r.id).collect::<Vec<_>>()).await?;
+    let mut statics = statics_for(db, &rows.iter().map(|r| r.id).collect::<Vec<_>>()).await?;
     let results = rows
         .into_iter()
         .map(|row| {
@@ -735,7 +739,7 @@ pub async fn resolve_systems(
             }
         })
         .collect();
-    Ok(Json(results))
+    Ok(results)
 }
 
 #[derive(Deserialize)]
@@ -1847,6 +1851,7 @@ pub async fn search_map(
                 map_solar_system_id: Some(r.map_solar_system_id),
                 alias: r.alias,
                 occupying_group: r.occupying_group,
+                threat: None,
                 note_excerpt: if matched == "notes" {
                     r.notes.map(|n| excerpt(&n, q))
                 } else {
@@ -1912,9 +1917,106 @@ pub async fn search_map(
         alias: None,
         occupying_group: None,
         note_excerpt: None,
+        threat: None,
         matched: "name".into(),
     }));
+
+    hits.extend(threat_hits(&state.db, map_id, q, &contains, &prefix).await?);
     Ok(Json(hits))
+}
+
+/// How many organisations a threat search considers, and how many systems it reports.
+const THREAT_ENTITIES: i64 = 5;
+const THREAT_SYSTEMS: usize = 12;
+
+/// Systems where an organisation matching the query is a top killer.
+///
+/// The other half of "who is out there": the palette can already find a system by the
+/// occupier someone typed onto it, which only works for chains you have already scouted.
+/// This finds them from the killmails instead, so searching a corp name answers "where do
+/// these people actually operate" across all of wormhole space.
+///
+/// Organisations are ranked exact match, then prefix, then anywhere in the name, and by
+/// total kills within each tier, so a search for a well-known alliance is not buried under
+/// the one-kill corporations that happen to contain the same letters.
+async fn threat_hits(
+    db: &sqlx::PgPool,
+    map_id: i64,
+    needle: &str,
+    contains: &str,
+    prefix: &str,
+) -> Result<Vec<MapSearchHit>, ApiError> {
+    let rows = sqlx::query!(
+        r#"with matched as (
+               select entity_id, entity_type, name,
+                      case when lower(name) = lower($1) then 0
+                           when name ilike $3 then 1
+                           else 2 end as rank,
+                      sum(kills) as total
+               from wormhole_system_threats
+               where name ilike $2
+               group by entity_id, entity_type, name
+               order by rank, total desc
+               limit $4
+           )
+           select t.solar_system_id, t.kills, m.entity_id, m.entity_type, m.name,
+                  m.rank as "rank!", m.total as "total!"
+           from wormhole_system_threats t
+           join matched m on m.entity_id = t.entity_id
+           order by m.rank, m.total desc, t.kills desc
+           limit $5"#,
+        needle,
+        contains,
+        prefix,
+        THREAT_ENTITIES,
+        THREAT_SYSTEMS as i64,
+    )
+    .fetch_all(db)
+    .await?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let ids: Vec<i64> = rows.iter().map(|r| r.solar_system_id).collect();
+    let systems: std::collections::HashMap<i64, SystemSearchResult> = systems_for(db, &ids)
+        .await?
+        .into_iter()
+        .map(|s| (s.id, s))
+        .collect();
+    // A threat system may already be on this map, in which case the row should jump to it
+    // rather than offer to add it a second time.
+    let placed: std::collections::HashMap<i64, i64> = sqlx::query!(
+        "select id, solar_system_id from map_solar_systems
+         where map_id = $1 and solar_system_id = any($2)",
+        map_id,
+        &ids,
+    )
+    .fetch_all(db)
+    .await?
+    .into_iter()
+    .map(|r| (r.solar_system_id, r.id))
+    .collect();
+
+    Ok(rows
+        .into_iter()
+        .filter_map(|r| {
+            let system = systems.get(&r.solar_system_id)?.clone();
+            Some(MapSearchHit {
+                map_solar_system_id: placed.get(&r.solar_system_id).copied(),
+                system,
+                alias: None,
+                occupying_group: None,
+                note_excerpt: None,
+                threat: Some(ThreatMatch {
+                    entity_id: r.entity_id,
+                    entity_type: r.entity_type,
+                    name: r.name,
+                    kills: r.kills,
+                }),
+                matched: "threat".into(),
+            })
+        })
+        .collect())
 }
 
 /// A one-line window of `notes` around the first match, so the palette shows why a note hit.

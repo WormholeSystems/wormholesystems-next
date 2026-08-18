@@ -1,5 +1,5 @@
 import { expect, gotoApp, test } from './fixtures';
-import { createIdentity, grantAccess } from './db';
+import { clearThreats, createIdentity, grantAccess, seedThreat } from './db';
 
 // The Cmd+K palette: jump to a system already on the map, or add one that is not.
 
@@ -107,4 +107,52 @@ test('columns line up across both groups, not just within a row', async ({ page,
 	);
 	expect(columns.length).toBeGreaterThan(1);
 	expect(new Set(columns).size).toBe(1);
+});
+
+// Searching an organisation finds the wormholes it operates in, from the killmail threat
+// analysis rather than from anything anyone typed onto the map.
+
+const ORG_ID = 99000777;
+const J155207 = 31002402;
+
+test.afterEach(async () => {
+	await clearThreats([ORG_ID]);
+});
+
+test('an organisation finds the wormholes it is a threat in', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E PaletteThreat');
+	await seedThreat({
+		solarSystemId: J122515,
+		entityId: ORG_ID,
+		entityType: 'alliance',
+		name: 'E2E Threat Syndicate',
+		kills: 240
+	});
+	await seedThreat({
+		solarSystemId: J155207,
+		entityId: ORG_ID,
+		entityType: 'alliance',
+		name: 'E2E Threat Syndicate',
+		kills: 31
+	});
+	await gotoApp(page, `/maps/${mapId}`);
+
+	await page.getByTestId('palette-trigger').click();
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('threat syndicate');
+
+	// One section for the organisation, summarising its reach.
+	const group = page.getByTestId('palette-threat-group');
+	await expect(group).toHaveText(/E2E Threat Syndicate/);
+	await expect(group).toContainText('2 × 271 kills');
+
+	// Its systems, busiest first, each with the kills it has there.
+	const rows = page.getByTestId('palette-threat');
+	await expect(rows).toHaveCount(2);
+	await expect(rows.first()).toContainText('J122515');
+	await expect(rows.first().getByTestId('palette-threat-kills')).toHaveText('240');
+	await expect(rows.last().getByTestId('palette-threat-kills')).toHaveText('31');
+
+	// Picking one puts it on the map, since it is somewhere you have not been yet.
+	await rows.first().click();
+	await expect(page.getByTestId('system-node').filter({ hasText: 'J122515' })).toBeVisible();
 });

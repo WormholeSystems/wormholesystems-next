@@ -187,6 +187,34 @@ const LOCATION_SCOPES = [
 	'esi-location.read_online.v1'
 ];
 
+/**
+ * Put an organisation on a wormhole system's threat list, as the killmail analysis would.
+ *
+ * Seeded rather than analysed: the analysis needs a quarter of real killmails to say
+ * anything, and a test should not depend on who happened to be shooting whom.
+ */
+export async function seedThreat(threat: {
+	solarSystemId: number;
+	entityId: number;
+	entityType: 'alliance' | 'corporation';
+	name: string;
+	kills: number;
+}) {
+	await withDb((db) =>
+		db.query(
+			`insert into wormhole_system_threats (solar_system_id, entity_id, entity_type, name, kills)
+			 values ($1, $2, $3, $4, $5)`,
+			[threat.solarSystemId, threat.entityId, threat.entityType, threat.name, threat.kills]
+		)
+	);
+}
+
+export async function clearThreats(entityIds: number[]) {
+	await withDb((db) =>
+		db.query('delete from wormhole_system_threats where entity_id = any($1)', [entityIds])
+	);
+}
+
 /** Replace a character's granted ESI scopes with exactly `names`. */
 export async function setScopes(characterId: number, names: string[]) {
 	await withDb(async (db) => {
