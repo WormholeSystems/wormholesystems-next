@@ -46,11 +46,44 @@ struct R2Z2Sequence {
 struct R2Z2Killmail {
     killmail_id: i64,
     hash: String,
-    esi: serde_json::Value,
+    esi: EsiKillmail,
     /// zKillboard's own summary: value, attacker count, and the solo/NPC flags. Absent on
     /// a malformed frame, which is why every field below is read defensively.
     #[serde(default)]
     zkb: serde_json::Value,
+}
+
+/// A killmail's ESI body, narrowed to the fields anything here reads.
+///
+/// Deliberately typed rather than a `serde_json::Value`. The full body carries every item
+/// the victim was carrying, so building a `Value` allocates a map and a string for hundreds
+/// of entries nobody looks at; against a year of archives that dominates the import. Serde
+/// walks past the fields it is not asked for without allocating.
+///
+/// Every field is optional because these payloads arrive from two sources and a malformed
+/// one should cost a single killmail rather than a whole batch.
+#[derive(Default, Deserialize)]
+struct EsiKillmail {
+    killmail_id: Option<i64>,
+    killmail_hash: Option<String>,
+    killmail_time: Option<String>,
+    solar_system_id: Option<i64>,
+    #[serde(default)]
+    victim: Participant,
+    #[serde(default)]
+    attackers: Vec<Participant>,
+}
+
+/// One side of a killmail. The victim never carries `final_blow`, so it defaults false and
+/// both roles share a shape.
+#[derive(Default, Deserialize)]
+struct Participant {
+    character_id: Option<i64>,
+    corporation_id: Option<i64>,
+    alliance_id: Option<i64>,
+    ship_type_id: Option<i64>,
+    #[serde(default)]
+    final_blow: bool,
 }
 
 /// The parts of a killmail a reader cares about, pulled out of the two payloads.
@@ -69,29 +102,27 @@ struct Detail {
     final_blow_ship_type_id: Option<i64>,
 }
 
-fn extract_detail(esi: &serde_json::Value, zkb: &serde_json::Value) -> Detail {
-    let victim = &esi["victim"];
+fn extract_detail(esi: &EsiKillmail, zkb: &serde_json::Value) -> Detail {
+    let victim = &esi.victim;
     // The killing blow is the one attacker worth naming; the rest are a count.
-    let final_blow = esi["attackers"]
-        .as_array()
-        .and_then(|a| a.iter().find(|x| x["final_blow"].as_bool() == Some(true)));
-    let id = |v: &serde_json::Value, key: &str| v[key].as_i64();
+    let final_blow = esi.attackers.iter().find(|a| a.final_blow);
     Detail {
-        victim_character_id: id(victim, "character_id"),
-        victim_corporation_id: id(victim, "corporation_id"),
-        victim_alliance_id: id(victim, "alliance_id"),
-        victim_ship_type_id: id(victim, "ship_type_id"),
+        victim_character_id: victim.character_id,
+        victim_corporation_id: victim.corporation_id,
+        victim_alliance_id: victim.alliance_id,
+        victim_ship_type_id: victim.ship_type_id,
         total_value: zkb["totalValue"].as_f64(),
-        attacker_count: zkb["attackerCount"]
-            .as_i64()
-            .or_else(|| esi["attackers"].as_array().map(|a| a.len() as i64))
-            .map(|n| n as i32),
+        attacker_count: Some(
+            zkb["attackerCount"]
+                .as_i64()
+                .unwrap_or(esi.attackers.len() as i64) as i32,
+        ),
         is_npc: zkb["npc"].as_bool().unwrap_or(false),
         is_solo: zkb["solo"].as_bool().unwrap_or(false),
-        final_blow_character_id: final_blow.and_then(|a| id(a, "character_id")),
-        final_blow_corporation_id: final_blow.and_then(|a| id(a, "corporation_id")),
-        final_blow_alliance_id: final_blow.and_then(|a| id(a, "alliance_id")),
-        final_blow_ship_type_id: final_blow.and_then(|a| id(a, "ship_type_id")),
+        final_blow_character_id: final_blow.and_then(|a| a.character_id),
+        final_blow_corporation_id: final_blow.and_then(|a| a.corporation_id),
+        final_blow_alliance_id: final_blow.and_then(|a| a.alliance_id),
+        final_blow_ship_type_id: final_blow.and_then(|a| a.ship_type_id),
     }
 }
 
@@ -382,8 +413,8 @@ async fn ingest_next(
         return Ok(true);
     };
 
-    let solar_system_id = km.esi["solar_system_id"].as_i64().unwrap_or(0);
-    let time = km.esi["killmail_time"].as_str().unwrap_or_default();
+    let solar_system_id = km.esi.solar_system_id.unwrap_or(0);
+    let time = km.esi.killmail_time.clone().unwrap_or_default();
     let orgs = extract_orgs(&km.esi);
     let detail = extract_detail(&km.esi, &km.zkb);
     if solar_system_id != 0 && !time.is_empty() {
@@ -456,15 +487,13 @@ async fn advance(pool: &PgPool, seq: i64) -> Result<(), sqlx::Error> {
 
 /// The organisations participating in a killmail (victim + every attacker), alliance
 /// preferred over corporation, each org at most once.
-pub fn extract_orgs(esi: &serde_json::Value) -> Vec<Org> {
+pub fn extract_orgs(esi: &EsiKillmail) -> Vec<Org> {
     let mut seen = std::collections::HashSet::new();
     let mut orgs = Vec::new();
-    let push = |entity: &serde_json::Value,
-                seen: &mut std::collections::HashSet<(i64, bool)>,
-                orgs: &mut Vec<Org>| {
-        let (id, alliance) = match entity["alliance_id"].as_i64() {
+    let mut push = |entity: &Participant| {
+        let (id, alliance) = match entity.alliance_id {
             Some(id) => (id, true),
-            None => match entity["corporation_id"].as_i64() {
+            None => match entity.corporation_id {
                 Some(id) => (id, false),
                 None => return,
             },
@@ -476,9 +505,9 @@ pub fn extract_orgs(esi: &serde_json::Value) -> Vec<Org> {
             });
         }
     };
-    push(&esi["victim"], &mut seen, &mut orgs);
-    for attacker in esi["attackers"].as_array().unwrap_or(&Vec::new()) {
-        push(attacker, &mut seen, &mut orgs);
+    push(&esi.victim);
+    for attacker in &esi.attackers {
+        push(attacker);
     }
     orgs
 }
@@ -667,21 +696,19 @@ fn read_archive(bytes: &[u8]) -> std::io::Result<Vec<ArchivedKill>> {
         if entry.read_to_string(&mut text).is_err() {
             continue;
         }
-        let Ok(km) = serde_json::from_str::<serde_json::Value>(&text) else {
+        let Ok(km) = serde_json::from_str::<EsiKillmail>(&text) else {
             continue;
         };
-        let (Some(id), Some(solar_system_id), Some(time)) = (
-            km["killmail_id"].as_i64(),
-            km["solar_system_id"].as_i64(),
-            km["killmail_time"].as_str(),
-        ) else {
+        let (Some(id), Some(solar_system_id), Some(time)) =
+            (km.killmail_id, km.solar_system_id, km.killmail_time.clone())
+        else {
             continue;
         };
         kills.push(ArchivedKill {
             id,
-            hash: km["killmail_hash"].as_str().unwrap_or_default().to_string(),
+            hash: km.killmail_hash.clone().unwrap_or_default(),
             solar_system_id,
-            time: time.to_string(),
+            time,
             orgs: serde_json::to_value(extract_orgs(&km)).map_err(std::io::Error::other)?,
             // The archives carry the ESI body but not zKillboard's block, so everything
             // except the ISK value and the solo/NPC flags comes through. Writing what we
@@ -857,9 +884,15 @@ mod tests {
         assert_eq!(threat_level(50), "critical");
     }
 
+    /// Tests state the payload as it arrives on the wire, then read it the way the code
+    /// does, so a field the struct forgets shows up here.
+    fn body(value: serde_json::Value) -> EsiKillmail {
+        serde_json::from_value(value).expect("killmail body")
+    }
+
     #[test]
     fn orgs_prefer_alliance_and_dedupe() {
-        let esi = serde_json::json!({
+        let esi = body(serde_json::json!({
             "victim": {"corporation_id": 100, "alliance_id": 200},
             "attackers": [
                 {"corporation_id": 100, "alliance_id": 200},
@@ -867,7 +900,7 @@ mod tests {
                 {"corporation_id": 300},
                 {"ship_type_id": 1}
             ]
-        });
+        }));
         let orgs = extract_orgs(&esi);
         assert_eq!(
             orgs,
@@ -889,8 +922,12 @@ mod tests {
 mod detail_tests {
     use super::*;
 
-    fn payload() -> (serde_json::Value, serde_json::Value) {
-        let esi = serde_json::json!({
+    fn body(value: serde_json::Value) -> EsiKillmail {
+        serde_json::from_value(value).expect("killmail body")
+    }
+
+    fn payload() -> (EsiKillmail, serde_json::Value) {
+        let esi = body(serde_json::json!({
             "victim": {
                 "character_id": 11, "corporation_id": 22, "alliance_id": 33,
                 "ship_type_id": 670, "damage_taken": 1234
@@ -901,7 +938,7 @@ mod detail_tests {
                 {"character_id": 66, "corporation_id": 77, "alliance_id": 88,
                  "final_blow": true, "ship_type_id": 222}
             ]
-        });
+        }));
         let zkb = serde_json::json!({
             "totalValue": 1_234_567.89, "attackerCount": 2, "npc": false, "solo": false
         });
@@ -934,7 +971,7 @@ mod detail_tests {
 
     #[test]
     fn a_kill_with_nobody_flagged_names_no_attacker() {
-        let esi = serde_json::json!({ "victim": {}, "attackers": [{"character_id": 1}] });
+        let esi = body(serde_json::json!({ "victim": {}, "attackers": [{"character_id": 1}] }));
         let d = extract_detail(&esi, &serde_json::Value::Null);
         assert_eq!(d.final_blow_character_id, None);
         assert_eq!(d.attacker_count, Some(1));
