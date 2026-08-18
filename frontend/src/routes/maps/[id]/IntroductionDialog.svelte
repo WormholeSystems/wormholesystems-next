@@ -306,8 +306,8 @@
 						system for its menu, and drag between two to connect them.
 					</p>
 					<p>
-						The checklist in the corner tracks what this map still needs. The status bar's
-						setup button brings it back if you close it.
+						Everything here lives in the map's settings afterwards, along with access for the
+						rest of your corp.
 					</p>
 				</div>
 			</div>

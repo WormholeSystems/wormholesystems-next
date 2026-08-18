@@ -8,8 +8,4 @@ export type UpdateMapUserSettings = { tracking_allowed?: boolean, show_threat_le
 /**
  * Stamped server-side, so "when" is the server's clock rather than the browser's.
  */
-setup_dismissed?: boolean, 
-/**
- * Stamped server-side, like `setup_dismissed`.
- */
 introduction_confirmed?: boolean, hidden_panels?: Array<string>, layout_breakpoints?: { [key in string]: BreakpointLayout }, };

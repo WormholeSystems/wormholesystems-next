@@ -20,6 +20,13 @@ const ALL_SCOPES = [
 type Api = import('@playwright/test').APIRequestContext;
 type Browser = import('@playwright/test').Browser;
 
+/** The settings write the dialog makes on its way out; a reload would cancel it in flight. */
+function saved(page: import('@playwright/test').Page) {
+	return page.waitForResponse(
+		(r) => r.url().includes('/settings/user') && r.request().method() === 'POST'
+	);
+}
+
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
@@ -81,9 +88,8 @@ test('a new map walks you through permissions and preferences, once', async ({ b
 	await expect(dialog).toContainText('Ready to fly');
 	await expect(dialog).toContainText('All granted');
 
-	await dialog.getByTestId('introduction-done').click();
+	await Promise.all([saved(page), dialog.getByTestId('introduction-done').click()]);
 	await expect(dialog).toHaveCount(0);
-	await expect(page.getByTestId('setup-guide')).toBeVisible();
 
 	// And it stays gone: a walkthrough, not a greeting.
 	await page.reload();
@@ -131,10 +137,7 @@ test('without the location scope, sharing cannot be turned on at all', async ({ 
 
 	// Reaching the end still counts as done, even with nothing granted and nothing enabled.
 	await dialog.getByTestId('introduction-next').click();
-	await dialog.getByTestId('introduction-done').click();
-	// The checklist only appears once the saved settings come back, so waiting for it keeps
-	// the reload from cancelling that request in flight.
-	await expect(page.getByTestId('setup-guide')).toBeVisible();
+	await Promise.all([saved(page), dialog.getByTestId('introduction-done').click()]);
 	await page.reload();
 	await page.waitForSelector('[data-testid="panel-grid"]');
 	await expect(page.getByTestId('introduction')).toHaveCount(0);

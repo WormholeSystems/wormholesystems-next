@@ -121,8 +121,6 @@ pub struct MapUserSettings {
     /// Which half of the chain the killmails card shows: `all` / `jspace` / `kspace`.
     pub killmail_filter: String,
     pub is_archived: bool,
-    /// Whether this user has waved the setup guide away on this map.
-    pub setup_dismissed: bool,
     /// Whether this user has been through the map's introduction.
     pub introduction_confirmed: bool,
     /// Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
@@ -266,10 +264,6 @@ pub struct UpdateMapUserSettings {
     #[ts(optional)]
     pub is_archived: Option<bool>,
     /// Stamped server-side, so "when" is the server's clock rather than the browser's.
-    #[serde(default)]
-    #[ts(optional)]
-    pub setup_dismissed: Option<bool>,
-    /// Stamped server-side, like `setup_dismissed`.
     #[serde(default)]
     #[ts(optional)]
     pub introduction_confirmed: Option<bool>,

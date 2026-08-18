@@ -38,10 +38,6 @@ copy_bookmark: boolean,
  */
 killmail_filter: string, is_archived: boolean, 
 /**
- * Whether this user has waved the setup guide away on this map.
- */
-setup_dismissed: boolean, 
-/**
  * Whether this user has been through the map's introduction.
  */
 introduction_confirmed: boolean, 
