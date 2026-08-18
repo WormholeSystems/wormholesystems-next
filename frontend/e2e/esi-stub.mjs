@@ -21,6 +21,43 @@ let skyhooks = null;
 /** character_id -> how many times the API has asked about them, so tests can wait for a poll. */
 const hits = new Map();
 
+/**
+ * A fixed EVE Scout list. Two hubs, a wormhole and k-space on each, one hole nearly gone
+ * and one only half-scanned, so the card's every state has something to show.
+ */
+const EVE_SCOUT = [
+	{
+		in_system_id: 31001882, // J122515
+		out_system_id: 31000005, // Thera
+		in_signature: 'AAA-111',
+		out_signature: 'THE-001',
+		wh_type: 'J377',
+		max_ship_size: 'medium',
+		remaining_hours: 9,
+		updated_at: '2026-08-18T09:00:00.000Z'
+	},
+	{
+		in_system_id: 30000142, // Jita
+		out_system_id: 31000005,
+		in_signature: 'BBB-222',
+		out_signature: 'THE-002',
+		wh_type: 'E587',
+		max_ship_size: 'large',
+		life: 'eol',
+		remaining_hours: 0.5,
+		updated_at: '2026-08-18T08:00:00.000Z'
+	},
+	{
+		in_system_id: 30002187, // Amarr
+		out_system_id: 30002086, // Turnur
+		in_signature: 'CCC-333',
+		out_signature: 'TUR-001',
+		mass: 'destab',
+		remaining_hours: 14,
+		updated_at: '2026-08-18T07:00:00.000Z'
+	}
+];
+
 function json(res, status, body) {
 	const payload = JSON.stringify(body);
 	res.writeHead(status, {
@@ -167,6 +204,13 @@ const server = createServer(async (req, res) => {
 			start_time: tranquility.start_time ?? '2026-08-17T11:00:00Z',
 			vip: tranquility.vip ?? false
 		});
+	}
+
+	// EVE Scout stands in for api.eve-scout.com. A fixed list rather than a controllable
+	// one: the server caches it for a minute, so a test that changed it mid-run would be
+	// racing that cache for no gain.
+	if (url.pathname === '/evescout' && req.method === 'GET') {
+		return json(res, 200, EVE_SCOUT);
 	}
 
 	if (url.pathname === '/skyhooks/raidable' && req.method === 'GET') {

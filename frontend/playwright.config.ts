@@ -46,7 +46,8 @@ export default defineConfig({
 				SKYHOOK_POLL_SECS: '2',
 				// Tests seed the killmails they assert on; a real 90-day import would download
 				// several gigabytes before the first spec ran.
-				KILLMAIL_BACKFILL_DAYS: '0'
+				KILLMAIL_BACKFILL_DAYS: '0',
+				EVE_SCOUT_URL: 'http://127.0.0.1:3999/evescout'
 			},
 			// First run compiles the API and may seed the SDE into a fresh database.
 			timeout: 300_000

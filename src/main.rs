@@ -18,6 +18,20 @@ async fn main() {
         return;
     }
 
+    // `vector threat-analysis` recomputes every wormhole system's threat from the killmails
+    // already stored, then exits. The server does this daily and after a backfill; this is
+    // for when you want the numbers now.
+    if args.iter().any(|a| a == "threat-analysis") {
+        dotenvy::dotenv().ok();
+        let url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
+        let db = vector::db::connect(&url).await.expect("db connect failed");
+        vector::killmails::analyze(&db, &vector::esi::EsiClient::new())
+            .await
+            .expect("threat analysis failed");
+        println!("threat analysis complete.");
+        return;
+    }
+
     use std::sync::Arc;
 
     use axum::Router;

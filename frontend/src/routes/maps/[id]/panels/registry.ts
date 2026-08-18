@@ -18,7 +18,8 @@ export type PanelId =
 	| 'notes'
 	| 'characters'
 	| 'skyhooks'
-	| 'killmails';
+	| 'killmails'
+	| 'evescout';
 
 export interface PanelMeta {
 	id: PanelId;
@@ -103,6 +104,14 @@ export const PANELS: PanelMeta[] = [
 		minW: 2,
 		minH: 3,
 		removable: true
+	},
+	{
+		id: 'evescout',
+		label: 'EVE Scout',
+		description: 'Public wormholes out of Thera and Turnur, by how far away they are.',
+		minW: 2,
+		minH: 3,
+		removable: true
 	}
 ];
 
@@ -162,7 +171,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('notes', 0, 21, 1, 2),
 			item('characters', 0, 23, 1, 3),
 			item('skyhooks', 0, 26, 1, 3),
-			item('killmails', 0, 29, 1, 3)
+			item('killmails', 0, 29, 1, 3),
+				item('evescout', 0, 32, 1, 3)
 		]
 	},
 	sm: {
@@ -177,7 +187,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('notes', 0, 14, 2, 2),
 			item('characters', 0, 16, 2, 3),
 			item('skyhooks', 0, 19, 2, 3),
-			item('killmails', 0, 22, 2, 3)
+			item('killmails', 0, 22, 2, 3),
+				item('evescout', 0, 25, 2, 3)
 		]
 	},
 	md: {
@@ -192,7 +203,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('notes', 0, 15, 2, 2),
 			item('characters', 2, 15, 2, 3),
 			item('skyhooks', 0, 17, 2, 3),
-			item('killmails', 2, 18, 2, 3)
+			item('killmails', 2, 18, 2, 3),
+				item('evescout', 0, 21, 2, 3)
 		]
 	},
 	lg: {
@@ -207,7 +219,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('notes', 7, 9, 3, 3),
 			item('characters', 0, 12, 5, 3),
 			item('skyhooks', 5, 12, 5, 3),
-			item('killmails', 0, 15, 5, 3)
+			item('killmails', 0, 15, 5, 3),
+				item('evescout', 5, 15, 5, 3)
 		]
 	}
 };

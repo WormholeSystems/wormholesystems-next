@@ -167,7 +167,7 @@ pub struct LayoutItem {
 
 /// Panels the layout may refer to. The server keeps its own copy so a bad payload is a
 /// 400 rather than a page that renders a tile nothing knows how to draw.
-pub const PANEL_IDS: [&str; 9] = [
+pub const PANEL_IDS: [&str; 10] = [
     "map",
     "navigation",
     "system-info",
@@ -177,6 +177,7 @@ pub const PANEL_IDS: [&str; 9] = [
     "characters",
     "skyhooks",
     "killmails",
+    "evescout",
 ];
 const BREAKPOINT_KEYS: [&str; 4] = ["xs", "sm", "md", "lg"];
 
@@ -275,15 +276,33 @@ pub struct UpdateMapUserSettings {
     pub layout_breakpoints: Option<PanelLayouts>,
 }
 
-/// A public Thera/Turnur wormhole edge from EVE Scout, normalized to Vector's status
-/// vocabulary for the client-side router.
+/// A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it.
+///
+/// Oriented hub-first rather than in EVE Scout's own in/out terms, because that is the only
+/// orientation either consumer cares about: the card groups by hub, and the router treats
+/// the pair as an undirected edge. Statuses are normalized to Vector's own vocabulary.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-pub struct EveScoutEdge {
-    pub from_solar_system_id: i64,
-    pub to_solar_system_id: i64,
+pub struct EveScoutConnection {
+    pub hub_solar_system_id: i64,
+    /// `Thera` or `Turnur`.
+    pub hub: String,
+    pub hub_signature: String,
+    pub solar_system_id: i64,
+    pub signature: String,
     pub mass_status: String,
     pub time_status: String,
+    /// The wormhole code, e.g. `J377`. Absent while a scout has only half-scanned it.
+    #[ts(optional)]
+    pub wormhole_type: Option<String>,
+    /// `frigate` / `medium` / `large` / `capital`.
+    #[ts(optional)]
+    pub max_ship_size: Option<String>,
+    #[ts(optional)]
+    pub remaining_hours: Option<f64>,
+    /// When a scout last touched it, for the card's freshness stamp.
+    #[ts(optional)]
+    pub updated_at: Option<String>,
 }
 
 /// A cosmic-signature category from the seeded catalog.

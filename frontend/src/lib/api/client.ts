@@ -12,7 +12,7 @@ import type { CharacterStatus } from './types/CharacterStatus';
 import type { CharacterSummary } from './types/CharacterSummary';
 import type { ClearMap } from './types/ClearMap';
 import type { EffectModifier } from './types/EffectModifier';
-import type { EveScoutEdge } from './types/EveScoutEdge';
+import type { EveScoutConnection } from './types/EveScoutConnection';
 import type { GridConfig } from './types/GridConfig';
 import type { LinkSignature } from './types/LinkSignature';
 import type { Map } from './types/Map';
@@ -207,7 +207,7 @@ export const api = {
 		get<ShipSearchResult[]>(`/api/ships/search?q=${encodeURIComponent(query)}`),
 
 	// Navigation
-	eveScout: () => get<EveScoutEdge[]>('/api/evescout'),
+	eveScout: () => get<EveScoutConnection[]>('/api/evescout'),
 	listWatchlist: (mapId: number) => get<WatchlistEntry[]>(`/api/maps/${mapId}/watchlist`),
 	addWatchlistEntry: (cmd: AddWatchlistEntry) =>
 		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/add`, cmd),

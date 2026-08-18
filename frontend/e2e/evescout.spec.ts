@@ -1,0 +1,104 @@
+import { expect, gotoApp, test } from './fixtures';
+
+// The EVE Scout card: public wormholes out of Thera and Turnur, one hub at a time, sorted
+// by how far away they are through your own chain.
+//
+// The upstream is the stub's fixed list (see EVE_SCOUT in esi-stub.mjs): two holes out of
+// Thera (J122515 and Jita) and one out of Turnur (Amarr).
+
+const J122515 = 31001882;
+const JITA = 30000142;
+
+type Api = import('@playwright/test').APIRequestContext;
+
+async function createMap(api: Api, name: string) {
+	const res = await api.post('/api/maps', { data: { name } });
+	expect(res.ok()).toBe(true);
+	return (await res.json()).id as number;
+}
+
+async function addSystem(api: Api, mapId: number, solarSystemId: number, x: number) {
+	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null }
+	});
+	expect(res.ok()).toBe(true);
+}
+
+test('the card lists a hub at a time, resolved and sorted', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Scout');
+	await addSystem(api, mapId, JITA, 200);
+	await gotoApp(page, `/maps/${mapId}?system=${JITA}`);
+
+	const card = page.getByTestId('evescout-card');
+	await expect(card).toBeVisible();
+
+	// Thera first, with its two holes; the Turnur one is not in this list.
+	const rows = card.getByTestId('evescout-row');
+	await expect(rows).toHaveCount(2, { timeout: 10_000 });
+	await expect(rows.filter({ hasText: 'J122515' })).toBeVisible();
+	await expect(rows.filter({ hasText: 'Jita' })).toBeVisible();
+	await expect(rows.filter({ hasText: 'Amarr' })).toHaveCount(0);
+
+	// Resolved server-side data the row could not know on its own.
+	const jita = rows.filter({ hasText: 'Jita' });
+	await expect(jita).toContainText('The Forge');
+	await expect(jita.getByTestId('evescout-signature')).toHaveText('THE-002');
+	// Half an hour left reads in minutes, and is called out.
+	await expect(jita.getByTestId('evescout-ttl')).toHaveText('30m');
+	await expect(jita.getByTestId('evescout-ttl')).toHaveClass(/red/);
+
+	// The other hub is one tab away.
+	await card.getByTestId('evescout-hub-turnur').click();
+	await expect(rows).toHaveCount(1);
+	await expect(rows.filter({ hasText: 'Amarr' })).toBeVisible();
+	await expect(card.getByTestId('evescout-ttl')).toHaveText('14h');
+});
+
+test('jumps are measured through the map, and the row opens the system menu', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E ScoutJumps');
+	await addSystem(api, mapId, JITA, 200);
+	await gotoApp(page, `/maps/${mapId}?system=${JITA}`);
+
+	const card = page.getByTestId('evescout-card');
+	const jita = card.getByTestId('evescout-row').filter({ hasText: 'Jita' });
+	await expect(jita).toBeVisible({ timeout: 10_000 });
+
+	// The active system is Jita, and one of Thera's holes comes out in Jita: nothing to fly.
+	await expect(jita.getByTestId('evescout-jumps')).toHaveText('0j');
+
+	// J122515 is a wormhole with no gate route, and the hub is deliberately not a stepping
+	// stone, so it has no jump count at all rather than a route through Thera.
+	const hole = card.getByTestId('evescout-row').filter({ hasText: 'J122515' });
+	await expect(hole).toContainText('--');
+
+	// Right-click reaches the system menu, same as anywhere else a system is named.
+	await jita.click({ button: 'right' });
+	const menu = page.getByRole('menu');
+	await expect(menu).toBeVisible();
+	await expect(menu.getByText('Set destination')).toBeVisible();
+});
+
+test('columns sort, and clicking the same one again reverses it', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E ScoutSort');
+	await addSystem(api, mapId, J122515, 200);
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+
+	const card = page.getByTestId('evescout-card');
+	const rows = card.getByTestId('evescout-row');
+	await expect(rows).toHaveCount(2, { timeout: 10_000 });
+
+	const names = () => rows.evaluateAll((els) => els.map((e) => e.getAttribute('data-system')));
+
+	// Legacy's ordering: known space before wormholes, not alphabetical.
+	await card.getByRole('button', { name: 'System' }).click();
+	expect(await names()).toEqual(['Jita', 'J122515']);
+	await card.getByRole('button', { name: 'System' }).click();
+	expect(await names()).toEqual(['J122515', 'Jita']);
+
+	// Soonest to collapse first.
+	await card.getByRole('button', { name: 'TTL' }).click();
+	expect(await names()).toEqual(['Jita', 'J122515']);
+});

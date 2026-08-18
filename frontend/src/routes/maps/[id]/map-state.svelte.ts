@@ -9,7 +9,7 @@ import type { MapCharacter } from '$lib/api/types/MapCharacter';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
-import type { EveScoutEdge } from '$lib/api/types/EveScoutEdge';
+import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
 import type { Signature } from '$lib/api/types/Signature';
 import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 import type { MapHistory } from '$lib/api/types/MapHistory';
@@ -79,7 +79,7 @@ export class MapState {
 	grid = $state<GridConfig>(defaultGrid);
 	sigs = $state<Signature[]>([]);
 	watchlist = $state<WatchlistEntry[]>([]);
-	eveScout = $state<EveScoutEdge[]>([]);
+	eveScout = $state<EveScoutConnection[]>([]);
 	characters = $state<MapCharacter[]>([]);
 	myCharacters = $state<CharacterRef[]>([]);
 	userSettings = $state<MapUserSettings | null>(null);
@@ -205,8 +205,8 @@ export class MapState {
 		if (this.useEveScout) {
 			for (const e of this.eveScout) {
 				edges.push({
-					a: e.from_solar_system_id,
-					b: e.to_solar_system_id,
+					a: e.hub_solar_system_id,
+					b: e.solar_system_id,
 					via: 'evescout',
 					mass: e.mass_status as MassStatus,
 					time: e.time_status as TimeStatus
