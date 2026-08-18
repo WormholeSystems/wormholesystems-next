@@ -632,19 +632,76 @@ async fn purge(pool: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+/// One killmail from an archive, reduced to exactly what the insert binds.
+struct ArchivedKill {
+    id: i64,
+    hash: String,
+    solar_system_id: i64,
+    time: String,
+    orgs: serde_json::Value,
+    detail: Detail,
+}
+
+/// Turn a downloaded `.tar.bz2` into rows, without touching the disk.
+///
+/// A day is around 24,000 separate JSON files. Extracting them with the system `tar` meant
+/// writing every one out and reading it straight back, which cost more than the
+/// decompression and the database insert put together.
+///
+/// Blocking and CPU-bound, so callers run it off the async runtime. The reduced rows are far
+/// smaller than the JSON they come from, so holding a whole day is cheap.
+fn read_archive(bytes: &[u8]) -> std::io::Result<Vec<ArchivedKill>> {
+    use std::io::Read;
+
+    // Multi-stream: the archives are concatenated bzip2 streams, and a plain decoder would
+    // stop at the end of the first one and silently return part of the day.
+    let mut archive = tar::Archive::new(bzip2::read::MultiBzDecoder::new(bytes));
+    let mut kills = Vec::new();
+    let mut text = String::new();
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        if entry.path()?.extension().is_none_or(|e| e != "json") {
+            continue;
+        }
+        text.clear();
+        if entry.read_to_string(&mut text).is_err() {
+            continue;
+        }
+        let Ok(km) = serde_json::from_str::<serde_json::Value>(&text) else {
+            continue;
+        };
+        let (Some(id), Some(solar_system_id), Some(time)) = (
+            km["killmail_id"].as_i64(),
+            km["solar_system_id"].as_i64(),
+            km["killmail_time"].as_str(),
+        ) else {
+            continue;
+        };
+        kills.push(ArchivedKill {
+            id,
+            hash: km["killmail_hash"].as_str().unwrap_or_default().to_string(),
+            solar_system_id,
+            time: time.to_string(),
+            orgs: serde_json::to_value(extract_orgs(&km)).map_err(std::io::Error::other)?,
+            // The archives carry the ESI body but not zKillboard's block, so everything
+            // except the ISK value and the solo/NPC flags comes through. Writing what we
+            // have matters: the card ignores rows with no victim ship, so a backfill that
+            // stored only the bare minimum would import history nobody could see.
+            detail: extract_detail(&km, &serde_json::Value::Null),
+        });
+    }
+    Ok(kills)
+}
+
 /// Backfill killmails from EVE Ref's daily archives (`vector killmails-backfill <days>`),
-/// most recent day first. Each day is one `killmails-YYYY-MM-DD.tar.bz2` download,
-/// extracted with the system `tar` and bulk-inserted (existing ids untouched, so the
-/// live listener's rows are kept). Ends with a threat analysis run so the data shows up
-/// immediately.
+/// most recent day first. Each day is one `killmails-YYYY-MM-DD.tar.bz2` download, read in
+/// memory and bulk-inserted (existing ids untouched, so the live listener's rows are kept).
+/// Ends with a threat analysis run so the data shows up immediately.
 pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), BoxError> {
     let http = http_client();
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs() as i64;
-    let scratch = std::env::temp_dir().join("vector-killmails");
-    std::fs::create_dir_all(&scratch)?;
-
     for offset in 1..=i64::from(days) {
         let day = chrono::DateTime::from_timestamp(now_secs - offset * 86_400, 0)
             .expect("valid timestamp")
@@ -662,24 +719,7 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
             continue;
         }
         let bytes = res.error_for_status()?.bytes().await?;
-        let archive = scratch.join(&name);
-        std::fs::write(&archive, &bytes)?;
-
-        let extract_dir = scratch.join(day.format("%Y-%m-%d").to_string());
-        std::fs::create_dir_all(&extract_dir)?;
-        let status = tokio::process::Command::new("tar")
-            .arg("-xjf")
-            .arg(&archive)
-            .arg("-C")
-            .arg(&extract_dir)
-            .status()
-            .await?;
-        if !status.success() {
-            return Err(format!("tar failed for {name}").into());
-        }
-
-        let mut files = Vec::new();
-        collect_json_files(&extract_dir, &mut files)?;
+        let kills = tokio::task::spawn_blocking(move || read_archive(&bytes)).await??;
 
         // Every entity the day mentions, deduped before anything is fetched. A busy day is
         // tens of thousands of killmails naming a few thousand distinct pilots and a few
@@ -688,21 +728,25 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
         let mut day_characters: std::collections::HashSet<i64> = std::collections::HashSet::new();
         let mut day_corporations: std::collections::HashSet<i64> = std::collections::HashSet::new();
         let mut day_alliances: std::collections::HashSet<i64> = std::collections::HashSet::new();
+        for k in &kills {
+            day_characters.extend(k.detail.victim_character_id);
+            day_characters.extend(k.detail.final_blow_character_id);
+            day_corporations.extend(k.detail.victim_corporation_id);
+            day_corporations.extend(k.detail.final_blow_corporation_id);
+            day_alliances.extend(k.detail.victim_alliance_id);
+            day_alliances.extend(k.detail.final_blow_alliance_id);
+        }
 
         let mut inserted = 0usize;
         // Rows go in a few thousand at a time. The statement binds fixed arrays rather than
         // one placeholder per value, so the batch is bounded by memory rather than by
         // Postgres's parameter limit.
-        for chunk in files.chunks(2_000) {
+        for chunk in kills.chunks(2_000) {
             let mut ids = Vec::new();
             let mut hashes = Vec::new();
             let mut systems = Vec::new();
             let mut times = Vec::new();
             let mut orgs_json = Vec::new();
-            // The archives carry the ESI body but not zKillboard's block, so everything
-            // except the ISK value and the solo/NPC flags comes through. Writing what we
-            // have matters: the card ignores rows with no victim ship, so a backfill that
-            // stored only the bare minimum would import history nobody could see.
             let mut victim_chars: Vec<Option<i64>> = Vec::new();
             let mut victim_corps: Vec<Option<i64>> = Vec::new();
             let mut victim_allis: Vec<Option<i64>> = Vec::new();
@@ -715,33 +759,13 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
             let mut fb_corps: Vec<Option<i64>> = Vec::new();
             let mut fb_allis: Vec<Option<i64>> = Vec::new();
             let mut fb_ships: Vec<Option<i64>> = Vec::new();
-            for path in chunk {
-                let Ok(text) = std::fs::read_to_string(path) else {
-                    continue;
-                };
-                let Ok(km) = serde_json::from_str::<serde_json::Value>(&text) else {
-                    continue;
-                };
-                let (Some(id), Some(system), Some(time)) = (
-                    km["killmail_id"].as_i64(),
-                    km["solar_system_id"].as_i64(),
-                    km["killmail_time"].as_str(),
-                ) else {
-                    continue;
-                };
-                ids.push(id);
-                hashes.push(km["killmail_hash"].as_str().unwrap_or_default().to_string());
-                systems.push(system);
-                times.push(time.to_string());
-                orgs_json.push(serde_json::to_value(extract_orgs(&km))?);
-
-                let d = extract_detail(&km, &serde_json::Value::Null);
-                day_characters.extend(d.victim_character_id);
-                day_characters.extend(d.final_blow_character_id);
-                day_corporations.extend(d.victim_corporation_id);
-                day_corporations.extend(d.final_blow_corporation_id);
-                day_alliances.extend(d.victim_alliance_id);
-                day_alliances.extend(d.final_blow_alliance_id);
+            for km in chunk {
+                let d = &km.detail;
+                ids.push(km.id);
+                hashes.push(km.hash.clone());
+                systems.push(km.solar_system_id);
+                times.push(km.time.clone());
+                orgs_json.push(km.orgs.clone());
 
                 victim_chars.push(d.victim_character_id);
                 victim_corps.push(d.victim_corporation_id);
@@ -806,13 +830,10 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
 
         println!(
             "{} killmails ({inserted} new), named {named} of {} pilots and resolved {} orgs",
-            files.len(),
+            kills.len(),
             characters.len(),
             alliances.len() + corporations.len()
         );
-
-        std::fs::remove_file(&archive).ok();
-        std::fs::remove_dir_all(&extract_dir).ok();
     }
 
     println!("running threat analysis…");
@@ -822,21 +843,6 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
 }
 
 type BoxError = Box<dyn std::error::Error>;
-
-fn collect_json_files(
-    dir: &std::path::Path,
-    out: &mut Vec<std::path::PathBuf>,
-) -> std::io::Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            collect_json_files(&path, out)?;
-        } else if path.extension().is_some_and(|e| e == "json") {
-            out.push(path);
-        }
-    }
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {

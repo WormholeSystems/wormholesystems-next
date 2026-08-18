@@ -8,12 +8,15 @@ rust-version = "1.94"
 # Web server
 axum = { version = "0.8", features = ["ws"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "process"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
 
 # Domain
 reqwest = { version = "0.13.4", features = ["blocking", "json", "form"] }
 jsonwebtoken = "9"
 zip = "8.6.0"
+# EVE Ref's killmail archives. `static` builds libbz2 rather than relying on the host's.
+tar = { version = "0.4", default-features = false }
+bzip2 = { version = "0.6", features = ["static"] }
 dotenvy = "0.15"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
