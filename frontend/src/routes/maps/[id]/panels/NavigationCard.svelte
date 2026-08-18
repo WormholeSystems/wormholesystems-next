@@ -309,27 +309,31 @@
 					<Popover.Content class="w-96 p-0" align="end">
 						<Command.Root shouldFilter={false}>
 							<Command.Input placeholder="Watch a system…" bind:value={addQuery} />
-							<Command.List class="max-h-48">
-								<Command.Empty>
+							<!-- The list owns the tracks and rows are subgrids of them, so the columns
+							     line up down the list. The trailing track is Command's own check
+							     indicator, which it appends to every item. -->
+							<Command.List
+								class="max-h-48 grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2 p-1"
+							>
+								<Command.Empty class="col-span-full">
 									{addQuery.trim().length < 2
 										? 'Type at least two characters to search.'
 										: 'No systems found.'}
 								</Command.Empty>
-								<Command.Group>
-									{#each addResults as s (s.id)}
-										<Command.Item value={String(s.id)} onSelect={() => addToWatchlist(s.id)}>
-											<!-- The grid goes on an inner element, not on the item: the item always
-											     appends its own check icon, which as a fifth cell would wrap onto a
-											     second grid row and double the row height. -->
-											<SystemMenu
-												system={s}
-												class="grid w-full grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content] items-center gap-x-2"
-											>
-												<SystemRow system={s} />
-											</SystemMenu>
-										</Command.Item>
-									{/each}
-								</Command.Group>
+								{#each addResults as s (s.id)}
+									<Command.Item
+										value={String(s.id)}
+										onSelect={() => addToWatchlist(s.id)}
+										class="col-span-full grid grid-cols-subgrid items-center gap-x-2"
+									>
+										<SystemMenu
+											system={s}
+											class="col-span-4 grid grid-cols-subgrid items-center gap-x-2"
+										>
+											<SystemRow system={s} />
+										</SystemMenu>
+									</Command.Item>
+								{/each}
 							</Command.List>
 						</Command.Root>
 					</Popover.Content>

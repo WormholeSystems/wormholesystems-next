@@ -5,6 +5,7 @@ import { createIdentity, grantAccess } from './db';
 
 const J122515 = 31001882; // C5, Wolf-Rayet Star
 const JITA = 30000142;
+const AMARR = 30002187;
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
@@ -79,4 +80,31 @@ test('notes match for members and stay hidden from viewers', async ({ page, api 
 	await viewerPage.getByPlaceholder('System, alias, occupier or notes…').fill('hauler perch');
 	await expect(viewerPage.getByTestId('palette-hit')).toHaveCount(0);
 	await ctx.close();
+});
+
+test('columns line up across both groups, not just within a row', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E PaletteGrid');
+	await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: AMARR, x: 200, y: 200, alias: null }
+	});
+	await gotoApp(page, `/maps/${mapId}`);
+
+	await page.getByTestId('palette-trigger').click();
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('amar');
+	// One placed system and several unplaced ones, so both groups are on screen.
+	await expect(page.getByTestId('palette-hit')).toHaveCount(1);
+	await expect(page.getByTestId('palette-add').first()).toBeVisible();
+
+	// The list owns the tracks and rows are subgrids, so every row's cells start at the
+	// same x. A grid declared per row would size each row from its own content instead.
+	const columns = await page.getByTestId('palette-list').evaluate((el) =>
+		[...el.querySelectorAll('[data-slot="command-item"]')].map((row) =>
+			[...row.querySelectorAll(':scope > * > *')]
+				.slice(0, 4)
+				.map((cell) => Math.round(cell.getBoundingClientRect().left))
+				.join(',')
+		)
+	);
+	expect(columns.length).toBeGreaterThan(1);
+	expect(new Set(columns).size).toBe(1);
 });

@@ -9,8 +9,8 @@
 	// Command's own filtering is off and the rows arrive already ranked.
 	//
 	// Rows are the shared SystemRow, on the shared tracks, so the palette lines up with every
-	// other system list. The extra cells (why it matched, the Add badge) are tracks appended
-	// around it rather than a hand-rolled layout.
+	// other system list. The extra cell (why it matched, or the Add badge) is a track
+	// appended to those rather than a hand-rolled layout.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	import { api } from '$lib/api/client';
@@ -35,9 +35,14 @@
 	const onMap = $derived(results.filter((h) => h.map_solar_system_id !== null));
 	const offMap = $derived(results.filter((h) => h.map_solar_system_id === null));
 
-	// The four SystemRow tracks, with one appended for the match hint or the Add badge.
-	const TRACKS =
-		'grid w-full grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2';
+	// The list owns the tracks; rows are subgrids of them. Both groups sit in the one grid,
+	// so an on-map row and an off-map row line up with each other, not just within a group.
+	// Tracks: the four SystemRow cells, the hint/badge, and Command's own check indicator.
+	const LIST_TRACKS =
+		'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_minmax(0,0.7fr)_min-content] items-center gap-x-2';
+	const ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
+	const CELLS = 'col-span-5 grid grid-cols-subgrid items-center gap-x-2';
+	const HEADING = 'col-span-full px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground';
 
 	$effect(() => {
 		if (open) {
@@ -150,46 +155,49 @@
 		placeholder={linking ? 'Connect to…' : 'System, alias, occupier or notes…'}
 		bind:value={query}
 	/>
-	<Command.List data-testid="palette-list">
-		<Command.Empty>
+	<!-- Headings are plain cells rather than Command.Group, because a group wraps its items
+	     in an element of its own and that break in the ancestry is exactly what a subgrid
+	     cannot cross. -->
+	<Command.List class="p-1 {LIST_TRACKS}" data-testid="palette-list">
+		<Command.Empty class="col-span-full">
 			{query.trim().length < 2 ? 'Type at least two characters to search.' : 'Nothing found.'}
 		</Command.Empty>
 		{#if onMap.length > 0}
-			<Command.Group heading="On this map">
-				{#each onMap as hit (hit.map_solar_system_id)}
-					<Command.Item
-						value={`on-${hit.system.id}`}
-						onSelect={() => activate(hit)}
-						data-testid="palette-hit"
-					>
-						<SystemMenu system={hit.system} class={TRACKS}>
-							<SystemRow system={hit.system} />
-							<span class="truncate text-xs text-muted-foreground" title={hint(hit) ?? undefined}>
-								{hint(hit) ?? ''}
-							</span>
-						</SystemMenu>
-					</Command.Item>
-				{/each}
-			</Command.Group>
+			<div class={HEADING}>On this map</div>
+			{#each onMap as hit (hit.map_solar_system_id)}
+				<Command.Item
+					value={`on-${hit.system.id}`}
+					onSelect={() => activate(hit)}
+					class={ROW}
+					data-testid="palette-hit"
+				>
+					<SystemMenu system={hit.system} class={CELLS}>
+						<SystemRow system={hit.system} />
+						<span class="truncate text-xs text-muted-foreground" title={hint(hit) ?? undefined}>
+							{hint(hit) ?? ''}
+						</span>
+					</SystemMenu>
+				</Command.Item>
+			{/each}
 		{/if}
 		{#if canWrite && offMap.length > 0}
-			<Command.Group heading={linking ? 'Add and connect' : 'Add to the map'}>
-				{#each offMap as hit (hit.system.id)}
-					<Command.Item
-						value={`off-${hit.system.id}`}
-						onSelect={() => add(hit)}
-						data-testid="palette-add"
-					>
-						<SystemMenu system={hit.system} class={TRACKS}>
-							<SystemRow system={hit.system} />
-							<Badge variant="outline" class="gap-1 shrink-0">
-								<PlusIcon />
-								Add
-							</Badge>
-						</SystemMenu>
-					</Command.Item>
-				{/each}
-			</Command.Group>
+			<div class={HEADING}>{linking ? 'Add and connect' : 'Add to the map'}</div>
+			{#each offMap as hit (hit.system.id)}
+				<Command.Item
+					value={`off-${hit.system.id}`}
+					onSelect={() => add(hit)}
+					class={ROW}
+					data-testid="palette-add"
+				>
+					<SystemMenu system={hit.system} class={CELLS}>
+						<SystemRow system={hit.system} />
+						<Badge variant="outline" class="justify-self-end gap-1">
+							<PlusIcon />
+							Add
+						</Badge>
+					</SystemMenu>
+				</Command.Item>
+			{/each}
 		{/if}
 	</Command.List>
 </Command.Dialog>

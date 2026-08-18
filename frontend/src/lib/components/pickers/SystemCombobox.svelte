@@ -79,8 +79,13 @@
 		}, 150);
 	});
 
-	const ROW_TRACKS =
-		'grid w-full grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content] items-center gap-x-2';
+	// The list owns the tracks and every row is a subgrid of them, so the columns line up
+	// down the list instead of each row sizing itself. The trailing track is Command's own
+	// check indicator, which it appends to every item.
+	const LIST_TRACKS =
+		'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2';
+	const ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
+	const CELLS = 'col-span-4 grid grid-cols-subgrid items-center gap-x-2';
 
 	function choose(s: SystemSearchResult) {
 		onpick(s.id);
@@ -125,24 +130,23 @@
 					{/each}
 				</div>
 			{/if}
-			<Command.List class="max-h-64">
+			<Command.List class="max-h-64 p-1 {LIST_TRACKS}">
 				{#if searching}
-					<Command.Empty>No systems found.</Command.Empty>
-					<Command.Group>
-						{#each results as s (s.id)}
-							<Command.Item
-								value={String(s.id)}
-								onSelect={() => choose(s)}
-								data-testid="picker-result"
-							>
-								<SystemMenu system={s} class={ROW_TRACKS}>
-									<SystemRow system={s} />
-								</SystemMenu>
-							</Command.Item>
-						{/each}
-					</Command.Group>
+					<Command.Empty class="col-span-full">No systems found.</Command.Empty>
+					{#each results as s (s.id)}
+						<Command.Item
+							value={String(s.id)}
+							onSelect={() => choose(s)}
+							class={ROW}
+							data-testid="picker-result"
+						>
+							<SystemMenu system={s} class={CELLS}>
+								<SystemRow system={s} />
+							</SystemMenu>
+						</Command.Item>
+					{/each}
 				{:else if offered.length === 0}
-					<p class="py-6 text-center text-sm text-muted-foreground">
+					<p class="col-span-full py-6 text-center text-sm text-muted-foreground">
 						Type at least two characters to search.
 					</p>
 				{/if}
