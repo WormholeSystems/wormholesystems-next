@@ -17,7 +17,7 @@ test('search dialog adds a system to the map', async ({ page, api }) => {
 	await canvas.click({ button: 'right', position: { x: 500, y: 500 } });
 	await page.getByRole('button', { name: 'Add solar system' }).click();
 
-	const input = page.getByPlaceholder('Search for a system…');
+	const input = page.getByPlaceholder('System, alias, occupier or notes…');
 	await expect(input).toBeVisible();
 	await input.fill('jita');
 	const result = page.locator('[data-slot="command-item"]', { hasText: 'Jita' });
@@ -45,7 +45,7 @@ test('search rows show class letters and the effect column', async ({ page, api 
 	const canvas = page.getByTestId('map-canvas');
 	await canvas.click({ button: 'right', position: { x: 400, y: 400 } });
 	await page.getByRole('button', { name: 'Add solar system' }).click();
-	const input = page.getByPlaceholder('Search for a system…');
+	const input = page.getByPlaceholder('System, alias, occupier or notes…');
 
 	// A wormhole row: class label plus its effect in the last column.
 	await input.fill('J122515');
@@ -77,4 +77,35 @@ test('node context menu sets the system status', async ({ page, api }) => {
 
 	// The friendly status recolors the node border via its data-status channel.
 	await expect(node).toHaveAttribute('data-status', 'friendly');
+});
+
+test('add connection searches from the palette and links what it places', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E MenuConnect');
+	await gotoApp(page, `/maps/${mapId}`);
+
+	// Place Jita by right-clicking the canvas, which is now the palette too.
+	await page.getByTestId('map-canvas').click({ button: 'right', position: { x: 400, y: 300 } });
+	await page.getByRole('button', { name: 'Add solar system' }).click();
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('jita');
+	await page.locator('[data-slot="command-item"]', { hasText: 'Jita' }).first().click();
+	const jita = page.getByTestId('system-node').filter({ hasText: 'Jita' });
+	await expect(jita).toBeVisible();
+
+	// "Add connection" opens the same palette, saying what it is for.
+	await jita.click({ button: 'right' });
+	await page.getByRole('button', { name: 'Add connection' }).click();
+	const input = page.getByPlaceholder('Connect to…');
+	await expect(input).toBeVisible();
+
+	// Picking an unplaced system both places it and joins the two.
+	await input.fill('perimeter');
+	await page.locator('[data-slot="command-item"]', { hasText: 'Perimeter' }).first().click();
+	await expect(page.getByTestId('system-node').filter({ hasText: 'Perimeter' })).toBeVisible();
+	await expect
+		.poll(async () => (await (await api.get(`/api/maps/${mapId}`)).json()).connections.length)
+		.toBe(1);
+
+	// And the next Cmd+K is a plain search again, not still linking.
+	await page.keyboard.press('Meta+k');
+	await expect(page.getByPlaceholder('System, alias, occupier or notes…')).toBeVisible();
 });

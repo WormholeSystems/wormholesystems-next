@@ -1,5 +1,10 @@
 <script lang="ts">
 	// Cmd+K over one map: jump to a placed system, or add one that is not on the map yet.
+	//
+	// Also the map's only way in to a system search: right-clicking the canvas or a node and
+	// asking to add or connect opens this, with an anchor for where the result should land
+	// and, for a connection, the node it should hang off. One search UI rather than two that
+	// drifted apart, and the palette already knew how to do both halves.
 	// Matching happens server-side (name, alias, occupier, and notes for members), so the
 	// Command's own filtering is off and the rows arrive already ranked.
 	//
@@ -14,7 +19,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
-	import { NODE_W, centerWorld, freePosition } from '$lib/map/helpers';
+	import { NODE_W, centerWorld, freePosition, heuristicSize } from '$lib/map/helpers';
 	import type { MapState } from './map-state.svelte';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
@@ -25,6 +30,8 @@
 	let generation = 0;
 
 	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
+	/** Opened from "connect to a new system": every pick becomes a connection as well. */
+	const linking = $derived(map.linkFrom !== null);
 	const onMap = $derived(results.filter((h) => h.map_solar_system_id !== null));
 	const offMap = $derived(results.filter((h) => h.map_solar_system_id === null));
 
@@ -36,6 +43,11 @@
 		if (open) {
 			query = '';
 			results = [];
+		} else {
+			// Closing without picking drops the pending placement, so the next Cmd+K is a
+			// plain search again rather than quietly still linking.
+			map.linkFrom = null;
+			map.searchAnchor = null;
 		}
 	});
 
@@ -59,6 +71,12 @@
 	}
 
 	function activate(hit: MapSearchHit) {
+		// Already on the map, and we were asked for a connection: join the two instead of
+		// panning to it.
+		if (linking && hit.map_solar_system_id !== null) {
+			connect(hit.map_solar_system_id);
+			return;
+		}
 		map.activeId = hit.map_solar_system_id;
 		open = false;
 		// Pan the node into the middle, so a jump from the palette actually shows it.
@@ -71,19 +89,51 @@
 		};
 	}
 
-	function add(hit: MapSearchHit) {
+	/** Join an already-placed system to whatever asked for the connection. */
+	function connect(target: number) {
+		const from = map.linkFrom;
 		open = false;
-		const base = centerWorld(map.pan, map.zoom, map.viewportRect());
+		if (from === null || from === target) return;
+		map.run(
+			'connect',
+			api.addConnection({
+				map_id: map.mapId,
+				from_system: from,
+				to_system: target,
+				kind: 'wormhole',
+				size: heuristicSize(map.systems, from, target)
+			})
+		);
+	}
+
+	function add(hit: MapSearchHit) {
+		const from = map.linkFrom;
+		// Where the caller asked for it: the point the map was right-clicked, or the node the
+		// connection starts from. Plain Cmd+K has no anchor, so it lands in the middle of
+		// what you are looking at.
+		const base = map.searchAnchor ?? centerWorld(map.pan, map.zoom, map.viewportRect());
+		open = false;
 		const at = freePosition(map.systems, base, map.grid);
 		map.run(
 			'add',
-			api.addSystem({
-				map_id: map.mapId,
-				solar_system_id: hit.system.id,
-				x: at.x,
-				y: at.y,
-				alias: null
-			})
+			(async () => {
+				const placed = await api.addSystem({
+					map_id: map.mapId,
+					solar_system_id: hit.system.id,
+					x: at.x,
+					y: at.y,
+					alias: null
+				});
+				if (from !== null && from !== placed.id) {
+					await api.addConnection({
+						map_id: map.mapId,
+						from_system: from,
+						to_system: placed.id,
+						kind: 'wormhole',
+						size: heuristicSize(map.systems, from, placed.id)
+					});
+				}
+			})()
 		);
 	}
 </script>
@@ -91,10 +141,15 @@
 <Command.Dialog
 	bind:open
 	shouldFilter={false}
-	title="Search this map"
-	description="Jump to a system on the map, or add one that is not on it yet."
+	title={linking ? 'Connect to a system' : 'Search this map'}
+	description={linking
+		? 'Pick the system on the other side of the connection.'
+		: 'Jump to a system on the map, or add one that is not on it yet.'}
 >
-	<Command.Input placeholder="System, alias, occupier or notes…" bind:value={query} />
+	<Command.Input
+		placeholder={linking ? 'Connect to…' : 'System, alias, occupier or notes…'}
+		bind:value={query}
+	/>
 	<Command.List data-testid="palette-list">
 		<Command.Empty>
 			{query.trim().length < 2 ? 'Type at least two characters to search.' : 'Nothing found.'}
@@ -118,7 +173,7 @@
 			</Command.Group>
 		{/if}
 		{#if canWrite && offMap.length > 0}
-			<Command.Group heading="Add to the map">
+			<Command.Group heading={linking ? 'Add and connect' : 'Add to the map'}>
 				{#each offMap as hit (hit.system.id)}
 					<Command.Item
 						value={`off-${hit.system.id}`}

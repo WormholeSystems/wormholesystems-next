@@ -63,7 +63,7 @@
 		// Land the new system where the map was right-clicked (centered on the click).
 		const w = map.toWorld(menu.x, menu.y);
 		map.searchAnchor = { x: w.x - NODE_W / 2, y: w.y - map.nodeH / 2 };
-		map.searchOpen = true;
+		map.paletteOpen = true;
 		close();
 	}
 
@@ -89,7 +89,7 @@
 		// owns the spacing, so every way of adding a system leaves the same gap.
 		const s = map.systems.find((s) => s.id === id);
 		map.searchAnchor = s ? { x: s.position_x, y: s.position_y } : null;
-		map.searchOpen = true;
+		map.paletteOpen = true;
 		close();
 	}
 

@@ -27,6 +27,7 @@
 		edgeColor,
 		freePosition,
 		gridBackground,
+		heuristicSize,
 		nodeAt,
 		sizeLetter
 	} from '$lib/map/helpers';
@@ -45,7 +46,6 @@
 	import StatusBar from './StatusBar.svelte';
 	import TrackingDialog from './TrackingDialog.svelte';
 	import { JumpTracker } from './tracking.svelte';
-	import SystemSearchDialog from './SystemSearchDialog.svelte';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const map = $derived(new MapState(mapId));
@@ -63,27 +63,6 @@
 	let pendingDrag: { cx: number; cy: number; drag: Drag } | null = null;
 	let pendingBand: { cx: number; cy: number } | null = null;
 
-	/** Legacy default ship-size heuristic for a new connection between two placements. */
-	function heuristicSize(fromId: number, toId: number): WormholeSize | undefined {
-		const a = map.systems.find((s) => s.id === fromId);
-		const b = map.systems.find((s) => s.id === toId);
-		if (!a || !b) return undefined;
-		const TURNUR = 30002086;
-		const classes = [a.wormhole_class_id, b.wormhole_class_id];
-		if (classes.includes(13)) return 'small';
-		if (classes.includes(1)) return 'medium';
-		const highsec = (s: MapSystemView) => s.wormhole_class_id === 7 || s.security_status >= 0.45;
-		const thera = (s: MapSystemView) => s.wormhole_class_id === 12;
-		const wh = (s: MapSystemView) => isWormholeClass(s.wormhole_class_id);
-		if ((thera(a) && highsec(b)) || (thera(b) && highsec(a))) return 'medium';
-		if (
-			(a.solar_system_id === TURNUR && wh(b)) ||
-			(b.solar_system_id === TURNUR && wh(a))
-		) {
-			return 'medium';
-		}
-		return undefined;
-	}
 
 	$effect(() => {
 		map.viewportEl = viewportEl;
@@ -275,7 +254,7 @@
 						from_system: l.from,
 						to_system: target,
 						kind: 'wormhole',
-						size: heuristicSize(l.from, target)
+						size: heuristicSize(map.systems, l.from, target)
 					})
 				);
 			}
@@ -387,45 +366,6 @@
 		map.linking = { from: id, x: w.x, y: w.y };
 	}
 
-	// --- search dialog (Add system / Add connection) ---
-
-	function onSearchPick(solarSystemId: number) {
-		const from = map.linkFrom;
-		map.linkFrom = null;
-		// Already placed?
-		const existing = map.systems.find((s) => s.solar_system_id === solarSystemId)?.id;
-		// Drop the new system at the first free grid slot near the requested spot (the
-		// right-click point / source node), falling back to the viewport center.
-		const base = map.searchAnchor ?? centerWorld(map.pan, map.zoom, map.viewportRect());
-		map.searchAnchor = null;
-		const spot = freePosition(map.systems, base, map.grid);
-		map.run(
-			'add',
-			(async () => {
-				const placement =
-					existing ??
-					(
-						await api.addSystem({
-							map_id: map.mapId,
-							solar_system_id: solarSystemId,
-							x: spot.x,
-							y: spot.y,
-							alias: null
-						})
-					).id;
-				if (from !== null && from !== placement) {
-					await api.addConnection({
-						map_id: map.mapId,
-						from_system: from,
-						to_system: placement,
-						kind: 'wormhole',
-						size: heuristicSize(from, placement)
-					});
-				}
-			})()
-		);
-	}
-
 	// Per-system signature counts and connection counts for the node icon cluster.
 	const sigCountsBySystem = $derived.by(() => {
 		const out = new Map<number, { total: number; uncategorized: number; wormholes: number }>();
@@ -487,7 +427,6 @@
 
 <CommandPalette {map} bind:open={map.paletteOpen} />
 <TrackingDialog {map} {tracker} />
-<SystemSearchDialog bind:open={map.searchOpen} onpick={onSearchPick} />
 
 {#if map.loadError}
 	<p class="p-12 text-center text-sm text-destructive" data-testid="map-error">

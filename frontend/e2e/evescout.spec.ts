@@ -17,6 +17,21 @@ async function createMap(api: Api, name: string) {
 	return (await res.json()).id as number;
 }
 
+/**
+ * These assert exact rows, so they need the stubbed upstream (EVE_SCOUT_URL in
+ * playwright.config.ts). A dev API server started outside the suite — Solo's `API` process,
+ * say, which restarts on every Rust change — is reused as-is and talks to the real
+ * eve-scout.com, whose contents change by the hour. Skip rather than fail on someone else's
+ * data, and say which it was.
+ */
+test.beforeEach(async ({ api }) => {
+	const rows = (await (await api.get('/api/evescout')).json()) as { hub_signature: string }[];
+	test.skip(
+		!rows.some((r) => r.hub_signature === 'THE-001'),
+		'API server is not using the EVE Scout stub (started outside the e2e suite)'
+	);
+});
+
 async function addSystem(api: Api, mapId: number, solarSystemId: number, x: number) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null }

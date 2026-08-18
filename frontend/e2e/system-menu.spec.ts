@@ -83,7 +83,7 @@ test('search rows: add to map, then rally toggle once placed', async ({ page, ap
 	await gotoApp(page, `/maps/${mapId}`);
 	await page.getByTestId('map-canvas').click({ button: 'right', position: { x: 500, y: 400 } });
 	await page.getByRole('button', { name: 'Add solar system' }).click();
-	await page.getByPlaceholder('Search for a system…').fill('amarr');
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('amarr');
 	const row = page.locator('[data-slot="command-item"]', { hasText: 'Amarr' }).first();
 	await expect(row).toBeVisible();
 
@@ -94,7 +94,7 @@ test('search rows: add to map, then rally toggle once placed', async ({ page, ap
 	await expect(page.getByTestId('system-node').filter({ hasText: 'Amarr' })).toBeVisible();
 
 	// Reopen: the entry is gone, the rally toggle works now.
-	await page.getByPlaceholder('Search for a system…').fill('amarr');
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('amarr');
 	await row.click({ button: 'right' });
 	await expect(menu).toBeVisible();
 	await expect(menu.getByTestId('menu-add-to-map')).toHaveCount(0);
@@ -113,7 +113,7 @@ test('wormhole rows hide Jump Range; route planner sets the origin', async ({ pa
 	await gotoApp(page, `/maps/${mapId}`);
 	await page.getByTestId('map-canvas').click({ button: 'right', position: { x: 500, y: 400 } });
 	await page.getByRole('button', { name: 'Add solar system' }).click();
-	await page.getByPlaceholder('Search for a system…').fill('J122515');
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('J122515');
 	const row = page.locator('[data-slot="command-item"]', { hasText: 'J122515' });
 	await expect(row).toBeVisible();
 
@@ -148,7 +148,7 @@ test('waypoint submenu is disabled without online characters', async ({ api, bro
 
 	await memberPage.getByTestId('map-canvas').click({ button: 'right', position: { x: 500, y: 400 } });
 	await memberPage.getByRole('button', { name: 'Add solar system' }).click();
-	await memberPage.getByPlaceholder('Search for a system…').fill('perimeter');
+	await memberPage.getByPlaceholder('System, alias, occupier or notes…').fill('perimeter');
 	const row = memberPage.locator('[data-slot="command-item"]', { hasText: 'Perimeter' }).first();
 	await row.click({ button: 'right' });
 	await memberPage.getByTestId('menu-set-destination').hover();

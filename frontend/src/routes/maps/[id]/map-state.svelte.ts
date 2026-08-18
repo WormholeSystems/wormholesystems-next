@@ -96,7 +96,6 @@ export class MapState {
 	band = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 	menu = $state<Menu | null>(null);
 	panDrag = $state<{ cx: number; cy: number; px: number; py: number } | null>(null);
-	searchOpen = $state(false);
 	// The Cmd+K palette, opened from the status bar or the shortcut.
 	paletteOpen = $state(false);
 	// Layout edit mode, the breakpoint being edited, and the working copy of the
