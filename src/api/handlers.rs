@@ -1235,6 +1235,49 @@ pub async fn map_characters(
 
 // --- Systems ---
 
+/// `POST /api/maps/{id}/systems/add-ghost` — put the far side of a wormhole signature on
+/// the map before anyone knows what it is.
+pub async fn add_ghost_system(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<crate::maps::ghost::AddGhostSystem>,
+) -> ApiResult<MapSolarSystem> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let placed = crate::maps::ghost::add_ghost_system(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::SystemAdded {
+        map_id,
+        map_solar_system_id: placed.id,
+    });
+    Ok(Json(placed))
+}
+
+/// `POST /api/maps/{id}/systems/resolve-ghost` — say which system a ghost turned out to
+/// be. Merging into an existing placement removes the ghost, so that goes out too.
+pub async fn resolve_ghost_system(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<crate::maps::ghost::ResolveGhostSystem>,
+) -> ApiResult<MapSolarSystem> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    let ghost_id = cmd.map_solar_system_id;
+    let placed = crate::maps::ghost::resolve_ghost_system(&state.db, actor, cmd).await?;
+    if placed.id != ghost_id {
+        state.hub.publish(MapEvent::SystemRemoved {
+            map_id,
+            map_solar_system_id: ghost_id,
+        });
+    }
+    state.hub.publish(MapEvent::SystemDetailsChanged {
+        map_id,
+        map_solar_system_id: placed.id,
+    });
+    Ok(Json(placed))
+}
+
 pub async fn add_system(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -2023,8 +2066,8 @@ async fn threat_hits(
     // A threat system may already be on this map, in which case the row should jump to it
     // rather than offer to add it a second time.
     let placed: std::collections::HashMap<i64, i64> = sqlx::query!(
-        "select id, solar_system_id from map_solar_systems
-         where map_id = $1 and solar_system_id = any($2)",
+        r#"select id, solar_system_id as "solar_system_id!" from map_solar_systems
+           where map_id = $1 and solar_system_id = any($2)"#,
         map_id,
         &ids,
     )

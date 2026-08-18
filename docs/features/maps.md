@@ -210,6 +210,32 @@ invariant. Single-statement actions don't need an explicit transaction.
     details row already exists (system was placed before), it is left intact and resurfaces.
   - An unknown `solar_system_id` → `Validation`.
 
+### `add_ghost_system(actor, map_id, from_system, signature_pk?, x, y, alias?, size?) -> MapSolarSystem`
+
+- **Auth:** `Member`.
+- **Validates:** `from_system` is a placement on this map; a given signature was scanned
+  in that system and is not linked to a connection yet.
+- **Effect:** insert a `map_solar_systems` row with **no** `solar_system_id` (a
+  [ghost](../database/mapping.md#ghost-placements)), plus a wormhole connection from
+  `from_system` to it, and link the signature to that connection.
+- **Invariants:**
+  - A signature already on the map → `Conflict`, so one hole is one node.
+  - Undo takes the edge, the ghost and the signature link back together.
+
+### `resolve_ghost_system(actor, map_id, map_solar_system_id, solar_system_id?) -> MapSolarSystem`
+
+- **Auth:** `Member`.
+- **Validates:** the placement is a ghost; the system exists; the hole does not lead back
+  to the system it hangs off.
+- **Effect:** set the ghost's `solar_system_id`, keeping its position, alias and edges. If
+  that system is already on the map, **merge** instead: its connections move to the
+  existing placement and the ghost row is deleted. Transits recorded before the hole was
+  named are claimed by its connections either way.
+- **Invariants:**
+  - Resolving a real placement → `Validation`; the map never re-points a system.
+  - `solar_system_id: None` turns it back into a ghost, and is refused once the system
+    holds signatures. It exists as the inverse of a resolve rather than as an action.
+
 ### `remove_system(actor, map_id, map_solar_system_id)`
 
 - **Auth:** `Member`.

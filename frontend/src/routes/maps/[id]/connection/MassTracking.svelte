@@ -117,7 +117,7 @@
 	let massKt = $state('');
 
 	function systemLabel(s: MapSystemView): string {
-		return s.alias ?? s.name;
+		return s.alias ?? s.name ?? 'Unmapped';
 	}
 	const directionLabel = $derived(
 		direction === 'outbound'

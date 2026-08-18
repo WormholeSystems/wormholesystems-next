@@ -14,6 +14,7 @@ The top-level artifact. A user creates a map and everything else hangs off it.
 | `name`        | text        | user-chosen                                                 |
 | `description` | text, null  | free-text, user-set                                         |
 | `image_url`   | text, null  | reference to an uploaded icon/logo, **not** the image bytes |
+| `ghost_unlinked_wormholes` | bool | pasting a wormhole signature puts a ghost placement on the map |
 | `created_at`  | timestamptz |                                                             |
 
 **Invariants & expected behaviour**
@@ -38,16 +39,40 @@ while the system is on the map; removing the system deletes this row.
 |-------------------|-------------|--------------------------------------------------|
 | `id`              | pk          |                                                  |
 | `map_id`          | fk maps     |                                                  |
-| `solar_system_id` | int         | → [`solar_systems`](./universe.md#solar_systems) |
+| `solar_system_id` | int, null   | → [`solar_systems`](./universe.md#solar_systems); null = a **ghost** |
 | `position_x`      | int/float   | grid position on the map                         |
 | `position_y`      | int/float   | grid position on the map                         |
 | `alias`           | text, null  | temporary, user-set; lost on removal             |
 | `created_at`      | timestamptz |                                                  |
 
+### Ghost placements
+
+A wormhole signature is known before the system behind it is. A **ghost** is that far
+side on the map: a placement with **no** `solar_system_id`, hanging off the system the
+signature was scanned in, so a chain can be laid out and named before anyone flies it.
+
+Ghosts are ordinary placements deliberately, not a table of their own: connections
+already reference `map_solar_systems.id` rather than a solar system, so a ghost gets
+edges, a position, an alias, and the connection's life-cycle bookkeeping with no second
+kind of node anywhere. What a ghost cannot have is anything keyed by *system*:
+[`signatures`](#signatures) and
+[`map_solar_system_details`](#map_solar_system_details) both hang off
+`(map_id, solar_system_id)`, so a ghost holds no scan and no intel until it is resolved.
+
 **Invariants & expected behaviour**
 
-- Unique `(map_id, solar_system_id)` — a system appears at most once per map.
+- Unique `(map_id, solar_system_id)` — a system appears at most once per map. Nulls are
+  distinct in Postgres, so this caps real systems without capping ghosts.
 - A system always has an `(x, y)` position while placed.
+- A ghost is never **home** or **rally** — both mean a place you can go, and a ghost is
+  not one yet.
+- **Resolving** a ghost sets its `solar_system_id`. If that system is *already* on the
+  map (the hole led back into the chain), the ghost is **merged** instead: its
+  connections move to the existing placement and the ghost row is deleted. The same
+  path serves the manual "assign a system" action and the jump tracker, which discovers
+  the same fact by flying it.
+- A ghost with no connections left is removed, under the same rule that already drops
+  unpinned, unmarked, connection-less endpoints when their signatures go.
 - The alias is **ephemeral**: removing the system from the map and re-adding it does
   **not** restore the previous alias.
 - Removing a system deletes its placement, its **signatures**, and its connections —

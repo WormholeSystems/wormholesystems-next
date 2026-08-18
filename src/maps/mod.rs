@@ -13,6 +13,7 @@ pub mod connection;
 pub mod error;
 pub mod events;
 pub mod events_log;
+pub mod ghost;
 pub mod jumps;
 pub mod map;
 pub mod signatures;

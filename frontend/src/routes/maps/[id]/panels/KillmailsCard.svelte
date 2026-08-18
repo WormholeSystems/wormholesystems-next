@@ -56,6 +56,7 @@
 	const systemKey = $derived(
 		map.systems
 			.map((s) => s.solar_system_id)
+			.filter((id) => id !== null)
 			.sort((a, b) => a - b)
 			.join(',')
 	);

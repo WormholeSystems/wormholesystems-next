@@ -16,7 +16,7 @@
 	}: {
 		classId: number | null;
 		/** Security status, used for the k-space classes that have no class id. */
-		security: number;
+		security: number | null;
 		class?: string;
 		title?: string;
 	} = $props();

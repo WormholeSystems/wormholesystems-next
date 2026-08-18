@@ -54,7 +54,8 @@ pub async fn evaluate(
     if mine.is_empty() {
         return;
     }
-    let Ok(Some(placed_id)) = sqlx::query_scalar!(
+    // A ghost placement has no system to measure a jump range from.
+    let Ok(Some(Some(placed_id))) = sqlx::query_scalar!(
         "select solar_system_id from map_solar_systems where id = $1",
         map_solar_system_id,
     )

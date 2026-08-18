@@ -48,7 +48,7 @@ async fn add_system_returns_fields_and_persists(pool: PgPool) {
     .unwrap();
     // Return value reflects the inputs exactly.
     assert_eq!(placed.map_id, w.map_id);
-    assert_eq!(placed.solar_system_id, SYS_A);
+    assert_eq!(placed.solar_system_id, Some(SYS_A));
     assert_eq!((placed.position_x, placed.position_y), (1.5, -2.5));
     assert_eq!(placed.alias.as_deref(), Some("Staging"));
     // And the row matches.

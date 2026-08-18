@@ -209,7 +209,8 @@ export function heuristicSize(
 	const classes = [a.wormhole_class_id, b.wormhole_class_id];
 	if (classes.includes(13)) return 'small';
 	if (classes.includes(1)) return 'medium';
-	const highsec = (s: MapSystemView) => s.wormhole_class_id === 7 || s.security_status >= 0.45;
+	const highsec = (s: MapSystemView) =>
+		s.wormhole_class_id === 7 || (s.security_status ?? 0) >= 0.45;
 	const thera = (s: MapSystemView) => s.wormhole_class_id === 12;
 	const wh = (s: MapSystemView) => isWormholeClass(s.wormhole_class_id);
 	if ((thera(a) && highsec(b)) || (thera(b) && highsec(a))) return 'medium';

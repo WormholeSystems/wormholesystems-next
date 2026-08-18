@@ -65,9 +65,13 @@ function classFromSecurity(security: number): number {
 	return 9;
 }
 
-/** Metadata for a system's class, falling back to the security band. */
-export function classMeta(wormholeClassId: number | null, security: number): ClassMeta {
-	return CLASSES.get(wormholeClassId ?? classFromSecurity(security)) ?? UNKNOWN;
+/**
+ * Metadata for a system's class, falling back to the security band. A ghost has neither,
+ * and reads as `?`.
+ */
+export function classMeta(wormholeClassId: number | null, security: number | null): ClassMeta {
+	if (wormholeClassId === null && security === null) return UNKNOWN;
+	return CLASSES.get(wormholeClassId ?? classFromSecurity(security ?? 0)) ?? UNKNOWN;
 }
 
 /** Metadata for a static's destination class (letter form used by legacy: strip nothing). */

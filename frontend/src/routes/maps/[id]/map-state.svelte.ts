@@ -118,6 +118,9 @@ export class MapState {
 	activeId = $state<number | null>(null);
 	// When set, a search pick also connects the new placement to this node.
 	linkFrom = $state<number | null>(null);
+	// When set, a search pick says which system this ghost placement turned out to be,
+	// instead of placing a new one.
+	assignGhostId = $state<number | null>(null);
 	// Route planner: origin/destination (solar system ids) and the computed path, set by
 	// the navigation card. The path drives the edge highlight.
 	routeFromId = $state<number | null>(null);
@@ -191,8 +194,12 @@ export class MapState {
 	graph = $derived.by<RouteGraph | null>(() => {
 		const stargates = this.stargates;
 		if (!stargates) return null;
+		// Ghosts are left out: a hole whose far side is unknown leads nowhere the router
+		// could take you.
 		const placementSystem = new Map<number, number>();
-		for (const s of this.systems) placementSystem.set(s.id, s.solar_system_id);
+		for (const s of this.systems) {
+			if (s.solar_system_id !== null) placementSystem.set(s.id, s.solar_system_id);
+		}
 		const edges: DynamicEdge[] = [];
 		for (const c of this.connections) {
 			if (c.kind !== 'wormhole') continue;
@@ -266,7 +273,9 @@ export class MapState {
 		const index = new Map<number, number>();
 		this.routePath.forEach((id, i) => index.set(id, i));
 		const placementSystem = new Map<number, number>();
-		for (const s of this.systems) placementSystem.set(s.id, s.solar_system_id);
+		for (const s of this.systems) {
+			if (s.solar_system_id !== null) placementSystem.set(s.id, s.solar_system_id);
+		}
 		for (const c of this.connections) {
 			const a = index.get(placementSystem.get(c.from_system) ?? -1);
 			const b = index.get(placementSystem.get(c.to_system) ?? -1);
@@ -321,15 +330,17 @@ export class MapState {
 	 * on the map. Returns null until [`ensureResolved`] has fetched an off-map one.
 	 */
 	systemInfo(solarSystemId: number): SystemSearchResult | null {
-		const placed = this.systems.find((s) => s.solar_system_id === solarSystemId);
+		const placed = this.systems.find(
+			(s) => s.solar_system_id === solarSystemId && s.name !== null
+		);
 		if (placed) {
 			return {
-				id: placed.solar_system_id,
-				name: placed.name,
-				security: placed.security_status,
-				region: placed.region,
-				region_id: placed.region_id,
-				constellation_id: placed.constellation_id,
+				id: solarSystemId,
+				name: placed.name ?? '',
+				security: placed.security_status ?? 0,
+				region: placed.region ?? '',
+				region_id: placed.region_id ?? 0,
+				constellation_id: placed.constellation_id ?? 0,
 				wormhole_class_id: placed.wormhole_class_id,
 				effect_name: placed.effect_name,
 				sovereignty: placed.sovereignty,
@@ -341,7 +352,7 @@ export class MapState {
 
 	/** Fetch display data for any of `ids` that is neither on the map nor already known. */
 	ensureResolved(ids: number[]) {
-		const placed = new Set(this.systems.map((s) => s.solar_system_id));
+		const placed = new Set(this.systems.map((s) => s.solar_system_id).filter((id) => id !== null));
 		const missing = [
 			...new Set(ids.filter((id) => !placed.has(id) && !this.resolvedSystems.has(id)))
 		];

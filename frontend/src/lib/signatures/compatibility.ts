@@ -48,7 +48,12 @@ export interface SignatureGroups {
 export function groupSignatures(
 	signatures: Signature[],
 	types: Map<number, SignatureTypeInfo>,
-	targetClass: number | null | undefined
+	targetClass: number | null | undefined,
+	/**
+	 * Connections whose far side is still a ghost. A signature linked to one of those is
+	 * mapped but unflown, so it is a candidate for the jump rather than a settled answer.
+	 */
+	unflown?: Set<number>
 ): SignatureGroups {
 	const groups: SignatureGroups = { likely: [], connected: [], unlikely: [] };
 
@@ -57,7 +62,7 @@ export function groupSignatures(
 	)) {
 		if (!canBeConnection(signature)) continue;
 
-		if (signature.connection_id !== null) {
+		if (signature.connection_id !== null && !unflown?.has(signature.connection_id)) {
 			groups.connected.push(signature);
 		} else if (
 			canLeadToClass(

@@ -53,7 +53,7 @@ async fn placed(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<i64> {
     systems(pool, actor, map_id)
         .await
         .iter()
-        .map(|s| s.solar_system_id)
+        .filter_map(|s| s.solar_system_id)
         .collect()
 }
 
@@ -267,7 +267,7 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
     assert_eq!(
         after
             .iter()
-            .find(|s| s.solar_system_id == SYS_B)
+            .find(|s| s.solar_system_id == Some(SYS_B))
             .unwrap()
             .id,
         b
@@ -290,7 +290,7 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
     assert_eq!(
         after
             .iter()
-            .find(|s| s.solar_system_id == SYS_B)
+            .find(|s| s.solar_system_id == Some(SYS_B))
             .unwrap()
             .id,
         b,

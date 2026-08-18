@@ -22,7 +22,7 @@
 	$effect(() => {
 		const id = system.solar_system_id;
 		analysis = null;
-		if (!isWormholeClass(system.wormhole_class_id)) return;
+		if (id === null || !isWormholeClass(system.wormhole_class_id)) return;
 		api
 			.threatAnalysis(id)
 			.then((a) => (analysis = a))

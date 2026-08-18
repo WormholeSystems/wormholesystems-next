@@ -67,7 +67,7 @@ async fn systems(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<i64> {
         .unwrap()
         .systems
         .iter()
-        .map(|s| s.solar_system_id)
+        .filter_map(|s| s.solar_system_id)
         .collect()
 }
 
@@ -105,7 +105,7 @@ async fn a_jump_places_the_system_connects_it_and_links_the_signature(pool: PgPo
     let placed = view
         .systems
         .iter()
-        .find(|s| s.solar_system_id == SYS_B)
+        .find(|s| s.solar_system_id == Some(SYS_B))
         .unwrap();
     assert_eq!(placed.alias.as_deref(), Some("D2"));
     assert_eq!(view.connections.len(), 1);

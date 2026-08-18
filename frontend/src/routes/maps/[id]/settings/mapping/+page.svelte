@@ -4,9 +4,13 @@
 	//
 	// Location sharing gates the rest, and is shown as such rather than left to be
 	// discovered by toggling something that then does nothing.
+	//
+	// The scanning card above it is the map's, not yours: an unmapped hole put on the map
+	// is a node everyone sees, so it cannot be one person's preference.
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+	import type { MapView } from '$lib/api/types/MapView';
 	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -17,6 +21,7 @@
 	const mapId = $derived(Number(page.params.id) || 0);
 	let settings = $state<MapUserSettings | null>(null);
 	let scopes = $state<ScopeStatus[]>([]);
+	let view = $state<MapView | null>(null);
 
 	$effect(() => {
 		if (!mapId) return;
@@ -28,10 +33,21 @@
 			.myScopes()
 			.then((s) => (scopes = s))
 			.catch(() => {});
+		reload();
 	});
 
 	const hasLocation = $derived(scopes.some((s) => s.scope === LOCATION_SCOPE && s.granted));
 	const tracking = $derived(settings?.tracking_allowed ?? false);
+	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
+	const ghosting = $derived(view?.map.ghost_unlinked_wormholes ?? false);
+
+	async function reload() {
+		try {
+			view = await api.fetchMap(mapId);
+		} catch {
+			// The per-user settings below still work without it.
+		}
+	}
 
 	function update(patch: Record<string, unknown>) {
 		api
@@ -39,7 +55,40 @@
 			.then((s) => (settings = s))
 			.catch(() => {});
 	}
+
+	function updateMap(ghost: boolean) {
+		api
+			.updateMap({ map_id: mapId, ghost_unlinked_wormholes: ghost })
+			.then(() => reload())
+			.catch(() => {});
+	}
 </script>
+
+<div class="flex flex-col gap-6">
+<Card.Root>
+	<Card.Header>
+		<Card.Title>Scanning</Card.Title>
+		<Card.Description>What a pasted scan puts on the map, for everyone on it.</Card.Description>
+	</Card.Header>
+	<Card.Content class="flex flex-col py-0">
+		<SettingRow
+			id="ghost-unlinked-wormholes"
+			label="Put unmapped wormholes on the map"
+			description="A pasted wormhole signature that is not on the map yet gets a node hanging off the system it was scanned in, with no system behind it. Lay the chain out and name it before anyone flies it; assign the system from the node's menu once someone has."
+			disabled={!canManage}
+			blocked={canManage ? undefined : 'Only a manager can change this.'}
+		>
+			{#snippet control()}
+				<Switch
+					checked={ghosting}
+					disabled={!canManage}
+					aria-label="Put unmapped wormholes on the map"
+					onCheckedChange={(v) => updateMap(v)}
+				/>
+			{/snippet}
+		</SettingRow>
+	</Card.Content>
+</Card.Root>
 
 <Card.Root>
 	<Card.Header>
@@ -100,3 +149,4 @@
 		</SettingRow>
 	</Card.Content>
 </Card.Root>
+</div>

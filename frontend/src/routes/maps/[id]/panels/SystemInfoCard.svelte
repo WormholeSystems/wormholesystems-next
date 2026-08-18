@@ -34,11 +34,12 @@
 		}
 	});
 
-	const dotlanUrl = $derived(
-		isWormhole
+	const dotlanUrl = $derived.by(() => {
+		if (!system.name) return null;
+		return isWormhole
 			? `https://evemaps.dotlan.net/system/${underscore(system.name)}`
-			: `https://evemaps.dotlan.net/map/${underscore(system.region)}/${underscore(system.name)}`
-	);
+			: `https://evemaps.dotlan.net/map/${underscore(system.region ?? '')}/${underscore(system.name)}`;
+	});
 </script>
 
 <MapPanel testid="system-info">
@@ -53,10 +54,14 @@
 			<div class="flex items-center gap-2">
 				<ClassBadge classId={system.wormhole_class_id} security={system.security_status} />
 				<span class="truncate text-sm font-medium">
-					{#if system.alias}
+					{#if system.alias && system.name}
 						{system.alias} <span class="text-muted-foreground">({system.name})</span>
-					{:else}
+					{:else if system.name}
 						{system.name}
+					{:else if system.alias}
+						{system.alias} <span class="text-muted-foreground">(unmapped)</span>
+					{:else}
+						<span class="text-muted-foreground">Unmapped system</span>
 					{/if}
 				</span>
 				{#if system.effect_name}
@@ -71,6 +76,12 @@
 					Occupied by <span class="font-medium text-foreground">{system.occupying_group}</span>
 				</div>
 			{/if}
+			{#if system.solar_system_id === null}
+				<div class="mt-1 text-[11px] text-muted-foreground">
+					Nobody has been through this hole yet. Assign a system from the node's menu once
+					someone has.
+				</div>
+			{:else}
 			<div class="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
 				<span>{system.region}</span>
 				{#if system.constellation}
@@ -95,6 +106,7 @@
 					>
 				{/if}
 			</div>
+			{/if}
 		</div>
 
 		{#if system.statics.length > 0}

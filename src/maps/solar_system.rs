@@ -16,7 +16,8 @@ use super::{Actor, ConnectionType, MassStatus, Role, SignatureGroup, TimeStatus,
 pub struct MapSolarSystem {
     pub id: i64,
     pub map_id: i64,
-    pub solar_system_id: i64,
+    /// `None` for a ghost: the far side of a wormhole nobody has been through yet.
+    pub solar_system_id: Option<i64>,
     pub position_x: f64,
     pub position_y: f64,
     pub alias: Option<String>,
@@ -107,7 +108,9 @@ pub struct MapSystemView {
     // Placement (map_solar_systems).
     pub id: i64,
     pub map_id: i64,
-    pub solar_system_id: i64,
+    /// `None` for a ghost, which is what makes every reference field below optional too:
+    /// there is no system yet to look them up from.
+    pub solar_system_id: Option<i64>,
     pub position_x: f64,
     pub position_y: f64,
     pub alias: Option<String>,
@@ -117,14 +120,14 @@ pub struct MapSystemView {
     // Intel (map_solar_system_details; defaults when no row exists yet).
     pub status: super::SystemStatus,
     pub occupying_group: Option<String>,
-    // Reference (solar_systems / regions / constellations).
-    pub name: String,
-    pub security_status: f64,
+    // Reference (solar_systems / regions / constellations). All `None` on a ghost.
+    pub name: Option<String>,
+    pub security_status: Option<f64>,
     pub wormhole_class_id: Option<i32>,
-    pub region: String,
-    pub region_id: i64,
-    pub constellation_id: i64,
-    pub constellation: String,
+    pub region: Option<String>,
+    pub region_id: Option<i64>,
+    pub constellation_id: Option<i64>,
+    pub constellation: Option<String>,
     // Wormhole reference (wormhole_systems / statics).
     pub effect_name: Option<String>,
     pub is_shattered: bool,
@@ -548,7 +551,24 @@ pub async fn set_status(pool: &PgPool, actor: Actor, cmd: SetStatus) -> Result<(
     Ok(())
 }
 
+/// The system behind a placement, or a plain refusal when it is still a ghost. Intel is
+/// keyed by system rather than by placement, so there is nowhere to put it yet.
+async fn system_behind(tx: &mut Tx<'_>, map_id: i64, map_solar_system_id: i64) -> Result<i64> {
+    sqlx::query_scalar!(
+        "select solar_system_id from map_solar_systems where id = $1 and map_id = $2",
+        map_solar_system_id,
+        map_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(MapError::NotFound)?
+    .ok_or_else(|| {
+        MapError::Validation("assign a system to that hole before recording intel on it".into())
+    })
+}
+
 pub(super) async fn apply_set_status(tx: &mut Tx<'_>, cmd: SetStatus) -> Result<Effect> {
+    system_behind(tx, cmd.map_id, cmd.map_solar_system_id).await?;
     let before = sqlx::query_scalar!(
         r#"select coalesce(d.status, 'unknown') as "status!: super::SystemStatus"
            from map_solar_systems mss
@@ -602,6 +622,7 @@ pub async fn set_occupier(pool: &PgPool, actor: Actor, cmd: SetOccupier) -> Resu
 }
 
 pub(super) async fn apply_set_occupier(tx: &mut Tx<'_>, cmd: SetOccupier) -> Result<Effect> {
+    system_behind(tx, cmd.map_id, cmd.map_solar_system_id).await?;
     let before = detail_text(
         tx,
         cmd.map_id,
@@ -648,6 +669,7 @@ pub async fn set_notes(pool: &PgPool, actor: Actor, cmd: SetNotes) -> Result<()>
 }
 
 pub(super) async fn apply_set_notes(tx: &mut Tx<'_>, cmd: SetNotes) -> Result<Effect> {
+    system_behind(tx, cmd.map_id, cmd.map_solar_system_id).await?;
     let before = detail_text(tx, cmd.map_id, cmd.map_solar_system_id, DetailColumn::Notes).await?;
     sqlx::query!(
         "insert into map_solar_system_details (map_id, solar_system_id, notes)
@@ -871,7 +893,7 @@ pub(super) async fn apply_set_pinned(tx: &mut Tx<'_>, cmd: SetPinned) -> Result<
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoredSystem {
     pub id: i64,
-    pub solar_system_id: i64,
+    pub solar_system_id: Option<i64>,
     pub position_x: f64,
     pub position_y: f64,
     pub alias: Option<String>,
@@ -947,7 +969,8 @@ pub(super) async fn capture_systems(
     )
     .fetch_all(&mut **tx)
     .await?;
-    let system_ids: Vec<i64> = systems.iter().map(|s| s.solar_system_id).collect();
+    // Ghosts hold no signatures, having no system to hold them against.
+    let system_ids: Vec<i64> = systems.iter().filter_map(|s| s.solar_system_id).collect();
 
     let connections = sqlx::query_as!(
         RestoredConnection,

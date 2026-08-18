@@ -335,7 +335,7 @@ async fn get_map_returns_exact_graph(pool: PgPool) {
         .unwrap();
     assert_eq!(view.map.id, w.map_id);
     assert_eq!(view.systems.len(), 2);
-    assert_eq!(view.systems[0].solar_system_id, SYS_A);
+    assert_eq!(view.systems[0].solar_system_id, Some(SYS_A));
     assert_eq!(
         (view.systems[0].position_x, view.systems[0].position_y),
         (1.0, 2.0)

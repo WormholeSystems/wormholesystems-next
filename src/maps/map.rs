@@ -27,6 +27,9 @@ pub struct Map {
     pub image_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub naming: MapNaming,
+    /// Whether pasting a wormhole signature puts its far side on the map as a ghost.
+    /// Map-wide: a ghost is a node everyone on the chain sees.
+    pub ghost_unlinked_wormholes: bool,
 }
 
 /// How a map names its chain. Map-wide rather than per-user, because an alias is written
@@ -81,6 +84,7 @@ macro_rules! map_from_row {
             description: row.description,
             image_url: row.image_url,
             created_at: row.created_at,
+            ghost_unlinked_wormholes: row.ghost_unlinked_wormholes,
             naming: MapNaming {
                 alias_scheme: row.alias_scheme,
                 ignored_alias: row.ignored_alias,
@@ -121,6 +125,7 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
         sqlx::query!(
             "insert into maps (name, description) values ($1, $2)
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 ghost_unlinked_wormholes,
                  bookmark_wormhole, bookmark_kspace, bookmark_return",
             cmd.name.trim(),
             cmd.description.as_deref(),
@@ -177,6 +182,9 @@ pub struct UpdateMap {
     #[serde(default)]
     #[ts(optional)]
     pub naming: Option<MapNaming>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub ghost_unlinked_wormholes: Option<bool>,
 }
 
 impl UpdateMap {
@@ -202,7 +210,8 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let current = map_from_row!(
         sqlx::query!(
             "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return from maps where id = $1",
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes
+             from maps where id = $1",
             cmd.map_id,
         )
         .fetch_optional(&mut *tx)
@@ -217,15 +226,18 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let description = cmd.description.unwrap_or(current.description);
     let image_url = cmd.image_url.unwrap_or(current.image_url);
     let naming = cmd.naming.unwrap_or(current.naming);
+    let ghost_unlinked_wormholes = cmd
+        .ghost_unlinked_wormholes
+        .unwrap_or(current.ghost_unlinked_wormholes);
 
     let map = map_from_row!(
         sqlx::query!(
             "update maps set name = $1, description = $2, image_url = $3,
                     alias_scheme = $5, ignored_alias = $6, bookmark_wormhole = $7,
-                    bookmark_kspace = $8, bookmark_return = $9
+                    bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10
              where id = $4
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return",
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes",
             name,
             description,
             image_url,
@@ -235,6 +247,7 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
             naming.bookmark_wormhole,
             naming.bookmark_kspace,
             naming.bookmark_return,
+            ghost_unlinked_wormholes,
         )
         .fetch_one(&mut *tx)
         .await?
@@ -264,7 +277,7 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
     let rows = sqlx::query!(
         r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,
                   m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
-                  ma.role as "role!: Role"
+                  m.ghost_unlinked_wormholes, ma.role as "role!: Role"
            from maps m
            join map_access ma on ma.map_id = m.id
            where ma.subject_id in (
@@ -308,7 +321,8 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     let map = map_from_row!(
         sqlx::query!(
             "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return from maps where id = $1",
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes
+             from maps where id = $1",
             cmd.map_id,
         )
         .fetch_optional(pool)
@@ -350,10 +364,10 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                mss.alias, mss.is_home, mss.is_rally, mss.is_pinned,
                coalesce(d.status, 'unknown') as "status!: super::SystemStatus",
                d.occupying_group,
-               ss.name as "name!", ss.security_status as "security_status!",
+               ss.name as "name?", ss.security_status as "security_status?",
                ss.wormhole_class_id,
-               r.name as "region!", ss.region_id,
-               ss.constellation_id, c.name as "constellation!",
+               r.name as "region?", ss.region_id as "region_id?",
+               ss.constellation_id as "constellation_id?", c.name as "constellation?",
                ws.effect_name,
                coalesce(ws.is_shattered, false) as "is_shattered!",
                ws.threat_level as "threat_level?: super::ThreatLevel",
@@ -367,9 +381,10 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                coalesce(al.name, co.name, f.name) as "sov_name?",
                coalesce(al.ticker, co.ticker) as "sov_ticker?"
            from map_solar_systems mss
-           join solar_systems ss on ss.id = mss.solar_system_id
-           join regions r on r.id = ss.region_id
-           join constellations c on c.id = ss.constellation_id
+           -- Left joins throughout: a ghost placement has no system to join to.
+           left join solar_systems ss on ss.id = mss.solar_system_id
+           left join regions r on r.id = ss.region_id
+           left join constellations c on c.id = ss.constellation_id
            left join map_solar_system_details d
                on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
            left join wormhole_systems ws on ws.solar_system_id = ss.id
@@ -425,8 +440,9 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
                 effect_name: row.effect_name,
                 is_shattered: row.is_shattered,
                 threat_level: row.threat_level,
-                statics: statics_by_system
-                    .remove(&row.solar_system_id)
+                statics: row
+                    .solar_system_id
+                    .and_then(|id| statics_by_system.remove(&id))
                     .unwrap_or_default(),
                 sovereignty,
             }

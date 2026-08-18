@@ -137,14 +137,12 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
         )
         .fetch_one(&mut **tx)
         .await?;
-        super::jumps::claim_pending_tx(
-            tx,
-            connection.map_id,
-            connection.id,
-            endpoints.from_sys,
-            endpoints.to_sys,
-        )
-        .await?;
+        // Transits are recorded between two systems, so an edge into a ghost has none to
+        // claim; it picks them up when the ghost is resolved.
+        if let (Some(from_sys), Some(to_sys)) = (endpoints.from_sys, endpoints.to_sys) {
+            super::jumps::claim_pending_tx(tx, connection.map_id, connection.id, from_sys, to_sys)
+                .await?;
+        }
     }
     let inverse = MapCommand::RemoveConnection(RemoveConnection {
         map_id: connection.map_id,

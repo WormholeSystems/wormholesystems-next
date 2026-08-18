@@ -78,6 +78,9 @@
 			: null
 	);
 	const showStatics = $derived(isWormholeClass(node.wormhole_class_id) && node.statics.length > 0);
+	// A hole nobody has been through: drawn as a node so the chain can be laid out and
+	// named, dashed so it never reads as somewhere you can actually go.
+	const ghost = $derived(node.solar_system_id === null);
 	const unmapped = $derived(Math.max(0, sigCounts.wormholes - connectionCount));
 	// EVE's image server serves a faction's logo from the corporations endpoint keyed by
 	// the faction id, so the faction id can be used directly.
@@ -116,7 +119,9 @@
 		data-testid="system-node"
 		data-status={node.status}
 		data-threat={threatRing}
+		data-ghost={ghost ? 'true' : undefined}
 		class="group/node absolute flex flex-col justify-center rounded border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm transition-colors duration-200
+			{ghost ? 'border-dashed bg-card/60' : ''}
 			{selected ? 'bg-amber-100 dark:bg-amber-900' : ''}
 			{active ? 'z-10 ring-2 ring-amber-500 ring-offset-2 ring-offset-background' : ''}
 			{highlighted ? 'z-20 outline-2 outline-yellow-500' : ''}
@@ -161,9 +166,11 @@
 			/>
 			{#if node.alias}
 				<span class="shrink-0 font-medium text-foreground">{node.alias}</span>
-				<span class="truncate text-muted-foreground">{node.name}</span>
-			{:else}
+				<span class="truncate text-muted-foreground">{node.name ?? 'Unmapped'}</span>
+			{:else if node.name}
 				<span class="truncate font-medium text-foreground">{node.name}</span>
+			{:else}
+				<span class="truncate font-medium text-muted-foreground italic">Unmapped</span>
 			{/if}
 			{#if node.occupying_group}
 				<span class="shrink-0 text-muted-foreground">({node.occupying_group})</span>
@@ -312,11 +319,13 @@
 					bind:value={editAlias}
 					onkeydown={(ev) => ev.key === 'Enter' && saveEditor()}
 				/>
-				<Input
-					placeholder="Occupier alias"
-					bind:value={editOccupier}
-					onkeydown={(ev) => ev.key === 'Enter' && saveEditor()}
-				/>
+				{#if !ghost}
+					<Input
+						placeholder="Occupier alias"
+						bind:value={editOccupier}
+						onkeydown={(ev) => ev.key === 'Enter' && saveEditor()}
+					/>
+				{/if}
 				<Button size="sm" onclick={saveEditor}>Save</Button>
 			</Popover.Content>
 		</Popover.Root>

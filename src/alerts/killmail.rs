@@ -182,7 +182,8 @@ pub struct Chain {
 /// A map's placed systems and the connections between them, in solar-system ids.
 pub async fn chain_of(pool: &PgPool, map_id: i64) -> Option<Chain> {
     let systems: Vec<i64> = sqlx::query_scalar!(
-        "select solar_system_id from map_solar_systems where map_id = $1",
+        r#"select solar_system_id as "solar_system_id!" from map_solar_systems
+           where map_id = $1 and solar_system_id is not null"#,
         map_id,
     )
     .fetch_all(pool)
@@ -203,7 +204,7 @@ pub async fn chain_of(pool: &PgPool, map_id: i64) -> Option<Chain> {
     .await
     .ok()?
     .into_iter()
-    .map(|row| (row.from_id, row.to_id))
+    .filter_map(|row| Some((row.from_id?, row.to_id?)))
     .collect();
     Some(Chain { systems, edges })
 }

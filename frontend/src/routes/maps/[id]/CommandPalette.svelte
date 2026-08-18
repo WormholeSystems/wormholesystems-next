@@ -54,6 +54,11 @@
 	const named = $derived(results.filter((h) => !h.threat));
 	/** Opened from "connect to a new system": every pick becomes a connection as well. */
 	const linking = $derived(map.linkFrom !== null);
+	/**
+	 * Opened from a ghost's "assign a system": every pick says what that hole leads to,
+	 * on-map hits included — those merge the ghost into the placement already there.
+	 */
+	const assigning = $derived(map.assignGhostId !== null);
 	const onMap = $derived(named.filter((h) => h.map_solar_system_id !== null));
 	const offMap = $derived(named.filter((h) => h.map_solar_system_id === null));
 
@@ -74,6 +79,7 @@
 			// Closing without picking drops the pending placement, so the next Cmd+K is a
 			// plain search again rather than quietly still linking.
 			map.linkFrom = null;
+			map.assignGhostId = null;
 			map.searchAnchor = null;
 		}
 	});
@@ -98,6 +104,10 @@
 	}
 
 	function activate(hit: MapSearchHit) {
+		if (assigning) {
+			assign(hit.system.id);
+			return;
+		}
 		// Already on the map, and we were asked for a connection: join the two instead of
 		// panning to it.
 		if (linking && hit.map_solar_system_id !== null) {
@@ -133,13 +143,38 @@
 		);
 	}
 
+	/** Say which system a ghost turned out to be. */
+	function assign(solarSystemId: number) {
+		const ghost = map.assignGhostId;
+		map.assignGhostId = null;
+		open = false;
+		if (ghost === null) return;
+		map.run(
+			'assign system',
+			api.resolveGhostSystem({
+				map_id: map.mapId,
+				map_solar_system_id: ghost,
+				solar_system_id: solarSystemId
+			})
+		);
+	}
+
 	/** Jump to it if it is already placed, otherwise put it on the map. */
 	function open_(hit: MapSearchHit) {
+		if (assigning) {
+			if (canWrite) assign(hit.system.id);
+			return;
+		}
 		if (hit.map_solar_system_id !== null) activate(hit);
 		else if (canWrite) add(hit);
 	}
 
 	function add(hit: MapSearchHit) {
+		// In assign mode this row means "that is where the hole goes", not "place it too".
+		if (assigning) {
+			assign(hit.system.id);
+			return;
+		}
 		const from = map.linkFrom;
 		// Where the caller asked for it: the point the map was right-clicked, or the node the
 		// connection starts from. Plain Cmd+K has no anchor, so it lands in the middle of
@@ -174,13 +209,19 @@
 <Command.Dialog
 	bind:open
 	shouldFilter={false}
-	title={linking ? 'Connect to a system' : 'Search this map'}
-	description={linking
-		? 'Pick the system on the other side of the connection.'
-		: 'Jump to a system on the map, or add one that is not on it yet.'}
+	title={assigning ? 'Assign a system' : linking ? 'Connect to a system' : 'Search this map'}
+	description={assigning
+		? 'Pick the system this hole turned out to lead to.'
+		: linking
+			? 'Pick the system on the other side of the connection.'
+			: 'Jump to a system on the map, or add one that is not on it yet.'}
 >
 	<Command.Input
-		placeholder={linking ? 'Connect to…' : 'System, alias, occupier or notes…'}
+		placeholder={assigning
+			? 'This hole leads to…'
+			: linking
+				? 'Connect to…'
+				: 'System, alias, occupier or notes…'}
 		bind:value={query}
 	/>
 	<!-- Headings are plain cells rather than Command.Group, because a group wraps its items
@@ -237,7 +278,9 @@
 			{/each}
 		{/each}
 		{#if canWrite && offMap.length > 0}
-			<div class={HEADING}>{linking ? 'Add and connect' : 'Add to the map'}</div>
+			<div class={HEADING}>
+				{assigning ? 'Not on the map' : linking ? 'Add and connect' : 'Add to the map'}
+			</div>
 			{#each offMap as hit (hit.system.id)}
 				<Command.Item
 					value={`off-${hit.system.id}`}
@@ -247,10 +290,14 @@
 				>
 					<SystemMenu system={hit.system} class={CELLS}>
 						<SystemRow system={hit.system} />
-						<Badge variant="outline" class="justify-self-end gap-1">
-							<PlusIcon />
-							Add
-						</Badge>
+						{#if assigning}
+							<Badge variant="outline" class="justify-self-end">Assign</Badge>
+						{:else}
+							<Badge variant="outline" class="justify-self-end gap-1">
+								<PlusIcon />
+								Add
+							</Badge>
+						{/if}
 					</SystemMenu>
 				</Command.Item>
 			{/each}

@@ -4,7 +4,9 @@
 import type { AddConnection } from './types/AddConnection';
 import type { AddConnectionJump } from './types/AddConnectionJump';
 import type { AddSignature } from './types/AddSignature';
+import type { AddGhostSystem } from './types/AddGhostSystem';
 import type { AddSystem } from './types/AddSystem';
+import type { ResolveGhostSystem } from './types/ResolveGhostSystem';
 import type { CharacterRef } from './types/CharacterRef';
 import type { DiscordAccount } from './types/DiscordAccount';
 import type { MapAlert } from './types/MapAlert';
@@ -185,6 +187,10 @@ export const api = {
 	// Systems
 	addSystem: (cmd: AddSystem) =>
 		post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/add`, cmd),
+	addGhostSystem: (cmd: AddGhostSystem) =>
+		post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/add-ghost`, cmd),
+	resolveGhostSystem: (cmd: ResolveGhostSystem) =>
+		post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/resolve-ghost`, cmd),
 	moveSystems: (cmd: MoveSystems) => post<null>(`/api/maps/${cmd.map_id}/systems/move`, cmd),
 	removeSystems: (cmd: RemoveSystems) =>
 		post<null>(`/api/maps/${cmd.map_id}/systems/remove`, cmd),

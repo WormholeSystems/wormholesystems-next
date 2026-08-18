@@ -47,7 +47,9 @@ pub enum JumpDirection {
     Inbound,
 }
 
-/// A connection's endpoint solar systems, in `from_system` → `to_system` order.
+/// A connection's endpoint solar systems, in `from_system` → `to_system` order. A jump is
+/// recorded between two systems, so a hole whose far side is still a ghost has none to
+/// record against.
 async fn connection_endpoints(
     tx: &mut Tx<'_>,
     map_id: i64,
@@ -65,7 +67,12 @@ async fn connection_endpoints(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
-    Ok((row.from_sys, row.to_sys))
+    match (row.from_sys, row.to_sys) {
+        (Some(from), Some(to)) => Ok((from, to)),
+        _ => Err(MapError::Validation(
+            "assign a system to the far side before logging jumps through it".into(),
+        )),
+    }
 }
 
 /// A ship type's hull mass (kg, rounded), or `NotFound`-flavored validation.

@@ -58,6 +58,8 @@ pub async fn track_jump(
 }
 
 pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<Effect> {
+    // The origin is where the character was, so it is always a real system; a ghost there
+    // means the placement was resolved out from under the jump.
     let from_system = sqlx::query_scalar!(
         "select solar_system_id from map_solar_systems where id = $1 and map_id = $2",
         cmd.from_map_solar_system_id,
@@ -65,6 +67,7 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
     )
     .fetch_optional(&mut **tx)
     .await?
+    .flatten()
     .ok_or(MapError::NotFound)?;
 
     if from_system == cmd.to_solar_system_id {
@@ -245,13 +248,17 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
 }
 
 /// What the signature looked like before the jump touched it.
-struct SignatureState {
+pub(super) struct SignatureState {
     pk: i64,
     group: SignatureGroup,
     connection_id: Option<i64>,
 }
 
-async fn signature_state(tx: &mut Tx<'_>, map_id: i64, pk: i64) -> Result<SignatureState> {
+pub(super) async fn signature_state(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    pk: i64,
+) -> Result<SignatureState> {
     let row = sqlx::query!(
         r#"select "group" as "group!: SignatureGroup", connection_id
            from signatures where id = $1 and map_id = $2"#,
@@ -273,7 +280,7 @@ async fn signature_state(tx: &mut Tx<'_>, map_id: i64, pk: i64) -> Result<Signat
 /// Deliberately not `RestoreSignatures`: that one undoes a *deletion*, so its own inverse
 /// deletes the rows again, and redoing a jump would take the signature with it. These two
 /// commands are each other's inverse, so the step survives being walked back and forth.
-fn undo_signature(map_id: i64, before: Option<&SignatureState>) -> Vec<MapCommand> {
+pub(super) fn undo_signature(map_id: i64, before: Option<&SignatureState>) -> Vec<MapCommand> {
     let Some(before) = before else {
         return Vec::new();
     };
@@ -309,7 +316,12 @@ fn undo_signature(map_id: i64, before: Option<&SignatureState>) -> Vec<MapComman
 /// A signature is often still `unknown` when it is jumped: you scanned the id, warped and
 /// went through without ever typing it. Refusing to link that would make the common case
 /// the one that does not work.
-async fn link(tx: &mut Tx<'_>, map_id: i64, signature_pk: i64, connection_id: i64) -> Result<()> {
+pub(super) async fn link(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    signature_pk: i64,
+    connection_id: i64,
+) -> Result<()> {
     sqlx::query!(
         r#"update signatures set "group" = $1, updated_at = now()
            where id = $2 and map_id = $3 and "group" = 'unknown'"#,

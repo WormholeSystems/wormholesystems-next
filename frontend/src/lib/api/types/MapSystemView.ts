@@ -9,7 +9,12 @@ import type { ThreatLevel } from "./ThreatLevel";
  * `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
  * [`MapSolarSystem`].
  */
-export type MapSystemView = { id: number, map_id: number, solar_system_id: number, position_x: number, position_y: number, alias: string | null, is_home: boolean, is_rally: boolean, is_pinned: boolean, status: SystemStatus, occupying_group: string | null, name: string, security_status: number, wormhole_class_id: number | null, region: string, region_id: number, constellation_id: number, constellation: string, effect_name: string | null, is_shattered: boolean, 
+export type MapSystemView = { id: number, map_id: number, 
+/**
+ * `None` for a ghost, which is what makes every reference field below optional too:
+ * there is no system yet to look them up from.
+ */
+solar_system_id: number | null, position_x: number, position_y: number, alias: string | null, is_home: boolean, is_rally: boolean, is_pinned: boolean, status: SystemStatus, occupying_group: string | null, name: string | null, security_status: number | null, wormhole_class_id: number | null, region: string | null, region_id: number | null, constellation_id: number | null, constellation: string | null, effect_name: string | null, is_shattered: boolean, 
 /**
  * Kill-activity threat (wormhole systems only; `None` for k-space).
  */

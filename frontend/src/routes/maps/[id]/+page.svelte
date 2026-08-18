@@ -399,13 +399,13 @@
 	});
 
 	function saveAlias(s: MapSystemView, alias: string | null, occupier: string | null) {
-		map.run(
-			'alias',
-			Promise.all([
-				api.setAlias({ map_id: map.mapId, map_solar_system_id: s.id, alias }),
-				api.setOccupier({ map_id: map.mapId, map_solar_system_id: s.id, occupier })
-			])
-		);
+		// Who holds a system is intel about that system; a ghost is not one yet, and only
+		// the alias is the placement's own.
+		const writes = [api.setAlias({ map_id: map.mapId, map_solar_system_id: s.id, alias })];
+		if (s.solar_system_id !== null) {
+			writes.push(api.setOccupier({ map_id: map.mapId, map_solar_system_id: s.id, occupier }));
+		}
+		map.run('alias', Promise.all(writes));
 	}
 
 </script>
@@ -627,13 +627,13 @@
 				selected={map.selected.has(s.id)}
 				highlighted={map.hoveredSystemId === s.id}
 				pos={map.positions.get(s.id) ?? { x: 0, y: 0 }}
-				sigCounts={sigCountsBySystem.get(s.solar_system_id) ?? {
+				sigCounts={sigCountsBySystem.get(s.solar_system_id ?? -1) ?? {
 					total: 0,
 					uncategorized: 0,
 					wormholes: 0
 				}}
 				connectionCount={connCountByPlacement.get(s.id) ?? 0}
-				pilots={pilotsBySystem.get(s.solar_system_id) ?? []}
+				pilots={pilotsBySystem.get(s.solar_system_id ?? -1) ?? []}
 				showThreat={map.userSettings?.show_threat_level ?? true}
 				onsavealias={(alias, occupier) => saveAlias(s, alias, occupier)}
 				active={map.activeId === s.id}

@@ -18,6 +18,7 @@ use super::connection::{
 };
 use super::error::Result;
 use super::events_log;
+use super::ghost::{AddGhostSystem, ResolveGhostSystem, RestoreGhostSystem};
 use super::jumps::{AddConnectionJump, RemoveConnectionJump, UpdateConnectionJump};
 use super::signatures::{
     AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
@@ -30,7 +31,7 @@ use super::solar_system::{
 use super::tracking::TrackJump;
 use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
 use super::{
-    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, jumps, signatures,
+    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, ghost, jumps, signatures,
     solar_system, tracking, watchlist,
 };
 
@@ -70,6 +71,9 @@ pub struct Sequence {
 #[serde(tag = "command", rename_all = "snake_case")]
 pub enum MapCommand {
     AddSystem(AddSystem),
+    AddGhostSystem(AddGhostSystem),
+    ResolveGhostSystem(ResolveGhostSystem),
+    RestoreGhostSystem(RestoreGhostSystem),
     RemoveSystem(RemoveSystem),
     RemoveSystems(RemoveSystems),
     RestoreSystems(RestoreSystems),
@@ -158,6 +162,9 @@ impl MapCommand {
     pub(super) fn map_id(&self) -> i64 {
         match self {
             MapCommand::AddSystem(c) => c.map_id,
+            MapCommand::AddGhostSystem(c) => c.map_id,
+            MapCommand::ResolveGhostSystem(c) => c.map_id,
+            MapCommand::RestoreGhostSystem(c) => c.map_id,
             MapCommand::RemoveSystem(c) => c.map_id,
             MapCommand::RemoveSystems(c) => c.map_id,
             MapCommand::RestoreSystems(c) => c.map_id,
@@ -204,6 +211,9 @@ impl MapCommand {
     pub(super) async fn apply(self, tx: &mut Tx<'_>, actor: EventActor) -> Result<Effect> {
         match self {
             MapCommand::AddSystem(c) => solar_system::apply_add_system(tx, c).await,
+            MapCommand::AddGhostSystem(c) => ghost::apply_add_ghost_system(tx, c).await,
+            MapCommand::ResolveGhostSystem(c) => ghost::apply_resolve_ghost_system(tx, c).await,
+            MapCommand::RestoreGhostSystem(c) => ghost::apply_restore_ghost_system(tx, c).await,
             MapCommand::RemoveSystem(c) => solar_system::apply_remove_system(tx, c).await,
             MapCommand::RemoveSystems(c) => solar_system::apply_remove_systems(tx, c).await,
             MapCommand::RestoreSystems(c) => solar_system::apply_restore_systems(tx, c).await,

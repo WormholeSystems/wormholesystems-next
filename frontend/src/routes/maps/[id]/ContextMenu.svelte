@@ -16,6 +16,7 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RouteIcon from '@lucide/svelte/icons/route';
+	import SearchIcon from '@lucide/svelte/icons/search';
 	import ShipIcon from '@lucide/svelte/icons/ship';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -82,6 +83,15 @@
 	}
 
 	// --- node ---
+
+	/// The palette doubles as the picker: on-map hits merge, off-map ones name the ghost.
+	function assignSystem(id: number) {
+		map.assignGhostId = id;
+		map.linkFrom = null;
+		map.searchAnchor = null;
+		map.paletteOpen = true;
+		close();
+	}
 
 	function connectFrom(id: number) {
 		map.linkFrom = id;
@@ -259,6 +269,13 @@ which would unmount these buttons before their click can fire. -->
 		</button>
 	{:else if menu.target.kind === 'node'}
 		{@const s = menu.target.system}
+		{#if s.solar_system_id === null}
+			<button class={item} onclick={() => assignSystem(s.id)}>
+				<SearchIcon class="size-4" />
+				Assign a system
+			</button>
+			<div class="my-0.5 border-t border-border"></div>
+		{/if}
 		<button class={item} onclick={() => togglePin(s.id, !s.is_pinned)}>
 			<PinIcon class="size-4" />
 			{s.is_pinned ? 'Unpin' : 'Pin'}
@@ -268,6 +285,7 @@ which would unmount these buttons before their click can fire. -->
 			Add connection
 		</button>
 
+		{#if s.solar_system_id !== null && s.name !== null}
 		<div class={sub} data-testid="status-subtrigger">
 			<MapIcon class="size-4" />
 			Status
@@ -305,7 +323,7 @@ which would unmount these buttons before their click can fire. -->
 				</a>
 				<a
 					class={item}
-					href="https://evemaps.dotlan.net/map/{underscore(s.region)}/{underscore(s.name)}"
+					href="https://evemaps.dotlan.net/map/{underscore(s.region ?? '')}/{underscore(s.name)}"
 					target="_blank"
 					rel="noopener"
 				>
@@ -397,6 +415,7 @@ which would unmount these buttons before their click can fire. -->
 			<FlagIcon class="size-4" />
 			{s.is_rally ? 'Clear Rally Point' : 'Set as Rally Point'}
 		</button>
+		{/if}
 
 		{#if !s.is_pinned && !s.is_home}
 			<div class="my-0.5 border-t border-border"></div>

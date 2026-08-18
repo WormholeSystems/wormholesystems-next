@@ -132,6 +132,28 @@ export class JumpTracker {
 		this.handleJump(fromSystem, systemId);
 	}
 
+	/**
+	 * The unmapped holes already drawn off this system, by the connection that draws them.
+	 *
+	 * Flying one of these is the moment it stops being a ghost, so the jump resolves the
+	 * node that is already there instead of putting the same system on the map twice.
+	 */
+	private ghostsFrom(origin: MapSystemView): Map<number, number> {
+		const ghosts = new Map<number, number>();
+		for (const c of this.map.connections) {
+			const other =
+				c.from_system === origin.id
+					? c.to_system
+					: c.to_system === origin.id
+						? c.from_system
+						: null;
+			if (other === null) continue;
+			const placement = this.map.systems.find((s) => s.id === other);
+			if (placement && placement.solar_system_id === null) ghosts.set(c.id, other);
+		}
+		return ghosts;
+	}
+
 	private async handleJump(fromSystemId: number, toSystemId: number) {
 		const map = this.map;
 		// Only a jump *out of* the mapped chain extends it. Flying around known space with
@@ -152,10 +174,12 @@ export class JumpTracker {
 		const target = await this.describeTarget(toSystemId, existing);
 		if (!target) return;
 
+		const ghosts = this.ghostsFrom(origin);
 		const groups = groupSignatures(
 			originSignatures,
 			new Map(catalog.types.map((t) => [t.id, t])),
-			target.classId
+			target.classId,
+			new Set(ghosts.keys())
 		);
 
 		// Nothing to ask about: either the user turned the question off, or the origin has
@@ -163,6 +187,13 @@ export class JumpTracker {
 		// all the server would accept anyway.
 		if (!map.userSettings?.prompt_for_signature || groups.likely.length === 0) {
 			if (linked) return;
+			// Nobody to ask, but the chain already says there is exactly one unflown hole
+			// here: that is the one just flown.
+			if (ghosts.size === 1) {
+				const [ghost] = ghosts.values();
+				this.resolve(ghost, toSystemId);
+				return;
+			}
 			this.submit({
 				origin,
 				targetSolarSystemId: toSystemId,
@@ -206,11 +237,11 @@ export class JumpTracker {
 	 * its own class; anywhere else has to be looked up.
 	 */
 	private async describeTarget(solarSystemId: number, existing: MapSystemView | null) {
-		if (existing) {
+		if (existing?.name != null) {
 			return {
 				name: existing.name,
 				classId: existing.wormhole_class_id,
-				security: existing.security_status
+				security: existing.security_status ?? 0
 			};
 		}
 		try {
@@ -273,6 +304,16 @@ export class JumpTracker {
 			choice.signaturePk === null
 				? null
 				: (this.map.sigs.find((s) => s.id === choice.signaturePk) ?? null);
+
+		// That signature is already drawn as an unflown hole: this jump says where it goes.
+		if (signature?.connection_id != null) {
+			const ghost = this.ghostsFrom(choice.origin).get(signature.connection_id);
+			if (ghost !== undefined) {
+				this.resolve(ghost, choice.targetSolarSystemId);
+				return;
+			}
+		}
+
 		const fromSignature = statusFromSignature(signature);
 		const catalog = this.prompt?.catalog ?? null;
 		const type =
@@ -293,6 +334,18 @@ export class JumpTracker {
 				size: choice.size ?? sizeFromType(type) ?? fromSignature.size ?? undefined,
 				mass_status: choice.massStatus ?? fromSignature.mass_status ?? undefined,
 				time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined
+			})
+		);
+	}
+
+	/** The ghost turned out to be a real system: name it where it already sits. */
+	private resolve(ghostPlacementId: number, solarSystemId: number) {
+		this.map.run(
+			'assign system',
+			api.resolveGhostSystem({
+				map_id: this.map.mapId,
+				map_solar_system_id: ghostPlacementId,
+				solar_system_id: solarSystemId
 			})
 		);
 	}
