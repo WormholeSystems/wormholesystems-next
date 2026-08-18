@@ -11,7 +11,10 @@
 	import type { AlertDelivery } from '$lib/api/types/AlertDelivery';
 	import type { AlertKind } from '$lib/api/types/AlertKind';
 	import type { AlertMention } from '$lib/api/types/AlertMention';
+	import type { JumpShip } from '$lib/api/types/JumpShip';
 	import type { MapAlert } from '$lib/api/types/MapAlert';
+	import type { MapWebhook } from '$lib/api/types/MapWebhook';
+	import type { MapWebhookRole } from '$lib/api/types/MapWebhookRole';
 	import type { Rule } from '$lib/api/types/Rule';
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import type { Side } from '$lib/api/types/Side';
@@ -24,10 +27,14 @@
 
 	let {
 		alert,
+		webhooks,
+		roles,
 		onsave,
 		oncancel
 	}: {
 		alert: MapAlert | null;
+		webhooks: MapWebhook[];
+		roles: MapWebhookRole[];
 		onsave: (body: SaveAlert) => void;
 		oncancel: () => void;
 	} = $props();
@@ -39,12 +46,14 @@
 	let name = $state(seed?.name ?? '');
 	let kind = $state<AlertKind>(seed?.kind ?? 'killmail');
 	let delivery = $state<AlertDelivery>(seed?.delivery ?? 'webhook');
-	let webhookUrl = $state('');
+	let webhookId = $state<number | null>(seed?.map_webhook_id ?? null);
 	let mention = $state<AlertMention>(seed?.mention ?? 'none');
-	let roleId = $state(seed?.discord_role_id ?? '');
+	let roleRef = $state<number | null>(seed?.map_webhook_role_id ?? null);
 	let channelId = $state(seed?.discord_channel_id ?? '');
 	let target = $state<number | null>(seed?.target_solar_system_id ?? null);
 	let maxJumps = $state(seed?.max_jumps ?? 5);
+	let shipType = $state<JumpShip>(seed?.ship_type ?? 'dreadnought');
+	let jdcLevel = $state(seed?.jdc_level ?? 5);
 	let filters = $state<Rule[]>(seed ? structuredClone($state.snapshot(seed.filters)) : []);
 	let filterMatch = $state(seed?.filter_match ?? 'any');
 
@@ -57,9 +66,31 @@
 		{
 			value: 'proximity',
 			label: 'System near the chain',
-			blurb: 'Fires when the chain comes within range of a system you name.'
+			blurb: 'Fires when the chain comes within gate range of a system you name.'
+		},
+		{
+			value: 'jump_range',
+			label: 'Capital jump range',
+			blurb:
+				'Fires when a k-space exit lands within a capital jump of a system you name. ' +
+				'Measured in light years for the hull you pick, not in gates.'
 		}
 	];
+	const SHIPS: { value: JumpShip; label: string; base: number }[] = [
+		{ value: 'dreadnought', label: 'Dreadnought', base: 3.5 },
+		{ value: 'carrier', label: 'Carrier', base: 3.5 },
+		{ value: 'force_auxiliary', label: 'Force Auxiliary', base: 3.5 },
+		{ value: 'supercarrier', label: 'Supercarrier', base: 3.0 },
+		{ value: 'titan', label: 'Titan', base: 3.0 },
+		{ value: 'jump_freighter', label: 'Jump Freighter', base: 5.0 },
+		{ value: 'rorqual', label: 'Rorqual', base: 5.0 },
+		{ value: 'black_ops', label: 'Black Ops', base: 4.0 }
+	];
+	// The same arithmetic the server does, shown while you pick, because "JDC 5" means
+	// nothing until it is a number of light years.
+	const range = $derived(
+		((SHIPS.find((s) => s.value === shipType)?.base ?? 3.5) * (1 + 0.2 * jdcLevel)).toFixed(1)
+	);
 	const DELIVERIES: { value: AlertDelivery; label: string }[] = [
 		{ value: 'webhook', label: 'Channel webhook' }
 	];
@@ -118,9 +149,9 @@
 
 	const valid = $derived(
 		name.trim().length > 0 &&
-			(kind !== 'proximity' || target !== null) &&
-			(delivery !== 'webhook' || alert !== null || webhookUrl.trim().length > 0) &&
-			(mention !== 'role' || roleId.trim().length > 0)
+			(kind === 'killmail' || target !== null) &&
+			(delivery !== 'webhook' || webhookId !== null) &&
+			(mention !== 'role' || roleRef !== null)
 	);
 
 	function submit() {
@@ -128,13 +159,14 @@
 			name: name.trim(),
 			kind,
 			delivery,
-			// Left out on an edit unless retyped, so the stored secret survives a rename.
-			webhook_url: webhookUrl.trim() || undefined,
+			map_webhook_id: delivery === 'webhook' ? (webhookId ?? undefined) : undefined,
 			discord_channel_id: channelId.trim() || undefined,
-			discord_role_id: roleId.trim() || undefined,
+			map_webhook_role_id: mention === 'role' ? (roleRef ?? undefined) : undefined,
 			mention,
 			target_solar_system_id: kind === 'killmail' ? undefined : (target ?? undefined),
 			max_jumps: maxJumps,
+			ship_type: kind === 'jump_range' ? shipType : undefined,
+			jdc_level: kind === 'jump_range' ? jdcLevel : undefined,
 			filters: kind === 'killmail' ? filters.filter((r) => r.ids.length > 0) : [],
 			filter_match: filterMatch
 		});
@@ -185,24 +217,57 @@
 		</div>
 	{/if}
 
-	<div class="flex flex-col gap-1.5">
-		<label for="alert-jumps" class="text-sm font-medium">Within</label>
-		<div class="flex items-center gap-2">
-			<Input
-				id="alert-jumps"
-				type="number"
-				min="0"
-				max="30"
-				class="w-24"
-				value={maxJumps}
-				oninput={(e) => (maxJumps = Number((e.currentTarget as HTMLInputElement).value))}
-				data-testid="alert-jumps"
-			/>
-			<span class="text-sm text-muted-foreground">
-				gate jumps of the chain, counting wormholes as free
-			</span>
+	{#if kind === 'jump_range'}
+		<div class="flex flex-col gap-1.5">
+			<span class="text-sm font-medium">In range of</span>
+			<div class="flex flex-wrap items-center gap-2">
+				<Select.Root type="single" bind:value={shipType}>
+					<Select.Trigger class="w-48" data-testid="alert-ship">
+						{SHIPS.find((s) => s.value === shipType)?.label}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Group>
+							{#each SHIPS as option (option.value)}
+								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+							{/each}
+						</Select.Group>
+					</Select.Content>
+				</Select.Root>
+				<span class="text-sm text-muted-foreground">at JDC</span>
+				<Input
+					type="number"
+					min="0"
+					max="5"
+					class="w-20"
+					value={jdcLevel}
+					oninput={(e) => (jdcLevel = Number((e.currentTarget as HTMLInputElement).value))}
+					data-testid="alert-jdc"
+				/>
+				<span class="text-sm text-muted-foreground" data-testid="alert-range">
+					= {range} ly
+				</span>
+			</div>
 		</div>
-	</div>
+	{:else}
+		<div class="flex flex-col gap-1.5">
+			<label for="alert-jumps" class="text-sm font-medium">Within</label>
+			<div class="flex items-center gap-2">
+				<Input
+					id="alert-jumps"
+					type="number"
+					min="0"
+					max="30"
+					class="w-24"
+					value={maxJumps}
+					oninput={(e) => (maxJumps = Number((e.currentTarget as HTMLInputElement).value))}
+					data-testid="alert-jumps"
+				/>
+				<span class="text-sm text-muted-foreground">
+					gate jumps of the chain, counting wormholes as free
+				</span>
+			</div>
+		</div>
+	{/if}
 
 	{#if kind === 'killmail'}
 		<div class="flex flex-col gap-2">
@@ -325,18 +390,30 @@
 			</Select.Content>
 		</Select.Root>
 		{#if delivery === 'webhook'}
-			<Input
-				bind:value={webhookUrl}
-				type="password"
-				placeholder={alert
-					? 'Leave blank to keep the current webhook'
-					: 'https://discord.com/api/webhooks/…'}
-				data-testid="alert-webhook"
-			/>
-			<p class="text-xs text-muted-foreground">
-				Discord: channel settings → Integrations → New Webhook. The URL is a key to that
-				channel, so it is stored write-only and never shown again.
-			</p>
+			{#if webhooks.length === 0}
+				<p class="text-xs text-amber-500" data-testid="alert-no-destinations">
+					No destinations registered yet. Add one below first.
+				</p>
+			{:else}
+				<Select.Root
+					type="single"
+					value={webhookId === null ? '' : String(webhookId)}
+					onValueChange={(value) => (webhookId = value ? Number(value) : null)}
+				>
+					<Select.Trigger class="w-full" data-testid="alert-destination">
+						{webhooks.find((w) => w.id === webhookId)?.name ?? 'Pick a destination'}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Group>
+							{#each webhooks as webhook (webhook.id)}
+								<Select.Item value={String(webhook.id)} label={webhook.name}>
+									{webhook.name}
+								</Select.Item>
+							{/each}
+						</Select.Group>
+					</Select.Content>
+				</Select.Root>
+			{/if}
 		{/if}
 	</div>
 
@@ -356,12 +433,26 @@
 				</Select.Content>
 			</Select.Root>
 			{#if mention === 'role'}
-				<Input
-					bind:value={roleId}
-					class="flex-1"
-					placeholder="Discord role id"
-					data-testid="alert-role"
-				/>
+				{#if roles.length === 0}
+					<p class="self-center text-xs text-amber-500">No roles registered yet.</p>
+				{:else}
+					<Select.Root
+						type="single"
+						value={roleRef === null ? '' : String(roleRef)}
+						onValueChange={(value) => (roleRef = value ? Number(value) : null)}
+					>
+						<Select.Trigger class="flex-1" data-testid="alert-role">
+							{roles.find((r) => r.id === roleRef)?.name ?? 'Pick a role'}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each roles as role (role.id)}
+									<Select.Item value={String(role.id)} label={role.name}>{role.name}</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				{/if}
 			{/if}
 		</div>
 	</div>

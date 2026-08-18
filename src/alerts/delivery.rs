@@ -1,9 +1,9 @@
 //! Getting a message to Discord.
 //!
-//! Webhook delivery only, for now: a channel webhook needs no bot, no permissions and no
-//! OAuth, so it is the destination somebody can set up in a minute. Bot delivery (direct
-//! messages, and channels the bot can post in) shares the embed and the retry, and lands
-//! on top of this.
+//! Three ways in, one message. A channel webhook needs no bot, no permissions and no OAuth,
+//! so it is what somebody can set up in a minute. The bot can post in a channel it has been
+//! given access to, and can direct-message anyone who has linked their account. All three
+//! share the embed, the retry and the rate-limit handling.
 //!
 //! Discord rate-limits per webhook and answers 429 with `retry_after`. Honouring it is not
 //! optional: ignoring it gets the whole application limited, not just the one webhook.
@@ -140,14 +140,83 @@ pub enum SendError {
 const ATTEMPTS: usize = 3;
 
 /// Post a message to a Discord webhook, honouring rate limits.
+/// Post a message to a Discord webhook.
+///
+/// A 404 is a webhook somebody deleted, a 401 or 403 one whose token was rotated. None of
+/// those come back on their own, so the alert is told to stop rather than retry forever
+/// against a destination that no longer exists.
 pub async fn post_webhook(
     http: &reqwest::Client,
     url: &str,
     message: &Message,
 ) -> Result<(), SendError> {
+    send(http, http.post(url), message).await
+}
+
+/// Post as the bot into a channel it can see.
+pub async fn post_channel(
+    http: &reqwest::Client,
+    token: &str,
+    channel_id: &str,
+    message: &Message,
+) -> Result<(), SendError> {
+    let url = format!("{}/channels/{channel_id}/messages", crate::discord::API);
+    send(
+        http,
+        http.post(&url)
+            .header("authorization", format!("Bot {token}")),
+        message,
+    )
+    .await
+}
+
+/// Direct-message a Discord user.
+///
+/// Two calls: Discord has no "message this user" endpoint, only "open a channel with this
+/// user" followed by the usual channel post. The channel id is stable, but caching it would
+/// mean holding a mapping that goes stale when somebody blocks the bot, and the open call
+/// is cheap.
+pub async fn post_dm(
+    http: &reqwest::Client,
+    token: &str,
+    discord_user_id: &str,
+    message: &Message,
+) -> Result<(), SendError> {
+    let opened = http
+        .post(format!("{}/users/@me/channels", crate::discord::API))
+        .header("authorization", format!("Bot {token}"))
+        .json(&serde_json::json!({ "recipient_id": discord_user_id }))
+        .send()
+        .await
+        .map_err(|err| SendError::Failed(err.to_string()))?;
+    if !opened.status().is_success() {
+        // Most often: the recipient does not share a server with the bot, or has direct
+        // messages closed. Neither fixes itself with a retry.
+        return Err(SendError::Gone);
+    }
+    #[derive(serde::Deserialize)]
+    struct Channel {
+        id: String,
+    }
+    let channel: Channel = opened
+        .json()
+        .await
+        .map_err(|err| SendError::Failed(err.to_string()))?;
+    post_channel(http, token, &channel.id, message).await
+}
+
+/// The shared attempt loop: rate limits honoured, terminal failures reported as such.
+async fn send(
+    http: &reqwest::Client,
+    request: reqwest::RequestBuilder,
+    message: &Message,
+) -> Result<(), SendError> {
     let mut last = String::new();
     for attempt in 0..ATTEMPTS {
-        let response = match http.post(url).json(message).send().await {
+        let Some(request) = request.try_clone() else {
+            return Err(SendError::Failed("request is not retryable".into()));
+        };
+        let response = match request.json(message).send().await {
             Ok(response) => response,
             Err(err) => {
                 last = err.to_string();
@@ -159,9 +228,6 @@ pub async fn post_webhook(
         if status.is_success() {
             return Ok(());
         }
-        // 404 is a webhook somebody deleted, 401/403 one whose token was rotated. None of
-        // those come back on their own, so the alert is told to stop rather than retry
-        // forever against a destination that no longer exists.
         if matches!(status.as_u16(), 401 | 403 | 404) {
             return Err(SendError::Gone);
         }
@@ -174,6 +240,7 @@ pub async fn post_webhook(
         last = format!("discord returned {status}");
         tokio::time::sleep(backoff(attempt)).await;
     }
+    let _ = http;
     Err(SendError::Failed(last))
 }
 

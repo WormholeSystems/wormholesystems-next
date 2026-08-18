@@ -10,9 +10,9 @@
 
 use sqlx::PgPool;
 
-use super::delivery::{Embed, Field, Footer, Image, Message, post_webhook, security_color};
+use super::delivery::{Embed, Field, Footer, Image, security_color};
 use super::proximity::{self, Universe};
-use super::{Alert, AlertDelivery, AlertKind, AlertMention, DisabledReason, filters};
+use super::{Alert, AlertKind, DisabledReason, filters};
 
 /// Everything a message needs to say about one kill.
 pub struct Kill {
@@ -30,7 +30,13 @@ pub struct Kill {
 }
 
 /// Offer a killmail to every alert watching for one.
-pub async fn evaluate(pool: &PgPool, http: &reqwest::Client, universe: &Universe, kill: &Kill) {
+pub async fn evaluate(
+    pool: &PgPool,
+    http: &reqwest::Client,
+    bot_token: Option<&str>,
+    universe: &Universe,
+    kill: &Kill,
+) {
     let Ok(alerts) = super::active(pool, AlertKind::Killmail).await else {
         return;
     };
@@ -73,7 +79,7 @@ pub async fn evaluate(pool: &PgPool, http: &reqwest::Client, universe: &Universe
             .map(|s| s.name)
             .unwrap_or_default();
         let embed = build(kill, &system, &from, found.jumps);
-        match send(pool, http, alert, embed).await {
+        match super::deliver(pool, http, bot_token, alert, embed).await {
             Ok(()) => super::sent(pool, alert.id, &key).await,
             Err(fatal) => {
                 super::unclaim(pool, alert.id, &key).await;
@@ -82,51 +88,6 @@ pub async fn evaluate(pool: &PgPool, http: &reqwest::Client, universe: &Universe
                 }
             }
         }
-    }
-}
-
-/// Send one message, returning whether the failure was terminal.
-async fn send(
-    pool: &PgPool,
-    http: &reqwest::Client,
-    alert: &Alert,
-    embed: Embed,
-) -> Result<(), bool> {
-    let message = match alert.mention {
-        AlertMention::Role => match alert.discord_role_id.as_deref() {
-            Some(role) => Message::new(embed).mention_role(role),
-            None => Message::new(embed),
-        },
-        AlertMention::Everyone => Message::new(embed).mention_everyone(),
-        // Pinging the creator needs their Discord id, which arrives with account linking.
-        AlertMention::Creator | AlertMention::None => Message::new(embed),
-    };
-
-    match alert.delivery {
-        AlertDelivery::Webhook => {
-            let Some(url) = alert.webhook_url.as_deref() else {
-                return Err(true);
-            };
-            match post_webhook(http, url, &message).await {
-                Ok(()) => Ok(()),
-                Err(super::delivery::SendError::Gone) => Err(true),
-                Err(super::delivery::SendError::Failed(err)) => {
-                    super::log(
-                        pool,
-                        Some(alert.id),
-                        alert.map_id,
-                        None,
-                        "failed",
-                        Some(&err),
-                    )
-                    .await;
-                    Err(false)
-                }
-            }
-        }
-        // Bot deliveries are configured but not yet dispatchable; leaving the claim
-        // released means they start working the moment the bot lands.
-        AlertDelivery::DiscordDm | AlertDelivery::DiscordChannel => Err(false),
     }
 }
 

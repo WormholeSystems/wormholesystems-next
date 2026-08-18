@@ -17,6 +17,8 @@
 	import type { AlertMention } from '$lib/api/types/AlertMention';
 	import type { MapAlert } from '$lib/api/types/MapAlert';
 	import type { MapAlertEvent } from '$lib/api/types/MapAlertEvent';
+	import type { MapWebhook } from '$lib/api/types/MapWebhook';
+	import type { MapWebhookRole } from '$lib/api/types/MapWebhookRole';
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -25,11 +27,14 @@
 	import { timeAgo } from '$lib/format';
 	import { cn } from '$lib/utils';
 	import AlertForm from './AlertForm.svelte';
+	import DestinationsCard from './DestinationsCard.svelte';
 
 	const mapId = $derived(Number(page.params.id));
 
 	let alerts = $state<MapAlert[]>([]);
 	let events = $state<MapAlertEvent[]>([]);
+	let webhooks = $state<MapWebhook[]>([]);
+	let roles = $state<MapWebhookRole[]>([]);
 	let error = $state<string | null>(null);
 	let editing = $state<MapAlert | null>(null);
 	let creating = $state(false);
@@ -39,7 +44,12 @@
 
 	async function load() {
 		try {
-			[alerts, events] = await Promise.all([api.listAlerts(mapId), api.alertEvents(mapId)]);
+			[alerts, events, webhooks, roles] = await Promise.all([
+				api.listAlerts(mapId),
+				api.alertEvents(mapId),
+				api.listWebhooks(mapId),
+				api.listAlertRoles(mapId)
+			]);
 			error = null;
 			canManage = true;
 		} catch (err) {
@@ -100,16 +110,31 @@
 		delivery_failed: 'Too many failed deliveries'
 	};
 
+	const SHIP_LABEL: Record<string, string> = {
+		dreadnought: 'Dreadnought',
+		carrier: 'Carrier',
+		force_auxiliary: 'Force Auxiliary',
+		supercarrier: 'Supercarrier',
+		titan: 'Titan',
+		jump_freighter: 'Jump Freighter',
+		rorqual: 'Rorqual',
+		black_ops: 'Black Ops'
+	};
+
 	function summary(alert: MapAlert): string {
+		const target = alert.target_system_name ?? 'a system';
+		if (alert.kind === 'jump_range') {
+			const ship = SHIP_LABEL[alert.ship_type ?? ''] ?? 'a capital';
+			return `An exit within ${ship} range (JDC ${alert.jdc_level ?? 0}) of ${target}`;
+		}
+		const within = `within ${alert.max_jumps} ${alert.max_jumps === 1 ? 'jump' : 'jumps'}`;
 		if (alert.kind === 'killmail') {
 			const rules = alert.filters.length;
-			const within = `within ${alert.max_jumps} ${alert.max_jumps === 1 ? 'jump' : 'jumps'}`;
 			return rules === 0
 				? `Anything that dies ${within}`
 				: `${rules} ${rules === 1 ? 'filter' : 'filters'} (${alert.filter_match}), ${within}`;
 		}
-		const target = alert.target_system_name ?? 'a system';
-		return `${target} within ${alert.max_jumps} ${alert.max_jumps === 1 ? 'jump' : 'jumps'}`;
+		return `${target} ${within}`;
 	}
 </script>
 
@@ -158,6 +183,8 @@
 				{#key editing?.id ?? 'new'}
 					<AlertForm
 						alert={editing}
+						{webhooks}
+						{roles}
 						onsave={save}
 						oncancel={() => {
 							creating = false;
@@ -192,8 +219,11 @@
 							<span class="text-xs text-muted-foreground">{summary(alert)}</span>
 							<span class="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/70">
 								<span>{DELIVERY_LABEL[alert.delivery]}</span>
-								{#if alert.webhook_host}
-									<span class="font-mono">{alert.webhook_host}</span>
+								{#if alert.webhook_name}
+									<span>→ {alert.webhook_name}</span>
+								{/if}
+								{#if alert.mention === 'role' && alert.role_name}
+									<span>@{alert.role_name}</span>
 								{/if}
 								<span>·</span>
 								<span>{MENTION_LABEL[alert.mention]}</span>
@@ -238,6 +268,10 @@
 			{/each}
 		</Card.Content>
 	</Card.Root>
+
+	{#if canManage}
+		<DestinationsCard {mapId} {webhooks} {roles} onchange={load} />
+	{/if}
 
 	<Card.Root>
 		<Card.Header>

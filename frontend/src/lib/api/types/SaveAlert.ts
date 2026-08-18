@@ -2,11 +2,16 @@
 import type { AlertDelivery } from "./AlertDelivery";
 import type { AlertKind } from "./AlertKind";
 import type { AlertMention } from "./AlertMention";
+import type { JumpShip } from "./JumpShip";
 import type { Match } from "./Match";
 import type { Rule } from "./Rule";
 
 export type SaveAlert = { name: string, kind: AlertKind, delivery: AlertDelivery, 
 /**
- * Write-only. Absent on an update leaves the stored one alone.
+ * Which registered destination to post to.
  */
-webhook_url?: string, discord_guild_id?: string, discord_channel_id?: string, discord_role_id?: string, mention: AlertMention, target_solar_system_id?: number, max_jumps: number, filters: Array<Rule>, filter_match: Match, };
+map_webhook_id?: number, discord_guild_id?: string, discord_channel_id?: string, 
+/**
+ * Which registered role to ping.
+ */
+map_webhook_role_id?: number, mention: AlertMention, target_solar_system_id?: number, max_jumps: number, ship_type?: JumpShip, jdc_level?: number, filters: Array<Rule>, filter_match: Match, };

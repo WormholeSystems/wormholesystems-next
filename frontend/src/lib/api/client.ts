@@ -9,7 +9,11 @@ import type { CharacterRef } from './types/CharacterRef';
 import type { DiscordAccount } from './types/DiscordAccount';
 import type { MapAlert } from './types/MapAlert';
 import type { MapAlertEvent } from './types/MapAlertEvent';
+import type { MapWebhook } from './types/MapWebhook';
+import type { MapWebhookRole } from './types/MapWebhookRole';
 import type { SaveAlert } from './types/SaveAlert';
+import type { SaveRole } from './types/SaveRole';
+import type { SaveWebhook } from './types/SaveWebhook';
 import type { ScopeStatus } from './types/ScopeStatus';
 import type { ConnectionJump } from './types/ConnectionJump';
 import type { CharacterStatus } from './types/CharacterStatus';
@@ -237,6 +241,16 @@ export const api = {
 	// --- Discord alerts ---
 	listAlerts: (mapId: number) => get<MapAlert[]>(`/api/maps/${mapId}/alerts`),
 	alertEvents: (mapId: number) => get<MapAlertEvent[]>(`/api/maps/${mapId}/alerts/events`),
+	listWebhooks: (mapId: number) => get<MapWebhook[]>(`/api/maps/${mapId}/webhooks`),
+	createWebhook: (mapId: number, body: SaveWebhook) =>
+		post<MapWebhook>(`/api/maps/${mapId}/webhooks`, body),
+	deleteWebhook: (mapId: number, webhookId: number) =>
+		del<null>(`/api/maps/${mapId}/webhooks/${webhookId}`),
+	listAlertRoles: (mapId: number) => get<MapWebhookRole[]>(`/api/maps/${mapId}/roles`),
+	createAlertRole: (mapId: number, body: SaveRole) =>
+		post<MapWebhookRole>(`/api/maps/${mapId}/roles`, body),
+	deleteAlertRole: (mapId: number, roleId: number) =>
+		del<null>(`/api/maps/${mapId}/roles/${roleId}`),
 	createAlert: (mapId: number, body: SaveAlert) =>
 		post<MapAlert>(`/api/maps/${mapId}/alerts`, body),
 	updateAlert: (mapId: number, alertId: number, body: SaveAlert) =>

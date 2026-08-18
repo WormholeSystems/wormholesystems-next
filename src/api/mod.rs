@@ -613,6 +613,22 @@ pub fn router() -> Router<AppState> {
             get(alerts::list_alerts).post(alerts::create_alert),
         )
         .route(
+            "/api/maps/{id}/webhooks",
+            get(alerts::list_webhooks).post(alerts::create_webhook),
+        )
+        .route(
+            "/api/maps/{id}/webhooks/{webhook_id}",
+            axum::routing::delete(alerts::delete_webhook),
+        )
+        .route(
+            "/api/maps/{id}/roles",
+            get(alerts::list_roles).post(alerts::create_role),
+        )
+        .route(
+            "/api/maps/{id}/roles/{role_id}",
+            axum::routing::delete(alerts::delete_role),
+        )
+        .route(
             "/api/maps/{id}/alerts/events",
             get(alerts::list_alert_events),
         )

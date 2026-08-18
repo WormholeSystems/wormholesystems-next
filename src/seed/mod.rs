@@ -263,8 +263,8 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
 
     let n = bulk!(
         tx,
-        "solar_systems (id, constellation_id, region_id, name, security_status, security_class, faction_id, wormhole_class_id, star_id)",
-        "on conflict (id) do update set constellation_id = excluded.constellation_id, region_id = excluded.region_id, name = excluded.name, security_status = excluded.security_status, security_class = excluded.security_class, faction_id = excluded.faction_id, wormhole_class_id = excluded.wormhole_class_id, star_id = excluded.star_id",
+        "solar_systems (id, constellation_id, region_id, name, security_status, security_class, faction_id, wormhole_class_id, star_id, pos_x, pos_y, pos_z)",
+        "on conflict (id) do update set constellation_id = excluded.constellation_id, region_id = excluded.region_id, name = excluded.name, security_status = excluded.security_status, security_class = excluded.security_class, faction_id = excluded.faction_id, wormhole_class_id = excluded.wormhole_class_id, star_id = excluded.star_id, pos_x = excluded.pos_x, pos_y = excluded.pos_y, pos_z = excluded.pos_z",
         &solar_systems,
         |b, s| {
             b.push_bind(s.id as i64)
@@ -276,6 +276,11 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
                 .push_bind(s.faction_id.map(|v| v as i64))
                 .push_bind(s.wormhole_class_id)
                 .push_bind(s.star_id.map(|v| v as i64))
+                // Metres from the galactic centre. Only jump range reads them, and only as
+                // a distance between two systems, so the units never surface.
+                .push_bind(s.position.x)
+                .push_bind(s.position.y)
+                .push_bind(s.position.z)
         }
     );
     println!("solar_systems: {n}");

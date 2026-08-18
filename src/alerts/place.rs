@@ -9,15 +9,16 @@
 
 use sqlx::PgPool;
 
-use super::delivery::{Embed, Field, Message, post_webhook, security_color};
+use super::delivery::{Embed, Field, security_color};
 use super::killmail::chain_of;
 use super::proximity::{self, Universe};
-use super::{Alert, AlertDelivery, AlertKind, AlertMention, DisabledReason};
+use super::{Alert, AlertKind, DisabledReason};
 
 /// Evaluate every proximity alert on a map after a system landed on it.
 pub async fn evaluate(
     pool: &PgPool,
     http: &reqwest::Client,
+    bot_token: Option<&str>,
     universe: &Universe,
     map_id: i64,
     map_solar_system_id: i64,
@@ -72,7 +73,7 @@ pub async fn evaluate(
             added.as_ref().map(|row| row.name.as_str()),
             map_id,
         );
-        match send(pool, http, alert, embed).await {
+        match super::deliver(pool, http, bot_token, alert, embed).await {
             Ok(()) => super::sent(pool, alert.id, &key).await,
             Err(fatal) => {
                 super::unclaim(pool, alert.id, &key).await;
@@ -81,46 +82,6 @@ pub async fn evaluate(
                 }
             }
         }
-    }
-}
-
-async fn send(
-    pool: &PgPool,
-    http: &reqwest::Client,
-    alert: &Alert,
-    embed: Embed,
-) -> Result<(), bool> {
-    let message = match alert.mention {
-        AlertMention::Role => match alert.discord_role_id.as_deref() {
-            Some(role) => Message::new(embed).mention_role(role),
-            None => Message::new(embed),
-        },
-        AlertMention::Everyone => Message::new(embed).mention_everyone(),
-        AlertMention::Creator | AlertMention::None => Message::new(embed),
-    };
-    match alert.delivery {
-        AlertDelivery::Webhook => {
-            let Some(url) = alert.webhook_url.as_deref() else {
-                return Err(true);
-            };
-            match post_webhook(http, url, &message).await {
-                Ok(()) => Ok(()),
-                Err(super::delivery::SendError::Gone) => Err(true),
-                Err(super::delivery::SendError::Failed(err)) => {
-                    super::log(
-                        pool,
-                        Some(alert.id),
-                        alert.map_id,
-                        None,
-                        "failed",
-                        Some(&err),
-                    )
-                    .await;
-                    Err(false)
-                }
-            }
-        }
-        AlertDelivery::DiscordDm | AlertDelivery::DiscordChannel => Err(false),
     }
 }
 

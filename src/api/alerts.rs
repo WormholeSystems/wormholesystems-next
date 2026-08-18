@@ -10,6 +10,7 @@ use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+use crate::alerts::ships::JumpShip;
 use crate::alerts::{AlertDelivery, AlertKind, AlertMention, filters};
 use crate::auth::AppState;
 use crate::maps::{MapError, Role};
@@ -25,20 +26,26 @@ pub struct MapAlert {
     pub name: String,
     pub kind: AlertKind,
     pub delivery: AlertDelivery,
-    /// Never the URL itself: it is a bearer token for someone's channel, and an alert
-    /// list is read by everyone with Manager, not just whoever pasted it in.
     #[ts(optional)]
-    pub webhook_host: Option<String>,
+    pub map_webhook_id: Option<i64>,
+    #[ts(optional)]
+    pub webhook_name: Option<String>,
     #[ts(optional)]
     pub discord_channel_id: Option<String>,
     #[ts(optional)]
-    pub discord_role_id: Option<String>,
+    pub map_webhook_role_id: Option<i64>,
+    #[ts(optional)]
+    pub role_name: Option<String>,
     pub mention: AlertMention,
     #[ts(optional)]
     pub target_solar_system_id: Option<i64>,
     #[ts(optional)]
     pub target_system_name: Option<String>,
     pub max_jumps: i32,
+    #[ts(optional)]
+    pub ship_type: Option<JumpShip>,
+    #[ts(optional)]
+    pub jdc_level: Option<i32>,
     pub filters: Vec<filters::Rule>,
     pub filter_match: filters::Match,
     pub is_active: bool,
@@ -87,13 +94,18 @@ pub async fn list_alerts(
 
 async fn load(pool: &PgPool, map_id: i64) -> Result<Vec<MapAlert>, ApiError> {
     let rows = sqlx::query!(
-        r#"select a.id, a.map_id, a.name, a.kind, a.delivery, a.webhook_url,
-                  a.discord_channel_id, a.discord_role_id, a.mention,
-                  a.target_solar_system_id, ss.name as "target_system_name?",
-                  a.max_jumps, a.filters, a.filter_match, a.is_active,
+        r#"select a.id, a.map_id, a.name, a.kind, a.delivery,
+                  a.map_webhook_id, w.name as "webhook_name?",
+                  a.discord_channel_id,
+                  a.map_webhook_role_id, r.name as "role_name?",
+                  a.mention, a.target_solar_system_id, ss.name as "target_system_name?",
+                  a.max_jumps, a.ship_type, a.jdc_level,
+                  a.filters, a.filter_match, a.is_active,
                   a.disabled_reason, a.last_fired_at, a.created_at
            from map_alerts a
            left join solar_systems ss on ss.id = a.target_solar_system_id
+           left join map_webhooks w on w.id = a.map_webhook_id
+           left join map_webhook_roles r on r.id = a.map_webhook_role_id
            where a.map_id = $1
            order by a.id"#,
         map_id,
@@ -108,13 +120,17 @@ async fn load(pool: &PgPool, map_id: i64) -> Result<Vec<MapAlert>, ApiError> {
             name: row.name,
             kind: AlertKind::parse(&row.kind).unwrap_or(AlertKind::Killmail),
             delivery: AlertDelivery::parse(&row.delivery).unwrap_or(AlertDelivery::Webhook),
-            webhook_host: row.webhook_url.as_deref().map(webhook_host),
+            map_webhook_id: row.map_webhook_id,
+            webhook_name: row.webhook_name,
             discord_channel_id: row.discord_channel_id,
-            discord_role_id: row.discord_role_id,
+            map_webhook_role_id: row.map_webhook_role_id,
+            role_name: row.role_name,
             mention: AlertMention::parse(&row.mention).unwrap_or(AlertMention::None),
             target_solar_system_id: row.target_solar_system_id,
             target_system_name: row.target_system_name,
             max_jumps: row.max_jumps,
+            ship_type: row.ship_type.as_deref().and_then(JumpShip::parse),
+            jdc_level: row.jdc_level,
             filters: serde_json::from_value(row.filters).unwrap_or_default(),
             filter_match: filters::Match::parse(&row.filter_match).unwrap_or(filters::Match::Any),
             is_active: row.is_active,
@@ -125,21 +141,242 @@ async fn load(pool: &PgPool, map_id: i64) -> Result<Vec<MapAlert>, ApiError> {
         .collect())
 }
 
-/// Enough of the URL to tell two destinations apart, without handing over either.
-fn webhook_host(url: &str) -> String {
+/// A registered destination, named once and pointed at by any number of alerts.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct MapWebhook {
+    pub id: i64,
+    pub name: String,
+    /// Enough of the URL to tell two destinations apart, never enough to use one. The URL
+    /// is a bearer token for somebody's channel, and this list is read by every manager.
+    pub summary: String,
+    /// How many alerts would stop working if this were deleted.
+    pub alert_count: i64,
+}
+
+/// A registered role, so alerts ping "Scouts" rather than 1189734502938472.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct MapWebhookRole {
+    pub id: i64,
+    pub name: String,
+    pub discord_role_id: String,
+}
+
+fn webhook_summary(url: &str) -> String {
     let rest = url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
     let host = rest.split('/').next().unwrap_or(rest);
-    // The id is public-ish and stable; the token after it is the secret.
+    // The id is stable and public-ish; the token after it is the secret.
     let id = rest
         .split('/')
         .nth(3)
-        .filter(|part| part.chars().all(|c| c.is_ascii_digit()) && !part.is_empty());
+        .filter(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()));
     match id {
         Some(id) => format!("{host}/…/{id}"),
         None => host.to_string(),
     }
+}
+
+/// `GET /api/maps/{id}/webhooks` — the map's destinations. Manager+.
+pub async fn list_webhooks(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<MapWebhook>> {
+    require_manager(&state, &jar, map_id).await?;
+    let rows = sqlx::query!(
+        r#"select w.id, w.name, w.url,
+                  (select count(*) from map_alerts a where a.map_webhook_id = w.id) as "alert_count!"
+           from map_webhooks w where w.map_id = $1 order by w.name"#,
+        map_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| MapWebhook {
+                id: row.id,
+                name: row.name,
+                summary: webhook_summary(&row.url),
+                alert_count: row.alert_count,
+            })
+            .collect(),
+    ))
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SaveWebhook {
+    pub name: String,
+    /// Write-only. Absent on an update keeps the stored one.
+    #[serde(default)]
+    #[ts(optional)]
+    pub url: Option<String>,
+}
+
+/// `POST /api/maps/{id}/webhooks` — register a destination. Manager+.
+pub async fn create_webhook(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(body): Json<SaveWebhook>,
+) -> ApiResult<MapWebhook> {
+    let user_id = require_manager(&state, &jar, map_id).await?;
+    if body.name.trim().is_empty() {
+        return Err(ApiError::bad_request("give the destination a name"));
+    }
+    let Some(url) = body.url.as_deref().map(str::trim).filter(|u| !u.is_empty()) else {
+        return Err(ApiError::bad_request("paste the channel's webhook URL"));
+    };
+    if !url.starts_with("https://discord.com/api/webhooks/") {
+        return Err(ApiError::bad_request("that is not a Discord webhook URL"));
+    }
+    let id = sqlx::query_scalar!(
+        "insert into map_webhooks (map_id, name, url) values ($1, $2, $3)
+         on conflict (map_id, name) do update set url = excluded.url, updated_at = now()
+         returning id",
+        map_id,
+        body.name.trim(),
+        url,
+    )
+    .fetch_one(&state.db)
+    .await?;
+    crate::alerts::log(
+        &state.db,
+        None,
+        map_id,
+        Some(user_id),
+        "destination",
+        Some(body.name.trim()),
+    )
+    .await;
+    Ok(Json(MapWebhook {
+        id,
+        name: body.name.trim().to_string(),
+        summary: webhook_summary(url),
+        alert_count: 0,
+    }))
+}
+
+/// `DELETE /api/maps/{id}/webhooks/{webhook_id}`. Manager+.
+///
+/// Alerts pointing at it go with it: an alert with nowhere to post is not an alert, and
+/// leaving it enabled-but-broken is worse than saying it is gone.
+pub async fn delete_webhook(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path((map_id, webhook_id)): Path<(i64, i64)>,
+) -> ApiResult<()> {
+    let user_id = require_manager(&state, &jar, map_id).await?;
+    let name = sqlx::query_scalar!(
+        "delete from map_webhooks where id = $1 and map_id = $2 returning name",
+        webhook_id,
+        map_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    let Some(name) = name else {
+        return Err(ApiError::from(MapError::NotFound));
+    };
+    crate::alerts::log(
+        &state.db,
+        None,
+        map_id,
+        Some(user_id),
+        "destination_deleted",
+        Some(&name),
+    )
+    .await;
+    Ok(Json(()))
+}
+
+/// `GET /api/maps/{id}/roles` — the map's named Discord roles. Manager+.
+pub async fn list_roles(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<Vec<MapWebhookRole>> {
+    require_manager(&state, &jar, map_id).await?;
+    let rows = sqlx::query!(
+        "select id, name, discord_role_id from map_webhook_roles
+         where map_id = $1 order by name",
+        map_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| MapWebhookRole {
+                id: row.id,
+                name: row.name,
+                discord_role_id: row.discord_role_id,
+            })
+            .collect(),
+    ))
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct SaveRole {
+    pub name: String,
+    pub discord_role_id: String,
+}
+
+/// `POST /api/maps/{id}/roles` — register a role to ping. Manager+.
+pub async fn create_role(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(body): Json<SaveRole>,
+) -> ApiResult<MapWebhookRole> {
+    require_manager(&state, &jar, map_id).await?;
+    let role_id = body.discord_role_id.trim();
+    if body.name.trim().is_empty() {
+        return Err(ApiError::bad_request("give the role a name"));
+    }
+    // Discord ids are snowflakes: decimal, and long. Anything else is a copy-paste slip.
+    if role_id.len() < 5 || !role_id.chars().all(|c| c.is_ascii_digit()) {
+        return Err(ApiError::bad_request(
+            "a Discord role id is a long number — right-click the role with developer mode on",
+        ));
+    }
+    let id = sqlx::query_scalar!(
+        "insert into map_webhook_roles (map_id, name, discord_role_id) values ($1, $2, $3)
+         on conflict (map_id, discord_role_id) do update set name = excluded.name
+         returning id",
+        map_id,
+        body.name.trim(),
+        role_id,
+    )
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(MapWebhookRole {
+        id,
+        name: body.name.trim().to_string(),
+        discord_role_id: role_id.to_string(),
+    }))
+}
+
+/// `DELETE /api/maps/{id}/roles/{role_id}`. Manager+.
+pub async fn delete_role(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path((map_id, role_id)): Path<(i64, i64)>,
+) -> ApiResult<()> {
+    require_manager(&state, &jar, map_id).await?;
+    let deleted = sqlx::query!(
+        "delete from map_webhook_roles where id = $1 and map_id = $2",
+        role_id,
+        map_id,
+    )
+    .execute(&state.db)
+    .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(ApiError::from(MapError::NotFound));
+    }
+    Ok(Json(()))
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
@@ -148,30 +385,69 @@ pub struct SaveAlert {
     pub name: String,
     pub kind: AlertKind,
     pub delivery: AlertDelivery,
-    /// Write-only. Absent on an update leaves the stored one alone.
+    /// Which registered destination to post to.
     #[serde(default)]
     #[ts(optional)]
-    pub webhook_url: Option<String>,
+    pub map_webhook_id: Option<i64>,
     #[serde(default)]
     #[ts(optional)]
     pub discord_guild_id: Option<String>,
     #[serde(default)]
     #[ts(optional)]
     pub discord_channel_id: Option<String>,
+    /// Which registered role to ping.
     #[serde(default)]
     #[ts(optional)]
-    pub discord_role_id: Option<String>,
+    pub map_webhook_role_id: Option<i64>,
     pub mention: AlertMention,
     #[serde(default)]
     #[ts(optional)]
     pub target_solar_system_id: Option<i64>,
     pub max_jumps: i32,
     #[serde(default)]
+    #[ts(optional)]
+    pub ship_type: Option<JumpShip>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub jdc_level: Option<i32>,
+    #[serde(default)]
     pub filters: Vec<filters::Rule>,
     pub filter_match: filters::Match,
 }
 
 impl SaveAlert {
+    /// A destination or role from another map would be a way to post into a Discord server
+    /// you were never given, so both are checked to belong here.
+    async fn check_belongs(&self, state: &AppState, map_id: i64) -> Result<(), ApiError> {
+        if let Some(id) = self.map_webhook_id {
+            let ok = sqlx::query_scalar!(
+                "select exists(select 1 from map_webhooks where id = $1 and map_id = $2)",
+                id,
+                map_id,
+            )
+            .fetch_one(&state.db)
+            .await?
+            .unwrap_or(false);
+            if !ok {
+                return Err(ApiError::bad_request("that destination is not on this map"));
+            }
+        }
+        if let Some(id) = self.map_webhook_role_id {
+            let ok = sqlx::query_scalar!(
+                "select exists(select 1 from map_webhook_roles where id = $1 and map_id = $2)",
+                id,
+                map_id,
+            )
+            .fetch_one(&state.db)
+            .await?
+            .unwrap_or(false);
+            if !ok {
+                return Err(ApiError::bad_request("that role is not on this map"));
+            }
+        }
+        Ok(())
+    }
+
     fn validate(&self) -> Result<(), ApiError> {
         if self.name.trim().is_empty() {
             return Err(ApiError::bad_request("an alert needs a name"));
@@ -181,9 +457,8 @@ impl SaveAlert {
         }
         match self.delivery {
             AlertDelivery::Webhook => {
-                let url = self.webhook_url.as_deref().unwrap_or("");
-                if !url.is_empty() && !url.starts_with("https://discord.com/api/webhooks/") {
-                    return Err(ApiError::bad_request("that is not a Discord webhook URL"));
+                if self.map_webhook_id.is_none() {
+                    return Err(ApiError::bad_request("pick a destination"));
                 }
             }
             AlertDelivery::DiscordChannel => {
@@ -193,7 +468,7 @@ impl SaveAlert {
             }
             AlertDelivery::DiscordDm => {}
         }
-        if self.mention == AlertMention::Role && self.discord_role_id.is_none() {
+        if self.mention == AlertMention::Role && self.map_webhook_role_id.is_none() {
             return Err(ApiError::bad_request("pick a role to mention"));
         }
         // Proximity and jump range are about a place; a killmail alert is about who.
@@ -201,6 +476,16 @@ impl SaveAlert {
             && self.target_solar_system_id.is_none()
         {
             return Err(ApiError::bad_request("pick a system to watch"));
+        }
+        if self.kind == AlertKind::JumpRange {
+            if self.ship_type.is_none() {
+                return Err(ApiError::bad_request(
+                    "pick the ship whose range to measure",
+                ));
+            }
+            if !(0..=5).contains(&self.jdc_level.unwrap_or(-1)) {
+                return Err(ApiError::bad_request("JDC level must be between 0 and 5"));
+            }
         }
         Ok(())
     }
@@ -215,28 +500,28 @@ pub async fn create_alert(
 ) -> ApiResult<MapAlert> {
     let user_id = require_manager(&state, &jar, map_id).await?;
     body.validate()?;
-    if body.delivery == AlertDelivery::Webhook && body.webhook_url.is_none() {
-        return Err(ApiError::bad_request("paste the channel's webhook URL"));
-    }
+    body.check_belongs(&state, map_id).await?;
     let id = sqlx::query_scalar!(
         "insert into map_alerts
-             (map_id, created_by_user_id, name, kind, delivery, webhook_url,
-              discord_guild_id, discord_channel_id, discord_role_id, mention,
-              target_solar_system_id, max_jumps, filters, filter_match)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+             (map_id, created_by_user_id, name, kind, delivery, map_webhook_id,
+              discord_guild_id, discord_channel_id, map_webhook_role_id, mention,
+              target_solar_system_id, max_jumps, ship_type, jdc_level, filters, filter_match)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          returning id",
         map_id,
         user_id,
         body.name.trim(),
         body.kind.as_str(),
         body.delivery.as_str(),
-        body.webhook_url,
+        body.map_webhook_id,
         body.discord_guild_id,
         body.discord_channel_id,
-        body.discord_role_id,
+        body.map_webhook_role_id,
         body.mention.as_str(),
         body.target_solar_system_id,
         body.max_jumps,
+        body.ship_type.map(|s| s.as_str()),
+        body.jdc_level,
         serde_json::to_value(&body.filters).unwrap_or_else(|_| serde_json::json!([])),
         body.filter_match.as_str(),
     )
@@ -255,26 +540,29 @@ pub async fn update_alert(
 ) -> ApiResult<MapAlert> {
     let user_id = require_manager(&state, &jar, map_id).await?;
     body.validate()?;
+    body.check_belongs(&state, map_id).await?;
     let updated = sqlx::query!(
         "update map_alerts set
-             name = $3, kind = $4, delivery = $5,
-             webhook_url = coalesce($6, webhook_url),
-             discord_guild_id = $7, discord_channel_id = $8, discord_role_id = $9,
+             name = $3, kind = $4, delivery = $5, map_webhook_id = $6,
+             discord_guild_id = $7, discord_channel_id = $8, map_webhook_role_id = $9,
              mention = $10, target_solar_system_id = $11, max_jumps = $12,
-             filters = $13, filter_match = $14, updated_at = now()
+             ship_type = $13, jdc_level = $14,
+             filters = $15, filter_match = $16, updated_at = now()
          where id = $1 and map_id = $2",
         alert_id,
         map_id,
         body.name.trim(),
         body.kind.as_str(),
         body.delivery.as_str(),
-        body.webhook_url,
+        body.map_webhook_id,
         body.discord_guild_id,
         body.discord_channel_id,
-        body.discord_role_id,
+        body.map_webhook_role_id,
         body.mention.as_str(),
         body.target_solar_system_id,
         body.max_jumps,
+        body.ship_type.map(|s| s.as_str()),
+        body.jdc_level,
         serde_json::to_value(&body.filters).unwrap_or_else(|_| serde_json::json!([])),
         body.filter_match.as_str(),
     )
@@ -433,7 +721,7 @@ mod tests {
     #[test]
     fn a_webhook_is_summarised_without_its_token() {
         let url = "https://discord.com/api/webhooks/123456/verysecrettoken";
-        let shown = webhook_host(url);
+        let shown = webhook_summary(url);
         assert!(shown.contains("discord.com"));
         assert!(shown.contains("123456"));
         assert!(!shown.contains("verysecrettoken"));

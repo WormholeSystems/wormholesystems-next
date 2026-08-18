@@ -108,7 +108,8 @@ async fn main() {
 
     // Background: Discord alerts. One runtime shared by everything that can fire one; the
     // stargate graph it holds is the expensive part and is the same for all of them.
-    let alerts = match vector::alerts::Runtime::load(&db).await {
+    let bot_token = config.discord.as_ref().and_then(|d| d.bot_token.clone());
+    let alerts = match vector::alerts::Runtime::load(&db, bot_token).await {
         Ok(runtime) => Some(Arc::new(runtime)),
         Err(err) => {
             eprintln!("alerts disabled, could not load the stargate graph: {err}");

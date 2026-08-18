@@ -11,9 +11,11 @@
 
 pub mod delivery;
 pub mod filters;
+pub mod jump_range;
 pub mod killmail;
 pub mod place;
 pub mod proximity;
+pub mod ships;
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -25,11 +27,14 @@ use sqlx::PgPool;
 pub struct Runtime {
     universe: proximity::Universe,
     http: reqwest::Client,
+    /// Absent unless a bot is configured; only channel and direct-message delivery need it.
+    bot_token: Option<String>,
 }
 
 impl Runtime {
-    pub async fn load(pool: &PgPool) -> sqlx::Result<Runtime> {
+    pub async fn load(pool: &PgPool, bot_token: Option<String>) -> sqlx::Result<Runtime> {
         Ok(Runtime {
+            bot_token,
             universe: proximity::Universe::load(pool).await?,
             http: reqwest::Client::builder()
                 .user_agent(concat!(
@@ -43,21 +48,30 @@ impl Runtime {
         })
     }
 
-    /// Offer a kill to every alert watching for one.
-    pub async fn killmail(&self, pool: &PgPool, kill: &killmail::Kill) {
-        killmail::evaluate(pool, &self.http, &self.universe, kill).await;
+    fn token(&self) -> Option<&str> {
+        self.bot_token.as_deref()
     }
 
-    /// Re-evaluate a map's proximity alerts after its shape changed.
+    /// Offer a kill to every alert watching for one.
+    pub async fn killmail(&self, pool: &PgPool, kill: &killmail::Kill) {
+        killmail::evaluate(pool, &self.http, self.token(), &self.universe, kill).await;
+    }
+
+    /// Re-evaluate a map's alerts after its shape changed.
+    ///
+    /// Both kinds that watch the map fire from here: a new system can put a target within
+    /// gate range, within jump range, or neither.
     pub async fn placed(&self, pool: &PgPool, map_id: i64, map_solar_system_id: i64) {
         place::evaluate(
             pool,
             &self.http,
+            self.token(),
             &self.universe,
             map_id,
             map_solar_system_id,
         )
         .await;
+        jump_range::evaluate(pool, &self.http, self.token(), map_id, map_solar_system_id).await;
     }
 }
 
@@ -222,13 +236,18 @@ pub struct Alert {
     pub name: String,
     pub kind: AlertKind,
     pub delivery: AlertDelivery,
+    /// Resolved from the named destination the alert points at.
     pub webhook_url: Option<String>,
     pub discord_guild_id: Option<String>,
     pub discord_channel_id: Option<String>,
+    /// Resolved from the named role the alert points at.
     pub discord_role_id: Option<String>,
     pub mention: AlertMention,
     pub target_solar_system_id: Option<i64>,
     pub max_jumps: i32,
+    /// Jump range only: which hull's range is being measured, and the pilot's JDC level.
+    pub ship_type: Option<ships::JumpShip>,
+    pub jdc_level: Option<i32>,
     pub filters: Vec<filters::Rule>,
     pub filter_match: filters::Match,
     pub is_active: bool,
@@ -240,12 +259,17 @@ pub struct Alert {
 /// and there are tens of alerts in total, not thousands.
 pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> {
     let rows = sqlx::query!(
-        r#"select id, map_id, created_by_user_id, name, kind, delivery, webhook_url,
-                  discord_guild_id, discord_channel_id, discord_role_id, mention,
-                  target_solar_system_id, max_jumps, filters, filter_match, is_active
-           from map_alerts
-           where kind = $1 and is_active
-           order by id"#,
+        r#"select a.id, a.map_id, a.created_by_user_id, a.name, a.kind, a.delivery,
+                  w.url as "webhook_url?",
+                  a.discord_guild_id, a.discord_channel_id,
+                  r.discord_role_id as "discord_role_id?",
+                  a.mention, a.target_solar_system_id, a.max_jumps, a.ship_type, a.jdc_level,
+                  a.filters, a.filter_match, a.is_active
+           from map_alerts a
+           left join map_webhooks w on w.id = a.map_webhook_id
+           left join map_webhook_roles r on r.id = a.map_webhook_role_id
+           where a.kind = $1 and a.is_active
+           order by a.id"#,
         kind.as_str(),
     )
     .fetch_all(pool)
@@ -266,11 +290,110 @@ pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> 
             mention: AlertMention::parse(&row.mention).unwrap_or(AlertMention::None),
             target_solar_system_id: row.target_solar_system_id,
             max_jumps: row.max_jumps,
+            ship_type: row.ship_type.as_deref().and_then(ships::JumpShip::parse),
+            jdc_level: row.jdc_level,
             filters: serde_json::from_value(row.filters).unwrap_or_default(),
             filter_match: filters::Match::parse(&row.filter_match).unwrap_or(filters::Match::Any),
             is_active: row.is_active,
         })
         .collect())
+}
+
+/// Send one alert's message, wherever it is meant to go.
+///
+/// `Err(true)` means the destination is gone and the alert should stop; `Err(false)` means
+/// try again next time. The three delivery types differ only in where the message is
+/// addressed, so the mention, the retry and the rate limiting are decided once here.
+pub async fn deliver(
+    pool: &PgPool,
+    http: &reqwest::Client,
+    bot_token: Option<&str>,
+    alert: &Alert,
+    embed: delivery::Embed,
+) -> Result<(), bool> {
+    // Checked at send time rather than hooked to every access change: access can be lost in
+    // half a dozen ways (a role revoked, a character moved corp, a whole grant deleted),
+    // and this is the one place that must be right.
+    if let Some(creator) = alert.created_by_user_id
+        && !can_still_see(pool, alert.map_id, creator).await
+    {
+        disable(pool, alert, DisabledReason::AccessRevoked, None).await;
+        return Err(false);
+    }
+
+    let creator_discord = match alert.created_by_user_id {
+        Some(user_id) => crate::discord::account_for(pool, user_id)
+            .await
+            .map(|a| a.discord_user_id),
+        None => None,
+    };
+
+    let message = match alert.mention {
+        AlertMention::Role => match alert.discord_role_id.as_deref() {
+            Some(role) => delivery::Message::new(embed).mention_role(role),
+            None => delivery::Message::new(embed),
+        },
+        AlertMention::Everyone => delivery::Message::new(embed).mention_everyone(),
+        AlertMention::Creator => match creator_discord.as_deref() {
+            Some(user) => delivery::Message::new(embed).mention_user(user),
+            // Asking to ping someone who has not linked is not a broken destination, just
+            // a message without a ping.
+            None => delivery::Message::new(embed),
+        },
+        AlertMention::None => delivery::Message::new(embed),
+    };
+
+    let result = match alert.delivery {
+        AlertDelivery::Webhook => match alert.webhook_url.as_deref() {
+            Some(url) => delivery::post_webhook(http, url, &message).await,
+            None => return Err(true),
+        },
+        AlertDelivery::DiscordChannel => {
+            match (bot_token, alert.discord_channel_id.as_deref()) {
+                (Some(token), Some(channel)) => {
+                    delivery::post_channel(http, token, channel, &message).await
+                }
+                // No bot configured is an operator problem, not a broken alert: leave it
+                // active so it starts working when the token appears.
+                (None, _) => return Err(false),
+                (_, None) => return Err(true),
+            }
+        }
+        AlertDelivery::DiscordDm => match (bot_token, creator_discord.as_deref()) {
+            (Some(token), Some(user)) => delivery::post_dm(http, token, user, &message).await,
+            (None, _) => return Err(false),
+            (_, None) => {
+                disable(pool, alert, DisabledReason::DiscordUnlinked, None).await;
+                return Err(false);
+            }
+        },
+    };
+
+    match result {
+        Ok(()) => Ok(()),
+        Err(delivery::SendError::Gone) => Err(true),
+        Err(delivery::SendError::Failed(err)) => {
+            log(
+                pool,
+                Some(alert.id),
+                alert.map_id,
+                None,
+                "failed",
+                Some(&err),
+            )
+            .await;
+            Err(false)
+        }
+    }
+}
+
+/// Whether the alert's creator can still see the map it watches.
+async fn can_still_see(pool: &PgPool, map_id: i64, user_id: i64) -> bool {
+    crate::maps::access::effective_role(pool, map_id, user_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
 }
 
 /// Claim the right to deliver this alert for this occasion.

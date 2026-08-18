@@ -9,12 +9,23 @@ use vector::alerts::filters::{Candidates, Match, Mode, Rule, Side, Subject};
 use vector::alerts::{self, AlertKind};
 
 async fn make_alert(pool: &PgPool, map_id: i64, kind: &str) -> i64 {
+    let webhook = sqlx::query_scalar!(
+        "insert into map_webhooks (map_id, name, url)
+         values ($1, 'Test channel', 'https://discord.com/api/webhooks/1/x')
+         on conflict (map_id, name) do update set url = excluded.url
+         returning id",
+        map_id,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
     sqlx::query_scalar!(
-        "insert into map_alerts (map_id, name, kind, delivery, webhook_url, max_jumps)
-         values ($1, 'Test', $2, 'webhook', 'https://discord.com/api/webhooks/1/x', 5)
+        "insert into map_alerts (map_id, name, kind, delivery, map_webhook_id, max_jumps)
+         values ($1, 'Test', $2, 'webhook', $3, 5)
          returning id",
         map_id,
         kind,
+        webhook,
     )
     .fetch_one(pool)
     .await

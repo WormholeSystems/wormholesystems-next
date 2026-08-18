@@ -48,12 +48,21 @@ async fn unlinking_stops_the_alerts_that_needed_it(pool: PgPool) {
     .await
     .unwrap();
     // A webhook alert needs no Discord account, so it must survive.
+    let destination = sqlx::query_scalar!(
+        "insert into map_webhooks (map_id, name, url)
+         values ($1, 'Channel', 'https://discord.com/api/webhooks/1/x') returning id",
+        w.map_id,
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     let webhook = sqlx::query_scalar!(
-        "insert into map_alerts (map_id, created_by_user_id, name, kind, delivery, webhook_url, max_jumps)
-         values ($1, $2, 'Channel', 'killmail', 'webhook', 'https://discord.com/api/webhooks/1/x', 5)
+        "insert into map_alerts (map_id, created_by_user_id, name, kind, delivery, map_webhook_id, max_jumps)
+         values ($1, $2, 'Channel', 'killmail', 'webhook', $3, 5)
          returning id",
         w.map_id,
         w.owner.user_id,
+        destination,
     )
     .fetch_one(&pool)
     .await

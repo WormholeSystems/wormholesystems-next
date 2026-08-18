@@ -2,15 +2,11 @@
 import type { AlertDelivery } from "./AlertDelivery";
 import type { AlertKind } from "./AlertKind";
 import type { AlertMention } from "./AlertMention";
+import type { JumpShip } from "./JumpShip";
 import type { Match } from "./Match";
 import type { Rule } from "./Rule";
 
 /**
  * One alert as the settings page shows it.
  */
-export type MapAlert = { id: number, map_id: number, name: string, kind: AlertKind, delivery: AlertDelivery, 
-/**
- * Never the URL itself: it is a bearer token for someone's channel, and an alert
- * list is read by everyone with Manager, not just whoever pasted it in.
- */
-webhook_host?: string, discord_channel_id?: string, discord_role_id?: string, mention: AlertMention, target_solar_system_id?: number, target_system_name?: string, max_jumps: number, filters: Array<Rule>, filter_match: Match, is_active: boolean, disabled_reason?: string, last_fired_at?: string, created_at: string, };
+export type MapAlert = { id: number, map_id: number, name: string, kind: AlertKind, delivery: AlertDelivery, map_webhook_id?: number, webhook_name?: string, discord_channel_id?: string, map_webhook_role_id?: number, role_name?: string, mention: AlertMention, target_solar_system_id?: number, target_system_name?: string, max_jumps: number, ship_type?: JumpShip, jdc_level?: number, filters: Array<Rule>, filter_match: Match, is_active: boolean, disabled_reason?: string, last_fired_at?: string, created_at: string, };
