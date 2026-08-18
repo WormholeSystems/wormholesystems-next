@@ -92,6 +92,26 @@ pub async fn me_status(
     })))
 }
 
+/// `GET /api/me/scopes` — every ESI permission the app can use, and whether the acting
+/// character has granted it. Always the full list, in a fixed order: the introduction shows
+/// what is missing as prominently as what is there.
+pub async fn my_scopes(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> ApiResult<Vec<crate::api::ScopeStatus>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let granted = crate::auth::granted_scopes(&state.db, actor.character_id).await;
+    Ok(Json(
+        crate::esi::scopes::Scope::ALL
+            .iter()
+            .map(|scope| crate::api::ScopeStatus {
+                scope: scope.as_str().to_string(),
+                granted: granted.contains(scope),
+            })
+            .collect(),
+    ))
+}
+
 /// `GET /api/me/characters` — the user's characters, marking the active one.
 pub async fn my_characters(
     State(state): State<AppState>,
@@ -862,6 +882,7 @@ pub async fn map_user_settings(
                   route_allow_time_status, route_allow_mass_status, route_use_evescout,
                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                   is_archived, (setup_dismissed_at is not null) as "setup_dismissed!",
+                  (introduction_confirmed_at is not null) as "introduction_confirmed!",
                   hidden_panels, layout_breakpoints
            from map_user_settings where map_id = $1 and user_id = $2"#,
         map_id,
@@ -886,6 +907,7 @@ pub async fn map_user_settings(
             killmail_filter: r.killmail_filter,
             is_archived: r.is_archived,
             setup_dismissed: r.setup_dismissed,
+            introduction_confirmed: r.introduction_confirmed,
             hidden_panels: r.hidden_panels,
             layout_breakpoints: r
                 .layout_breakpoints
@@ -909,6 +931,7 @@ pub async fn map_user_settings(
             killmail_filter: "all".into(),
             is_archived: false,
             setup_dismissed: false,
+            introduction_confirmed: false,
             hidden_panels: Vec::new(),
             layout_breakpoints: None,
         },
@@ -970,7 +993,7 @@ pub async fn update_map_user_settings(
               route_preference, security_penalty, route_allow_time_status,
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
               suggest_alias, copy_bookmark, killmail_filter, is_archived, setup_dismissed_at,
-              hidden_panels, layout_breakpoints)
+              introduction_confirmed_at, hidden_panels, layout_breakpoints)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
@@ -978,7 +1001,8 @@ pub async fn update_map_user_settings(
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
                  coalesce($15, 'all'), coalesce($16, false),
                  case when $17 then now() end,
-                 coalesce($18, '{}'::text[]), $19)
+                 case when $18 then now() end,
+                 coalesce($19, '{}'::text[]), $20)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -999,14 +1023,19 @@ pub async fn update_map_user_settings(
                  when $17 is null then map_user_settings.setup_dismissed_at
                  when $17 then now()
              end,
-             hidden_panels = coalesce($18, map_user_settings.hidden_panels),
-             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),
+             introduction_confirmed_at = case
+                 when $18 is null then map_user_settings.introduction_confirmed_at
+                 when $18 then now()
+             end,
+             hidden_panels = coalesce($19, map_user_settings.hidden_panels),
+             layout_breakpoints = coalesce($20, map_user_settings.layout_breakpoints),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
                    route_allow_time_status, route_allow_mass_status, route_use_evescout,
                    prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                    is_archived, (setup_dismissed_at is not null) as setup_dismissed,
+                   (introduction_confirmed_at is not null) as introduction_confirmed,
                    hidden_panels, layout_breakpoints",
         map_id,
         actor.user_id,
@@ -1025,6 +1054,7 @@ pub async fn update_map_user_settings(
         body.killmail_filter,
         body.is_archived,
         body.setup_dismissed,
+        body.introduction_confirmed,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
     )
@@ -1046,6 +1076,7 @@ pub async fn update_map_user_settings(
         killmail_filter: row.killmail_filter,
         is_archived: row.is_archived,
         setup_dismissed: row.setup_dismissed.unwrap_or(false),
+        introduction_confirmed: row.introduction_confirmed.unwrap_or(false),
         hidden_panels: row.hidden_panels,
         layout_breakpoints: row
             .layout_breakpoints

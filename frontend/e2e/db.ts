@@ -73,6 +73,25 @@ export async function grantAccess(
 			[mapId, characterId, role]
 		);
 	});
+	await skipIntroduction(mapId, characterId);
+}
+
+/**
+ * Mark the map's introduction as already seen by this character's user.
+ *
+ * It opens as a modal over the whole map for anyone who has not been through it, so every
+ * test that drives a map as a second identity needs it out of the way first. `gotoApp`
+ * does the same for the main one.
+ */
+export async function skipIntroduction(mapId: number, characterId: number) {
+	await withDb(async (db) => {
+		await db.query(
+			`insert into map_user_settings (map_id, user_id, introduction_confirmed_at)
+			 select $1, c.user_id, now() from characters c where c.id = $2 and c.user_id is not null
+			 on conflict (map_id, user_id) do update set introduction_confirmed_at = now()`,
+			[mapId, characterId]
+		);
+	});
 }
 
 /** Give a character a tracking-scoped token and an online status in a system. */
@@ -167,6 +186,42 @@ const LOCATION_SCOPES = [
 	'esi-location.read_ship_type.v1',
 	'esi-location.read_online.v1'
 ];
+
+/** Replace a character's granted ESI scopes with exactly `names`. */
+export async function setScopes(characterId: number, names: string[]) {
+	await withDb(async (db) => {
+		await db.query('delete from esi_tokens where character_id = $1', [characterId]);
+		const token = await db.query(
+			`insert into esi_tokens (character_id, refresh_token) values ($1, 'e2e-token')
+			 returning id`,
+			[characterId]
+		);
+		for (const name of names) {
+			const scope = await db.query(
+				`insert into esi_scopes (name) values ($1)
+				 on conflict (name) do update set name = excluded.name returning id`,
+				[name]
+			);
+			await db.query(
+				`insert into esi_token_scopes (token_id, scope_id) values ($1, $2)
+				 on conflict do nothing`,
+				[token.rows[0].id, scope.rows[0].id]
+			);
+		}
+	});
+}
+
+/** Undo `skipIntroduction`, so a granted identity meets the walkthrough after all. */
+export async function showIntroduction(mapId: number, characterId: number) {
+	await withDb(async (db) => {
+		await db.query(
+			`update map_user_settings set introduction_confirmed_at = null
+			 where map_id = $1
+			   and user_id = (select user_id from characters where id = $2)`,
+			[mapId, characterId]
+		);
+	});
+}
 
 /**
  * Give a character a token the tracking poller will actually use: unexpired, and carrying

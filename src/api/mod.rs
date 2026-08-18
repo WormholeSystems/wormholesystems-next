@@ -123,12 +123,22 @@ pub struct MapUserSettings {
     pub is_archived: bool,
     /// Whether this user has waved the setup guide away on this map.
     pub setup_dismissed: bool,
+    /// Whether this user has been through the map's introduction.
+    pub introduction_confirmed: bool,
     /// Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
     /// its saved position, so unhiding puts it back where it was.
     pub hidden_panels: Vec<String>,
     /// Per-breakpoint tile positions. `None` = the built-in arrangement.
     #[ts(optional)]
     pub layout_breakpoints: Option<PanelLayouts>,
+}
+
+/// One ESI permission and whether the acting character has consented to it.
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct ScopeStatus {
+    pub scope: String,
+    pub granted: bool,
 }
 
 /// Tile positions keyed by breakpoint (`xs` / `sm` / `md` / `lg`).
@@ -259,6 +269,10 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub setup_dismissed: Option<bool>,
+    /// Stamped server-side, like `setup_dismissed`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub introduction_confirmed: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
     pub hidden_panels: Option<Vec<String>>,
@@ -487,6 +501,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/me", get(h::me))
         .route("/api/me/status", get(h::me_status))
         .route("/api/me/characters", get(h::my_characters))
+        .route("/api/me/scopes", get(h::my_scopes))
         .route("/api/me/switch-character", post(h::switch_character))
         .route("/api/me/remove-character", post(h::remove_character))
         .route("/api/waypoints", post(h::set_waypoint))

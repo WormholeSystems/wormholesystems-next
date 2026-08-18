@@ -24,8 +24,26 @@ export const test = base.extend<{ api: import('@playwright/test').APIRequestCont
 
 export { expect } from '@playwright/test';
 
-/** Navigate and wait until the page is hydrated (controls are interactive). */
-export async function gotoApp(page: import('@playwright/test').Page, path: string) {
+/**
+ * Navigate and wait until the page is hydrated (controls are interactive).
+ *
+ * A map you have not been through the introduction on opens it as a modal over everything,
+ * so this marks it done first. Pass `{ introduction: true }` to leave it alone, which is
+ * what the introduction's own spec does.
+ */
+export async function gotoApp(
+	page: import('@playwright/test').Page,
+	path: string,
+	options: { introduction?: boolean } = {}
+) {
+	const map = /\/maps\/(\d+)(\?|$)/.exec(path);
+	if (map && !options.introduction) {
+		// The API is a different host from the app, so the context cookie is not sent with it.
+		await page.request.post(`http://127.0.0.1:3000/api/maps/${map[1]}/settings/user`, {
+			headers: { cookie: `vector_session=${E2E_SESSION}` },
+			data: { introduction_confirmed: true }
+		});
+	}
 	await page.goto(path);
 	await page.waitForSelector('html[data-hydrated="true"]');
 	// A map page holds a loader until its graph and panel arrangement have both arrived,

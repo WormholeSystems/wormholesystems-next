@@ -6,6 +6,7 @@ import type { AddConnectionJump } from './types/AddConnectionJump';
 import type { AddSignature } from './types/AddSignature';
 import type { AddSystem } from './types/AddSystem';
 import type { CharacterRef } from './types/CharacterRef';
+import type { ScopeStatus } from './types/ScopeStatus';
 import type { ConnectionJump } from './types/ConnectionJump';
 import type { CharacterStatus } from './types/CharacterStatus';
 import type { CharacterSummary } from './types/CharacterSummary';
@@ -112,6 +113,7 @@ export const api = {
 	me: () => get<CharacterSummary | null>('/api/me'),
 	meStatus: () => get<CharacterStatus | null>('/api/me/status'),
 	myCharacters: () => get<CharacterRef[]>('/api/me/characters'),
+	myScopes: () => get<ScopeStatus[]>('/api/me/scopes'),
 	switchCharacter: (characterId: number) =>
 		post<null>('/api/me/switch-character', { character_id: characterId }),
 	removeCharacter: (characterId: number) =>

@@ -64,9 +64,16 @@ impl Sso {
 
     /// `state` is the CSRF token the caller generates and verifies on the callback.
     pub fn authorize_url(&self, state: &str) -> String {
-        let scope = self
-            .config
-            .scopes
+        self.authorize_url_for(state, &self.config.scopes)
+    }
+
+    /// Consent for an explicit scope set, for topping up a character's permissions.
+    ///
+    /// The caller is responsible for including everything the character already granted:
+    /// SSO issues a token for exactly what is asked for, so consenting to one scope on its
+    /// own would quietly drop the rest.
+    pub fn authorize_url_for(&self, state: &str, scopes: &[Scope]) -> String {
+        let scope = scopes
             .iter()
             .map(|s| s.as_str())
             .collect::<Vec<_>>()

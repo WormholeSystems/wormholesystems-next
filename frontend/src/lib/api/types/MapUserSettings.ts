@@ -42,6 +42,10 @@ killmail_filter: string, is_archived: boolean,
  */
 setup_dismissed: boolean, 
 /**
+ * Whether this user has been through the map's introduction.
+ */
+introduction_confirmed: boolean, 
+/**
  * Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
  * its saved position, so unhiding puts it back where it was.
  */

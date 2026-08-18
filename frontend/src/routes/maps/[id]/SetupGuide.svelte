@@ -100,12 +100,14 @@
 
 	const remaining = $derived(steps.filter((s) => !s.done).length);
 	const dismissed = $derived(map.userSettings?.setup_dismissed ?? false);
+	// The introduction is a modal over the whole map; the checklist waits its turn.
+	const introduced = $derived(map.userSettings?.introduction_confirmed ?? false);
 
 	// Open while there is work left and nobody has waved it away. The override holds the
 	// open state directly, so the status-bar toggle can bring it back without having to
 	// un-dismiss it in the database.
 	let openOverride = $state<boolean | null>(null);
-	const open = $derived(openOverride ?? (!dismissed && remaining > 0));
+	const open = $derived(openOverride ?? (introduced && !dismissed && remaining > 0));
 
 	export function toggle() {
 		openOverride = !open;

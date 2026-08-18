@@ -9,6 +9,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::db::PgTokenStore;
+use crate::esi::scopes::Scope;
 use crate::esi::token::TokenStore;
 use crate::esi::{EsiClient, Sso};
 use crate::session;
@@ -49,34 +50,68 @@ pub struct LoginQuery {
     /// instead of resolving/creating an account.
     #[serde(default)]
     link: bool,
+    /// Comma-separated ESI scopes to ask for on top of what the signed-in character has
+    /// already granted. Unknown names are ignored rather than rejected.
+    #[serde(default)]
+    scopes: Option<String>,
+    /// Where to land afterwards, so topping up permissions returns to the map that asked.
+    #[serde(default)]
+    return_to: Option<String>,
+}
+
+/// Only our own pages. An absolute URL, or a protocol-relative `//host` that a browser
+/// would treat as one, would turn this into an open redirect.
+fn safe_return_to(path: &str) -> Option<String> {
+    let ok = path.starts_with('/') && !path.starts_with("//") && !path.contains('\\');
+    ok.then(|| path.to_string())
 }
 
 /// `GET /auth/login` — record a one-time CSRF `state` and redirect to the EVE SSO. With
-/// `?link=true` and an active session, the new character links to the current user.
+/// `?link=true` and an active session, the new character links to the current user;
+/// `?scopes=` re-consents for more permissions on the character already signed in.
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
     Query(query): Query<LoginQuery>,
 ) -> Response {
+    let actor = match jar.get(session::SESSION_COOKIE) {
+        Some(cookie) => session::actor_for_session(&state.db, cookie.value())
+            .await
+            .ok()
+            .flatten(),
+        None => None,
+    };
     let link_user_id: Option<i64> = if query.link {
-        match jar.get(session::SESSION_COOKIE) {
-            Some(cookie) => session::actor_for_session(&state.db, cookie.value())
-                .await
-                .ok()
-                .flatten()
-                .map(|actor| actor.user_id),
-            None => None,
-        }
+        actor.as_ref().map(|actor| actor.user_id)
     } else {
         None
     };
 
+    // Everything the acting character already consented to, plus whatever was asked for.
+    // SSO replaces the token wholesale, so leaving the existing scopes out of the request
+    // would revoke them.
+    let mut scopes: Vec<Scope> = Vec::new();
+    if let (Some(requested), Some(actor)) = (query.scopes.as_deref(), actor.as_ref()) {
+        for scope in granted_scopes(&state.db, actor.character_id).await {
+            scopes.push(scope);
+        }
+        for name in requested.split(',') {
+            if let Some(scope) = Scope::parse(name.trim())
+                && !scopes.contains(&scope)
+            {
+                scopes.push(scope);
+            }
+        }
+    }
+
+    let return_to = query.return_to.as_deref().and_then(safe_return_to);
     let csrf = Uuid::new_v4().to_string();
     if let Err(err) = sqlx::query!(
-        "insert into oauth_login_flows (state, link_user_id, expires_at)
-         values ($1, $2, now() + interval '10 minutes')",
+        "insert into oauth_login_flows (state, link_user_id, redirect_to, expires_at)
+         values ($1, $2, $3, now() + interval '10 minutes')",
         csrf,
         link_user_id,
+        return_to,
     )
     .execute(&state.db)
     .await
@@ -87,7 +122,28 @@ pub async fn login(
         )
             .into_response();
     }
-    Redirect::to(&state.auth.sso.authorize_url(&csrf)).into_response()
+    let url = if scopes.is_empty() {
+        state.auth.sso.authorize_url(&csrf)
+    } else {
+        state.auth.sso.authorize_url_for(&csrf, &scopes)
+    };
+    Redirect::to(&url).into_response()
+}
+
+/// The ESI scopes a character has consented to, across every token we hold for them.
+pub async fn granted_scopes(db: &sqlx::PgPool, character_id: i64) -> Vec<Scope> {
+    let names = sqlx::query_scalar!(
+        "select distinct s.name
+         from esi_tokens t
+         join esi_token_scopes ts on ts.token_id = t.id
+         join esi_scopes s on s.id = ts.scope_id
+         where t.character_id = $1",
+        character_id,
+    )
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+    names.iter().filter_map(|n| Scope::parse(n)).collect()
 }
 
 #[derive(Deserialize)]

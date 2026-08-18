@@ -41,6 +41,7 @@
 	import CommandPalette from './CommandPalette.svelte';
 	import LayoutToolbar from './panels/LayoutToolbar.svelte';
 	import PanelGrid from './panels/PanelGrid.svelte';
+	import IntroductionDialog from './IntroductionDialog.svelte';
 	import SetupGuide from './SetupGuide.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import TrackingDialog from './TrackingDialog.svelte';
@@ -528,6 +529,7 @@
 	}}
 >
 	<SetupGuide bind:this={setupGuide} {map} />
+	<IntroductionDialog {map} />
 
 	<!-- The transformed world: nodes + the connection overlay scale & pan together. -->
 	<div
