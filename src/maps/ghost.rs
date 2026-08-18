@@ -19,28 +19,158 @@ use super::error::{MapError, Result};
 use super::solar_system::{MapSolarSystem, unexpected};
 use super::{Actor, ConnectionType, WormholeSize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export)]
+/// Node width in world px, and the clear space kept between nodes, both mirroring
+/// `frontend/src/lib/map/helpers.ts`. The client owns layout for everything it anchors on
+/// a viewport; these exist so a node the *server* places lands on the same lattice.
+const NODE_WIDTH: f64 = 180.0;
+const NODE_GAP_CELLS: f64 = 4.0;
+
+/// The first free slot beside `base`, then down that column — the client's `freePosition`,
+/// for placements made inside a command. Siblings stack under the first one rather than
+/// marching right across the map.
+fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
+    let grid = super::grid();
+    let node_h = 2.0 * grid.cell_size;
+    let gap = NODE_GAP_CELLS * grid.cell_size;
+    let step_x = NODE_WIDTH + gap;
+    let step_y = node_h + gap;
+    let max_x = grid.world_width - NODE_WIDTH;
+    let max_y = grid.world_height - node_h;
+    let snap = |v: f64| (v / grid.cell_size).round() * grid.cell_size;
+    let crowded = |x: f64, y: f64| {
+        placed
+            .iter()
+            .any(|(px, py)| (x - px).abs() < step_x && (y - py).abs() < step_y)
+    };
+
+    let bx = snap(base.0.clamp(0.0, max_x));
+    let by = snap(base.1.clamp(0.0, max_y));
+    if !crowded(bx, by) {
+        return (bx, by);
+    }
+    let mut column = 1.0;
+    loop {
+        let x = snap(bx + column * step_x);
+        if x > max_x {
+            return (bx, by);
+        }
+        let mut row = 0.0;
+        loop {
+            let y = snap(by + row * step_y);
+            if y > max_y {
+                break;
+            }
+            if !crowded(x, y) {
+                return (x, y);
+            }
+            row += 1.0;
+        }
+        column += 1.0;
+    }
+}
+
+/// Raise a ghost for every wormhole scanned in this system that is not on the map yet,
+/// when the map is set up for it. Returns the placements raised, for the caller's undo.
+///
+/// Runs inside the signature write that made the hole known — a pasted scan, a row typed
+/// in by hand, a signature recategorised as a wormhole — so the nodes and the scan land in
+/// one transaction, as one entry in the history, whichever client did the writing.
+pub(super) async fn ghost_unmapped_holes(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    solar_system_id: i64,
+) -> Result<Vec<i64>> {
+    let wanted = sqlx::query_scalar!(
+        "select ghost_unlinked_wormholes from maps where id = $1",
+        map_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    .unwrap_or(false);
+    if !wanted {
+        return Ok(Vec::new());
+    }
+
+    let from = sqlx::query!(
+        "select id, position_x, position_y from map_solar_systems
+         where map_id = $1 and solar_system_id = $2",
+        map_id,
+        solar_system_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(from) = from else {
+        return Ok(Vec::new());
+    };
+
+    let holes = sqlx::query!(
+        r#"select id, size as "size: WormholeSize" from signatures
+           where map_id = $1 and solar_system_id = $2
+             and "group" = 'wormhole' and connection_id is null
+           order by signature_id"#,
+        map_id,
+        solar_system_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+    if holes.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut placed: Vec<(f64, f64)> = sqlx::query!(
+        "select position_x, position_y from map_solar_systems where map_id = $1",
+        map_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?
+    .into_iter()
+    .map(|r| (r.position_x, r.position_y))
+    .collect();
+
+    let mut raised = Vec::new();
+    for hole in holes {
+        let (x, y) = free_position(&placed, (from.position_x, from.position_y));
+        placed.push((x, y));
+        let effect = apply_add_ghost_system(
+            tx,
+            AddGhostSystem {
+                map_id,
+                from_system: from.id,
+                signature_pk: Some(hole.id),
+                x,
+                y,
+                alias: None,
+                size: hole.size,
+            },
+        )
+        .await?;
+        let CommandOutput::System(ghost) = effect.output else {
+            return Err(unexpected(effect.output));
+        };
+        raised.push(ghost.id);
+    }
+    Ok(raised)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddGhostSystem {
     pub map_id: i64,
     /// The placement the signature was scanned in. The ghost hangs off it.
     pub from_system: i64,
     /// The wormhole signature this hole is, so the two stay in lock-step from the start.
     #[serde(default)]
-    #[ts(optional)]
     pub signature_pk: Option<i64>,
     pub x: f64,
     pub y: f64,
     #[serde(default)]
-    #[ts(optional)]
     pub alias: Option<String>,
     #[serde(default)]
-    #[ts(optional)]
     pub size: Option<WormholeSize>,
 }
 
 /// Put the far side of a wormhole signature on the map, before anyone knows what it is.
-/// Member+.
+/// Member+. Reached through the signature writes ([`ghost_unmapped_holes`]) rather than
+/// directly: a hole exists because a scan says so.
 pub async fn add_ghost_system(
     pool: &PgPool,
     actor: Actor,

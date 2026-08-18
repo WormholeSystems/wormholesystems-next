@@ -234,6 +234,22 @@ pub struct GridConfig {
     pub viewport_height: f64,
 }
 
+/// The canvas geometry for this process, installed at startup.
+///
+/// A command has nothing but its transaction to work with, and placing a node inside one
+/// (a ghost raised by a paste) still has to land somewhere sensible, so the geometry lives
+/// here rather than being threaded through every command that might need it. Unset in
+/// tests, which get the defaults the client also falls back to.
+static GRID: std::sync::OnceLock<GridConfig> = std::sync::OnceLock::new();
+
+pub fn set_grid(grid: GridConfig) {
+    let _ = GRID.set(grid);
+}
+
+pub fn grid() -> GridConfig {
+    *GRID.get_or_init(GridConfig::default)
+}
+
 impl Default for GridConfig {
     fn default() -> Self {
         Self {

@@ -132,6 +132,10 @@ async fn main() {
     // Background: drop command-journal entries past the undo retention window.
     vector::maps::events_log::start_purge(db.clone());
 
+    // Commands place nodes of their own (a paste raising ghosts), and a command has only
+    // its transaction, so the geometry is installed for the process here.
+    vector::maps::set_grid(config.grid);
+
     let state = AppState {
         auth,
         discord: config.discord.clone().map(Arc::new),

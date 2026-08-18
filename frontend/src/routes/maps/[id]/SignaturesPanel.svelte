@@ -23,7 +23,6 @@
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import { CATEGORIES, loadCatalog, parseScan, typeById } from '$lib/map/signatures';
-	import { ghostUnmappedHoles } from './ghosts';
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
@@ -181,14 +180,11 @@
 		pasted = rows;
 		map.run(
 			'paste sigs',
-			(async () => {
-				await api.pasteSignatures({
-					map_id: map.mapId,
-					solar_system_id: systemId,
-					signatures: rows
-				});
-				await ghostUnmappedHoles(map, systemId);
-			})()
+			api.pasteSignatures({
+				map_id: map.mapId,
+				solar_system_id: systemId,
+				signatures: rows
+			})
 		);
 	}
 
@@ -248,15 +244,12 @@
 		if (value.length === 7 && systemId !== null) {
 			map.run(
 				'add sig',
-				(async () => {
-					await api.addSignature({
-						map_id: map.mapId,
-						solar_system_id: systemId,
-						signature_id: value,
-						group: 'unknown'
-					});
-					await ghostUnmappedHoles(map, systemId);
-				})()
+				api.addSignature({
+					map_id: map.mapId,
+					solar_system_id: systemId,
+					signature_id: value,
+					group: 'unknown'
+				})
 			);
 		}
 	}

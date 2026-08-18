@@ -206,12 +206,13 @@ pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> R
         map_id: cmd.map_id,
         signature_pk: sig.id,
     });
+    let ghosts = super::ghost::ghost_unmapped_holes(tx, cmd.map_id, cmd.solar_system_id).await?;
     Ok(Effect::new(
         "signatures.added",
         format!("added signature {}", sig.signature_id),
         CommandOutput::Signature(Box::new(sig)),
     )
-    .undo_with(inverse))
+    .undo_with(undo_with_ghosts(cmd.map_id, ghosts, inverse)))
 }
 
 /// A partial edit of a signature. `None` leaves a field unchanged; `Some(None)` clears it.
@@ -361,12 +362,18 @@ pub(super) async fn apply_update_signature(
         mass_status: Some(current.mass_status),
         time_status: Some(current.time_status),
     });
+    // Calling a signature a wormhole is saying the hole is there, so the map draws it.
+    let ghosts = if is_wormhole(group) {
+        super::ghost::ghost_unmapped_holes(tx, cmd.map_id, sig.solar_system_id).await?
+    } else {
+        Vec::new()
+    };
     Ok(Effect::new(
         "signatures.updated",
         format!("edited signature {}", sig.signature_id),
         CommandOutput::Signature(Box::new(sig)),
     )
-    .undo_with(inverse))
+    .undo_with(undo_with_ghosts(cmd.map_id, ghosts, inverse)))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -845,6 +852,8 @@ pub(super) async fn apply_paste_signatures(
         .await?;
     }
 
+    let ghosts = super::ghost::ghost_unmapped_holes(tx, cmd.map_id, cmd.solar_system_id).await?;
+
     let count = cmd.signatures.len() as i64;
     Ok(Effect::new(
         "signatures.pasted",
@@ -852,7 +861,30 @@ pub(super) async fn apply_paste_signatures(
         CommandOutput::None,
     )
     .entries(count)
-    .undo_with(MapCommand::RestoreSignatures(restore)))
+    .undo_with(undo_with_ghosts(
+        cmd.map_id,
+        ghosts,
+        MapCommand::RestoreSignatures(restore),
+    )))
+}
+
+/// Undo for a write that also raised ghosts: drop the nodes first, so clearing the
+/// signature's link does not fight the connection's own delete.
+fn undo_with_ghosts(map_id: i64, ghosts: Vec<i64>, inverse: MapCommand) -> MapCommand {
+    if ghosts.is_empty() {
+        return inverse;
+    }
+    MapCommand::Sequence(super::command::Sequence {
+        map_id,
+        steps: vec![
+            MapCommand::RemoveRestored(super::solar_system::RemoveRestored {
+                map_id,
+                system_ids: ghosts,
+                connection_ids: Vec::new(),
+            }),
+            inverse,
+        ],
+    })
 }
 
 /// A catalog type's category id, or `None` for an unknown type id.

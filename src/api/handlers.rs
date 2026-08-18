@@ -1235,24 +1235,6 @@ pub async fn map_characters(
 
 // --- Systems ---
 
-/// `POST /api/maps/{id}/systems/add-ghost` — put the far side of a wormhole signature on
-/// the map before anyone knows what it is.
-pub async fn add_ghost_system(
-    State(state): State<AppState>,
-    jar: CookieJar,
-    Path(map_id): Path<i64>,
-    Json(cmd): Json<crate::maps::ghost::AddGhostSystem>,
-) -> ApiResult<MapSolarSystem> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
-    let placed = crate::maps::ghost::add_ghost_system(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SystemAdded {
-        map_id,
-        map_solar_system_id: placed.id,
-    });
-    Ok(Json(placed))
-}
-
 /// `POST /api/maps/{id}/systems/resolve-ghost` — say which system a ghost turned out to
 /// be. Merging into an existing placement removes the ghost, so that goes out too.
 pub async fn resolve_ghost_system(

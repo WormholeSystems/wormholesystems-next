@@ -210,17 +210,24 @@ invariant. Single-statement actions don't need an explicit transaction.
     details row already exists (system was placed before), it is left intact and resurfaces.
   - An unknown `solar_system_id` → `Validation`.
 
-### `add_ghost_system(actor, map_id, from_system, signature_pk?, x, y, alias?, size?) -> MapSolarSystem`
+### Ghost placements (raised by the signature writes)
 
-- **Auth:** `Member`.
-- **Validates:** `from_system` is a placement on this map; a given signature was scanned
-  in that system and is not linked to a connection yet.
-- **Effect:** insert a `map_solar_systems` row with **no** `solar_system_id` (a
-  [ghost](../database/mapping.md#ghost-placements)), plus a wormhole connection from
-  `from_system` to it, and link the signature to that connection.
+Not an action of its own: a hole exists because a scan says so, so
+`paste_signatures`, `add_signature` and `update_signature` raise the nodes themselves,
+inside the same transaction.
+
+- **When:** the map has `ghost_unlinked_wormholes` set, and the write leaves a
+  `wormhole` signature in that system with no connection.
+- **Effect:** per such signature, a `map_solar_systems` row with **no** `solar_system_id`
+  (a [ghost](../database/mapping.md#ghost-placements)), a wormhole connection from the
+  scanned system to it, and the signature linked to that connection. The spot is the
+  first free slot beside the scanned system, then down that column.
 - **Invariants:**
-  - A signature already on the map → `Conflict`, so one hole is one node.
-  - Undo takes the edge, the ghost and the signature link back together.
+  - A signature already carrying a connection is skipped, so one hole is one node and a
+    repeated paste adds nothing.
+  - The scan and the nodes it raised are **one** entry in the history: undo takes them
+    back together.
+  - The setting is enforced here rather than by the client, so it holds whoever wrote.
 
 ### `resolve_ghost_system(actor, map_id, map_solar_system_id, solar_system_id?) -> MapSolarSystem`
 

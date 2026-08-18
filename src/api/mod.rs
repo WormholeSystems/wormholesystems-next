@@ -563,10 +563,6 @@ pub fn router() -> Router<AppState> {
         .route("/api/maps/{id}/clear", post(h::clear_map))
         .route("/api/maps/{id}/systems/add", post(h::add_system))
         .route(
-            "/api/maps/{id}/systems/add-ghost",
-            post(h::add_ghost_system),
-        )
-        .route(
             "/api/maps/{id}/systems/resolve-ghost",
             post(h::resolve_ghost_system),
         )
