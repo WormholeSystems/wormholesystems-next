@@ -98,22 +98,5 @@
 				/>
 			{/snippet}
 		</SettingRow>
-
-		<SettingRow
-			id="copy-bookmark"
-			label="Copy a bookmark when I map a hole"
-			description="Puts the new connection's bookmark name on the clipboard, ready to paste into the in-game bookmark dialog."
-			disabled={!tracking}
-			blocked={tracking ? undefined : 'Needs location sharing.'}
-		>
-			{#snippet control()}
-				<Switch
-					checked={(settings?.copy_bookmark ?? false) && tracking}
-					disabled={!tracking}
-					aria-label="Copy a bookmark when I map a hole"
-					onCheckedChange={(v) => update({ copy_bookmark: v })}
-				/>
-			{/snippet}
-		</SettingRow>
 	</Card.Content>
 </Card.Root>

@@ -1,8 +1,8 @@
 import { expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess } from './db';
 
-// Map settings: renaming on the General section, and the Access section that decides who
-// sees the chain.
+// Map settings: renaming on the General section, the names the map hands out under
+// Naming, and the Access section that decides who sees the chain.
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
@@ -68,7 +68,7 @@ test('a viewer sees the roles but cannot change them', async ({ page, api }) => 
 
 test('chain naming previews as you type and survives a reload', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Naming');
-	await gotoApp(page, `/maps/${mapId}/settings`);
+	await gotoApp(page, `/maps/${mapId}/settings/naming`);
 
 	// The defaults are legacy's, so an untouched map already names things sensibly.
 	await expect(page.getByTestId('alias-preview')).toHaveText('1, 2, 3, 11');
@@ -90,6 +90,11 @@ test('chain naming previews as you type and survives a reload', async ({ page, a
 		'{alias} {sig} {class} {wh} {life}'
 	);
 	await expect(page.getByTestId('alias-preview')).toHaveText('A, B, C, AA');
+
+	// Copying the bookmark is per user, and gated on location sharing a fresh map lacks.
+	const copy = page.locator('[data-setting="copy-bookmark"]');
+	await expect(copy.getByRole('switch')).toBeDisabled();
+	await expect(copy).toContainText('Needs location sharing');
 });
 
 test('settings are split into sections, and the per-user ones save themselves', async ({
@@ -101,7 +106,7 @@ test('settings are split into sections, and the per-user ones save themselves', 
 
 	// Every section is reachable from any other.
 	const nav = page.getByTestId('settings-nav');
-	await expect(nav.getByTestId('settings-section')).toHaveCount(6);
+	await expect(nav.getByTestId('settings-section')).toHaveCount(7);
 	await expect(nav.locator('[data-active="true"]')).toContainText('General');
 
 	// A per-user setting saves on the spot: there is no form to submit.
@@ -123,7 +128,7 @@ test('mapping settings hold back what location sharing gates', async ({ page, ap
 	const mapId = await createMap(api, 'E2E Gated');
 	await gotoApp(page, `/maps/${mapId}/settings/mapping`);
 
-	// Sharing is off on a new map, so the three that depend on it say why rather than
+	// Sharing is off on a new map, so the ones that depend on it say why rather than
 	// silently doing nothing.
 	const prompt = page.locator('[data-setting="prompt-for-signature"]');
 	await expect(prompt.getByRole('switch')).toBeDisabled();

@@ -5,7 +5,12 @@
 	// Alerts change the map for everyone on it and are Manager+; Display, Mapping and
 	// Routing are yours alone and everyone has them. Sections you cannot use are not shown,
 	// rather than shown and refused.
+	//
+	// Naming is the one section with both: the aliases and bookmark formats belong to the
+	// map, the clipboard toggle to you. It stays visible to everyone, read-only, because
+	// what your bookmarks will say is worth reading even when you cannot change it.
 	import BellIcon from '@lucide/svelte/icons/bell';
+	import TagIcon from '@lucide/svelte/icons/tag';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
 	import EyeIcon from '@lucide/svelte/icons/eye';
 	import RouteIcon from '@lucide/svelte/icons/route';
@@ -35,7 +40,7 @@
 
 	const sections = $derived.by<Section[]>(() => {
 		const base = `/maps/${mapId}/settings`;
-		const mine: Section[] = [
+		const everyone: Section[] = [
 			{
 				href: `${base}/display`,
 				label: 'Display',
@@ -49,21 +54,27 @@
 				icon: CrosshairIcon
 			},
 			{
+				href: `${base}/naming`,
+				label: 'Naming',
+				description: 'Aliases and bookmarks',
+				icon: TagIcon
+			},
+			{
 				href: `${base}/routing`,
 				label: 'Routing',
 				description: 'How routes are chosen',
 				icon: RouteIcon
 			}
 		];
-		if (!canManage) return mine;
+		if (!canManage) return everyone;
 		return [
 			{
 				href: base,
 				label: 'General',
-				description: 'Name, naming scheme, deletion',
+				description: 'Name, description, deletion',
 				icon: SettingsIcon
 			},
-			...mine,
+			...everyone,
 			{
 				href: `${base}/access`,
 				label: 'Access',

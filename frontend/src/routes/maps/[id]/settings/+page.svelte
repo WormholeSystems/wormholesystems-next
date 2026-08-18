@@ -1,19 +1,17 @@
 <script lang="ts">
-	// General: what the map is called, how it names the systems on it, and how to get rid
-	// of it. Everything here changes the map for everyone on it, which is why it is
-	// Manager+ and why deletion sits at the bottom behind its own confirmation.
+	// General: what the map is called and how to get rid of it. Everything here changes the
+	// map for everyone on it, which is why it is Manager+ and why deletion sits at the
+	// bottom behind its own confirmation.
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
-	import type { MapNaming } from '$lib/api/types/MapNaming';
 	import type { MapView } from '$lib/api/types/MapView';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import NamingCard from './NamingCard.svelte';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 
@@ -63,10 +61,6 @@
 				description: description.trim() || null
 			})
 		);
-	}
-
-	function saveNaming(naming: MapNaming) {
-		act(api.updateMap({ map_id: mapId, naming }));
 	}
 
 	async function destroy() {
@@ -122,10 +116,6 @@
 			>
 		</Card.Footer>
 	</Card.Root>
-
-	{#if view}
-		<NamingCard naming={view.map.naming} disabled={!canManage} onsave={saveNaming} />
-	{/if}
 
 	{#if isOwner}
 		<Card.Root class="border-destructive/40">
