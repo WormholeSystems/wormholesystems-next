@@ -49,14 +49,19 @@ export function centerWorld(
 export const NODE_GAP_CELLS = 4;
 
 /**
- * The first free, grid-snapped slot at/after `base`, scanning right then down.
+ * The first free, grid-snapped slot at/after `base`: beside it, then down that column.
  *
  * "Free" means far enough from every placed node to leave [`NODE_GAP_CELLS`] of clear
  * space, not merely non-overlapping — so passing a node's own position returns the spot
  * beside it rather than on top of it, and callers do not each invent their own offset.
+ *
+ * The column is what makes a chain readable. Scanning the row first sent a system's second
+ * hole one column further right, its third one further still, marching across the map and
+ * through whatever else was already out there. Holes off one system are siblings, so they
+ * stack under the first one instead, and only move right when the column is full.
  */
 export function freePosition(
-	systems: MapSystemView[],
+	systems: { position_x: number; position_y: number }[],
 	base: { x: number; y: number },
 	g: GridConfig
 ): { x: number; y: number } {
@@ -64,19 +69,25 @@ export function freePosition(
 	const gap = NODE_GAP_CELLS * g.cell_size;
 	const stepX = NODE_W + gap;
 	const stepY = nodeH + gap;
+	const maxX = g.world_width - NODE_W;
+	const maxY = g.world_height - nodeH;
 	const snap = (v: number) => Math.round(v / g.cell_size) * g.cell_size;
 	const crowded = (x: number, y: number) =>
 		systems.some(
 			(s) => Math.abs(x - s.position_x) < stepX && Math.abs(y - s.position_y) < stepY
 		);
-	const bx = snap(base.x);
-	const by = snap(base.y);
-	const cols = Math.max(1, Math.floor(g.world_width / stepX));
-	const rows = Math.max(1, Math.floor(g.world_height / stepY));
-	for (let r = 0; r < rows; r++) {
-		for (let c = 0; c < cols; c++) {
-			const x = snap(clamp(bx + c * stepX, 0, g.world_width - NODE_W));
-			const y = snap(clamp(by + r * stepY, 0, g.world_height - nodeH));
+	const bx = snap(clamp(base.x, 0, maxX));
+	const by = snap(clamp(base.y, 0, maxY));
+
+	// Somewhere empty was asked for and is empty: nothing to step around.
+	if (!crowded(bx, by)) return { x: bx, y: by };
+
+	for (let column = 1; ; column++) {
+		const x = snap(bx + column * stepX);
+		if (x > maxX) break;
+		for (let row = 0; ; row++) {
+			const y = snap(by + row * stepY);
+			if (y > maxY) break;
 			if (!crowded(x, y)) return { x, y };
 		}
 	}

@@ -59,11 +59,21 @@ describe('freePosition', () => {
 		}
 	});
 
-	it('drops to the next row once the row is full', () => {
-		// A wall of nodes across the whole width at this row.
-		const row = Array.from({ length: 20 }, (_, i) => at(i * (NODE_W + GAP), 300));
-		const spot = freePosition(row, { x: 0, y: 300 }, grid);
-		expect(spot.y).toBe(300 + NODE_H + GAP);
+	it('stacks the next one under the first, instead of marching right', () => {
+		const origin = { x: 400, y: 300 };
+		const beside = { x: origin.x + NODE_W + GAP, y: origin.y };
+		const spot = freePosition([at(origin.x, origin.y), at(beside.x, beside.y)], origin, grid);
+
+		// Same column as the hole already mapped off this system, one row down.
+		expect(spot).toEqual({ x: beside.x, y: beside.y + NODE_H + GAP });
+	});
+
+	it('moves to the next column once the column is full', () => {
+		const origin = { x: 0, y: 0 };
+		const column = Array.from({ length: 20 }, (_, i) => at(NODE_W + GAP, i * (NODE_H + GAP)));
+		const spot = freePosition([at(origin.x, origin.y), ...column], origin, grid);
+		expect(spot.x).toBe(2 * (NODE_W + GAP));
+		expect(spot.y).toBe(0);
 	});
 
 	it('stays inside the world', () => {
