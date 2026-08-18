@@ -25,13 +25,39 @@ pub fn definition() -> Value {
                 "description": "Show which Vector account this Discord user is linked to"
             },
             {
-                "type": 1,
+                "type": 2,
                 "name": "alerts",
-                "description": "List the alerts you created",
-                "options": [{
-                    "type": 3, "name": "map", "description": "Which map",
-                    "required": false, "autocomplete": true
-                }]
+                "description": "The alerts you created",
+                "options": [
+                    {
+                        "type": 1, "name": "list", "description": "List the alerts you created",
+                        "options": [{
+                            "type": 3, "name": "map", "description": "Only this map",
+                            "required": false, "autocomplete": true
+                        }]
+                    },
+                    {
+                        "type": 1, "name": "enable", "description": "Turn one back on",
+                        "options": [{
+                            "type": 3, "name": "alert", "description": "Which alert",
+                            "required": true, "autocomplete": true
+                        }]
+                    },
+                    {
+                        "type": 1, "name": "disable", "description": "Turn one off",
+                        "options": [{
+                            "type": 3, "name": "alert", "description": "Which alert",
+                            "required": true, "autocomplete": true
+                        }]
+                    },
+                    {
+                        "type": 1, "name": "remove", "description": "Delete one",
+                        "options": [{
+                            "type": 3, "name": "alert", "description": "Which alert",
+                            "required": true, "autocomplete": true
+                        }]
+                    }
+                ]
             },
             {
                 "type": 1,
@@ -195,6 +221,83 @@ async fn alerts(state: &AppState, user_id: i64, map_filter: Option<&str>) -> Str
     out
 }
 
+/// The alert, if this user created it. Ownership is the permission: an alert you made is
+/// yours to turn off from wherever you are, and one you did not is not yours to touch.
+async fn owned(state: &AppState, user_id: i64, alert_id: i64) -> Option<(i64, String, i64)> {
+    sqlx::query!(
+        "select id, name, map_id from map_alerts where id = $1 and created_by_user_id = $2",
+        alert_id,
+        user_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .map(|row| (row.id, row.name, row.map_id))
+}
+
+async fn set_active(
+    state: &AppState,
+    user_id: i64,
+    options: &[super::interactions::CommandOption],
+    active: bool,
+) -> String {
+    let Some(alert_id) = option(options, "alert").and_then(|o| o.integer()) else {
+        return "Pick an alert from the suggestions.".into();
+    };
+    let Some((id, name, map_id)) = owned(state, user_id, alert_id).await else {
+        return "That is not one of your alerts.".into();
+    };
+    let _ = sqlx::query!(
+        "update map_alerts set
+             is_active = $2,
+             disabled_at = case when $2 then null else now() end,
+             disabled_reason = case when $2 then null else 'manual' end,
+             updated_at = now()
+         where id = $1",
+        id,
+        active,
+    )
+    .execute(&state.db)
+    .await;
+    crate::alerts::log(
+        &state.db,
+        Some(id),
+        map_id,
+        Some(user_id),
+        if active { "enabled" } else { "disabled" },
+        Some("via Discord"),
+    )
+    .await;
+    format!("**{name}** is now {}.", if active { "on" } else { "off" })
+}
+
+async fn remove(
+    state: &AppState,
+    user_id: i64,
+    options: &[super::interactions::CommandOption],
+) -> String {
+    let Some(alert_id) = option(options, "alert").and_then(|o| o.integer()) else {
+        return "Pick an alert from the suggestions.".into();
+    };
+    let Some((id, name, map_id)) = owned(state, user_id, alert_id).await else {
+        return "That is not one of your alerts.".into();
+    };
+    let _ = sqlx::query!("delete from map_alerts where id = $1", id)
+        .execute(&state.db)
+        .await;
+    crate::alerts::log(
+        &state.db,
+        None,
+        map_id,
+        Some(user_id),
+        "deleted",
+        Some(&name),
+    )
+    .await;
+    format!("Deleted **{name}**.")
+}
+
 async fn route(state: &AppState, user_id: i64, map_id: i64, system_id: i64) -> String {
     if !can_see(state, user_id, map_id).await {
         return "You do not have access to that map.".into();
@@ -268,6 +371,7 @@ pub async fn autocomplete(state: &AppState, interaction: &Interaction) -> Vec<Va
     match field.name.as_str() {
         "map" => maps_for(state, user_id, &typed).await,
         "system" => systems_like(state, &typed).await,
+        "alert" => alerts_for(state, user_id, &typed).await,
         _ => Vec::new(),
     }
 }
@@ -298,6 +402,37 @@ async fn maps_for(state: &AppState, user_id: i64, typed: &str) -> Vec<Value> {
         // The value is the id as a string: Discord's autocomplete values are strings, and
         // the command parses them back.
         .map(|row| json!({ "name": row.name, "value": row.id.to_string() }))
+        .collect()
+}
+
+/// Only the sender's own alerts: they are the only ones these commands can act on.
+async fn alerts_for(state: &AppState, user_id: i64, typed: &str) -> Vec<Value> {
+    let like = format!("%{typed}%");
+    let rows = sqlx::query!(
+        "select a.id, a.name, a.is_active, m.name as map_name
+         from map_alerts a join maps m on m.id = a.map_id
+         where a.created_by_user_id = $1 and a.name ilike $2
+         order by m.name, a.name
+         limit $3",
+        user_id,
+        like,
+        CHOICES,
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+    rows.into_iter()
+        .map(|row| {
+            json!({
+                "name": format!(
+                    "{} — {}{}",
+                    row.name,
+                    row.map_name,
+                    if row.is_active { "" } else { " (off)" }
+                ),
+                "value": row.id.to_string()
+            })
+        })
         .collect()
 }
 
@@ -342,10 +477,19 @@ mod tests {
         let subs = definition["options"].as_array().unwrap();
         assert_eq!(subs.len(), 3);
         for sub in subs {
-            // Type 1 is a subcommand.
-            assert_eq!(sub["type"], 1);
+            // Type 1 is a subcommand, type 2 a group of them.
+            assert!(sub["type"] == 1 || sub["type"] == 2);
             assert!(sub["description"].as_str().unwrap().len() > 5);
         }
+        // The alerts group is what makes an alert manageable from Discord.
+        let alerts = subs.iter().find(|s| s["name"] == "alerts").unwrap();
+        let actions: Vec<&str> = alerts["options"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(actions, vec!["list", "enable", "disable", "remove"]);
     }
 
     #[test]

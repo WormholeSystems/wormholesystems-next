@@ -101,8 +101,12 @@
 					<span class="text-muted-foreground"> — which Vector account this Discord user is.</span>
 				</li>
 				<li>
-					<code class="text-foreground">/vector alerts</code>
+					<code class="text-foreground">/vector alerts list</code>
 					<span class="text-muted-foreground"> — the alerts you created, and whether they are on.</span>
+				</li>
+				<li>
+					<code class="text-foreground">/vector alerts enable · disable · remove</code>
+					<span class="text-muted-foreground"> — manage one without leaving Discord.</span>
 				</li>
 				<li>
 					<code class="text-foreground">/vector route</code>
