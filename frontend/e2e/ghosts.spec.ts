@@ -104,3 +104,26 @@ test('a ghost that turns out to be on the map already is merged into it', async 
 	await expect(page.getByTestId('system-node').filter({ hasText: 'Jita' })).toHaveCount(1);
 	await expect(page.getByTestId('system-node')).toHaveCount(2);
 });
+
+test('a signature typed in and called a wormhole gets a node too', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E GhostManual');
+	await addSystem(api, mapId, J122515);
+	await enableGhosting(api, mapId);
+
+	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
+
+	// Typed in by hand, uncategorised: nothing is known about it yet, so nothing is drawn.
+	await page.getByTestId('new-signature').click();
+	await page.getByTestId('new-signature-id').fill('WHX-303');
+	await page.getByTestId('new-signature-id').press('Enter');
+	await expect(page.getByTestId('sig-row')).toHaveCount(1);
+	await expect(page.locator('[data-testid="system-node"][data-ghost="true"]')).toHaveCount(0);
+
+	// Calling it a wormhole is saying the hole is there, which is what puts it on the map.
+	await page.getByTestId('sig-row').getByTestId('sig-category').click();
+	await page.getByRole('option', { name: 'Wormhole' }).click();
+
+	const ghost = page.locator('[data-testid="system-node"][data-ghost="true"]');
+	await expect(ghost).toHaveCount(1);
+	await expect(ghost).toContainText('Unmapped');
+});

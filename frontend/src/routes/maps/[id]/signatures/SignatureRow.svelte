@@ -17,6 +17,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { destClassMeta } from '$lib/map/classes';
 	import { CATEGORIES, categoryMeta, typeById } from '$lib/map/signatures';
+	import { ghostUnmappedHoles } from '../ghosts';
 	import type { MapState } from '../map-state.svelte';
 	import ConnectionInput from './ConnectionInput.svelte';
 	import TimeDetails from './TimeDetails.svelte';
@@ -89,7 +90,14 @@
 	function update(patch: Record<string, unknown>) {
 		map.run(
 			'sig update',
-			api.updateSignature({ map_id: map.mapId, signature_pk: sig.id, ...patch })
+			(async () => {
+				await api.updateSignature({ map_id: map.mapId, signature_pk: sig.id, ...patch });
+				// Calling a signature a wormhole is saying the hole is there, so the map draws
+				// it, exactly as a pasted scan would.
+				if (patch.group === 'wormhole') {
+					await ghostUnmappedHoles(map, system.solar_system_id);
+				}
+			})()
 		);
 	}
 

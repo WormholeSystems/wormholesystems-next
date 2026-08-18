@@ -22,8 +22,8 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import { freePosition } from '$lib/map/helpers';
 	import { CATEGORIES, loadCatalog, parseScan, typeById } from '$lib/map/signatures';
+	import { ghostUnmappedHoles } from './ghosts';
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
@@ -187,42 +187,9 @@
 					solar_system_id: systemId,
 					signatures: rows
 				});
-				await ghostUnmappedHoles();
+				await ghostUnmappedHoles(map, systemId);
 			})()
 		);
-	}
-
-	/**
-	 * Put the far side of every wormhole here that is not on the map yet, when the map is
-	 * set up for it. The scan is what knows the hole exists; this is what makes it a node
-	 * you can name and drag before anyone flies it.
-	 */
-	async function ghostUnmappedHoles() {
-		if (!map.data?.map.ghost_unlinked_wormholes || systemId === null) return;
-		const from = map.systems.find((s) => s.solar_system_id === systemId);
-		if (!from) return;
-
-		const fresh = await api.listSignatures(map.mapId);
-		const unmappedHoles = fresh.filter(
-			(sig) =>
-				sig.solar_system_id === systemId &&
-				sig.group === 'wormhole' &&
-				sig.connection_id === null
-		);
-		// Each ghost has to dodge the ones just placed, which are not in `map.systems` yet.
-		const taken = [...map.systems];
-		for (const sig of unmappedHoles) {
-			const at = freePosition(taken, { x: from.position_x, y: from.position_y }, map.grid);
-			taken.push({ ...from, id: -sig.id, position_x: at.x, position_y: at.y });
-			await api.addGhostSystem({
-				map_id: map.mapId,
-				from_system: from.id,
-				signature_pk: sig.id,
-				x: at.x,
-				y: at.y,
-				size: sig.size ?? undefined
-			});
-		}
 	}
 
 	function onWindowPaste(e: ClipboardEvent) {
@@ -281,12 +248,15 @@
 		if (value.length === 7 && systemId !== null) {
 			map.run(
 				'add sig',
-				api.addSignature({
-					map_id: map.mapId,
-					solar_system_id: systemId,
-					signature_id: value,
-					group: 'unknown'
-				})
+				(async () => {
+					await api.addSignature({
+						map_id: map.mapId,
+						solar_system_id: systemId,
+						signature_id: value,
+						group: 'unknown'
+					});
+					await ghostUnmappedHoles(map, systemId);
+				})()
 			);
 		}
 	}

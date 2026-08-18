@@ -14,7 +14,7 @@ The top-level artifact. A user creates a map and everything else hangs off it.
 | `name`        | text        | user-chosen                                                 |
 | `description` | text, null  | free-text, user-set                                         |
 | `image_url`   | text, null  | reference to an uploaded icon/logo, **not** the image bytes |
-| `ghost_unlinked_wormholes` | bool | pasting a wormhole signature puts a ghost placement on the map |
+| `ghost_unlinked_wormholes` | bool | a wormhole signature with no connection puts a ghost placement on the map |
 | `created_at`  | timestamptz |                                                             |
 
 **Invariants & expected behaviour**
@@ -50,6 +50,8 @@ while the system is on the map; removing the system deletes this row.
 A wormhole signature is known before the system behind it is. A **ghost** is that far
 side on the map: a placement with **no** `solar_system_id`, hanging off the system the
 signature was scanned in, so a chain can be laid out and named before anyone flies it.
+Any way of saying a hole is there raises one — a pasted scan, a signature typed in by
+hand, or an existing signature recategorised as a wormhole.
 
 Ghosts are ordinary placements deliberately, not a table of their own: connections
 already reference `map_solar_systems.id` rather than a solar system, so a ghost gets
