@@ -44,9 +44,7 @@
 	}
 </script>
 
-<div class="mx-auto flex max-w-2xl flex-col gap-6 py-6">
-	<h1 class="font-heading text-lg font-semibold tracking-tight">Discord</h1>
-
+<div class="flex flex-col gap-6">
 	{#if error}
 		<p class="text-sm text-destructive" data-testid="discord-error">{error}</p>
 	{/if}

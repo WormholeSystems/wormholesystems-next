@@ -5,7 +5,6 @@
 	// Its own page rather than a card on the settings page, because an alert is a small form
 	// with several dependent parts — a killmail alert wants filters and no target, a
 	// proximity alert wants a target and no filters — and that does not fold into a row.
-	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
@@ -138,21 +137,14 @@
 	}
 </script>
 
-<div class="mx-auto flex max-w-3xl flex-col gap-6 py-6">
-	<a
-		href="/maps/{mapId}/settings"
-		class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-	>
-		<ArrowLeftIcon class="size-4" />
-		Back to settings
-	</a>
-
+<div class="flex flex-col gap-6">
 	{#if error}
 		<p class="text-sm text-destructive" data-testid="alerts-error">{error}</p>
 	{/if}
 
 	<Card.Root>
-		<Card.Header class="flex-row items-center justify-between gap-2">
+		<Card.Header>
+			<div class="flex items-start justify-between gap-3">
 			<div class="flex flex-col gap-1.5">
 				<Card.Title class="flex items-center gap-2">
 					<BellIcon class="size-4" />
@@ -175,6 +167,7 @@
 					New alert
 				</Button>
 			{/if}
+		</div>
 		</Card.Header>
 		<Card.Content class="flex flex-col gap-3">
 			{#if creating || editing}

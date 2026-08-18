@@ -1,0 +1,156 @@
+<script lang="ts">
+	// How routes are chosen. The same settings the route planner's popover edits, in a form
+	// with room to say what each one costs you.
+	import { page } from '$app/state';
+	import { api } from '$lib/api/client';
+	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+	import SettingRow from '$lib/components/settings/SettingRow.svelte';
+	import * as Card from '$lib/components/ui/card';
+	import * as Select from '$lib/components/ui/select';
+	import { Switch } from '$lib/components/ui/switch';
+
+	const mapId = $derived(Number(page.params.id) || 0);
+	let settings = $state<MapUserSettings | null>(null);
+
+	$effect(() => {
+		if (!mapId) return;
+		api
+			.mapUserSettings(mapId)
+			.then((s) => (settings = s))
+			.catch(() => {});
+	});
+
+	function update(patch: Record<string, unknown>) {
+		api
+			.updateMapUserSettings(mapId, patch)
+			.then((s) => (settings = s))
+			.catch(() => {});
+	}
+
+	const PREFERENCES = [
+		{ value: 'shorter', label: 'Shortest', hint: 'Fewest jumps, whatever the security' },
+		{ value: 'safer', label: 'Safer', hint: 'Prefers high security' },
+		{ value: 'less_secure', label: 'Less secure', hint: 'Prefers low and null' }
+	];
+	const LIFETIMES = [
+		{ value: 'critical', label: 'Anything', hint: 'Including holes about to collapse' },
+		{ value: 'eol', label: 'Not critical', hint: 'Avoids the last hour' },
+		{ value: 'stable', label: 'Healthy only', hint: 'Avoids end-of-life holes' }
+	];
+	const MASSES = [
+		{ value: 'critical', label: 'Anything', hint: 'Including nearly-collapsed holes' },
+		{ value: 'reduced', label: 'Not critical', hint: 'Avoids the last 10%' },
+		{ value: 'stable', label: 'Fresh only', hint: 'Avoids reduced holes' }
+	];
+
+	const preference = $derived(settings?.route_preference ?? 'shorter');
+	const lifetime = $derived(settings?.route_allow_time_status ?? 'critical');
+	const mass = $derived(settings?.route_allow_mass_status ?? 'reduced');
+	const penalty = $derived(settings?.security_penalty ?? 50);
+</script>
+
+{#snippet picker(
+	options: { value: string; label: string; hint: string }[],
+	current: string,
+	key: string,
+	testid: string
+)}
+	<Select.Root type="single" value={current} onValueChange={(v) => v && update({ [key]: v })}>
+		<Select.Trigger class="w-56" data-testid={testid}>
+			{options.find((o) => o.value === current)?.label}
+		</Select.Trigger>
+		<Select.Content>
+			<Select.Group>
+				{#each options as option (option.value)}
+					<Select.Item value={option.value} label={option.label}>
+						<span class="flex flex-col">
+							<span>{option.label}</span>
+							<span class="text-xs text-muted-foreground">{option.hint}</span>
+						</span>
+					</Select.Item>
+				{/each}
+			</Select.Group>
+		</Select.Content>
+	</Select.Root>
+{/snippet}
+
+<Card.Root>
+	<Card.Header>
+		<Card.Title>Routing</Card.Title>
+		<Card.Description>
+			How the route planner and every jump count on the map are worked out. Yours alone.
+		</Card.Description>
+	</Card.Header>
+	<Card.Content class="flex flex-col py-0">
+		<SettingRow
+			id="route-preference"
+			label="Route preference"
+			description="Shortest counts jumps and nothing else. The other two bias the search towards or away from high security, at the cost of extra jumps."
+		>
+			{#snippet control()}
+				{@render picker(PREFERENCES, preference, 'route_preference', 'route-preference')}
+			{/snippet}
+		</SettingRow>
+
+		<SettingRow
+			id="security-penalty"
+			label="How hard to avoid, or seek, low security"
+			description="Only applies to the safer and less-secure preferences. At zero they behave like shortest; at a hundred they will take a long way round to get what they want."
+			disabled={preference === 'shorter'}
+			blocked={preference === 'shorter' ? 'Shortest ignores security entirely.' : undefined}
+		>
+			{#snippet control()}
+				<span class="flex items-center gap-3">
+					<input
+						type="range"
+						min="0"
+						max="100"
+						step="5"
+						value={penalty}
+						disabled={preference === 'shorter'}
+						aria-label="Security penalty"
+						class="w-40 accent-primary"
+						data-testid="security-penalty"
+						onchange={(e) =>
+							update({ security_penalty: Number((e.currentTarget as HTMLInputElement).value) })}
+					/>
+					<span class="w-10 text-right font-mono text-xs tabular-nums">{penalty}%</span>
+				</span>
+			{/snippet}
+		</SettingRow>
+
+		<SettingRow
+			id="route-lifetime"
+			label="Wormholes to route through, by lifetime"
+			description="An end-of-life hole may close while you are in it. This decides whether the router offers one anyway."
+		>
+			{#snippet control()}
+				{@render picker(LIFETIMES, lifetime, 'route_allow_time_status', 'route-lifetime')}
+			{/snippet}
+		</SettingRow>
+
+		<SettingRow
+			id="route-mass"
+			label="Wormholes to route through, by mass"
+			description="A hole that has already passed most of its mass may not take your ship."
+		>
+			{#snippet control()}
+				{@render picker(MASSES, mass, 'route_allow_mass_status', 'route-mass')}
+			{/snippet}
+		</SettingRow>
+
+		<SettingRow
+			id="route-evescout"
+			label="Use EVE Scout connections"
+			description="Routes may go through the public Thera and Turnur holes. They are scouted by hand and can be stale, which is why this is a choice."
+		>
+			{#snippet control()}
+				<Switch
+					checked={settings?.route_use_evescout ?? false}
+					aria-label="Use EVE Scout connections"
+					onCheckedChange={(v) => update({ route_use_evescout: v })}
+				/>
+			{/snippet}
+		</SettingRow>
+	</Card.Content>
+</Card.Root>

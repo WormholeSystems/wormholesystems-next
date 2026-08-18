@@ -1,5 +1,6 @@
 <script lang="ts">
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
+	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import MapIcon from '@lucide/svelte/icons/map';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -127,6 +128,14 @@
 						<DropdownMenu.Separator />
 
 						<DropdownMenu.Group>
+							<DropdownMenu.Item>
+								{#snippet child({ props })}
+									<a href="/settings/characters" {...props} data-testid="nav-settings">
+										<SettingsIcon />
+										Settings
+									</a>
+								{/snippet}
+							</DropdownMenu.Item>
 							<DropdownMenu.Item>
 								{#snippet child({ props })}
 									<a href="/auth/logout" data-sveltekit-reload {...props}>

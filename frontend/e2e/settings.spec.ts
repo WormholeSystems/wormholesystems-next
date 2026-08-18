@@ -1,7 +1,8 @@
 import { expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess } from './db';
 
-// Map settings: renaming, and the access list that decides who sees the chain.
+// Map settings: renaming on the General section, and the Access section that decides who
+// sees the chain.
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
@@ -29,7 +30,7 @@ test('renaming the map shows up on the map itself', async ({ page, api }) => {
 test('the owner is listed, and granting adds a second entry', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Access');
 	const mate = await createIdentity(2);
-	await gotoApp(page, `/maps/${mapId}/settings`);
+	await gotoApp(page, `/maps/${mapId}/settings/access`);
 
 	const list = page.getByTestId('access-list');
 	await expect(list.getByText('E2E Pilot')).toBeVisible();
@@ -50,14 +51,18 @@ test('a viewer sees the roles but cannot change them', async ({ page, api }) => 
 		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await ctx.newPage();
-	await viewerPage.goto(`http://localhost:5173/maps/${mapId}/settings`);
+	await viewerPage.goto(`http://localhost:5173/maps/${mapId}/settings/access`);
 	await viewerPage.waitForSelector('html[data-hydrated="true"]');
 
 	await expect(viewerPage.getByTestId('access-list').getByText('E2E Pilot')).toBeVisible();
-	// No grant form, no delete card: both are manager/owner work.
+	// No grant form: granting is manager/owner work.
 	await expect(viewerPage.getByTestId('grant-search')).toHaveCount(0);
-	await expect(viewerPage.getByTestId('delete-map')).toHaveCount(0);
-	await expect(viewerPage.getByTestId('map-name-input')).toBeDisabled();
+	// And the sections that change the map for everyone are not offered at all, rather
+	// than offered and refused.
+	const nav = viewerPage.getByTestId('settings-nav');
+	await expect(nav).toContainText('Routing');
+	await expect(nav).not.toContainText('General');
+	await expect(nav).not.toContainText('Discord alerts');
 	await ctx.close();
 });
 
@@ -85,4 +90,42 @@ test('chain naming previews as you type and survives a reload', async ({ page, a
 		'{alias} {sig} {class} {wh} {life}'
 	);
 	await expect(page.getByTestId('alias-preview')).toHaveText('A, B, C, AA');
+});
+
+test('settings are split into sections, and the per-user ones save themselves', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E Sections');
+	await gotoApp(page, `/maps/${mapId}/settings`);
+
+	// Every section is reachable from any other.
+	const nav = page.getByTestId('settings-nav');
+	await expect(nav.getByTestId('settings-section')).toHaveCount(6);
+	await expect(nav.locator('[data-active="true"]')).toContainText('General');
+
+	// A per-user setting saves on the spot: there is no form to submit.
+	await nav.getByText('Routing').click();
+	await expect(page.getByTestId('route-preference')).toBeVisible();
+	await page.getByTestId('route-preference').click();
+	await page.getByRole('option', { name: 'Safer' }).click();
+	await expect
+		.poll(async () => (await (await api.get(`/api/maps/${mapId}/settings/user`)).json()).route_preference)
+		.toBe('safer');
+
+	// And it survives leaving and coming back, because it is stored per map, not per tab.
+	await nav.getByText('Display').click();
+	await nav.getByText('Routing').click();
+	await expect(page.getByTestId('route-preference')).toContainText('Safer');
+});
+
+test('mapping settings hold back what location sharing gates', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Gated');
+	await gotoApp(page, `/maps/${mapId}/settings/mapping`);
+
+	// Sharing is off on a new map, so the three that depend on it say why rather than
+	// silently doing nothing.
+	const prompt = page.locator('[data-setting="prompt-for-signature"]');
+	await expect(prompt.getByRole('switch')).toBeDisabled();
+	await expect(prompt).toContainText('Needs location sharing');
 });
