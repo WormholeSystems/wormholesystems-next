@@ -23,6 +23,8 @@ pub struct AppState {
     pub grid: crate::maps::GridConfig,
     /// The latest Tranquility status, for the header indicator.
     pub server: crate::server_status::ServerWatch,
+    /// `None` when no Discord application is configured, which disables the bot half.
+    pub discord: Option<Arc<crate::config::DiscordConfig>>,
 }
 
 pub struct Auth {

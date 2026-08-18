@@ -17,6 +17,25 @@ pub struct Config {
     /// Where ESI lives. Overridable so the e2e suite can point the whole stack at a stub
     /// and drive a pilot around without a live EVE session.
     pub esi_base_url: String,
+    /// Absent when the application has no Discord app configured, which is the normal
+    /// state for a dev machine: the alerts UI still works, the bot half simply is not there.
+    pub discord: Option<DiscordConfig>,
+}
+
+/// What the Discord half of the integration needs.
+///
+/// All or nothing: a half-configured app fails in ways that look like bugs (an OAuth
+/// redirect that 400s, an interaction endpoint Discord silently marks unhealthy), so it is
+/// read as one unit and left `None` unless every part is present.
+#[derive(Debug, Clone)]
+pub struct DiscordConfig {
+    pub client_id: String,
+    pub client_secret: String,
+    pub redirect_uri: String,
+    /// Verifies that an interaction really came from Discord. Hex, from the app's page.
+    pub public_key: String,
+    /// Only needed to post as the bot; account linking and slash commands work without it.
+    pub bot_token: Option<String>,
 }
 
 impl Config {
@@ -35,8 +54,19 @@ impl Config {
             grid: grid_from_env(),
             esi_base_url: std::env::var("ESI_BASE_URL")
                 .unwrap_or_else(|_| crate::esi::BASE_URL.to_string()),
+            discord: discord_from_env(),
         })
     }
+}
+
+fn discord_from_env() -> Option<DiscordConfig> {
+    Some(DiscordConfig {
+        client_id: std::env::var("DISCORD_CLIENT_ID").ok()?,
+        client_secret: std::env::var("DISCORD_CLIENT_SECRET").ok()?,
+        redirect_uri: std::env::var("DISCORD_REDIRECT_URI").ok()?,
+        public_key: std::env::var("DISCORD_PUBLIC_KEY").ok()?,
+        bot_token: std::env::var("DISCORD_BOT_TOKEN").ok(),
+    })
 }
 
 fn required(key: &'static str) -> Result<String, ConfigError> {

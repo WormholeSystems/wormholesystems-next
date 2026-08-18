@@ -534,6 +534,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/me/status", get(h::me_status))
         .route("/api/me/characters", get(h::my_characters))
         .route("/api/me/scopes", get(h::my_scopes))
+        .route("/api/me/discord", get(h::my_discord))
+        .route("/api/me/discord/unlink", post(h::unlink_discord))
         .route("/api/me/switch-character", post(h::switch_character))
         .route("/api/me/remove-character", post(h::remove_character))
         .route("/api/waypoints", post(h::set_waypoint))

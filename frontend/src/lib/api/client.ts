@@ -6,6 +6,7 @@ import type { AddConnectionJump } from './types/AddConnectionJump';
 import type { AddSignature } from './types/AddSignature';
 import type { AddSystem } from './types/AddSystem';
 import type { CharacterRef } from './types/CharacterRef';
+import type { DiscordAccount } from './types/DiscordAccount';
 import type { MapAlert } from './types/MapAlert';
 import type { MapAlertEvent } from './types/MapAlertEvent';
 import type { SaveAlert } from './types/SaveAlert';
@@ -125,6 +126,8 @@ export const api = {
 	meStatus: () => get<CharacterStatus | null>('/api/me/status'),
 	myCharacters: () => get<CharacterRef[]>('/api/me/characters'),
 	myScopes: () => get<ScopeStatus[]>('/api/me/scopes'),
+	myDiscord: () => get<DiscordAccount | null>('/api/me/discord'),
+	unlinkDiscord: () => post<null>('/api/me/discord/unlink', {}),
 	switchCharacter: (characterId: number) =>
 		post<null>('/api/me/switch-character', { character_id: characterId }),
 	removeCharacter: (characterId: number) =>

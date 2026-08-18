@@ -92,6 +92,24 @@ pub async fn me_status(
     })))
 }
 
+/// `GET /api/me/discord` — the linked Discord account, if any.
+pub async fn my_discord(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> ApiResult<Option<crate::discord::DiscordAccount>> {
+    let actor = require_actor(&state.db, &jar).await?;
+    Ok(Json(
+        crate::discord::account_for(&state.db, actor.user_id).await,
+    ))
+}
+
+/// `POST /api/me/discord/unlink` — forget it, and stop what depended on it.
+pub async fn unlink_discord(State(state): State<AppState>, jar: CookieJar) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::discord::link::unlink(&state.db, actor.user_id).await;
+    Ok(Json(()))
+}
+
 /// `GET /api/me/scopes` — every ESI permission the app can use, and whether the acting
 /// character has granted it. Always the full list, in a fixed order: the introduction shows
 /// what is missing as prominently as what is there.

@@ -18,6 +18,20 @@ async fn main() {
         return;
     }
 
+    // `vector discord-register` uploads the slash commands, then exits. Run it once per
+    // deploy that changes them; Discord takes a few minutes to roll a change out.
+    if args.iter().any(|a| a == "discord-register") {
+        dotenvy::dotenv().ok();
+        let application_id =
+            std::env::var("DISCORD_APPLICATION_ID").expect("DISCORD_APPLICATION_ID not set");
+        let token = std::env::var("DISCORD_BOT_TOKEN").expect("DISCORD_BOT_TOKEN not set");
+        match vector::discord::commands::register(&application_id, &token).await {
+            Ok(()) => println!("registered the /vector command."),
+            Err(err) => panic!("could not register commands: {err}"),
+        }
+        return;
+    }
+
     // `vector threat-analysis` recomputes every wormhole system's threat from the killmails
     // already stored, then exits. The server does this daily and after a backfill; this is
     // for when you want the numbers now.
@@ -119,6 +133,7 @@ async fn main() {
 
     let state = AppState {
         auth,
+        discord: config.discord.clone().map(Arc::new),
         db,
         hub,
         user_hub,
@@ -130,6 +145,13 @@ async fn main() {
         .route("/auth/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
         .route("/auth/logout", get(auth::logout))
+        // Discord: linking an account, and the bot's interaction endpoint.
+        .route("/discord/connect", get(vector::discord::link::connect))
+        .route("/discord/callback", get(vector::discord::link::callback))
+        .route(
+            "/discord/interactions",
+            axum::routing::post(vector::discord::interactions::handle),
+        )
         // Realtime: per-map event stream + the per-user private channel / activity heartbeat.
         .route("/ws/map/{map_id}", get(vector::api::ws::map_ws))
         .route("/ws/user", get(vector::api::ws::user_ws))
