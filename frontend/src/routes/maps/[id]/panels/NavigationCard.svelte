@@ -46,6 +46,7 @@
 		type RouteResult,
 		type RoutingSettings
 	} from '$lib/routing/algorithm';
+	import * as Select from '$lib/components/ui/select';
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 	import RouteSettings from './RouteSettings.svelte';
@@ -239,6 +240,12 @@
 	];
 	let condition = $state('observatories');
 	let findLimit = $state('15');
+	/** What the trigger shows: the chosen condition, station services included. */
+	const conditionLabel = $derived(
+		CONDITIONS.find((c) => c.value === condition)?.label ??
+			serviceOptions.find((svc) => `service_${svc.id}` === condition)?.name ??
+			'Pick one'
+	);
 	const activeService = $derived(
 		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null
 	);
@@ -538,38 +545,47 @@
 			{#if findOpen}
 				<div class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2">
 				<div class="col-span-full flex items-center gap-1.5 border-b border-border/30 p-2">
-					<select
-						bind:value={condition}
-						class="h-7 flex-1 rounded-md border border-input bg-muted/30 px-2 text-xs"
-						data-testid="find-condition"
-					>
-						<optgroup label="Features">
-							{#each CONDITIONS.slice(0, 2) as c (c.value)}
-								<option value={c.value}>{c.label}</option>
-							{/each}
-						</optgroup>
-						<optgroup label="Security">
-							{#each CONDITIONS.slice(2) as c (c.value)}
-								<option value={c.value}>{c.label}</option>
-							{/each}
-						</optgroup>
-						{#if serviceOptions.length > 0}
-							<optgroup label="Station Services">
-								{#each serviceOptions as svc (svc.id)}
-									<option value="service_{svc.id}">{svc.name}</option>
+					<Select.Root type="single" bind:value={condition}>
+						<Select.Trigger class="h-7 flex-1 text-xs" data-testid="find-condition">
+							{conditionLabel}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								<Select.GroupHeading>Features</Select.GroupHeading>
+								{#each CONDITIONS.slice(0, 2) as c (c.value)}
+									<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
 								{/each}
-							</optgroup>
-						{/if}
-					</select>
-					<select
-						bind:value={findLimit}
-						class="h-7 w-14 rounded-md border border-input bg-muted/30 px-1 text-xs"
-						data-testid="find-limit"
-					>
-						{#each ['5', '10', '15', '25', '50'] as n (n)}
-							<option value={n}>{n}</option>
-						{/each}
-					</select>
+							</Select.Group>
+							<Select.Group>
+								<Select.GroupHeading>Security</Select.GroupHeading>
+								{#each CONDITIONS.slice(2) as c (c.value)}
+									<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
+								{/each}
+							</Select.Group>
+							{#if serviceOptions.length > 0}
+								<Select.Group>
+									<Select.GroupHeading>Station services</Select.GroupHeading>
+									{#each serviceOptions as svc (svc.id)}
+										<Select.Item value="service_{svc.id}" label={svc.name}>
+											{svc.name}
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							{/if}
+						</Select.Content>
+					</Select.Root>
+					<Select.Root type="single" bind:value={findLimit}>
+						<Select.Trigger class="h-7 w-16 text-xs" data-testid="find-limit">
+							{findLimit}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each ['5', '10', '15', '25', '50'] as n (n)}
+									<Select.Item value={n} label={n}>{n}</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
 				</div>
 				{#if origin === null}
 					<p

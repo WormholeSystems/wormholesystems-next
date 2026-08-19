@@ -7,6 +7,7 @@
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
+	import { Slider } from '$lib/components/ui/slider';
 	import { Switch } from '$lib/components/ui/switch';
 
 	const mapId = $derived(Number(page.params.id) || 0);
@@ -101,18 +102,17 @@
 		>
 			{#snippet control()}
 				<span class="flex items-center gap-3">
-					<input
-						type="range"
-						min="0"
-						max="100"
-						step="5"
+					<Slider
+						type="single"
+						min={0}
+						max={100}
+						step={5}
 						value={penalty}
 						disabled={preference === 'shorter'}
 						aria-label="Security penalty"
-						class="w-40 accent-primary"
+						class="w-40"
 						data-testid="security-penalty"
-						onchange={(e) =>
-							update({ security_penalty: Number((e.currentTarget as HTMLInputElement).value) })}
+						onValueCommit={(v) => update({ security_penalty: v })}
 					/>
 					<span class="w-10 text-right font-mono text-xs tabular-nums">{penalty}%</span>
 				</span>

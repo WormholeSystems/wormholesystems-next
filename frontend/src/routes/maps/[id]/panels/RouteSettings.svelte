@@ -3,6 +3,7 @@
 	// security penalty, wormhole lifetime/mass tolerance, EVE Scout toggle. Stored per
 	// user per map.
 	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
+	import { Slider } from '$lib/components/ui/slider';
 
 	import { api } from '$lib/api/client';
 	import * as Popover from '$lib/components/ui/popover';
@@ -85,14 +86,14 @@
 				<span class="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
 					Security Penalty: {settings?.security_penalty ?? 50}%
 				</span>
-				<input
-					type="range"
-					min="0"
-					max="100"
-					step="5"
+				<Slider
+					type="single"
+					min={0}
+					max={100}
+					step={5}
 					value={settings?.security_penalty ?? 50}
-					onchange={(e) => update({ security_penalty: Number(e.currentTarget.value) })}
-					class="accent-primary"
+					aria-label="Security penalty"
+					onValueCommit={(v) => update({ security_penalty: v })}
 				/>
 			</div>
 		{/if}

@@ -15,6 +15,7 @@
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import type { SignatureGroup } from '$lib/api/types/SignatureGroup';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Select from '$lib/components/ui/select';
 	import { destClassMeta } from '$lib/map/classes';
@@ -171,8 +172,8 @@
 	<!-- ID -->
 	<div class="w-16 shrink-0">
 		{#if editingId}
-			<input
-				bind:this={idInput}
+			<Input
+				bind:ref={idInput}
 				value={idDraft}
 				oninput={(e) => (idDraft = formatId(e.currentTarget.value))}
 				onblur={saveId}
@@ -180,10 +181,10 @@
 					if (e.key === 'Enter') saveId();
 					if (e.key === 'Escape') editingId = false;
 				}}
-				class="w-full rounded border border-border/50 bg-background/50 px-1.5 font-mono text-xs uppercase focus:border-primary focus:outline-none {compact
+				class="w-full rounded-none border-border/50 bg-background/50 px-1.5 font-mono text-xs uppercase {compact
 					? 'h-5'
 					: 'h-6'}"
-				maxlength="7"
+				maxlength={7}
 				placeholder="XXX-XXX"
 			/>
 		{:else}

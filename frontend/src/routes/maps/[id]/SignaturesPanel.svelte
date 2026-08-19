@@ -19,6 +19,7 @@
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
@@ -413,8 +414,8 @@
 						: 'py-1.5'}"
 				>
 					<div class="w-16 shrink-0">
-						<input
-							bind:this={newInput}
+						<Input
+							bind:ref={newInput}
 							value={newId}
 							oninput={(e) => (newId = formatId(e.currentTarget.value))}
 							onblur={saveNew}
@@ -425,10 +426,10 @@
 									newId = '';
 								}
 							}}
-							class="w-full rounded border border-border/50 bg-background/50 px-1.5 font-mono text-xs uppercase focus:border-primary focus:outline-none {compact
+							class="w-full rounded-none border-border/50 bg-background/50 px-1.5 font-mono text-xs uppercase {compact
 								? 'h-5'
 								: 'h-6'}"
-							maxlength="7"
+							maxlength={7}
 							placeholder="XXX-XXX"
 							data-testid="new-signature-id"
 						/>

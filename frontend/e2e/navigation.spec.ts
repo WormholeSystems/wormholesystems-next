@@ -175,13 +175,15 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
 
 	// NPC stations: Jita itself matches at zero jumps.
-	await page.getByTestId('find-condition').selectOption('npc_stations');
+	await page.getByTestId('find-condition').click();
+	await page.getByRole('option', { name: 'NPC Stations' }).click();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
 
 	// Station services (seeded from the SDE) name the concrete stations, collapsed
 	// behind a per-row toggle so long lists stay scannable.
-	await page.getByTestId('find-condition').selectOption({ label: 'Repair Facilities' });
+	await page.getByTestId('find-condition').click();
+	await page.getByRole('option', { name: 'Repair Facilities' }).click();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
 	await expect(page.getByTestId('find-station')).toHaveCount(0);
@@ -202,7 +204,8 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 
 	// Security Offices only exist on CONCORD lowsec stations (in-game quirk), so
 	// highsec Jita is never a match and every result names a CONCORD station.
-	await page.getByTestId('find-condition').selectOption({ label: 'Security Office' });
+	await page.getByTestId('find-condition').click();
+	await page.getByRole('option', { name: 'Security Office' }).click();
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toHaveCount(0);
 	await page.getByTestId('find-row').first().click();
@@ -211,7 +214,8 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	// Hovering a station keeps its system's route highlighted on the canvas (the
 	// station belongs to that system, so the highlight must not drop). Perimeter is
 	// one mapped jump away, so its route lights up the connection.
-	await page.getByTestId('find-condition').selectOption({ label: 'Repair Facilities' });
+	await page.getByTestId('find-condition').click();
+	await page.getByRole('option', { name: 'Repair Facilities' }).click();
 	const perimeterRow = page.getByTestId('find-row').filter({ hasText: 'Perimeter' });
 	await perimeterRow.hover();
 	const onRoute = page.locator('path[data-on-route="true"]');
