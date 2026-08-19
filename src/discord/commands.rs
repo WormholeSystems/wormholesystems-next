@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 use crate::auth::AppState;
 
-use super::interactions::{Interaction, focused, option};
+use super::interactions::{CommandOption, Interaction, focused, option};
 
 /// The command tree, as Discord wants it registered.
 pub fn definition() -> Value {
@@ -110,34 +110,87 @@ pub async fn run(state: &AppState, interaction: &Interaction) -> String {
     let Some(data) = interaction.data.as_ref() else {
         return "That command arrived empty.".into();
     };
-    let Some(sub) = data.options.first() else {
-        return "Pick one of the subcommands.".into();
-    };
-
     let user_id = super::user_for(&state.db, &sender.id).await;
     let Some(user_id) = user_id else {
         return unlinked();
     };
 
-    match sub.name.as_str() {
-        "account" => account(state, user_id).await,
-        "alerts" => {
-            alerts(
-                state,
-                user_id,
-                option(&sub.options, "map").and_then(|o| o.string()),
-            )
-            .await
+    match parse(&data.options) {
+        Action::Account => account(state, user_id).await,
+        Action::AlertsList { map } => alerts(state, user_id, map).await,
+        Action::AlertsSetActive { alert, active } => {
+            set_active(state, user_id, alert, active).await
         }
-        "route" => {
-            let map = option(&sub.options, "map").and_then(|o| o.integer());
-            let system = option(&sub.options, "system").and_then(|o| o.integer());
-            match (map, system) {
-                (Some(map), Some(system)) => route(state, user_id, map, system).await,
-                _ => "Pick a map and a system from the suggestions.".into(),
+        Action::AlertsRemove { alert } => remove(state, user_id, alert).await,
+        Action::Route {
+            map: Some(map),
+            system: Some(system),
+        } => route(state, user_id, map, system).await,
+        Action::Route { .. } => "Pick a map and a system from the suggestions.".into(),
+        Action::Nothing => "Pick one of the subcommands.".into(),
+        Action::Unknown(name) => format!("I do not know `{name}`."),
+    }
+}
+
+/// What an invocation asks for, once the subcommand tree has been walked.
+///
+/// Discord nests a group's arguments two levels down, so reading them off the top level
+/// finds nothing and says nothing about it. Walking the tree is therefore its own step,
+/// with its own tests, rather than a match arm reaching into `options` and hoping.
+#[derive(Debug, PartialEq)]
+enum Action<'a> {
+    Account,
+    AlertsList {
+        map: Option<&'a str>,
+    },
+    AlertsSetActive {
+        alert: Option<i64>,
+        active: bool,
+    },
+    AlertsRemove {
+        alert: Option<i64>,
+    },
+    Route {
+        map: Option<i64>,
+        system: Option<i64>,
+    },
+    /// A name we do not serve: Discord's command list can lag a deploy by minutes.
+    Unknown(&'a str),
+    Nothing,
+}
+
+fn parse(options: &[CommandOption]) -> Action<'_> {
+    let Some(sub) = options.first() else {
+        return Action::Nothing;
+    };
+    match sub.name.as_str() {
+        "account" => Action::Account,
+        "alerts" => {
+            let Some(action) = sub.options.first() else {
+                return Action::Nothing;
+            };
+            let alert = option(&action.options, "alert").and_then(|o| o.integer());
+            match action.name.as_str() {
+                "list" => Action::AlertsList {
+                    map: option(&action.options, "map").and_then(|o| o.string()),
+                },
+                "enable" => Action::AlertsSetActive {
+                    alert,
+                    active: true,
+                },
+                "disable" => Action::AlertsSetActive {
+                    alert,
+                    active: false,
+                },
+                "remove" => Action::AlertsRemove { alert },
+                other => Action::Unknown(other),
             }
         }
-        other => format!("I do not know `{other}`."),
+        "route" => Action::Route {
+            map: option(&sub.options, "map").and_then(|o| o.integer()),
+            system: option(&sub.options, "system").and_then(|o| o.integer()),
+        },
+        other => Action::Unknown(other),
     }
 }
 
@@ -236,13 +289,8 @@ async fn owned(state: &AppState, user_id: i64, alert_id: i64) -> Option<(i64, St
     .map(|row| (row.id, row.name, row.map_id))
 }
 
-async fn set_active(
-    state: &AppState,
-    user_id: i64,
-    options: &[super::interactions::CommandOption],
-    active: bool,
-) -> String {
-    let Some(alert_id) = option(options, "alert").and_then(|o| o.integer()) else {
+async fn set_active(state: &AppState, user_id: i64, alert: Option<i64>, active: bool) -> String {
+    let Some(alert_id) = alert else {
         return "Pick an alert from the suggestions.".into();
     };
     let Some((id, name, map_id)) = owned(state, user_id, alert_id).await else {
@@ -272,12 +320,8 @@ async fn set_active(
     format!("**{name}** is now {}.", if active { "on" } else { "off" })
 }
 
-async fn remove(
-    state: &AppState,
-    user_id: i64,
-    options: &[super::interactions::CommandOption],
-) -> String {
-    let Some(alert_id) = option(options, "alert").and_then(|o| o.integer()) else {
+async fn remove(state: &AppState, user_id: i64, alert: Option<i64>) -> String {
+    let Some(alert_id) = alert else {
         return "Pick an alert from the suggestions.".into();
     };
     let Some((id, name, map_id)) = owned(state, user_id, alert_id).await else {
@@ -490,6 +534,90 @@ mod tests {
             .map(|o| o["name"].as_str().unwrap())
             .collect();
         assert_eq!(actions, vec!["list", "enable", "disable", "remove"]);
+    }
+
+    fn options(json: &str) -> Vec<CommandOption> {
+        serde_json::from_str::<super::super::interactions::CommandData>(json)
+            .unwrap()
+            .options
+    }
+
+    /// The arguments of a subcommand group sit two levels down. Reading them off the top
+    /// level found nothing, so `enable`, `disable` and `remove` all quietly answered with
+    /// the list instead of doing anything.
+    #[test]
+    fn an_alert_action_is_read_from_inside_its_group() {
+        let enable = options(
+            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+                 {"name":"enable","type":1,"options":[{"name":"alert","value":"42"}]}]}]}"#,
+        );
+        assert_eq!(
+            parse(&enable),
+            Action::AlertsSetActive {
+                alert: Some(42),
+                active: true
+            }
+        );
+
+        let disable = options(
+            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+                 {"name":"disable","type":1,"options":[{"name":"alert","value":"42"}]}]}]}"#,
+        );
+        assert_eq!(
+            parse(&disable),
+            Action::AlertsSetActive {
+                alert: Some(42),
+                active: false
+            }
+        );
+
+        let remove = options(
+            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+                 {"name":"remove","type":1,"options":[{"name":"alert","value":"42"}]}]}]}"#,
+        );
+        assert_eq!(parse(&remove), Action::AlertsRemove { alert: Some(42) });
+    }
+
+    /// The same nesting, and the same bug: `list` filtered by nothing whatever was picked.
+    #[test]
+    fn listing_alerts_keeps_the_map_it_was_filtered_by() {
+        let filtered = options(
+            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+                 {"name":"list","type":1,"options":[{"name":"map","value":"7"}]}]}]}"#,
+        );
+        assert_eq!(parse(&filtered), Action::AlertsList { map: Some("7") });
+
+        let all = options(
+            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+                 {"name":"list","type":1}]}]}"#,
+        );
+        assert_eq!(parse(&all), Action::AlertsList { map: None });
+    }
+
+    /// A plain subcommand carries its own arguments, one level down rather than two.
+    #[test]
+    fn a_plain_subcommand_reads_its_own_arguments() {
+        let route = options(
+            r#"{"name":"vector","options":[{"name":"route","type":1,"options":[
+                 {"name":"map","value":"7"},{"name":"system","value":"30000142"}]}]}"#,
+        );
+        assert_eq!(
+            parse(&route),
+            Action::Route {
+                map: Some(7),
+                system: Some(30000142)
+            }
+        );
+        assert_eq!(
+            parse(&options(r#"{"name":"vector","options":[]}"#)),
+            Action::Nothing
+        );
+        assert_eq!(
+            parse(&options(
+                r#"{"name":"vector","options":[{"name":"wat","type":1}]}"#
+            )),
+            Action::Unknown("wat")
+        );
     }
 
     #[test]
