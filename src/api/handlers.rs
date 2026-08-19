@@ -842,6 +842,9 @@ pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult
                   coalesce((select mus.is_archived from map_user_settings mus
                              where mus.map_id = m.id and mus.user_id = $2), false)
                       as "archived!",
+                  coalesce((select mus.is_pinned from map_user_settings mus
+                             where mus.map_id = m.id and mus.user_id = $2), false)
+                      as "pinned!",
                   (select max(e.created_at) from map_events e where e.map_id = m.id)
                       as "last_activity?",
                   (select count(*)
@@ -875,6 +878,7 @@ pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult
                     pilots_online: s.map_or(0, |s| s.pilots),
                     last_activity: s.and_then(|s| s.last_activity),
                     is_archived: s.is_some_and(|s| s.archived),
+                    is_pinned: s.is_some_and(|s| s.pinned),
                     created_at: m.created_at,
                 }
             })
@@ -972,7 +976,7 @@ pub async fn map_user_settings(
                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                   is_archived,
                   (introduction_confirmed_at is not null) as "introduction_confirmed!",
-                  hidden_panels, layout_breakpoints, layout_override
+                  hidden_panels, layout_breakpoints, layout_override, is_pinned
            from map_user_settings where map_id = $1 and user_id = $2"#,
         map_id,
         actor.user_id,
@@ -998,6 +1002,7 @@ pub async fn map_user_settings(
             introduction_confirmed: r.introduction_confirmed,
             hidden_panels: r.hidden_panels,
             layout_override: r.layout_override,
+            is_pinned: r.is_pinned,
             layout_breakpoints: r
                 .layout_breakpoints
                 .map(serde_json::from_value)
@@ -1006,6 +1011,7 @@ pub async fn map_user_settings(
         },
         None => MapUserSettings {
             layout_override: None,
+            is_pinned: false,
             tracking_allowed: false,
             show_threat_level: true,
             compact_signature_list: false,
@@ -1082,7 +1088,8 @@ pub async fn update_map_user_settings(
               route_preference, security_penalty, route_allow_time_status,
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
               suggest_alias, copy_bookmark, killmail_filter, is_archived,
-              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override)
+              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,
+              is_pinned)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
@@ -1090,7 +1097,7 @@ pub async fn update_map_user_settings(
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
                  coalesce($15, 'all'), coalesce($16, false),
                  case when $17 then now() end,
-                 coalesce($18, '{}'::text[]), $19, $20)
+                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false))
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -1119,6 +1126,7 @@ pub async fn update_map_user_settings(
                  when $21 then $20
                  else map_user_settings.layout_override
              end,
+             is_pinned = coalesce($22, map_user_settings.is_pinned),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
@@ -1126,7 +1134,7 @@ pub async fn update_map_user_settings(
                    prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                    is_archived,
                    (introduction_confirmed_at is not null) as introduction_confirmed,
-                   hidden_panels, layout_breakpoints, layout_override",
+                   hidden_panels, layout_breakpoints, layout_override, is_pinned",
         map_id,
         actor.user_id,
         body.tracking_allowed,
@@ -1148,11 +1156,13 @@ pub async fn update_map_user_settings(
         layout_json.as_ref(),
         body.layout_override.clone().flatten(),
         body.layout_override.is_some(),
+        body.is_pinned,
     )
     .fetch_one(&state.db)
     .await?;
     Ok(Json(MapUserSettings {
         layout_override: row.layout_override,
+        is_pinned: row.is_pinned,
         tracking_allowed: row.tracking_allowed,
         show_threat_level: row.show_threat_level,
         compact_signature_list: row.compact_signature_list,

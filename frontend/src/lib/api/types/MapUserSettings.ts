@@ -52,6 +52,10 @@ hidden_panels: Array<string>,
  */
 layout_override?: string, 
 /**
+ * Whether this user keeps the map in the top bar for quick access.
+ */
+is_pinned: boolean, 
+/**
  * Per-breakpoint tile positions. `None` = the built-in arrangement.
  */
 layout_breakpoints?: { [key in string]: BreakpointLayout }, };

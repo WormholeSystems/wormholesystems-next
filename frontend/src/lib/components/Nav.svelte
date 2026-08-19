@@ -5,37 +5,36 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
+	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { CharacterRef } from '$lib/api/types/CharacterRef';
-	import type { CharacterStatus } from '$lib/api/types/CharacterStatus';
 	import type { CharacterSummary } from '$lib/api/types/CharacterSummary';
+	import type { MapEntry } from '$lib/api/types/MapEntry';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import ServerStatus from '$lib/components/ServerStatus.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import { openUserSocket } from '$lib/ws';
 
-	let { me }: { me: CharacterSummary | null } = $props();
+	let { me, pinned = [] }: { me: CharacterSummary | null; pinned?: MapEntry[] } = $props();
 
 	let characters = $state<CharacterRef[]>([]);
-	let status = $state<CharacterStatus | null>(null);
 
 	$effect(() => {
 		if (!me) return;
-		api.myCharacters().then((list) => (characters = list)).catch(() => {});
-		const refetchStatus = () =>
-			api
-				.meStatus()
-				.then((s) => (status = s))
-				.catch(() => {});
-		refetchStatus();
-		// The user socket doubles as the activity heartbeat; each event means "your
-		// status changed".
-		return openUserSocket((event) => {
-			if (event.type === 'character_status_changed') refetchStatus();
-		});
+		api
+			.myCharacters()
+			.then((list) => (characters = list))
+			.catch(() => {});
 	});
+
+	// A few shortcuts, and the rest behind a count: the bar is for getting to a map
+	// quickly, and a row of twenty names is not quick. Three fit without the names being
+	// squeezed to nothing at the width a map is usually read at.
+	const INLINE = 3;
+	const inline = $derived(pinned.slice(0, INLINE));
+	const overflow = $derived(pinned.slice(INLINE));
+	const here = $derived(page.url.pathname);
 
 	async function switchCharacter(id: number) {
 		await api.switchCharacter(id);
@@ -49,33 +48,71 @@
 </script>
 
 <nav class="sticky top-0 z-40 border-b border-border bg-background">
-	<div class="flex h-12 items-center gap-6 px-5">
+	<!-- Three columns rather than one row: the middle holds its place whatever the left
+	     grows to, so a long list of shortcuts can never walk into the server status. -->
+	<div class="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-4 px-5">
+		<div class="flex min-w-0 items-center gap-4">
 		<a href="/" class="font-heading text-sm font-semibold tracking-[0.2em] text-foreground">
 			VECTOR
 		</a>
 		<a
 			href="/maps"
-			class="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+			class="flex items-center gap-1.5 text-sm transition-colors {here === '/maps'
+				? 'text-foreground'
+				: 'text-muted-foreground hover:text-foreground'}"
 		>
 			<MapIcon class="size-4" />
 			Maps
 		</a>
 
-		<span class="ml-auto flex items-center gap-3">
-			{#if status}
-				<span class="hidden items-center gap-2 text-xs text-muted-foreground md:flex">
-					<span
-						class="size-1.5 rounded-full {status.online
-							? 'bg-emerald-500'
-							: 'bg-muted-foreground/40'}"
-					></span>
-					{#if status.ship_type_id != null}
-						<EveImage kind="type" id={status.ship_type_id} class="size-4" />
-					{/if}
-					<span class="tracking-wide">{status.solar_system ?? '—'}</span>
-				</span>
+		<!-- Pinned maps: one click from anywhere, and the one you are on is marked. -->
+		<span class="hidden min-w-0 items-center gap-1 lg:flex" data-testid="pinned-maps">
+			{#each inline as map (map.id)}
+				<a
+					href="/maps/{map.id}"
+					class="flex max-w-44 min-w-0 items-center gap-1.5 px-2 py-1 text-xs transition-colors {here ===
+					`/maps/${map.id}`
+						? 'bg-muted/50 text-foreground'
+						: 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'}"
+					data-testid="pinned-map"
+					title={map.name}
+				>
+					<MapIcon class="size-3.5 shrink-0" />
+					<span class="truncate">{map.name}</span>
+				</a>
+			{/each}
+			{#if overflow.length > 0}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger
+						class="px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+						data-testid="pinned-overflow"
+					>
+						+{overflow.length}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="start" class="w-56">
+						{#each overflow as map (map.id)}
+							<DropdownMenu.Item>
+								{#snippet child({ props })}
+									<a href="/maps/{map.id}" {...props}>
+										<MapIcon />
+										<span class="truncate">{map.name}</span>
+									</a>
+								{/snippet}
+							</DropdownMenu.Item>
+						{/each}
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
 			{/if}
+		</span>
+
+		</div>
+
+		<!-- Tranquility's state belongs to no page in particular, so it sits in the middle. -->
+		<span class="hidden justify-self-center md:block">
 			<ServerStatus signedIn={me !== null} />
+		</span>
+
+		<span class="flex items-center justify-end gap-3">
 			<ThemeToggle />
 			{#if me}
 				<DropdownMenu.Root>

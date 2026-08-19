@@ -4,7 +4,7 @@ import type { BreakpointLayout } from "./BreakpointLayout";
 /**
  * Partial update of [`MapUserSettings`]; absent fields stay unchanged.
  */
-export type UpdateMapUserSettings = { 
+export type UpdateMapUserSettings = { is_pinned?: boolean, 
 /**
  * Absent leaves it; `null` goes back to following the map.
  */

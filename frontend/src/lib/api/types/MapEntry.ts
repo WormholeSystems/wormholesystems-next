@@ -18,6 +18,10 @@ member_count: number,
  */
 pilots_online: number, 
 /**
+ * Whether this user keeps it in the top bar.
+ */
+is_pinned: boolean, 
+/**
  * When the chain last changed. `None` for a map nobody has touched yet.
  */
 last_activity?: string, 

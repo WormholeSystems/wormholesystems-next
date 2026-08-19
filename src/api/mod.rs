@@ -74,6 +74,8 @@ pub struct MapEntry {
     /// Tracked pilots currently online in one of its systems, which is the difference
     /// between a map being live and merely existing.
     pub pilots_online: i64,
+    /// Whether this user keeps it in the top bar.
+    pub is_pinned: bool,
     /// When the chain last changed. `None` for a map nobody has touched yet.
     #[ts(optional)]
     pub last_activity: Option<chrono::DateTime<chrono::Utc>>,
@@ -136,6 +138,8 @@ pub struct MapUserSettings {
     /// map's own mode.
     #[ts(optional)]
     pub layout_override: Option<String>,
+    /// Whether this user keeps the map in the top bar for quick access.
+    pub is_pinned: bool,
     /// Per-breakpoint tile positions. `None` = the built-in arrangement.
     #[ts(optional)]
     pub layout_breakpoints: Option<PanelLayouts>,
@@ -232,6 +236,9 @@ pub fn validate_layouts(layouts: &PanelLayouts) -> Result<(), ApiError> {
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct UpdateMapUserSettings {
+    #[serde(default)]
+    #[ts(optional)]
+    pub is_pinned: Option<bool>,
     /// Absent leaves it; `null` goes back to following the map.
     #[serde(default, deserialize_with = "crate::maps::double_option")]
     #[ts(optional)]

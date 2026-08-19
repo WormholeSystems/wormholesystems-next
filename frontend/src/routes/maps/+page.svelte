@@ -5,6 +5,8 @@
 	// one you were just in. Legacy left this in insertion order, which means the map you
 	// use every day drifts to wherever it happened to be created.
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
+	import PinIcon from '@lucide/svelte/icons/pin';
+	import PinOffIcon from '@lucide/svelte/icons/pin-off';
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
 	import MoreVerticalIcon from '@lucide/svelte/icons/more-vertical';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -12,7 +14,9 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { MapEntry } from '$lib/api/types/MapEntry';
 	import { Badge } from '$lib/components/ui/badge';
@@ -115,6 +119,22 @@
 			error = (err as Error).message;
 		} finally {
 			busy = false;
+		}
+	}
+
+	/**
+	 * Pin a map into the top bar. The bar is loaded with the page, so the shortcut only
+	 * appears once the page has been read again — `invalidateAll` does that without
+	 * throwing away where you are.
+	 */
+	async function setPinned(map: MapEntry, value: boolean) {
+		try {
+			await api.updateMapUserSettings(map.id, { is_pinned: value });
+			await invalidateAll();
+			reload();
+			toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`);
+		} catch (err) {
+			error = (err as Error).message;
 		}
 	}
 
@@ -221,6 +241,18 @@
 							<DropdownMenu.Item onSelect={() => goto(`/maps/${map.id}/settings`)}>
 								<SettingsIcon />
 								Settings
+							</DropdownMenu.Item>
+							<DropdownMenu.Item
+								onSelect={() => setPinned(map, !map.is_pinned)}
+								data-testid="map-pin"
+							>
+								{#if map.is_pinned}
+									<PinOffIcon />
+									Unpin from the top bar
+								{:else}
+									<PinIcon />
+									Pin to the top bar
+								{/if}
 							</DropdownMenu.Item>
 							<DropdownMenu.Item
 								onSelect={() => setArchived(map, !map.is_archived)}
