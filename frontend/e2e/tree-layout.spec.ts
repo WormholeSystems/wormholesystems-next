@@ -121,31 +121,6 @@ test('the switcher is hidden unless the map hands the choice over', async ({ pag
 	await expect(page.getByTestId('placement-controls')).toHaveCount(0);
 });
 
-test('the creator picks the placement, with both options explained', async ({ page, api }) => {
-	await gotoApp(page, '/maps');
-	await page.getByTestId('new-map').click();
-	await page.getByTestId('new-map-name').fill('E2E TreeCreated');
-
-	// Both options say what they do, so the choice can be made without leaving the dialog.
-	await expect(page.getByTestId('new-map-layout-manual')).toContainText('drag the systems');
-	await expect(page.getByTestId('new-map-layout-tree')).toContainText(
-		'draws itself from the connections'
-	);
-	// Custom placement is the default.
-	await expect(page.getByTestId('new-map-layout-manual')).toHaveAttribute('aria-pressed', 'true');
-
-	await page.getByTestId('new-map-layout-tree').click();
-	await page.getByTestId('new-map-create').click();
-	await page.waitForURL(/\/maps\/\d+/);
-	await page.waitForSelector('[data-testid="panel-grid"]');
-
-	const mapId = Number(page.url().match(/\/maps\/(\d+)/)![1]);
-	const view = await (await api.get(`/api/maps/${mapId}`)).json();
-	expect(view.map.layout).toBe('tree');
-
-	await api.delete(`/api/maps/${mapId}`);
-});
-
 test('shift-drag still rubber-bands while the layout places the systems', async ({
 	page,
 	api
@@ -179,4 +154,27 @@ test('shift-drag still rubber-bands while the layout places the systems', async 
 			(nodes) => nodes.filter((n) => n.className.includes('amber')).length
 		))
 		.toBeGreaterThan(0);
+});
+
+test("the map's setup asks for the placement, and the map takes it", async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E TreeSetup');
+	// Straight in without the usual introduction skip: setting it up is the point.
+	await page.goto(`http://localhost:5173/maps/${mapId}`);
+	await page.waitForSelector('html[data-hydrated="true"]');
+
+	// Welcome, permissions, then the step that decides what the map does.
+	await page.getByTestId('introduction-next').click();
+	await page.getByTestId('introduction-next').click();
+
+	const placement = page.getByTestId('setup-placement');
+	await expect(placement).toContainText('Changeable later');
+	await expect(placement).toContainText('drag the systems into shape');
+	await expect(placement).toContainText('draws the chain as a tree');
+
+	await page.getByTestId('setup-placement-tree').click();
+	await expect
+		.poll(async () => (await (await api.get(`/api/maps/${mapId}`)).json()).map.layout)
+		.toBe('tree');
+
+	await api.delete(`/api/maps/${mapId}`);
 });

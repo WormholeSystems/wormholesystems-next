@@ -28,7 +28,6 @@ async fn create_returns_fields_and_grants_owner(pool: PgPool) {
         CreateMap {
             name: "  Home Chain  ".into(),
             description: Some("J-space".into()),
-            layout: None,
         },
     )
     .await
@@ -70,7 +69,6 @@ async fn create_rejects_blank_name_and_foreign_character(pool: PgPool) {
             CreateMap {
                 name: "   ".into(),
                 description: None,
-                layout: None,
             }
         )
         .await,
@@ -87,7 +85,6 @@ async fn create_rejects_blank_name_and_foreign_character(pool: PgPool) {
             CreateMap {
                 name: "Chain".into(),
                 description: None,
-                layout: None,
             }
         )
         .await,

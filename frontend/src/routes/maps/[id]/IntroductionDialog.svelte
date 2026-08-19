@@ -21,6 +21,8 @@
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import SignatureIcon from '@lucide/svelte/icons/scan-line';
 	import TagIcon from '@lucide/svelte/icons/tag';
+	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
+	import WorkflowIcon from '@lucide/svelte/icons/workflow';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 
 	import { page } from '$app/state';
@@ -112,6 +114,33 @@
 			return_to: page.url.pathname + page.url.search
 		});
 		return `/auth/login?${params}`;
+	}
+
+	// Placement is the map's, not this viewer's, so it is only offered to someone who can
+	// set it — and only here, where a new map is being set up, rather than in the create
+	// dialog where there is nothing yet to picture.
+	const canManage = $derived(map.data?.role === 'manager' || map.data?.role === 'owner');
+	const placement = $derived(map.data?.map.layout === 'tree' ? 'tree' : 'manual');
+	const PLACEMENTS = [
+		{
+			value: 'manual' as const,
+			name: 'Custom placement',
+			body: 'You drag the systems into shape, and they stay where you put them.',
+			icon: WaypointsIcon
+		},
+		{
+			value: 'tree' as const,
+			name: 'Automatic placement',
+			body: 'The map draws the chain as a tree, and nobody has to tidy it.',
+			icon: WorkflowIcon
+		}
+	];
+
+	function setPlacement(layout: 'manual' | 'tree') {
+		api
+			.updateMap({ map_id: map.mapId, layout })
+			.then(() => map.refetch())
+			.catch((err) => toast.error(`setup: ${(err as Error).message}`));
 	}
 
 	function update(patch: Record<string, boolean>) {
@@ -265,6 +294,39 @@
 			</div>
 		{:else if step === 3}
 			<div class="flex flex-col gap-3">
+				{#if canManage}
+					<div class="flex flex-col gap-2" data-testid="setup-placement">
+						<span class="text-xs text-muted-foreground">
+							How the chain is laid out, for everyone on this map. Changeable later in the
+							map's settings.
+						</span>
+						<div class="grid grid-cols-2 gap-2">
+							{#each PLACEMENTS as option (option.value)}
+								{@const Icon = option.icon}
+								{@const chosen = placement === option.value}
+								<button
+									type="button"
+									class={cn(
+										'flex flex-col gap-1 border p-3 text-left transition-colors',
+										chosen
+											? 'border-primary/60 bg-accent/40'
+											: 'border-border/60 hover:bg-accent/20'
+									)}
+									aria-pressed={chosen}
+									data-testid="setup-placement-{option.value}"
+									onclick={() => setPlacement(option.value)}
+								>
+									<span class="flex items-center gap-1.5 text-sm font-medium">
+										<Icon class={cn('size-4', chosen ? 'text-primary' : 'text-muted-foreground')} />
+										{option.name}
+									</span>
+									<span class="text-xs leading-relaxed text-muted-foreground">{option.body}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				{#each toggles as row (row.key)}
 					{@const Icon = row.icon}
 					<div

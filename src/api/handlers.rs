@@ -895,10 +895,6 @@ pub struct CreateMapBody {
     #[serde(default)]
     #[ts(optional)]
     pub description: Option<String>,
-    /// How the chain is placed: `manual` or `tree`. Absent starts on `manual`.
-    #[serde(default)]
-    #[ts(optional)]
-    pub layout: Option<String>,
 }
 
 /// `POST /api/maps` — create a map owned by the active character.
@@ -914,7 +910,6 @@ pub async fn create_map(
         crate::maps::map::CreateMap {
             name: body.name,
             description: body.description.filter(|d| !d.trim().is_empty()),
-            layout: body.layout,
         },
     )
     .await?;

@@ -250,6 +250,9 @@ reaches any more, worked out on the client so the same list can be shown before 
 An anchor is a pinned system or the map's home system. A map with no anchors has nothing
 adrift rather than everything, since there would be nothing to measure reachability from.
 
+The placement mode itself is chosen in the map's setup walkthrough (Manager+ only) or its
+settings, not at creation: a new map has nothing on it to picture either way round.
+
 Distinct from `clear_map`, which takes everything *except* the anchors. Clean takes the
 dead branches a collapsed hole left behind; clear empties the map back to its anchors.
 
