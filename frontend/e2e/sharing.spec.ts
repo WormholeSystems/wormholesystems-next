@@ -42,17 +42,35 @@ test('a share link shows the chain to somebody with no account', async ({
 	await guestPage.goto(url);
 	await guestPage.waitForSelector('html[data-hydrated="true"]');
 
-	await expect(guestPage.getByTestId('readonly-map')).toBeVisible();
+	// The link is a way in, not a place: it hands over the token and drops them on the map
+	// everyone else is looking at.
+	await expect(guestPage).toHaveURL(new RegExp(`/maps/${mapId}$`));
+	await expect(guestPage.getByTestId('map-canvas')).toBeVisible();
 	await expect(guestPage.getByTestId('system-node')).toHaveCount(2);
-	await expect(guestPage.getByText('E2E Shared')).toBeVisible();
-	// Watching, not flying: nothing that writes is on the page.
-	await expect(guestPage.getByTestId('signatures-card')).toHaveCount(0);
-	await expect(guestPage.getByTestId('map-canvas')).toHaveCount(0);
+	await expect(guestPage.getByTestId('status-bar-name')).toHaveText('E2E Shared');
 
-	// Withdrawing the link shuts the door.
+	// Watching, not flying: nothing that writes, and nothing that needs an account.
+	await expect(guestPage.getByText('Watching')).toBeVisible();
+	await expect(guestPage.getByTestId('undo-button')).toHaveCount(0);
+	await expect(guestPage.getByTestId('settings-link')).toHaveCount(0);
+	// The chain is there to read, not to rearrange: no handle to drag a node by and none
+	// to pull a connection out of.
+	await expect(guestPage.getByTestId('drag-handle')).toHaveCount(0);
+	await expect(guestPage.getByTestId('connection-handle')).toHaveCount(0);
+
+	// The token is remembered, so the map is an ordinary address from here on.
+	await guestPage.goto(new URL(`/maps/${mapId}`, url).toString());
+	await guestPage.waitForSelector('html[data-hydrated="true"]');
+	await expect(guestPage.getByTestId('system-node')).toHaveCount(2);
+
+	// Withdrawing the link shuts the door, remembered token or not.
 	await page.getByTestId('share-revoke').click();
 	await page.getByTestId('revoke-share-confirm').click();
 	await expect(page.getByTestId('share-create')).toBeVisible();
+
+	await guestPage.reload();
+	await guestPage.waitForSelector('html[data-hydrated="true"]');
+	await expect(guestPage.getByTestId('map-error')).toBeVisible();
 
 	const shut = await guest.newPage();
 	const response = await shut.goto(url);
@@ -94,6 +112,10 @@ test('a public map needs no link at all', async ({ browser, api }) => {
 	expect(body.role).toBe('viewer');
 	// The key to the map never travels to somebody who could not mint one.
 	expect(body.map.share_token ?? null).toBeNull();
+
+	await guestPage.goto(`http://localhost:5173/maps/${mapId}`);
+	await guestPage.waitForSelector('html[data-hydrated="true"]');
+	await expect(guestPage.getByTestId('system-node')).toHaveCount(2);
 
 	await guest.close();
 	await api.delete(`/api/maps/${mapId}`);

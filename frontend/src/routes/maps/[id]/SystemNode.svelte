@@ -49,6 +49,8 @@
 		onselect,
 		ondown,
 		onlink,
+		linkable = true,
+		editable = true,
 		onmenu,
 		onsavealias,
 		draggable = true,
@@ -70,6 +72,10 @@
 		onlink: (ev: PointerEvent) => void;
 		/** An automatic layout owns the positions, so the drag handle goes away. */
 		draggable?: boolean;
+		/** A viewer draws no connections, so the handle that starts one is not offered. */
+		linkable?: boolean;
+		/** Same for the alias editor a double-click opens. */
+		editable?: boolean;
 		/** The scanner id an unmapped hole is known by, until it has a system. */
 		signatureId?: string | null;
 		onmenu: (ev: MouseEvent) => void;
@@ -141,7 +147,7 @@
 		style:top="{pos.y}px"
 		onpointerdown={onselect}
 		oncontextmenu={onmenu}
-		ondblclick={openEditor}
+		ondblclick={() => editable && openEditor()}
 	>
 		<!-- Drag handle (top), hover-only, hidden when pinned or placed for you. -->
 		{#if !node.is_pinned && draggable}
@@ -158,7 +164,7 @@
 		<!-- Connection handle (right edge), hover-only. Not on an unmapped hole: a
 		     connection out of it would claim the unknown system on its far side leads
 		     somewhere, which is exactly what nobody knows yet. -->
-		{#if !ghost}
+		{#if !ghost && linkable}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="absolute top-1/2 left-full hidden h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border border-neutral-300 bg-white group-hover/node:block hover:block dark:border-neutral-600 dark:bg-neutral-700"

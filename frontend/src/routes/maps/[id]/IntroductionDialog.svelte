@@ -91,6 +91,8 @@
 	let scopes = $state<ScopeStatus[]>([]);
 
 	$effect(() => {
+		// Nobody to have scopes: a watcher never sees this dialog.
+		if (!map.signedIn) return;
 		api
 			.myScopes()
 			.then((rows) => (scopes = rows))

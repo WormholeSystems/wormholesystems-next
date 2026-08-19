@@ -52,7 +52,14 @@
 	// Compacted after filtering, so hiding a panel in the middle closes the hole it leaves
 	// rather than showing a gap. The stored positions are untouched, which is what lets a
 	// panel go back where it was when it is unhidden.
-	const items = $derived(compact(layout.items.filter((i) => !hidden.has(i.i)), layout.cols));
+	const items = $derived(
+		compact(
+			layout.items.filter(
+				(i) => !hidden.has(i.i) && !map.unavailablePanels.has(i.i as PanelId)
+			),
+			layout.cols
+		)
+	);
 
 	const colWidth = $derived(gridWidth / layout.cols);
 	const rows = $derived(bottom(items));

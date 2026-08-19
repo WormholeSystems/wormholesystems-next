@@ -22,11 +22,15 @@ a role. The **owner** is just a `role = owner` row here; there is no `owner_id`.
 **Invariants & expected behaviour**
 
 - **Shared maps are read-only.** `maps.is_public` opens a map to anyone at all;
-  `maps.share_token` opens it to whoever holds the token in the URL. Either way the
-  visitor resolves to `viewer` and may have no account, so nothing that writes and nothing
-  Member+ (pilots, history) is reachable. The token is never sent to anyone below manager,
-  since it is a key to the map. Minting a new token replaces the old one, which is how a
-  link is withdrawn.
+  `maps.share_token` opens it to whoever holds the token. Either way the visitor resolves
+  to `viewer` and may have no account, so nothing that writes and nothing Member+ (pilots,
+  history) is reachable. The token is never sent to anyone below manager, since it is a key
+  to the map. Minting a new token replaces the old one, which is how a link is withdrawn.
+- **A share link is a way in, not a place.** `/share/{token}` resolves the token, leaves it
+  in a `map_share_{id}` cookie and redirects to `/maps/{id}`: a watcher reads the same page
+  everybody else does, with the parts that need an account absent. Read handlers take the
+  token from the query string or that cookie, so the address bar goes back to being an
+  ordinary map link once the visitor is in.
 - **A map has exactly one owner.** `owner` cannot be granted through `set_access`; it
   moves with `transfer_ownership`, which demotes the previous owner to `manager` and
   requires the new one to be a character already granted access. Creating a map makes its

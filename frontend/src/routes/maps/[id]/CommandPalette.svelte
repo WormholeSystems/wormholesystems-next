@@ -29,7 +29,7 @@
 	// Monotonic request id: drop responses that arrive out of order while typing.
 	let generation = 0;
 
-	const canWrite = $derived(map.data?.role === 'member' || map.data?.role === 'owner');
+	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
 	// Threat hits are systems too, but they answer a different question — where does this
 	// corp operate — so they get their own section rather than being mixed into results
 	// that matched by name.

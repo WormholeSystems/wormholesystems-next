@@ -178,12 +178,7 @@ export const api = {
 		post<Map>('/api/maps', { name, description }),
 	deleteMap: (mapId: number) => del<null>(`/api/maps/${mapId}`),
 	fetchMap: (mapId: number) => get<MapView>(`/api/maps/${mapId}`),
-	// `share` is the token a watcher holds instead of a session.
-	listSignatures: (mapId: number, share?: string) =>
-		get<Signature[]>(
-			`/api/maps/${mapId}/signatures${share ? `?share=${encodeURIComponent(share)}` : ''}`
-		),
-	sharedMap: (token: string) => get<MapView>(`/api/share/${encodeURIComponent(token)}`),
+	listSignatures: (mapId: number) => get<Signature[]>(`/api/maps/${mapId}/signatures`),
 	mapCharacters: (mapId: number) => get<MapCharacter[]>(`/api/maps/${mapId}/characters`),
 	mapUserSettings: (mapId: number) => get<MapUserSettings>(`/api/maps/${mapId}/settings/user`),
 	updateMapUserSettings: (mapId: number, update: UpdateMapUserSettings) =>

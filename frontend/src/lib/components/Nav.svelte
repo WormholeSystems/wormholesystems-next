@@ -55,15 +55,19 @@
 		<a href="/" class="font-heading text-sm font-semibold tracking-[0.2em] text-foreground">
 			VECTOR
 		</a>
-		<a
-			href="/maps"
-			class="flex items-center gap-1.5 text-sm transition-colors {here === '/maps'
-				? 'text-foreground'
-				: 'text-muted-foreground hover:text-foreground'}"
-		>
-			<MapIcon class="size-4" />
-			Maps
-		</a>
+		<!-- Nothing to list without an account, and somebody watching a shared map has no
+		     use for a link that only leads to the sign-in page. -->
+		{#if me}
+			<a
+				href="/maps"
+				class="flex items-center gap-1.5 text-sm transition-colors {here === '/maps'
+					? 'text-foreground'
+					: 'text-muted-foreground hover:text-foreground'}"
+			>
+				<MapIcon class="size-4" />
+				Maps
+			</a>
+		{/if}
 
 		<!-- Pinned maps: one click from anywhere, and the one you are on is marked. -->
 		<span class="hidden min-w-0 items-center gap-1 lg:flex" data-testid="pinned-maps">

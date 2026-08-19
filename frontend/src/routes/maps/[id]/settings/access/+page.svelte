@@ -537,14 +537,15 @@
 		<Card.Header>
 			<Card.Title>Sharing</Card.Title>
 			<Card.Description>
-				Both of these are read-only: no editing, and pilots stay hidden.
+				Both open the map itself, read-only: the chain as it is scanned, with no editing
+				and no pilots.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex flex-col py-0">
 			<SettingRow
 				id="share-link"
 				label="Share link"
-				description="Anyone holding this address can watch the map without an account. Making a new one locks out whoever had the old."
+				description="Anyone holding this address can watch the map without an account; following it opens the map itself. Making a new link locks out whoever had the old one."
 			>
 				{#snippet control()}
 					<span class="flex items-center gap-2">

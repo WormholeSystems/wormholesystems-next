@@ -399,12 +399,27 @@ export class MapState {
 		return out;
 	});
 
-	constructor(mapId: number) {
+	/**
+	 * Whether anyone is signed in. False for somebody watching through a share link or a
+	 * public map: they have the chain and nothing else, so everything hung off an account
+	 * (presence, history, their own settings) is not fetched rather than fetched and
+	 * refused.
+	 */
+	signedIn = $state(true);
+
+	constructor(mapId: number, signedIn = true) {
 		this.mapId = mapId;
+		this.signedIn = signedIn;
 	}
+
+	/** Panels there is nobody to fill in: both of these are about the account, not the map. */
+	unavailablePanels = $derived(
+		new Set<PanelId>(this.signedIn ? [] : ['characters', 'skyhooks'])
+	);
 
 	/** Presence: fails silently for viewers (403) and anonymous races. */
 	async fetchCharacters() {
+		if (!this.signedIn) return;
 		try {
 			this.characters = await api.mapCharacters(this.mapId);
 		} catch {
@@ -413,6 +428,7 @@ export class MapState {
 	}
 
 	async loadMyCharacters() {
+		if (!this.signedIn) return;
 		try {
 			this.myCharacters = await api.myCharacters();
 		} catch {
@@ -499,6 +515,10 @@ export class MapState {
 	private settingsVersion = 0;
 
 	async loadUserSettings() {
+		if (!this.signedIn) {
+			this.settingsLoaded = true;
+			return;
+		}
 		const version = this.settingsVersion;
 		try {
 			const settings = await api.mapUserSettings(this.mapId);
@@ -637,6 +657,7 @@ export class MapState {
 	}
 
 	async fetchStale() {
+		if (!this.signedIn) return;
 		try {
 			this.stale = await api.listStaleConnections(this.mapId);
 		} catch {
@@ -649,6 +670,7 @@ export class MapState {
 	}
 
 	async fetchHistory() {
+		if (!this.signedIn) return;
 		try {
 			this.history = await api.mapHistory(this.mapId);
 		} catch {

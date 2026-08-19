@@ -313,6 +313,15 @@ pub async fn list_jumps(
     connection_id: i64,
 ) -> Result<Vec<ConnectionJump>> {
     require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
+    read_jumps(pool, map_id, connection_id).await
+}
+
+/// The jump log itself, for callers that have already settled who is asking.
+pub async fn read_jumps(
+    pool: &PgPool,
+    map_id: i64,
+    connection_id: i64,
+) -> Result<Vec<ConnectionJump>> {
     let jumps = sqlx::query_as!(
         ConnectionJump,
         r#"select j.id, j.map_id, j.connection_id, j.character_id,

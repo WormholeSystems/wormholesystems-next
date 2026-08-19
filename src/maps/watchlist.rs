@@ -27,6 +27,12 @@ pub async fn list_watchlist(
     map_id: i64,
 ) -> Result<Vec<WatchlistEntry>> {
     require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
+    read_watchlist(pool, map_id).await
+}
+
+/// The watchlist itself, for callers that have already settled who is asking (a watcher
+/// on a shared map has no grant to check).
+pub async fn read_watchlist(pool: &PgPool, map_id: i64) -> Result<Vec<WatchlistEntry>> {
     let entries = sqlx::query_as!(
         WatchlistEntry,
         "select id, map_id, solar_system_id, is_pinned

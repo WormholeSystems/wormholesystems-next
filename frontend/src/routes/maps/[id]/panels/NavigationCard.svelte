@@ -215,7 +215,11 @@
 	let addResults = $state<SystemSearchResult[]>([]);
 	let addGeneration = 0;
 	$effect(() => {
-		const text = addQuery;
+		const text = addQuery.trim();
+		if (!text) {
+			addResults = [];
+			return;
+		}
 		const request = ++addGeneration;
 		api
 			.searchSystems(text)

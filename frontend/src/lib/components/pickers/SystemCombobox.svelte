@@ -66,8 +66,12 @@
 	});
 
 	$effect(() => {
-		const text = query;
+		const text = query.trim();
 		clearTimeout(searchTimer);
+		if (!text) {
+			results = [];
+			return;
+		}
 		searchTimer = setTimeout(() => {
 			const request = ++generation;
 			api

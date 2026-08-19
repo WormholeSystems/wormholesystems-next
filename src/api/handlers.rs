@@ -974,6 +974,15 @@ pub struct ShareQuery {
     pub share: Option<String>,
 }
 
+/// The share token a watcher is holding for this map, from the URL or, once they have
+/// followed the link, from the cookie the share route left behind. Following a link should
+/// not mean carrying the token in every address afterwards.
+pub(crate) fn share_cookie(jar: &CookieJar, map_id: i64) -> Option<String> {
+    jar.get(&format!("map_share_{map_id}"))
+        .map(|c| c.value().to_string())
+        .filter(|token| !token.is_empty())
+}
+
 /// Who is reading: a grant if the session has one, otherwise whatever the map has been
 /// opened up to. Guests never get further than viewer.
 async fn read_map_as(
@@ -983,7 +992,12 @@ async fn read_map_as(
     share: &ShareQuery,
 ) -> Result<crate::maps::access::Reader, ApiError> {
     let actor = crate::api::session_actor(&state.db, jar).await?;
-    Ok(crate::maps::access::reader_for(&state.db, map_id, actor, share.share.as_deref()).await?)
+    let token = share
+        .share
+        .clone()
+        .or_else(|| share_cookie(jar, map_id))
+        .filter(|token| !token.is_empty());
+    Ok(crate::maps::access::reader_for(&state.db, map_id, actor, token.as_deref()).await?)
 }
 
 /// `GET /api/maps/{id}/signatures` — all signatures on the map.
@@ -1773,9 +1787,10 @@ pub async fn list_connection_jumps(
     State(state): State<AppState>,
     jar: CookieJar,
     Path((map_id, connection_id)): Path<(i64, i64)>,
+    Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<ConnectionJump>> {
-    let actor = require_actor(&state.db, &jar).await?;
-    let jumps = crate::maps::jumps::list_jumps(&state.db, actor, map_id, connection_id).await?;
+    read_map_as(&state, &jar, map_id, &share).await?;
+    let jumps = crate::maps::jumps::read_jumps(&state.db, map_id, connection_id).await?;
     Ok(Json(jumps))
 }
 
@@ -1840,9 +1855,10 @@ pub async fn list_watchlist(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(map_id): Path<i64>,
+    Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<WatchlistEntry>> {
-    let actor = require_actor(&state.db, &jar).await?;
-    let entries = crate::maps::watchlist::list_watchlist(&state.db, actor, map_id).await?;
+    read_map_as(&state, &jar, map_id, &share).await?;
+    let entries = crate::maps::watchlist::read_watchlist(&state.db, map_id).await?;
     Ok(Json(entries))
 }
 
@@ -1907,11 +1923,9 @@ pub async fn search_map(
     jar: CookieJar,
     Path(map_id): Path<i64>,
     Query(query): Query<SearchQuery>,
+    Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<MapSearchHit>> {
-    let actor = require_actor(&state.db, &jar).await?;
-    let role = crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
-        .await?
-        .ok_or(crate::maps::MapError::NotFound)?;
+    let role = read_map_as(&state, &jar, map_id, &share).await?.role;
     let q = query.q.trim();
     if q.len() < 2 {
         return Ok(Json(Vec::new()));
@@ -2370,22 +2384,21 @@ pub async fn map_killmails(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(map_id): Path<i64>,
+    Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<crate::killmails::MapKillmail>> {
-    let actor = require_actor(&state.db, &jar).await?;
-    if crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
+    let reader = read_map_as(&state, &jar, map_id, &share).await?;
+    // Which kills to show is a per-user preference, and a watcher has nowhere to keep one.
+    let filter = match reader.actor {
+        Some(actor) => sqlx::query_scalar!(
+            "select killmail_filter from map_user_settings where map_id = $1 and user_id = $2",
+            map_id,
+            actor.user_id,
+        )
+        .fetch_optional(&state.db)
         .await?
-        .is_none()
-    {
-        return Err(ApiError::from(crate::maps::MapError::NotFound));
-    }
-    let filter = sqlx::query_scalar!(
-        "select killmail_filter from map_user_settings where map_id = $1 and user_id = $2",
-        map_id,
-        actor.user_id,
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .unwrap_or_else(|| "all".into());
+        .unwrap_or_else(|| "all".into()),
+        None => "all".into(),
+    };
 
     Ok(Json(
         crate::killmails::list_for_map(

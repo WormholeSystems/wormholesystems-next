@@ -19,6 +19,7 @@
 	import { page } from '$app/state';
 
 	import { api } from '$lib/api/client';
+	import { Button } from '$lib/components/ui/button';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import {
 		NODE_W,
@@ -51,7 +52,10 @@
 	import { JumpTracker } from './tracking.svelte';
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	const map = $derived(new MapState(mapId));
+	const map = $derived(new MapState(mapId, page.data.me != null));
+	// A viewer, including somebody watching a shared map, moves nothing: the canvas reads
+	// the same, but the handles that would start a write are not there to grab.
+	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
 	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
 	const tracker = $derived(new JumpTracker(map));
 	// Held so the status bar can bring the guide back after it has been waved away.
@@ -104,8 +108,20 @@
 		});
 		s.loadUserSettings();
 		s.loadRoutingGraph();
-		tracker.refresh();
 		s.loadIgnored();
+		// Everything below this is about the pilot at the keyboard, and a watcher does not
+		// have one: no presence, no jump tracking, no private channel.
+		if (!s.signedIn) {
+			const closeShared = openMapSocket(
+				s.mapId,
+				(event) => {
+					if (event?.type !== 'characters_changed') s.refetch();
+				},
+				(state) => (s.socket = state)
+			);
+			return () => closeShared();
+		}
+		tracker.refresh();
 		s.fetchCharacters();
 		const observe = () => tracker.refresh();
 		// Presence has no realtime push yet; poll while the page is open. Own characters
@@ -342,7 +358,7 @@
 	 * the data.
 	 */
 	function handleNodeDown(ev: PointerEvent, s: MapSystemView) {
-		if (ev.button !== 0 || map.layoutLocked) return;
+		if (ev.button !== 0 || map.layoutLocked || !canWrite) return;
 		ev.stopPropagation();
 		map.closeMenu();
 
@@ -395,6 +411,7 @@
 
 	function handleLinkDown(ev: PointerEvent, id: number) {
 		ev.stopPropagation();
+		if (!canWrite) return;
 		viewportEl?.setPointerCapture(ev.pointerId);
 		const w = map.toWorld(ev.clientX, ev.clientY);
 		map.linking = { from: id, x: w.x, y: w.y };
@@ -464,9 +481,20 @@
 <TrackingDialog {map} {tracker} />
 
 {#if map.loadError}
-	<p class="p-12 text-center text-sm text-destructive" data-testid="map-error">
-		{map.loadError}
-	</p>
+	<!-- A visitor with no account lands here when a link has been withdrawn, or when the
+	     map was never open to anyone: the map is the same either way, so the answer is too. -->
+	{#if page.data.me == null}
+		<div class="flex flex-col items-center gap-4 p-12 text-center" data-testid="map-error">
+			<p class="text-sm text-muted-foreground">
+				This map is not open to watch. The link may have been withdrawn.
+			</p>
+			<Button href="/login" variant="outline">Sign in</Button>
+		</div>
+	{:else}
+		<p class="p-12 text-center text-sm text-destructive" data-testid="map-error">
+			{map.loadError}
+		</p>
+	{/if}
 {:else if !map.ready}
 	<!-- Held until the arrangement is known, so tiles are never painted in the built-in
 	     positions and then moved. -->
@@ -675,7 +703,9 @@
 				connectionCount={connCountByPlacement.get(s.id) ?? 0}
 				pilots={pilotsBySystem.get(s.solar_system_id ?? -1) ?? []}
 				showThreat={map.userSettings?.show_threat_level ?? true}
-				draggable={!map.layoutLocked}
+				draggable={!map.layoutLocked && canWrite}
+				linkable={canWrite}
+				editable={canWrite}
 				signatureId={map.ghostSignatures.get(s.id) ?? null}
 				onsavealias={(alias, occupier) => saveAlias(s, alias, occupier)}
 				active={map.activeId === s.id}

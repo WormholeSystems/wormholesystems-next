@@ -13,9 +13,12 @@ use crate::maps::MapHub;
 use crate::user_channel::UserHub;
 
 /// `GET /ws/map/{map_id}` — upgrade to a WebSocket and stream the map's events as JSON.
-/// Gated: the caller must have a valid session and at least Viewer access to the map (the
-/// same bar as reading it). The stream will eventually carry member-gated data like pilot
-/// movement, so subscription must be authorized, not open.
+/// Gated at the same bar as reading the map: a grant, or the share the map has been opened
+/// with. The stream will eventually carry member-gated data like pilot movement, so
+/// subscription must be authorized, not open.
+///
+/// A watcher following a share link gets the stream too. The frames say only that something
+/// changed, and leaving them out would mean showing a stale chain or polling for one.
 pub async fn map_ws(
     Path(map_id): Path<i64>,
     State(state): State<AppState>,
@@ -29,15 +32,11 @@ pub async fn map_ws(
             .flatten(),
         None => None,
     };
-    let Some(actor) = actor else {
-        return StatusCode::UNAUTHORIZED.into_response();
-    };
+    let token = crate::api::handlers::share_cookie(&jar, map_id);
 
-    // Any role (Viewer+) may watch a map's changes; finer per-event gating (e.g. member-only
-    // pilot movement) will filter inside the stream once those events exist.
-    match crate::maps::access::effective_role(&state.db, map_id, actor.user_id).await {
-        Ok(Some(_)) => ws.on_upgrade(move |socket| stream_map_events(socket, state.hub, map_id)),
-        Ok(None) => StatusCode::FORBIDDEN.into_response(),
+    match crate::maps::access::reader_for(&state.db, map_id, actor, token.as_deref()).await {
+        Ok(_) => ws.on_upgrade(move |socket| stream_map_events(socket, state.hub, map_id)),
+        Err(crate::maps::MapError::NotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
