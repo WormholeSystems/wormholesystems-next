@@ -243,6 +243,16 @@ inside the same transaction.
   - `solar_system_id: None` turns it back into a ghost, and is refused once the system
     holds signatures. It exists as the inverse of a resolve rather than as an action.
 
+### Cleaning the map
+
+Not a command of its own: "clean map" is `remove_systems` over the systems no **anchor**
+reaches any more, worked out on the client so the same list can be shown before it runs.
+An anchor is a pinned system or the map's home system. A map with no anchors has nothing
+adrift rather than everything, since there would be nothing to measure reachability from.
+
+Distinct from `clear_map`, which takes everything *except* the anchors. Clean takes the
+dead branches a collapsed hole left behind; clear empties the map back to its anchors.
+
 ### `remove_system(actor, map_id, map_solar_system_id)`
 
 - **Auth:** `Member`.

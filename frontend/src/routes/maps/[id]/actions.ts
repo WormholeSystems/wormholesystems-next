@@ -22,6 +22,8 @@ export const MAP_ACTIONS = {
 	moveSystems: { failed: 'Could not move the systems' },
 	removeSystems: { failed: 'Could not remove the systems' },
 	clearMap: { failed: 'Could not clear the map', done: 'Map cleared' },
+	// Bulk and destructive, and what went is a branch you were not looking at.
+	cleanMap: { failed: 'Could not clean the map', done: 'Map cleaned' },
 	setAlias: { failed: 'Could not rename the system' },
 	setStatus: { failed: 'Could not set the status' },
 	setOccupier: { failed: 'Could not set the occupier' },

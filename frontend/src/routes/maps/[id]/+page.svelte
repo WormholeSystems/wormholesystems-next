@@ -44,6 +44,7 @@
 	import CommandPalette from './CommandPalette.svelte';
 	import LayoutToolbar from './panels/LayoutToolbar.svelte';
 	import PanelGrid from './panels/PanelGrid.svelte';
+	import CleanMapDialog from './CleanMapDialog.svelte';
 	import IntroductionDialog from './IntroductionDialog.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import TrackingDialog from './TrackingDialog.svelte';
@@ -453,6 +454,7 @@
 <StatusBar {map} />
 
 <CommandPalette {map} bind:open={map.paletteOpen} />
+<CleanMapDialog {map} bind:open={map.cleanPrompt} />
 <TrackingDialog {map} {tracker} />
 
 {#if map.loadError}

@@ -3,6 +3,7 @@
 	// (coordinate-positioned) with CSS-hover flyout submenus.
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import BugIcon from '@lucide/svelte/icons/bug';
+	import BrushCleaningIcon from '@lucide/svelte/icons/brush-cleaning';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import CompassIcon from '@lucide/svelte/icons/compass';
@@ -91,6 +92,12 @@
 				error: (err) => `debug: ${(err as Error).message}`
 			}
 		);
+	}
+
+	/** Ask first: what goes is a branch nobody is looking at. */
+	function cleanMap() {
+		map.cleanPrompt = true;
+		close();
 	}
 
 	function clearMap() {
@@ -279,6 +286,12 @@ which would unmount these buttons before their click can fire. -->
 			<button class={item} onclick={deleteSelection}>
 				<Trash2Icon class="size-4" />
 				Delete selection
+			</button>
+		{/if}
+		{#if map.orphaned.length > 0}
+			<button class={item} onclick={cleanMap} data-testid="clean-map">
+				<BrushCleaningIcon class="size-4" />
+				Clean map ({map.orphaned.length})
 			</button>
 		{/if}
 		<button class={item} onclick={clearMap}>

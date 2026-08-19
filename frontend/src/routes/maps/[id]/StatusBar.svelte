@@ -11,6 +11,7 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import BrushCleaningIcon from '@lucide/svelte/icons/brush-cleaning';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
 
@@ -147,6 +148,19 @@
 			</Tooltip.Root>
 		{/if}
 
+		{#if map.orphaned.length > 0 && canWrite}
+			<!-- What a collapsed hole leaves behind: a branch nothing reaches any more. -->
+			<Badge
+				variant="outline"
+				class="cursor-pointer gap-1 border-amber-500/40 text-amber-500"
+				data-testid="orphaned-badge"
+				onclick={() => (map.cleanPrompt = true)}
+			>
+				<BrushCleaningIcon />
+				{map.orphaned.length} adrift
+			</Badge>
+		{/if}
+
 		{#if map.stale.length > 0}
 			<Popover.Root>
 				<Popover.Trigger>
@@ -184,7 +198,7 @@
 								data-testid="clean-stale"
 								onclick={() => map.cleanStale()}
 							>
-								Clean map ({map.stale.length})
+								Remove {map.stale.length === 1 ? 'it' : 'them'}
 							</Button>
 						</div>
 					{/if}

@@ -118,6 +118,8 @@ export class MapState {
 	panDrag = $state<{ cx: number; cy: number; px: number; py: number } | null>(null);
 	// The Cmd+K palette, opened from the status bar or the shortcut.
 	paletteOpen = $state(false);
+	/** The "clean map" confirmation, opened from the status bar hint or the map menu. */
+	cleanPrompt = $state(false);
 	// Layout edit mode, the breakpoint being edited, and the working copy of the
 	// arrangement. The draft is what the grid renders, so a drag shows immediately; it is
 	// only persisted on Save, which is what makes Discard possible.
@@ -807,6 +809,46 @@ export class MapState {
 			.updateMapUserSettings(this.mapId, { layout_override: own })
 			.then((s) => (this.userSettings = s))
 			.catch((err) => toast.error(`placement: ${(err as Error).message}`));
+	}
+
+	/**
+	 * The dead branches: systems no anchor still reaches through the connections, where an
+	 * anchor is a pinned system or the home system — the places you said the chain hangs
+	 * from. What is left over when a hole collapses and takes its branch with it.
+	 *
+	 * A map with no anchors at all has nothing orphaned rather than everything: without a
+	 * place to measure from, "unreachable" would mean the whole map.
+	 */
+	orphaned = $derived.by<MapSystemView[]>(() => {
+		const anchors = this.systems.filter((s) => s.is_pinned || s.is_home).map((s) => s.id);
+		if (anchors.length === 0) return [];
+
+		const neighbours = new Map<number, number[]>();
+		for (const c of this.connections) {
+			neighbours.set(c.from_system, [...(neighbours.get(c.from_system) ?? []), c.to_system]);
+			neighbours.set(c.to_system, [...(neighbours.get(c.to_system) ?? []), c.from_system]);
+		}
+		const reachable = new Set(anchors);
+		const queue = [...anchors];
+		while (queue.length > 0) {
+			for (const next of neighbours.get(queue.pop()!) ?? []) {
+				if (reachable.has(next)) continue;
+				reachable.add(next);
+				queue.push(next);
+			}
+		}
+		return this.systems.filter((s) => !reachable.has(s.id));
+	});
+
+	/** Take the dead branches off the map. */
+	cleanMap() {
+		const ids = this.orphaned.map((s) => s.id);
+		if (ids.length === 0) return;
+		this.run(
+			'cleanMap',
+			api.removeSystems({ map_id: this.mapId, map_solar_system_ids: ids }),
+			`${ids.length} ${ids.length === 1 ? 'system' : 'systems'}`
+		);
 	}
 
 	/** Shift the view by a screen-pixel delta (wheel, scrollbar, drag). */
