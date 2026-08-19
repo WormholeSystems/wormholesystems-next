@@ -33,11 +33,58 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2],
 			edges: [{ from: 1, to: 2 }],
 			rootIds: [],
-			fallbackRootId: 2
+			homeId: 2
 		});
 
 		expect(positions.get(2)!.x).toBe(60);
 		expect(positions.get(1)!.x).toBe(380);
+	});
+
+	it('keeps home in the first column even when other systems are pinned', () => {
+		// Home is three hops down the chain from the pinned system; it still roots its own
+		// tree rather than hanging off that one.
+		const positions = layout({
+			nodeIds: [1, 2, 3, 9],
+			edges: [
+				{ from: 1, to: 2 },
+				{ from: 2, to: 3 },
+				{ from: 3, to: 9 }
+			],
+			rootIds: [1],
+			homeId: 9
+		});
+
+		expect(positions.get(9)!.x).toBe(60);
+		expect(positions.get(1)!.x).toBe(60);
+	});
+
+	it('puts home above the pinned systems, whatever they are called', () => {
+		const positions = layout({
+			nodeIds: [1, 2, 9],
+			edges: [
+				{ from: 1, to: 2 },
+				{ from: 2, to: 9 }
+			],
+			rootIds: [1],
+			homeId: 9,
+			// Sorts the pinned system first, which must not lift it above home.
+			compareNodes: (a, b) => a - b
+		});
+
+		expect(positions.get(9)!.y).toBeLessThan(positions.get(1)!.y);
+	});
+
+	it('does not root the home system twice when it is also pinned', () => {
+		const positions = layout({
+			nodeIds: [1, 2],
+			edges: [{ from: 1, to: 2 }],
+			rootIds: [1],
+			homeId: 1
+		});
+
+		expect(positions.size).toBe(2);
+		expect(positions.get(1)!.x).toBe(60);
+		expect(positions.get(2)!.x).toBe(380);
 	});
 
 	it('fans children out around their parent, a sibling gap apart', () => {

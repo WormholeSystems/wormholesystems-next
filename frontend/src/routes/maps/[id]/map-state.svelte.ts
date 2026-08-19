@@ -336,7 +336,8 @@ export class MapState {
 				nodeIds: this.systems.map((s) => s.id),
 				edges: this.connections.map((c) => ({ from: c.from_system, to: c.to_system })),
 				rootIds: this.systems.filter((s) => s.is_pinned).map((s) => s.id),
-				fallbackRootId: this.systems.find((s) => s.is_home)?.id ?? null,
+				homeId: this.systems.find((s) => s.is_home)?.id ?? null,
+				fallbackRootId: null,
 				compareNodes: compareForTree(systems)
 			},
 			{ gridSize: this.grid.cell_size }

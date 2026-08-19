@@ -17,7 +17,12 @@ export interface TreeInput {
 	edges: TreeEdge[];
 	/** Pinned systems, which become the roots the branches grow out of. */
 	rootIds: number[];
-	/** Used as the root when nothing is pinned, i.e. the map's home system. */
+	/**
+	 * The home system: a root like the pinned ones, and the one the column starts with.
+	 * Home is where the chain is flown from, so it reads first or it reads wrong.
+	 */
+	homeId?: number | null;
+	/** Used as the root when nothing is pinned and there is no home system. */
 	fallbackRootId?: number | null;
 	/** Orders siblings, and the separate trees, down the cross axis. */
 	compareNodes?: (a: number, b: number) => number;
@@ -123,7 +128,11 @@ export function computeTreeLayout(
 	// Pinned first, and stranded systems after them, so the left column reads top to
 	// bottom as "the systems you decided matter, then everything nothing reaches".
 	const chosen = new Set<number>();
-	const candidates = input.rootIds.filter((id) => adjacency.has(id));
+	const home = input.homeId != null && adjacency.has(input.homeId) ? input.homeId : null;
+	const candidates = [
+		...(home === null ? [] : [home]),
+		...input.rootIds.filter((id) => adjacency.has(id) && id !== home)
+	];
 	if (candidates.length === 0 && input.fallbackRootId != null && adjacency.has(input.fallbackRootId)) {
 		candidates.push(input.fallbackRootId);
 	}
@@ -151,12 +160,11 @@ export function computeTreeLayout(
 	if (compare) {
 		for (const [, children] of childrenOf) children.sort(compare);
 	}
-	// The comparator orders each kind of root among itself, never across the two: a
-	// stranded system with an early alias must not climb above a pinned one.
-	roots.sort(
-		(a, b) =>
-			Number(!chosen.has(a)) - Number(!chosen.has(b)) || (compare ? compare(a, b) : 0)
-	);
+	// Home first, then the pinned systems, then whatever nothing reaches. The comparator
+	// only orders within each of those, so a stranded system with an early alias cannot
+	// climb above a pinned one, and nothing climbs above home.
+	const rank = (id: number) => (id === home ? 0 : chosen.has(id) ? 1 : 2);
+	roots.sort((a, b) => rank(a) - rank(b) || (compare ? compare(a, b) : 0));
 
 	// --- The forest as linked records the walks can chew on. ---
 	const nodes = new Map<number, LayoutNode>();
