@@ -1,6 +1,5 @@
-// The map page's shared state: the fetched data plus all interaction state. Interaction
-// state is owned here, never derived from the data, so it survives refetches. Ported from
-// the old Leptos `MapPage` signals.
+// The map page's shared state. Interaction state is owned here, never derived from the
+// fetched data, so it survives refetches.
 
 import { api } from '$lib/api/client';
 import type { GridConfig } from '$lib/api/types/GridConfig';
@@ -39,10 +38,7 @@ import { MAP_ACTIONS, type MapAction } from './actions';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import { timeAgo } from '$lib/format';
 
-/**
- * Zoom range and step, matching the legacy map: half size is where node text stops being
- * readable, double is where a chain of any size stops fitting on screen.
- */
+/** Half size is where node text stops being readable, double where a chain stops fitting. */
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
@@ -51,10 +47,8 @@ const ZOOM_STEP = 0.1;
 const SCROLLBAR_LINGER_MS = 1500;
 
 /**
- * A live drag. `primary` is the grabbed node; `x`/`y` is its current (snapped) top-left and
- * `offX`/`offY` the grab point relative to it. `members` are all co-dragged nodes (the
- * primary plus the rest of a multi-selection), each with its start top-left — every member
- * moves by the same delta the primary moved.
+ * A live drag. `members` are the co-dragged nodes with their start top-left; each moves by
+ * the same delta the primary moved.
  */
 export interface Drag {
 	primary: number;
@@ -118,7 +112,6 @@ export class MapState {
 	band = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 	menu = $state<Menu | null>(null);
 	panDrag = $state<{ cx: number; cy: number; px: number; py: number } | null>(null);
-	// The Cmd+K palette, opened from the status bar or the shortcut.
 	paletteOpen = $state(false);
 	/** The "clean map" confirmation, opened from the status bar hint or the map menu. */
 	cleanPrompt = $state(false);
@@ -320,16 +313,10 @@ export class MapState {
 		return map.layout === 'tree' ? 'tree' : 'manual';
 	});
 
-	/**
-	 * Automatic placement puts the nodes where it wants them, so dragging one or
-	 * rubber-banding a selection would fight the layout rather than change anything.
-	 */
+	/** Automatic placement owns the positions, so dragging one would fight the layout. */
 	layoutLocked = $derived(this.layout === 'tree');
 
-	/**
-	 * Tree positions, worked out from the shape of the chain rather than read from the
-	 * server. Recomputed only when that shape changes, not while anything is dragged.
-	 */
+	/** Derived from the shape of the chain, recomputed only when that shape changes. */
 	treePositions = $derived.by(() => {
 		if (this.layout !== 'tree') return null;
 		const systems = new Map(this.systems.map((s) => [s.id, s]));
@@ -347,11 +334,8 @@ export class MapState {
 	});
 
 	/**
-	 * The scanner id an unmapped hole is known by, per placement.
-	 *
-	 * A ghost has no name of its own, so the signature its connection is linked to is the
-	 * only thing that identifies it: it is what you read off the scanner and what you go
-	 * and warp to.
+	 * The scanner id an unmapped hole is known by. A ghost has no name of its own, so the
+	 * signature its connection is linked to is the only thing that identifies it.
 	 */
 	ghostSignatures = $derived.by(() => {
 		const out = new Map<number, string>();
@@ -402,10 +386,8 @@ export class MapState {
 	});
 
 	/**
-	 * Whether anyone is signed in. False for somebody watching through a share link or a
-	 * public map: they have the chain and nothing else, so everything hung off an account
-	 * (presence, history, their own settings) is not fetched rather than fetched and
-	 * refused.
+	 * False for somebody watching through a share link or a public map: everything hung off
+	 * an account is not fetched rather than fetched and refused.
 	 */
 	signedIn = $state(true);
 
@@ -509,11 +491,7 @@ export class MapState {
 		}
 	}
 
-	/**
-	 * Bumped by every local settings write, so a fetch that started earlier cannot land
-	 * afterwards and quietly undo it. The panel arrangement is seeded either way: that
-	 * half of the payload is what the fetch is for, and no write races it.
-	 */
+	/** Bumped by every write, so a fetch that started earlier cannot land afterwards. */
 	private settingsVersion = 0;
 
 	async loadUserSettings() {
@@ -543,11 +521,8 @@ export class MapState {
 	);
 
 	/**
-	 * Apply a new arrangement for one breakpoint to the working copy.
-	 *
-	 * `items` only covers the visible panels, so the hidden ones are carried over rather
-	 * than dropped: their stored positions are what puts them back where they were when
-	 * they are unhidden.
+	 * `items` only covers the visible panels; the hidden ones are carried over, since their
+	 * stored positions are what put them back when they are unhidden.
 	 */
 	setLayoutItems(key: BreakpointKey, items: GridItem[]) {
 		const base = resolveLayouts(this.layoutDraft);
@@ -601,10 +576,7 @@ export class MapState {
 		);
 	}
 
-	/**
-	 * Leave arrange mode. Unsaved changes raise the prompt instead of vanishing, whichever
-	 * control was used to leave: the toolbar's close button or the status-bar toggle.
-	 */
+	/** Leave arrange mode; unsaved changes raise the prompt instead of vanishing. */
 	exitLayoutEdit() {
 		if (this.layoutDirty) {
 			this.layoutExitPrompt = true;
@@ -740,11 +712,8 @@ export class MapState {
 	}
 
 	/**
-	 * Run an action and refetch (the WS event also arrives — both are idempotent).
-	 *
-	 * What it says on the way out lives in [`MAP_ACTIONS`], not here and not at the call
-	 * site: every action fails in words, and the few whose result you cannot see also say
-	 * when they land.
+	 * Run an action and refetch (the WS event also arrives; both are idempotent). What it
+	 * says on the way out lives in [`MAP_ACTIONS`] rather than at the call site.
 	 */
 	run(action: MapAction, promise: Promise<unknown>, detail?: string) {
 		const copy = MAP_ACTIONS[action];
@@ -765,10 +734,8 @@ export class MapState {
 	}
 
 	/**
-	 * The signature to warp to for a wormhole hop between two solar systems.
-	 *
-	 * A connection has a signature at each end; the one that matters is on the side you are
-	 * leaving from, because that is the one you can actually see in the scanner.
+	 * The signature to warp to for a wormhole hop. A connection has one at each end; the
+	 * one that matters is on the side you are leaving, which is the one in your scanner.
 	 */
 	wormholeSignature(from: number, to: number): string | null {
 		const system = new Map(this.systems.map((s) => [s.id, s.solar_system_id]));
@@ -863,11 +830,7 @@ export class MapState {
 		this.wakeScrollbars();
 	}
 
-	/**
-	 * The scrollbars are shown while the view is moving or the cursor is over the canvas,
-	 * and fade out shortly after: they say where you are, which is only a question while
-	 * you are navigating.
-	 */
+	/** Shown while the view is moving or the cursor is over the canvas, then faded out. */
 	wakeScrollbars() {
 		this.scrollbarsVisible = true;
 		if (this.hideScrollbars) clearTimeout(this.hideScrollbars);
@@ -879,13 +842,7 @@ export class MapState {
 
 	private hideScrollbars: ReturnType<typeof setTimeout> | null = null;
 
-	/**
-	 * Zoom by whole steps, keeping the middle of the viewport where it is.
-	 *
-	 * Legacy's range and step, because they are what the map was designed at: below half
-	 * size the node text stops being readable, and above double a chain of any size no
-	 * longer fits on screen.
-	 */
+	/** Zoom by whole steps, keeping the middle of the viewport where it is. */
 	zoomBy(steps: number) {
 		const next = Math.round((this.zoom + steps * ZOOM_STEP) * 10) / 10;
 		const nz = clamp(next, ZOOM_MIN, ZOOM_MAX);
@@ -902,10 +859,7 @@ export class MapState {
 		this.wakeScrollbars();
 	}
 
-	/**
-	 * Zoom is per map and per browser, not per account: how far out you want to be
-	 * depends on the screen you are sitting at, which does not travel with the login.
-	 */
+	/** Per map and per browser: how far out you want to be depends on the screen. */
 	restoreZoom() {
 		if (!browser) return;
 		const saved = Number(localStorage.getItem(`map-zoom-${this.mapId}`));
