@@ -110,6 +110,14 @@
 		return ticker ? `${who} [${ticker}]` : who;
 	}
 
+	/** Who they fly for, spelled out. The row has room for a ticker at most. */
+	function partyOrg(party: MapKillmail['victim']): string | null {
+		const corp = party.corporation_name;
+		const alliance = party.alliance_name;
+		if (corp && alliance) return `${corp} · ${alliance}`;
+		return alliance ?? corp ?? null;
+	}
+
 	function hover(kill: MapKillmail, on: boolean) {
 		const placed = map.systems.find((s) => s.solar_system_id === kill.solar_system_id);
 		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
@@ -166,7 +174,7 @@
 					Nothing has died in these systems in the last week.
 				</p>
 			{:else}
-				<div class="flex flex-col">
+				<div class="@container flex flex-col">
 					{#each kills as kill (kill.id)}
 						{@const alias = aliasOf(kill)}
 						{#snippet row()}
@@ -196,6 +204,9 @@
 										<span class="text-muted-foreground">
 											lost {kill.victim.ship_name ?? 'a ship'}
 										</span>
+										{#if partyOrg(kill.victim)}
+											<span class="text-muted-foreground">{partyOrg(kill.victim)}</span>
+										{/if}
 									</Tooltip.Content>
 								</Tooltip.Root>
 
@@ -219,8 +230,13 @@
 									</span>
 								</span>
 
+								<!-- Who did it. The icon and the count are min-content and left-aligned, so
+								     every row lines up on the icon rather than on a number whose width
+								     depends on how many attackers there were. -->
 								<Tooltip.Root>
-									<Tooltip.Trigger class="flex w-12 shrink-0 items-center justify-end gap-1">
+									<Tooltip.Trigger
+										class="flex min-w-0 shrink-0 items-center gap-1.5 @min-[620px]:w-40 @min-[760px]:w-56"
+									>
 										{#if kill.final_blow.ship_type_id}
 											<EveImage
 												kind="type"
@@ -229,10 +245,23 @@
 											/>
 										{/if}
 										<span
-											class={cn('font-mono text-[10px] tabular-nums', crowdTone(kill))}
+											class={cn('shrink-0 font-mono text-[10px] tabular-nums', crowdTone(kill))}
 											data-testid="killmail-attackers"
 										>
 											{kill.attacker_count}
+										</span>
+										<!-- Only where the card is wide enough to say it without crowding. -->
+										<span
+											class="hidden min-w-0 truncate text-left text-[10px] text-muted-foreground @min-[620px]:inline"
+											data-testid="killmail-aggressor"
+										>
+											{kill.final_blow.character_name ?? (kill.is_npc ? 'NPCs' : 'Unknown')}
+										</span>
+										<span
+											class="hidden min-w-0 truncate text-left font-mono text-[10px] text-muted-foreground/60 @min-[760px]:inline"
+											data-testid="killmail-aggressor-org"
+										>
+											{kill.final_blow.alliance_ticker ?? kill.final_blow.corporation_ticker ?? ''}
 										</span>
 									</Tooltip.Trigger>
 									<Tooltip.Content class="flex flex-col gap-0.5">
@@ -242,13 +271,16 @@
 												Final blow: {partyName(kill.final_blow)}
 												{#if kill.final_blow.ship_name}({kill.final_blow.ship_name}){/if}
 											</span>
+											{#if partyOrg(kill.final_blow)}
+												<span class="text-muted-foreground">{partyOrg(kill.final_blow)}</span>
+											{/if}
 										{/if}
 									</Tooltip.Content>
 								</Tooltip.Root>
 
 								<a
 									class={cn(
-										'w-14 shrink-0 text-right font-mono text-[10px] tabular-nums hover:underline',
+										'hidden w-14 shrink-0 text-right font-mono text-[10px] tabular-nums hover:underline @min-[380px]:inline',
 										iskTone(kill.total_value)
 									)}
 									href={zkill(kill.id)}
@@ -261,7 +293,8 @@
 								</a>
 
 								<span
-									class="w-14 shrink-0 text-right font-mono text-[10px] whitespace-nowrap text-muted-foreground/60"
+									class="hidden w-14 shrink-0 text-right font-mono text-[10px] whitespace-nowrap text-muted-foreground/60 @min-[480px]:inline"
+									data-testid="killmail-age"
 								>
 									{timeAgo(kill.time, now)}
 								</span>

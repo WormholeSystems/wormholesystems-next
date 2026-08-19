@@ -1,5 +1,5 @@
 import { expect, gotoApp, test } from './fixtures';
-import { clearKillmails, seedKillmail } from './db';
+import { clearKillmails, seedAggressor, seedKillmail } from './db';
 
 // The killmails card: what died in the mapped systems, newest first, with the expensive
 // losses standing out.
@@ -189,4 +189,54 @@ test('a killmail row right-clicks to the system menu', async ({ page, api }) => 
 	const menu = page.getByRole('menu');
 	await expect(menu).toBeVisible();
 	await expect(menu.getByText('Set destination')).toBeVisible();
+});
+
+// Ids that will never collide with anything zKillboard hands us.
+const HUNTER = 900000101;
+const HUNTER_CORP = 900000102;
+const HUNTER_ALLIANCE = 900000103;
+
+test('a wide card names the aggressor, a narrow one keeps the count', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Aggressor');
+	await addSystem(api, mapId, J122515, 200);
+	await seedAggressor({
+		characterId: HUNTER,
+		name: 'Zvi Sarok',
+		corporationId: HUNTER_CORP,
+		corporationName: 'Hard Knocks Inc.',
+		corporationTicker: 'HKRAB',
+		allianceId: HUNTER_ALLIANCE,
+		allianceName: 'Hard Knocks Citizens',
+		allianceTicker: 'HKC'
+	});
+	await seedKillmail({
+		id: RECENT,
+		solarSystemId: J122515,
+		minutesAgo: 5,
+		victimShipTypeId: LOKI,
+		totalValue: 2_400_000_000,
+		attackerCount: 4,
+		finalBlowShipTypeId: SLASHER,
+		finalBlowCharacterId: HUNTER,
+		finalBlowCorporationId: HUNTER_CORP,
+		finalBlowAllianceId: HUNTER_ALLIANCE
+	});
+
+	await gotoApp(page, `/maps/${mapId}`);
+	const row = page.locator(`[data-kill="${RECENT}"]`);
+	await expect(row).toBeVisible();
+
+	// The count is always there. The name needs room, and the room is the card's, so a
+	// narrower window takes it away and a wider one gives it back.
+	await expect(row.getByTestId('killmail-attackers')).toHaveText('4');
+
+	await page.setViewportSize({ width: 900, height: 720 });
+	await expect(row.getByTestId('killmail-attackers')).toHaveText('4');
+	await expect(row.getByTestId('killmail-aggressor')).toBeHidden();
+
+	await page.setViewportSize({ width: 1600, height: 720 });
+	await expect(row.getByTestId('killmail-aggressor')).toHaveText('Zvi Sarok');
+	await expect(row.getByTestId('killmail-aggressor-org')).toHaveText('HKC');
+
+	await api.delete(`/api/maps/${mapId}`);
 });

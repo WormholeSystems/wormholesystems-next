@@ -3,4 +3,8 @@
 /**
  * One entity as a killmail row names it: a portrait, and something to call them.
  */
-export type KillParty = { character_id?: number, character_name?: string, corporation_id?: number, corporation_ticker?: string, alliance_id?: number, alliance_ticker?: string, ship_type_id?: number, ship_name?: string, };
+export type KillParty = { character_id?: number, character_name?: string, corporation_id?: number, corporation_ticker?: string, 
+/**
+ * Spelled out for the tooltip; the row has room for a ticker at most.
+ */
+corporation_name?: string, alliance_id?: number, alliance_ticker?: string, alliance_name?: string, ship_type_id?: number, ship_name?: string, };

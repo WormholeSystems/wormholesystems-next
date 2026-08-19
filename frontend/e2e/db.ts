@@ -317,16 +317,21 @@ export async function seedKillmail(kill: {
 	isNpc?: boolean;
 	victimCharacterId?: number;
 	finalBlowShipTypeId?: number;
+	/** The aggressor, for the columns the card shows when it has the room. */
+	finalBlowCharacterId?: number;
+	finalBlowCorporationId?: number;
+	finalBlowAllianceId?: number;
 }) {
 	await withDb((db) =>
 		db.query(
 			`insert into killmails (
 				 id, hash, solar_system_id, time, orgs,
 				 victim_character_id, victim_ship_type_id, total_value, attacker_count,
-				 is_solo, is_npc, final_blow_ship_type_id
+				 is_solo, is_npc, final_blow_ship_type_id,
+				 final_blow_character_id, final_blow_corporation_id, final_blow_alliance_id
 			 )
 			 values ($1, 'e2e-hash', $2, now() - make_interval(mins => $3), '[]'::jsonb,
-			         $4, $5, $6, $7, $8, $9, $10)
+			         $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			 on conflict (id) do update set
 			     solar_system_id = excluded.solar_system_id,
 			     time = excluded.time,
@@ -334,7 +339,10 @@ export async function seedKillmail(kill: {
 			     total_value = excluded.total_value,
 			     attacker_count = excluded.attacker_count,
 			     is_solo = excluded.is_solo,
-			     is_npc = excluded.is_npc`,
+			     is_npc = excluded.is_npc,
+			     final_blow_character_id = excluded.final_blow_character_id,
+			     final_blow_corporation_id = excluded.final_blow_corporation_id,
+			     final_blow_alliance_id = excluded.final_blow_alliance_id`,
 			[
 				kill.id,
 				kill.solarSystemId,
@@ -345,10 +353,47 @@ export async function seedKillmail(kill: {
 				kill.attackerCount,
 				kill.isSolo ?? false,
 				kill.isNpc ?? false,
-				kill.finalBlowShipTypeId ?? null
+				kill.finalBlowShipTypeId ?? null,
+				kill.finalBlowCharacterId ?? null,
+				kill.finalBlowCorporationId ?? null,
+				kill.finalBlowAllianceId ?? null
 			]
 		)
 	);
+}
+
+/**
+ * A pilot nobody signed in as, with a corp and an alliance: what the killmail resolver
+ * writes for an aggressor, and what the card names when it has room for it.
+ */
+export async function seedAggressor(who: {
+	characterId: number;
+	name: string;
+	corporationId: number;
+	corporationName: string;
+	corporationTicker: string;
+	allianceId: number;
+	allianceName: string;
+	allianceTicker: string;
+}) {
+	await withDb(async (db) => {
+		await db.query(
+			`insert into alliances (id, name, ticker) values ($1, $2, $3)
+			 on conflict (id) do update set name = excluded.name, ticker = excluded.ticker`,
+			[who.allianceId, who.allianceName, who.allianceTicker]
+		);
+		await db.query(
+			`insert into corporations (id, name, ticker, alliance_id) values ($1, $2, $3, $4)
+			 on conflict (id) do update set name = excluded.name, ticker = excluded.ticker`,
+			[who.corporationId, who.corporationName, who.corporationTicker, who.allianceId]
+		);
+		await db.query(
+			`insert into characters (id, name, corporation_id, alliance_id)
+			 values ($1, $2, $3, $4)
+			 on conflict (id) do update set name = excluded.name`,
+			[who.characterId, who.name, who.corporationId, who.allianceId]
+		);
+	});
 }
 
 /** Remove seeded killmails so a rerun starts clean. */
