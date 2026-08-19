@@ -459,11 +459,21 @@ export class MapState {
 		}
 	}
 
+	/**
+	 * Bumped by every local settings write, so a fetch that started earlier cannot land
+	 * afterwards and quietly undo it. The panel arrangement is seeded either way: that
+	 * half of the payload is what the fetch is for, and no write races it.
+	 */
+	private settingsVersion = 0;
+
 	async loadUserSettings() {
+		const version = this.settingsVersion;
 		try {
-			this.userSettings = await api.mapUserSettings(this.mapId);
-			this.layoutSaved = this.userSettings.layout_breakpoints ?? null;
+			const settings = await api.mapUserSettings(this.mapId);
+			this.layoutSaved = settings.layout_breakpoints ?? null;
 			this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
+			if (version !== this.settingsVersion) return;
+			this.userSettings = settings;
 		} catch {
 			// No access yet; the page falls back to the built-in arrangement.
 		} finally {
@@ -744,6 +754,7 @@ export class MapState {
 	 */
 	setLayoutOverride(mode: 'manual' | 'tree') {
 		const own = mode === this.data?.map.layout ? null : mode;
+		this.settingsVersion++;
 		if (this.userSettings) {
 			this.userSettings = { ...this.userSettings, layout_override: own ?? undefined };
 		}

@@ -241,13 +241,18 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
         return Ok(kept("systems.removed", "kept a protected system"));
     }
 
-    let snapshot = capture_systems(tx, cmd.map_id, &[cmd.map_solar_system_id]).await?;
+    // The unmapped holes hanging off it go with it, and are in the snapshot, so one undo
+    // brings the system and its holes back together.
+    let mut ids = vec![cmd.map_solar_system_id];
+    ids.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &ids, &[]).await?);
+
+    let snapshot = capture_systems(tx, cmd.map_id, &ids).await?;
     // The predicate lives on the delete, not only in the check above: a guard a caller has
     // to remember is a guard that eventually gets forgotten.
     let deleted = sqlx::query!(
         "delete from map_solar_systems
-         where id = $1 and map_id = $2 and not is_home and not is_pinned",
-        cmd.map_solar_system_id,
+         where id = any($1) and map_id = $2 and not is_home and not is_pinned",
+        &ids,
         cmd.map_id,
     )
     .execute(&mut **tx)
@@ -299,6 +304,10 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
         // protected system is simply passed over.
         return Ok(kept("systems.removed", "kept the protected systems"));
     }
+
+    // Same as the single removal: the unmapped holes these leave behind come too.
+    let mut removable = removable;
+    removable.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &removable, &[]).await?);
 
     let snapshot = capture_systems(tx, cmd.map_id, &removable).await?;
     // Repeating the predicate on the delete is deliberate: the query that removes rows

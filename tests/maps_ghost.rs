@@ -5,6 +5,7 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
+use vector::maps::connection::{RemoveConnection, remove_connection};
 use vector::maps::events_log::{MapIdBody, undo};
 use vector::maps::ghost::{
     AddGhostSystem, ResolveGhostSystem, add_ghost_system, resolve_ghost_system,
@@ -14,7 +15,7 @@ use vector::maps::signatures::{
     AddSignature, PasteSignatures, PastedSignature, UpdateSignature, add_signature,
     list_signatures, paste_signatures, update_signature,
 };
-use vector::maps::solar_system::{AddSystem, add_system};
+use vector::maps::solar_system::{AddSystem, RemoveSystem, add_system, remove_system};
 use vector::maps::{Actor, MapError, Role, SignatureGroup};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
@@ -509,4 +510,156 @@ async fn calling_a_signature_a_wormhole_raises_one_too(pool: PgPool) {
         .unwrap();
     assert_eq!(view.systems.len(), 2);
     assert!(view.systems.iter().any(|s| s.solar_system_id.is_none()));
+}
+
+#[sqlx::test]
+async fn removing_a_system_takes_the_holes_hanging_off_it(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let far = place(&pool, w.owner, w.map_id, SYS_C).await;
+    for sig in ["ABC-123", "DEF-456"] {
+        let pk = scan(&pool, w.owner, w.map_id, SYS_A, sig).await;
+        add_ghost_system(
+            &pool,
+            w.owner,
+            AddGhostSystem {
+                map_id: w.map_id,
+                from_system: home,
+                signature_pk: Some(pk),
+                x: 10.0,
+                y: 20.0,
+                alias: None,
+                size: None,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    remove_system(
+        &pool,
+        w.owner,
+        RemoveSystem {
+            map_id: w.map_id,
+            map_solar_system_id: home,
+        },
+    )
+    .await
+    .unwrap();
+
+    // The scanned system is gone, and so are the holes that only existed as its far
+    // sides. The unrelated system stays.
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 1);
+    assert_eq!(view.systems[0].id, far);
+    assert!(view.connections.is_empty());
+
+    // And one undo puts the system and its holes back together.
+    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
+        .await
+        .unwrap();
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 4);
+    assert_eq!(
+        view.systems
+            .iter()
+            .filter(|s| s.solar_system_id.is_none())
+            .count(),
+        2
+    );
+    assert_eq!(view.connections.len(), 2);
+}
+
+#[sqlx::test]
+async fn a_ghost_goes_with_the_connection_that_made_it(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let ghost = add_ghost_system(
+        &pool,
+        w.owner,
+        AddGhostSystem {
+            map_id: w.map_id,
+            from_system: home,
+            signature_pk: None,
+            x: 10.0,
+            y: 20.0,
+            alias: None,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    let connection = view.connections[0].id;
+
+    remove_connection(
+        &pool,
+        w.owner,
+        RemoveConnection {
+            map_id: w.map_id,
+            connection_id: connection,
+        },
+    )
+    .await
+    .unwrap();
+
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 1, "the hole had nothing else to be");
+    assert!(view.systems.iter().all(|s| s.id != ghost.id));
+
+    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
+        .await
+        .unwrap();
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 2);
+    assert_eq!(view.connections.len(), 1);
+}
+
+#[sqlx::test]
+async fn a_real_system_left_without_connections_stays(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let far = place(&pool, w.owner, w.map_id, SYS_B).await;
+    vector::maps::connection::add_connection(
+        &pool,
+        w.owner,
+        vector::maps::connection::AddConnection {
+            map_id: w.map_id,
+            from_system: home,
+            to_system: far,
+            kind: vector::maps::ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    remove_system(
+        &pool,
+        w.owner,
+        RemoveSystem {
+            map_id: w.map_id,
+            map_solar_system_id: home,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Somebody put that system on the map on purpose; losing its last hole is not a
+    // reason to take it away.
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 1);
+    assert_eq!(view.systems[0].id, far);
 }

@@ -284,9 +284,26 @@ pub(super) async fn apply_remove_connection(
     tx: &mut Tx<'_>,
     cmd: RemoveConnection,
 ) -> Result<Effect> {
-    let restore = super::solar_system::capture_connection(tx, cmd.map_id, cmd.connection_id)
+    let mut restore = super::solar_system::capture_connection(tx, cmd.map_id, cmd.connection_id)
         .await?
         .ok_or(MapError::NotFound)?;
+
+    // An unmapped hole is this connection's far side and nothing else, so taking the
+    // connection away takes it too. Captured first, so one undo puts both back.
+    let ghosts = super::ghost::stranded_ghosts(tx, cmd.map_id, &[], &[cmd.connection_id]).await?;
+    if !ghosts.is_empty() {
+        restore.systems = super::solar_system::capture_systems(tx, cmd.map_id, &ghosts)
+            .await?
+            .systems;
+        sqlx::query!(
+            "delete from map_solar_systems where map_id = $1 and id = any($2)",
+            cmd.map_id,
+            &ghosts,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+
     sqlx::query!(
         "delete from map_connections where id = $1 and map_id = $2",
         cmd.connection_id,
@@ -294,12 +311,16 @@ pub(super) async fn apply_remove_connection(
     )
     .execute(&mut **tx)
     .await?;
-    Ok(Effect::new(
-        "connections.removed",
-        "removed a connection",
-        CommandOutput::None,
+
+    let label = match ghosts.len() {
+        0 => "removed a connection".to_string(),
+        1 => "removed a connection and the hole it led to".to_string(),
+        n => format!("removed a connection and the {n} holes it led to"),
+    };
+    Ok(
+        Effect::new("connections.removed", label, CommandOutput::None)
+            .undo_with(MapCommand::RestoreSystems(restore)),
     )
-    .undo_with(MapCommand::RestoreSystems(restore)))
 }
 
 /// How long a connection must have been marked critical before the map offers to sweep it.

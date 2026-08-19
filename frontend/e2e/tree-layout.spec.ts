@@ -92,15 +92,22 @@ test('a viewer can pick their own placement when the map allows it', async ({ pa
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
+	await expect(page.getByTestId('system-node')).toHaveCount(3);
 	// The map is still on custom placement, so the systems sit where they were put.
 	expect((await nodePosition(page, 'Jita')).left).toBe(900);
 
 	await page.getByTestId('placement-tree').click();
 	await expect.poll(async () => (await nodePosition(page, 'Jita')).left).toBe(380);
 
-	// It is a preference of this viewer's, so it survives a reload.
+	// It is a preference of this viewer's, so it survives a reload. The switch paints
+	// before the write lands, so wait for the stored value: reloading first would cancel
+	// the request in flight.
+	await expect
+		.poll(async () => (await (await api.get(`/api/maps/${mapId}/settings/user`)).json()).layout_override)
+		.toBe('tree');
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
+	await expect(page.getByTestId('system-node')).toHaveCount(3);
 	await expect.poll(async () => (await nodePosition(page, 'Jita')).left).toBe(380);
 
 	// And going back to the map's own mode restores the dragged positions.

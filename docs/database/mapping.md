@@ -82,8 +82,10 @@ kind of node anywhere. What a ghost cannot have is anything keyed by *system*:
   connections move to the existing placement and the ghost row is deleted. The same
   path serves the manual "assign a system" action and the jump tracker, which discovers
   the same fact by flying it.
-- A ghost with no connections left is removed, under the same rule that already drops
-  unpinned, unmarked, connection-less endpoints when their signatures go.
+- A ghost with no connections left is removed. It is the far side of a wormhole and
+  nothing else, so removing the system it hangs off, or the connection itself, takes it
+  along; the same snapshot covers both, so one undo brings the lot back. A **real** system
+  left without connections stays: somebody put that on the map on purpose.
 - The alias is **ephemeral**: removing the system from the map and re-adding it does
   **not** restore the previous alias.
 - Removing a system deletes its placement, its **signatures**, and its connections —
