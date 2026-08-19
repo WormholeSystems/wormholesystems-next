@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select discord_user_id, username, display_name, avatar\n         from discord_accounts where user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "discord_user_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "discord_accounts",
+            "name": "discord_user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "discord_accounts",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "discord_accounts",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "discord_accounts",
+            "name": "avatar"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "f724d48bf87cabd978b303c91bf93f8416f53d097d36d344ff857d4dcb6fdf11"
+}

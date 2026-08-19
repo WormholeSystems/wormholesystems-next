@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "with prev as (\n                 select ship_type_id, ship_name from character_status where character_id = $1\n             )\n             update character_status\n             set ship_type_id = $2, ship_name = $3, updated_at = now()\n             where character_id = $1\n             returning (select ship_type_id from prev) as \"prev_ship_type_id?\",\n                       (select ship_name from prev) as \"prev_ship_name?\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "prev_ship_type_id?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "prev_ship_name?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "569a12643c0668d9229e3ed94b69bf87bbb20ae79371e6071b773c50074f95f0"
+}

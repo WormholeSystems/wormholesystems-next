@@ -1,6 +1,8 @@
 # The Rust API (Axum). Migrations are embedded; the SDE seed data is bundled so a fresh
 # database seeds itself on first boot.
-FROM rust:1.94-slim AS build
+# Pinned to bookworm to match the runtime stage below: the default slim tag tracks a newer
+# Debian, and a binary linked against its glibc will not start on bookworm.
+FROM rust:1.94-slim-bookworm AS build
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src

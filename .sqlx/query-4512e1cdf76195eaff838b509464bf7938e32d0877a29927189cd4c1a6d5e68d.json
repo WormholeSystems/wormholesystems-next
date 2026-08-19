@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select exists(\n                         select 1 from signatures\n                         where map_id = $1 and solar_system_id = $2 and signature_id = $3\n                     )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4512e1cdf76195eaff838b509464bf7938e32d0877a29927189cd4c1a6d5e68d"
+}

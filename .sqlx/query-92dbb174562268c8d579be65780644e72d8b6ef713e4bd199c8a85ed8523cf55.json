@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select reachable, players, server_version, start_time, vip, checked_at\n         from server_status where id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reachable",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "server_status",
+            "name": "reachable"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "players",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "server_status",
+            "name": "players"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "server_version",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_status",
+            "name": "server_version"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "server_status",
+            "name": "start_time"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "vip",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "server_status",
+            "name": "vip"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "checked_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "server_status",
+            "name": "checked_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "92dbb174562268c8d579be65780644e72d8b6ef713e4bd199c8a85ed8523cf55"
+}

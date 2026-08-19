@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_solar_systems set position_x = $1, position_y = $2\n         where id = $3 and map_id = $4 and not is_pinned",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Float8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "059bec3c8826c937fc965cf9f0864c60067da7fb64bc38d4bd11929426845782"
+}

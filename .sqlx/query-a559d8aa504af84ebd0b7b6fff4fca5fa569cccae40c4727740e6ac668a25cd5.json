@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into server_status (id, reachable, players, server_version, start_time, vip,\n                                    checked_at)\n         values (true, $1, $2, $3, $4, $5, now())\n         on conflict (id) do update set\n             reachable = excluded.reachable,\n             players = excluded.players,\n             server_version = excluded.server_version,\n             start_time = excluded.start_time,\n             vip = excluded.vip,\n             checked_at = excluded.checked_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Int8",
+        "Text",
+        "Timestamptz",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a559d8aa504af84ebd0b7b6fff4fca5fa569cccae40c4727740e6ac668a25cd5"
+}

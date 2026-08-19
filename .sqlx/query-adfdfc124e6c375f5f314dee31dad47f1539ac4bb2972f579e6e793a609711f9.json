@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "with matched as (\n               select entity_id, entity_type, name,\n                      case when lower(name) = lower($1) then 0\n                           when name ilike $3 then 1\n                           else 2 end as rank,\n                      sum(kills) as total\n               from wormhole_system_threats\n               where name ilike $2\n               group by entity_id, entity_type, name\n               order by rank, total desc\n               limit $4\n           )\n           select t.solar_system_id, t.kills, m.entity_id, m.entity_type, m.name,\n                  m.rank as \"rank!\", m.total as \"total!\"\n           from wormhole_system_threats t\n           join matched m on m.entity_id = t.entity_id\n           order by m.rank, m.total desc, t.kills desc\n           limit $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "kills",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "kills"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "entity_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "entity_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "entity_type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "rank!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "total!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "adfdfc124e6c375f5f314dee31dad47f1539ac4bb2972f579e6e793a609711f9"
+}

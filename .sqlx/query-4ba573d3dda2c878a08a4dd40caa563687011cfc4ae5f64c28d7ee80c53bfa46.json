@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_webhook_roles (map_id, name, discord_role_id) values ($1, $2, $3)\n         on conflict (map_id, discord_role_id) do update set name = excluded.name\n         returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_webhook_roles",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4ba573d3dda2c878a08a4dd40caa563687011cfc4ae5f64c28d7ee80c53bfa46"
+}

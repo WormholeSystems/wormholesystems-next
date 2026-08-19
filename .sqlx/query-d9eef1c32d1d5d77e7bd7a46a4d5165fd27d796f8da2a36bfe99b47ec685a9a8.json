@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_alerts where id = $1 and map_id = $2 returning name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d9eef1c32d1d5d77e7bd7a46a4d5165fd27d796f8da2a36bfe99b47ec685a9a8"
+}

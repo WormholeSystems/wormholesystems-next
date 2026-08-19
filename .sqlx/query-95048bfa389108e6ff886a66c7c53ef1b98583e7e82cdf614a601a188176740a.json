@@ -1,0 +1,186 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select s.planet_id, s.solar_system_id, s.vulnerable_from, s.vulnerable_until,\n                  p.name as planet_name, p.celestial_index, t.name as planet_type,\n                  ss.name as system_name, r.name as region, r.id as region_id,\n                  ss.constellation_id, ss.security_status,\n                  case\n                      when sov.alliance_id is not null then 'alliance'\n                      when sov.corporation_id is not null then 'corporation'\n                      when sov.faction_id is not null then 'faction'\n                  end as \"sov_kind?\",\n                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n                  coalesce(al.name, co.name, f.name) as \"sov_name?\",\n                  coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n           from raidable_skyhooks s\n           join planets p on p.id = s.planet_id\n           join types t on t.id = p.type_id\n           join solar_systems ss on ss.id = s.solar_system_id\n           join constellations c on c.id = ss.constellation_id\n           join regions r on r.id = c.region_id\n           left join system_sovereignty sov on sov.solar_system_id = s.solar_system_id\n           left join alliances al on al.id = sov.alliance_id\n           left join corporations co on co.id = sov.corporation_id\n           left join factions f on f.id = sov.faction_id\n           where s.vulnerable_until > now()\n           order by s.vulnerable_from",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "planet_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "raidable_skyhooks",
+            "name": "planet_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "raidable_skyhooks",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "vulnerable_from",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "raidable_skyhooks",
+            "name": "vulnerable_from"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "vulnerable_until",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "raidable_skyhooks",
+            "name": "vulnerable_until"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "planet_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "planets",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "celestial_index",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "planets",
+            "name": "celestial_index"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "planet_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "system_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "region",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "regions",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "region_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "regions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "constellation_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "constellation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "security_status",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "security_status"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "sov_kind?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "sov_id?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 14,
+        "name": "sov_name?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "sov_ticker?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "95048bfa389108e6ff886a66c7c53ef1b98583e7e82cdf614a601a188176740a"
+}

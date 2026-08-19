@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_solar_systems where id = $1 and map_id = $2\n         returning position_x, position_y, alias",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "position_x",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_x"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position_y",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_y"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "alias",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "alias"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "82d10a7bbf994be9e5912e83f2b267ae7365c378d5956ce4271e72a519fa12dd"
+}

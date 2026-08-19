@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into discord_accounts (user_id, discord_user_id, username, display_name, avatar)\n         values ($1, $2, $3, $4, $5)\n         on conflict (user_id) do update set\n             discord_user_id = excluded.discord_user_id,\n             username = excluded.username,\n             display_name = excluded.display_name,\n             avatar = excluded.avatar,\n             updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e8cf61d993cd081cf4a3bf5e64c7600c47efd8bf17e53ca5e78b99392dcf5c06"
+}

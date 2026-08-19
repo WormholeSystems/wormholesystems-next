@@ -1,0 +1,142 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select ss.id as \"solar_system_id!\", ss.name as \"name!\", r.name as \"region!\",\n                  ss.security_status as \"security!\", ss.region_id, ss.constellation_id,\n                  ss.wormhole_class_id, ws.effect_name,\n                  case\n                      when sov.alliance_id is not null then 'alliance'\n                      when sov.corporation_id is not null then 'corporation'\n                      when sov.faction_id is not null then 'faction'\n                  end as \"sov_kind?\",\n                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n                  coalesce(al.name, co.name, f.name) as \"sov_name?\",\n                  coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n           from solar_systems ss\n           join regions r on r.id = ss.region_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty sov on sov.solar_system_id = ss.id\n           left join alliances al on al.id = sov.alliance_id\n           left join corporations co on co.id = sov.corporation_id\n           left join factions f on f.id = sov.faction_id\n           where ss.name ilike $1 and ss.id <> all($2)\n           order by (ss.name ilike $3) desc, length(ss.name), ss.name\n           limit 10",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_system_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "region!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "regions",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "security!",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "security_status"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "region_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "region_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "constellation_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "constellation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "wormhole_class_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "effect_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_systems",
+            "name": "effect_name"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "sov_kind?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "sov_id?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "sov_name?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "sov_ticker?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8Array",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "7f214fe2ee7e6db7e0ce74e748e861c4818290a6bed05bc4ed4bf6f794fa1e5e"
+}

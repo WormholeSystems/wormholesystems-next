@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, name, discord_role_id from map_webhook_roles\n         where map_id = $1 order by name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_webhook_roles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_webhook_roles",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "discord_role_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_webhook_roles",
+            "name": "discord_role_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "29a94df144d6ce49c7031714197a23ed09296c7e6d23f664d1857b06b31f76de"
+}

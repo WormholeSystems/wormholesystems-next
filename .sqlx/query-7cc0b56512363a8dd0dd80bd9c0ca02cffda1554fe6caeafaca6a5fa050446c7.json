@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select distinct victim_character_id, victim_corporation_id, victim_alliance_id,\n                  final_blow_character_id, final_blow_corporation_id, final_blow_alliance_id\n           from killmails\n           where time >= now() - make_interval(days => $1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "victim_character_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_character_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "victim_corporation_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_corporation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "victim_alliance_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_alliance_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "final_blow_character_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_character_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "final_blow_corporation_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_corporation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "final_blow_alliance_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_alliance_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "7cc0b56512363a8dd0dd80bd9c0ca02cffda1554fe6caeafaca6a5fa050446c7"
+}

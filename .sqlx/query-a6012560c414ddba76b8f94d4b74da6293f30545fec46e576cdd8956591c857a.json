@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_watchlist (map_id, solar_system_id, is_pinned)\n         select $1, id, true from solar_systems where name = any($2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a6012560c414ddba76b8f94d4b74da6293f30545fec46e576cdd8956591c857a"
+}

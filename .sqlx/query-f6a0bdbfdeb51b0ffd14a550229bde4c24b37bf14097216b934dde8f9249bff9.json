@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select position_x, position_y, is_pinned from map_solar_systems\n         where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "position_x",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_x"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position_y",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_y"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "is_pinned",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "is_pinned"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f6a0bdbfdeb51b0ffd14a550229bde4c24b37bf14097216b934dde8f9249bff9"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_connection_jumps\n         where connection_id is null\n           and created_at < now() - make_interval(mins => $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1edd2b7ef578a3117dd4414ddab474aff5827379ba843cacdc3038fac0a3dfc2"
+}

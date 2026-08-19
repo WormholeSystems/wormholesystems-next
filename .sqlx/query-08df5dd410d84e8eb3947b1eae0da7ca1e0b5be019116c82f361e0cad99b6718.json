@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select (is_home or is_pinned) as \"protected!\" from map_solar_systems\n           where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "protected!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "08df5dd410d84e8eb3947b1eae0da7ca1e0b5be019116c82f361e0cad99b6718"
+}

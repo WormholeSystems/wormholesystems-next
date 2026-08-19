@@ -1,0 +1,286 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select\n               mss.id, mss.map_id, mss.solar_system_id, mss.position_x, mss.position_y,\n               mss.alias, mss.is_home, mss.is_rally, mss.is_pinned,\n               coalesce(d.status, 'unknown') as \"status!: super::SystemStatus\",\n               d.occupying_group,\n               ss.name as \"name?\", ss.security_status as \"security_status?\",\n               ss.wormhole_class_id,\n               r.name as \"region?\", ss.region_id as \"region_id?\",\n               ss.constellation_id as \"constellation_id?\", c.name as \"constellation?\",\n               ws.effect_name,\n               coalesce(ws.is_shattered, false) as \"is_shattered!\",\n               ws.threat_level as \"threat_level?: super::ThreatLevel\",\n               -- Sovereignty holder, alliance preferred over corp over faction.\n               case\n                   when sov.alliance_id is not null then 'alliance'\n                   when sov.corporation_id is not null then 'corporation'\n                   when sov.faction_id is not null then 'faction'\n               end as \"sov_kind?\",\n               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n               coalesce(al.name, co.name, f.name) as \"sov_name?\",\n               coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n           from map_solar_systems mss\n           -- Left joins throughout: a ghost placement has no system to join to.\n           left join solar_systems ss on ss.id = mss.solar_system_id\n           left join regions r on r.id = ss.region_id\n           left join constellations c on c.id = ss.constellation_id\n           left join map_solar_system_details d\n               on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty sov on sov.solar_system_id = ss.id\n           left join alliances al on al.id = sov.alliance_id\n           left join corporations co on co.id = sov.corporation_id\n           left join factions f on f.id = sov.faction_id\n           where mss.map_id = $1\n           order by mss.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "map_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "position_x",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_x"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "position_y",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_y"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "alias",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "alias"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "is_home",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "is_home"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "is_rally",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "is_rally"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "is_pinned",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "is_pinned"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "status!: super::SystemStatus",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 10,
+        "name": "occupying_group",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_system_details",
+            "name": "occupying_group"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "security_status?",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "security_status"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "wormhole_class_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "region?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "regions",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "region_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "region_id"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "constellation_id?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "constellation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "constellation?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "constellations",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "effect_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_systems",
+            "name": "effect_name"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "is_shattered!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 20,
+        "name": "threat_level?: super::ThreatLevel",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_systems",
+            "name": "threat_level"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "sov_kind?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 22,
+        "name": "sov_id?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 23,
+        "name": "sov_name?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 24,
+        "name": "sov_ticker?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      false,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "f2521b9cb1b61344d9f899bfffe0ec65cae1c0943ca0ebe0c23e43c339040216"
+}

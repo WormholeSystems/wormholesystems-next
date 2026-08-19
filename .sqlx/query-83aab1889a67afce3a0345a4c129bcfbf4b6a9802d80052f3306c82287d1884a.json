@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_alerts set\n             is_active = false, disabled_at = now(), disabled_reason = 'discord_unlinked',\n             updated_at = now()\n         where created_by_user_id = $1 and is_active and delivery = 'discord_dm'\n         returning id, map_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "map_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "83aab1889a67afce3a0345a4c129bcfbf4b6a9802d80052f3306c82287d1884a"
+}

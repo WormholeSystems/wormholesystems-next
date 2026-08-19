@@ -1,0 +1,387 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select k.id, k.solar_system_id, k.time, k.total_value,\n                  coalesce(k.attacker_count, 0) as \"attacker_count!\",\n                  k.is_npc, k.is_solo,\n                  ss.name as system_name, r.name as region, ss.security_status,\n                  ws.wormhole_class_id as \"wormhole_class_id?\",\n                  k.victim_character_id, vc.name as \"victim_character_name?\",\n                  k.victim_corporation_id, vco.ticker as \"victim_corporation_ticker?\",\n                  vco.name as \"victim_corporation_name?\",\n                  k.victim_alliance_id, va.ticker as \"victim_alliance_ticker?\",\n                  va.name as \"victim_alliance_name?\",\n                  k.victim_ship_type_id, vt.name as \"victim_ship_name?\",\n                  k.final_blow_character_id, fc.name as \"final_blow_character_name?\",\n                  k.final_blow_corporation_id, fco.ticker as \"final_blow_corporation_ticker?\",\n                  fco.name as \"final_blow_corporation_name?\",\n                  k.final_blow_alliance_id, fa.ticker as \"final_blow_alliance_ticker?\",\n                  fa.name as \"final_blow_alliance_name?\",\n                  k.final_blow_ship_type_id, ft.name as \"final_blow_ship_name?\"\n           from killmails k\n           join map_solar_systems mss\n               on mss.map_id = $1 and mss.solar_system_id = k.solar_system_id\n           join solar_systems ss on ss.id = k.solar_system_id\n           join constellations c on c.id = ss.constellation_id\n           join regions r on r.id = c.region_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join characters vc on vc.id = k.victim_character_id\n           left join corporations vco on vco.id = k.victim_corporation_id\n           left join alliances va on va.id = k.victim_alliance_id\n           left join types vt on vt.id = k.victim_ship_type_id\n           left join characters fc on fc.id = k.final_blow_character_id\n           left join corporations fco on fco.id = k.final_blow_corporation_id\n           left join alliances fa on fa.id = k.final_blow_alliance_id\n           left join types ft on ft.id = k.final_blow_ship_type_id\n           where k.time >= now() - make_interval(days => $2)\n             -- Rows from before the ingest kept any detail would render as blank lines.\n             and k.victim_ship_type_id is not null\n             and (not $3 or ws.solar_system_id is not null)\n             and (not $4 or ws.solar_system_id is null)\n           order by k.time desc\n           limit $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "time",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "time"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "total_value",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "total_value"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "attacker_count!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_npc",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "is_npc"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "is_solo",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "is_solo"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "system_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "region",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "regions",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "security_status",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "security_status"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "wormhole_class_id?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "wormhole_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "victim_character_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_character_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "victim_character_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "victim_corporation_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_corporation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "victim_corporation_ticker?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "corporations",
+            "name": "ticker"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "victim_corporation_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "corporations",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "victim_alliance_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_alliance_id"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "victim_alliance_ticker?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "alliances",
+            "name": "ticker"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "victim_alliance_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "alliances",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "victim_ship_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "victim_ship_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "victim_ship_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "final_blow_character_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_character_id"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "final_blow_character_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "final_blow_corporation_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_corporation_id"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "final_blow_corporation_ticker?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "corporations",
+            "name": "ticker"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "final_blow_corporation_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "corporations",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 26,
+        "name": "final_blow_alliance_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_alliance_id"
+          }
+        }
+      },
+      {
+        "ordinal": 27,
+        "name": "final_blow_alliance_ticker?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "alliances",
+            "name": "ticker"
+          }
+        }
+      },
+      {
+        "ordinal": 28,
+        "name": "final_blow_alliance_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "alliances",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 29,
+        "name": "final_blow_ship_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "final_blow_ship_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 30,
+        "name": "final_blow_ship_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Bool",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "f013a0bf167c0db9fe081059a41dd5f565c60bae11e8c51a16db1ed856ef1bac"
+}

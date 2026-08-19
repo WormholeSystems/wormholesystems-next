@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_alerts set last_fired_at = now() where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c6c86d9fd0981c4388e59fbed57c0b2bb836ffaf495fb038842dabd746b4e88f"
+}

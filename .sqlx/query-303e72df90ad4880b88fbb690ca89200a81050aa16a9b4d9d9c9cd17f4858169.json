@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_alert_deliveries set delivered_at = now()\n         where map_alert_id = $1 and dedup_key = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "303e72df90ad4880b88fbb690ca89200a81050aa16a9b4d9d9c9cd17f4858169"
+}

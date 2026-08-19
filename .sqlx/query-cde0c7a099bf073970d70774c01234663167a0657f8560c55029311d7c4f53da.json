@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select c.id as \"connection_id!\",\n                  fs.name as \"from_name!\", ts.name as \"to_name!\",\n                  c.time_status_updated_at as \"critical_since!\"\n           from map_connections c\n           join map_solar_systems fm on fm.id = c.from_system\n           join solar_systems fs on fs.id = fm.solar_system_id\n           join map_solar_systems tm on tm.id = c.to_system\n           join solar_systems ts on ts.id = tm.solar_system_id\n           where c.map_id = $1\n             and c.time_status = 'critical'\n             and c.time_status_updated_at < now() - make_interval(mins => $2)\n           order by c.time_status_updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "connection_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "from_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "to_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "critical_since!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "time_status_updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "cde0c7a099bf073970d70774c01234663167a0657f8560c55029311d7c4f53da"
+}

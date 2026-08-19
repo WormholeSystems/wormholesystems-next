@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_alert_deliveries (map_alert_id, dedup_key)\n         values ($1, $2) on conflict do nothing",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a759428b5ac41507b14d4329425cbfcf0c09a787859fe55f846013e1d986f2f"
+}

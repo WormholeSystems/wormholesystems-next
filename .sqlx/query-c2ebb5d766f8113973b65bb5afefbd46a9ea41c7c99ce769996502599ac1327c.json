@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select a.id, a.name, a.is_active, m.name as map_name\n         from map_alerts a join maps m on m.id = a.map_id\n         where a.created_by_user_id = $1 and a.name ilike $2\n         order by m.name, a.name\n         limit $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "is_active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "is_active"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "map_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c2ebb5d766f8113973b65bb5afefbd46a9ea41c7c99ce769996502599ac1327c"
+}

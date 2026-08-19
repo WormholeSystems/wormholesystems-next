@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select connection_id, character_id, mass, is_manual\n           from map_connection_jumps order by id desc limit 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "connection_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "connection_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "character_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "character_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "mass",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "mass"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "is_manual",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "is_manual"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2182b3945d65e04c014f69538f5e8c64d8e5ab81a3a87bb33164ff9bc7921ad5"
+}

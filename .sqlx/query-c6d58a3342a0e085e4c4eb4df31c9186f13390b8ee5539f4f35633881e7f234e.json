@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from raidable_skyhooks where planet_id <> all($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c6d58a3342a0e085e4c4eb4df31c9186f13390b8ee5539f4f35633881e7f234e"
+}

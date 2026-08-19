@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into characters (id, name)\n             select * from unnest($1::bigint[], $2::text[])\n             on conflict (id) do update set name = excluded.name, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9ebe4c96afeae000ce24e32b994529b2e85b1fc4cf0f132f22ba2096df6f4311"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_alerts\n         set is_active = false, disabled_at = now(), disabled_reason = $2, updated_at = now()\n         where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "39706c113524fb565376dd58fcb8c80dbd6c4a4c872ef6b061119c11741e89f2"
+}

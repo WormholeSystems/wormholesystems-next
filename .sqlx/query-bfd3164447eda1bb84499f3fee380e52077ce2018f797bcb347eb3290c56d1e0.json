@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select c.user_id, s.ship_type_id, s.ship_name\n           from characters c\n           left join character_status s on s.character_id = c.id\n           where c.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "ship_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "character_status",
+            "name": "ship_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "ship_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "character_status",
+            "name": "ship_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "bfd3164447eda1bb84499f3fee380e52077ce2018f797bcb347eb3290c56d1e0"
+}

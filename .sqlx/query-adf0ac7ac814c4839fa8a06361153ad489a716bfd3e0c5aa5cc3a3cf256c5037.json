@@ -1,0 +1,161 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select j.id, j.map_id, j.connection_id, j.character_id,\n                  c.name as \"character_name?\", j.ship_type_id, t.name as \"ship_type_name?\",\n                  j.mass, j.is_manual, j.from_solar_system_id, j.to_solar_system_id,\n                  j.created_at\n           from map_connection_jumps j\n           left join characters c on c.id = j.character_id\n           left join types t on t.id = j.ship_type_id\n           where j.map_id = $1 and j.connection_id = $2\n           order by j.id desc limit 10",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "map_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "connection_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "connection_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "character_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "character_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "character_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "ship_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "ship_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "ship_type_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "mass",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "mass"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "is_manual",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "is_manual"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "from_solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "from_solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "to_solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "to_solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_connection_jumps",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "adf0ac7ac814c4839fa8a06361153ad489a716bfd3e0c5aa5cc3a3cf256c5037"
+}

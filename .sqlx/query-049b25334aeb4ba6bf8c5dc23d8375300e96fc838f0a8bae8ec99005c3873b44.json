@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_access set role = 'owner', expires_at = null\n         where map_id = $1 and subject_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "049b25334aeb4ba6bf8c5dc23d8375300e96fc838f0a8bae8ec99005c3873b44"
+}

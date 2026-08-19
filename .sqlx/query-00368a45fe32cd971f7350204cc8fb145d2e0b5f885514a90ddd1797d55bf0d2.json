@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_webhooks (map_id, name, url) values ($1, $2, $3)\n         on conflict (map_id, name) do update set url = excluded.url, updated_at = now()\n         returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_webhooks",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "00368a45fe32cd971f7350204cc8fb145d2e0b5f885514a90ddd1797d55bf0d2"
+}

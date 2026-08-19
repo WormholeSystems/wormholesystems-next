@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select is_active, disabled_reason from map_alerts where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "is_active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "is_active"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "disabled_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "disabled_reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "f0f51f3fc69cd12b29576ca164322742ca10036b15236399d0ea7861a3d5cd66"
+}

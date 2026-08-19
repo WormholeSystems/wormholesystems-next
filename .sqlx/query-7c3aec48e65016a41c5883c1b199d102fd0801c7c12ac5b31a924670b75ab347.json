@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select distinct map_id from map_solar_systems where solar_system_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "map_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7c3aec48e65016a41c5883c1b199d102fd0801c7c12ac5b31a924670b75ab347"
+}

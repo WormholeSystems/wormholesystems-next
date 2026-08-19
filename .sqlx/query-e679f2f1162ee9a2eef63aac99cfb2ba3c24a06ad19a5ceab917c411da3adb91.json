@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update characters set is_preferred = false where user_id = $1 and is_preferred",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e679f2f1162ee9a2eef63aac99cfb2ba3c24a06ad19a5ceab917c411da3adb91"
+}

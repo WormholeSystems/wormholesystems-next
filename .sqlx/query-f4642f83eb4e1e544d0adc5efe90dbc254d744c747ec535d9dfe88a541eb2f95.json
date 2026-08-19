@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select w.id, w.name, w.url,\n                  (select count(*) from map_alerts a where a.map_webhook_id = w.id) as \"alert_count!\"\n           from map_webhooks w where w.map_id = $1 order by w.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_webhooks",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_webhooks",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_webhooks",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "alert_count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "f4642f83eb4e1e544d0adc5efe90dbc254d744c747ec535d9dfe88a541eb2f95"
+}

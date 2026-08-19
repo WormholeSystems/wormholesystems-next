@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select entity_id, entity_type, name, kills from wormhole_system_threats\n         where solar_system_id = $1 order by kills desc",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "entity_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "entity_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "entity_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "entity_type"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "kills",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "wormhole_system_threats",
+            "name": "kills"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "099cb291693a5b8337961b63aad41fa9a28cec62d21bc30229b535f16b945843"
+}

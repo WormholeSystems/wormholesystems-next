@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update signatures\n               set \"group\" = $1, signature_type_id = $2, name = $3,\n                   connection_id = case when $4 then null else connection_id end,\n                   updated_at = now()\n               where id = $5",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Text",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4e6cfa15a2d64cd5a49bbe8651b91c9229eda81cf0c57cbbfb199b20c2f780f8"
+}

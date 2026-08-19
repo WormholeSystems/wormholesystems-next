@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select alias from map_solar_systems where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "alias",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "alias"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "1a0e52c6e6e8c178bb6ede40f0a8f9d45d29fca47b357f47a3f6d19fa7ea8da3"
+}

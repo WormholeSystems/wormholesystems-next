@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_webhook_roles where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c716aa8fcdda17c4f13a52c70a8b9243a8e4e2596da4f4b675a94f00d1b31d3e"
+}

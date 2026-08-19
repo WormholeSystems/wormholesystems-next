@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id as \"id!\", name as \"name!\",\n                  kind as \"kind!: crate::maps::SubjectType\", ticker\n           from (\n               select id, name, 'character' as kind, null::text as ticker from characters\n               union all\n               select id, name, 'corporation', ticker from corporations\n               union all\n               select id, name, 'alliance', ticker from alliances\n           ) s\n           where s.name ilike $1 or s.ticker ilike $1\n           order by (s.name ilike $2) desc, length(s.name), s.name\n           limit 20",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind!: crate::maps::SubjectType",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "ticker",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "b464be31b9b77e97c68d16542ae76004d315c71e6f90276b1de88b50b12e9e70"
+}

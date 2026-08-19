@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select signature_category_id from signature_types where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "signature_category_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signature_types",
+            "name": "signature_category_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9be4419d4dee02562cdded6082add1e1689035c7ebdd6d1ec9e973bd1eb3649a"
+}

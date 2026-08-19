@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_webhooks where id = $1 and map_id = $2 returning name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_webhooks",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5975e2dec2c0541b7a875231df8705d4350dac03f39462389eb6bdbf8f146960"
+}

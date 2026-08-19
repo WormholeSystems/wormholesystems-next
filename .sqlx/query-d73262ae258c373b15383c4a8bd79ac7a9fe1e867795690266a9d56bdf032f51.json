@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select name from characters where user_id = $1 order by id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d73262ae258c373b15383c4a8bd79ac7a9fe1e867795690266a9d56bdf032f51"
+}

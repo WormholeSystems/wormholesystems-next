@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into corporations (id, name, ticker, alliance_id, faction_id)\n         values ($1, $2, $3, (select id from alliances where id = $4),\n                 (select id from factions where id = $5))\n         on conflict (id) do update set\n             name = excluded.name, ticker = excluded.ticker,\n             alliance_id = excluded.alliance_id, faction_id = excluded.faction_id,\n             updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c0fe670612021521e552faf41399547c86e25061f4dcd869abf790809ecd97a5"
+}

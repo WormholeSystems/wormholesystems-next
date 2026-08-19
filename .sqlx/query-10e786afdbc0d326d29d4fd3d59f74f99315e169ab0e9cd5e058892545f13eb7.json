@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update maps set head_event_id = $1 where id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "10e786afdbc0d326d29d4fd3d59f74f99315e169ab0e9cd5e058892545f13eb7"
+}

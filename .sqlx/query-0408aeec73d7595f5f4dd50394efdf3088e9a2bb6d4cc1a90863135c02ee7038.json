@@ -1,0 +1,260 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_user_settings\n             (map_id, user_id, tracking_allowed, show_threat_level,\n              compact_signature_list, show_statics_first,\n              route_preference, security_penalty, route_allow_time_status,\n              route_allow_mass_status, route_use_evescout, prompt_for_signature,\n              suggest_alias, copy_bookmark, killmail_filter, is_archived,\n              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,\n              is_pinned)\n         values ($1, $2, coalesce($3, false), coalesce($4, true),\n                 coalesce($5, false), coalesce($6, false),\n                 coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),\n                 coalesce($10, 'reduced'), coalesce($11, false),\n                 coalesce($12, true), coalesce($13, true), coalesce($14, false),\n                 coalesce($15, 'all'), coalesce($16, false),\n                 case when $17 then now() end,\n                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false))\n         on conflict (map_id, user_id) do update set\n             tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),\n             show_threat_level = coalesce($4, map_user_settings.show_threat_level),\n             compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),\n             show_statics_first = coalesce($6, map_user_settings.show_statics_first),\n             route_preference = coalesce($7, map_user_settings.route_preference),\n             security_penalty = coalesce($8, map_user_settings.security_penalty),\n             route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),\n             route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),\n             route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),\n             prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),\n             suggest_alias = coalesce($13, map_user_settings.suggest_alias),\n             copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),\n             killmail_filter = coalesce($15, map_user_settings.killmail_filter),\n             is_archived = coalesce($16, map_user_settings.is_archived),\n             -- Absent leaves it; true stamps now; false clears it and shows it again.\n             introduction_confirmed_at = case\n                 when $17 is null then map_user_settings.introduction_confirmed_at\n                 when $17 then now()\n             end,\n             hidden_panels = coalesce($18, map_user_settings.hidden_panels),\n             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),\n             -- Absent leaves it; null is a real value here (follow the map again), so it\n             -- cannot go through coalesce.\n             layout_override = case\n                 when $21 then $20\n                 else map_user_settings.layout_override\n             end,\n             is_pinned = coalesce($22, map_user_settings.is_pinned),\n             updated_at = now()\n         returning tracking_allowed, show_threat_level, compact_signature_list,\n                   show_statics_first, route_preference, security_penalty,\n                   route_allow_time_status, route_allow_mass_status, route_use_evescout,\n                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,\n                   is_archived,\n                   (introduction_confirmed_at is not null) as introduction_confirmed,\n                   hidden_panels, layout_breakpoints, layout_override, is_pinned",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tracking_allowed",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "tracking_allowed"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "show_threat_level",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "show_threat_level"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "compact_signature_list",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "compact_signature_list"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "show_statics_first",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "show_statics_first"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "route_preference",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_preference"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "security_penalty",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "security_penalty"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "route_allow_time_status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_allow_time_status"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "route_allow_mass_status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_allow_mass_status"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "route_use_evescout",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_use_evescout"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "prompt_for_signature",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "prompt_for_signature"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "suggest_alias",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "suggest_alias"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "copy_bookmark",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "copy_bookmark"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "killmail_filter",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "killmail_filter"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "is_archived",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "is_archived"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "introduction_confirmed",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "hidden_panels",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "hidden_panels"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "layout_breakpoints",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "layout_breakpoints"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "layout_override",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "layout_override"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "is_pinned",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "is_pinned"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Text",
+        "Bool",
+        "Bool",
+        "TextArray",
+        "Jsonb",
+        "Text",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "0408aeec73d7595f5f4dd50394efdf3088e9a2bb6d4cc1a90863135c02ee7038"
+}

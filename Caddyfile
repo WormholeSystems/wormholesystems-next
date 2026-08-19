@@ -1,6 +1,10 @@
 # Single origin: backend paths go to Axum, everything else to SvelteKit.
 # WebSocket upgrades pass through reverse_proxy automatically.
-:80 {
+#
+# The site address comes from VECTOR_DOMAIN. Set it to a real domain and Caddy gets a
+# certificate for it and redirects http to https on its own; leave it unset and this serves
+# plain http on :80, which is what local full-stack testing wants.
+{$VECTOR_DOMAIN::80} {
 	handle /api/* {
 		reverse_proxy api:3000
 	}

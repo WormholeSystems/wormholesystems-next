@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_connections set to_system = $1, updated_at = now()\n         where map_id = $2 and to_system = $3 returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c046ac944da12fb0930fcd3917c128017401219f103eb4b4d5b215e4357eb316"
+}

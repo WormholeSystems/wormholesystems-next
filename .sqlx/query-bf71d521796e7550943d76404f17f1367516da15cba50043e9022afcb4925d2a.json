@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_connections\n                 (id, map_id, from_system, to_system, type, mass_status, time_status, size,\n                  preserve_mass)\n             overriding system value\n             values ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n             on conflict (id) do nothing",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bf71d521796e7550943d76404f17f1367516da15cba50043e9022afcb4925d2a"
+}

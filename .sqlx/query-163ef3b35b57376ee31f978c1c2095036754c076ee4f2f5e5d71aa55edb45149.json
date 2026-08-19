@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select threat_level as \"threat_level: crate::maps::ThreatLevel\", threat_analyzed_at\n           from wormhole_systems where solar_system_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "threat_level: crate::maps::ThreatLevel",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "wormhole_systems",
+            "name": "threat_level"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "threat_analyzed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "wormhole_systems",
+            "name": "threat_analyzed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "163ef3b35b57376ee31f978c1c2095036754c076ee4f2f5e5d71aa55edb45149"
+}

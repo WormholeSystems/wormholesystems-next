@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_events set forward = $1 where id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5973308ef30e2b48bf4c14a691e3a8079a17e544e828f75f926336ef4d2bd68"
+}

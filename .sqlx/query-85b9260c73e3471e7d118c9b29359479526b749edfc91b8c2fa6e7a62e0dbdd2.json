@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_events e\n         where e.created_at < now() - make_interval(days => $1)\n           and e.id is distinct from (select m.head_event_id from maps m where m.id = e.map_id)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "85b9260c73e3471e7d118c9b29359479526b749edfc91b8c2fa6e7a62e0dbdd2"
+}

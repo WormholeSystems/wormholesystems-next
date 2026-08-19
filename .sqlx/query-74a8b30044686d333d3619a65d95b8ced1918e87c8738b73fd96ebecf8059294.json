@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select e.id, e.map_alert_id, a.name as \"alert_name?\", e.kind, e.detail, e.created_at,\n                  (select c.name from characters c\n                    where c.user_id = e.actor_user_id\n                    order by c.id limit 1) as \"actor?\"\n           from map_alert_events e\n           left join map_alerts a on a.id = e.map_alert_id\n           where e.map_id = $1\n           order by e.id desc\n           limit $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alert_events",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map_alert_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alert_events",
+            "name": "map_alert_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "alert_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alert_events",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "detail",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alert_events",
+            "name": "detail"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_alert_events",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "actor?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "74a8b30044686d333d3619a65d95b8ced1918e87c8738b73fd96ebecf8059294"
+}

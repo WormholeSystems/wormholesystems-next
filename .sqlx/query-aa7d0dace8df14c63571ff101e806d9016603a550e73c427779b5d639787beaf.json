@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select count(*) from map_connections\n         where map_id = $1\n           and ((from_system = $2 and to_system = $3) or (from_system = $3 and to_system = $2))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "aa7d0dace8df14c63571ff101e806d9016603a550e73c427779b5d639787beaf"
+}

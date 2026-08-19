@@ -32,6 +32,43 @@ async fn main() {
         return;
     }
 
+    // `vector sde-status` says which SDE build is loaded and whether CCP has a newer one.
+    // The deploy CLI reads this to decide whether an update is worth pulling.
+    if args.iter().any(|a| a == "sde-status") {
+        dotenvy::dotenv().ok();
+        let url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
+        let db = vector::db::connect(&url).await.expect("db connect failed");
+        let loaded: Option<(i64, Option<chrono::DateTime<chrono::Utc>>)> =
+            sqlx::query_as("select build_number, release_date from sde_build")
+                .fetch_optional(&db)
+                .await
+                .expect("could not read sde_build");
+        let latest =
+            tokio::task::spawn_blocking(|| vector::sde::download::Downloader::new().latest_build())
+                .await
+                .expect("join failed");
+
+        match &loaded {
+            Some((build, released)) => println!(
+                "loaded={build}{}",
+                released
+                    .map(|d| format!(" released={}", d.format("%Y-%m-%d")))
+                    .unwrap_or_default()
+            ),
+            None => println!("loaded=none"),
+        }
+        match latest {
+            Ok(latest) => {
+                println!("latest={}", latest.build_number);
+                let stale = loaded.map(|(b, _)| b < latest.build_number).unwrap_or(true);
+                println!("update_available={}", if stale { "yes" } else { "no" });
+            }
+            // A deploy should not fail because CCP's endpoint is having a moment.
+            Err(err) => println!("latest=unknown ({err})"),
+        }
+        return;
+    }
+
     // `vector threat-analysis` recomputes every wormhole system's threat from the killmails
     // already stored, then exits. The server does this daily anyway.
     if args.iter().any(|a| a == "threat-analysis") {

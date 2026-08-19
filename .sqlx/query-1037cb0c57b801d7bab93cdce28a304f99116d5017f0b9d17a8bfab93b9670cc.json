@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select day from killmail_imports where day = any($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "killmail_imports",
+            "name": "day"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "DateArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1037cb0c57b801d7bab93cdce28a304f99116d5017f0b9d17a8bfab93b9670cc"
+}

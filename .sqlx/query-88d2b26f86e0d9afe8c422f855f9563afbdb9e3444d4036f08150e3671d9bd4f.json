@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "with incoming as (\n             select * from unnest($1::bigint[], $2::bigint[], $3::timestamptz[], $4::timestamptz[])\n                 as t(planet_id, solar_system_id, vulnerable_from, vulnerable_until)\n         )\n         insert into raidable_skyhooks\n             (planet_id, solar_system_id, vulnerable_from, vulnerable_until, updated_at)\n         select i.planet_id, i.solar_system_id, i.vulnerable_from, i.vulnerable_until, now()\n         from incoming i\n         join planets p on p.id = i.planet_id\n         on conflict (planet_id) do update set\n             solar_system_id = excluded.solar_system_id,\n             vulnerable_from = excluded.vulnerable_from,\n             vulnerable_until = excluded.vulnerable_until,\n             updated_at = now()\n         returning planet_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "planet_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "raidable_skyhooks",
+            "name": "planet_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "Int8Array",
+        "TimestamptzArray",
+        "TimestamptzArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "88d2b26f86e0d9afe8c422f855f9563afbdb9e3444d4036f08150e3671d9bd4f"
+}

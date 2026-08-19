@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select \"group\" as \"group!: SignatureGroup\", connection_id\n           from signatures where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "group!: SignatureGroup",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "group"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "connection_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "connection_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "a2be38f60a181e1e8871ea8845e45956fae266eca585e0fc8c5235dfb8d131f1"
+}

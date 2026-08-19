@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, size as \"size: WormholeSize\" from signatures\n           where map_id = $1 and solar_system_id = $2\n             and \"group\" = 'wormhole' and connection_id is null\n           order by signature_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "size: WormholeSize",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "size"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "33e2a5b4e8913a0432f6dfd764d0b3d57e78543d977e58ee5364f8cafe878c5e"
+}

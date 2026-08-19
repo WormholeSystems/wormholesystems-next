@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_connections set to_system = $1 where map_id = $2 and id = any($3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "63c2f2c04a5e96397948b6015425f155c1b73985d6ae4eca0105c0174508d40a"
+}

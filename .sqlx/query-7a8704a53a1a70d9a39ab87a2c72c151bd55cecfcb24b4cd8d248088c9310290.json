@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select killmail_filter from map_user_settings where map_id = $1 and user_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "killmail_filter",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "killmail_filter"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7a8704a53a1a70d9a39ab87a2c72c151bd55cecfcb24b4cd8d248088c9310290"
+}

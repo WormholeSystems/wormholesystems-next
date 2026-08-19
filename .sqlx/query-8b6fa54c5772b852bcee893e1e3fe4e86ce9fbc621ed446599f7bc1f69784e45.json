@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_alert_deliveries\n         where map_alert_id = $1 and dedup_key = $2 and delivered_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8b6fa54c5772b852bcee893e1e3fe4e86ce9fbc621ed446599f7bc1f69784e45"
+}

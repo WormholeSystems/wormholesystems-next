@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select head_event_id from maps where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "head_event_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "head_event_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f3f3c2514765af19dd77553784d4b29144a3346d79cca521c0a4f6eca50192db"
+}

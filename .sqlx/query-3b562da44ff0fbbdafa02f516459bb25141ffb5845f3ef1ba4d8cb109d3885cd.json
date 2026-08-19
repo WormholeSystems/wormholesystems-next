@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select m.id,\n                  (select count(*) from map_solar_systems s where s.map_id = m.id)\n                      as \"systems!\",\n                  (select count(*) from map_connections c where c.map_id = m.id)\n                      as \"connections!\",\n                  (select count(*) from map_access a where a.map_id = m.id) as \"members!\",\n                  coalesce((select mus.is_archived from map_user_settings mus\n                             where mus.map_id = m.id and mus.user_id = $2), false)\n                      as \"archived!\",\n                  coalesce((select mus.is_pinned from map_user_settings mus\n                             where mus.map_id = m.id and mus.user_id = $2), false)\n                      as \"pinned!\",\n                  (select max(e.created_at) from map_events e where e.map_id = m.id)\n                      as \"last_activity?\",\n                  (select count(*)\n                     from map_user_settings mus\n                     join characters c on c.user_id = mus.user_id\n                     join character_status cs on cs.character_id = c.id and cs.online\n                     join map_solar_systems ms\n                          on ms.map_id = m.id and ms.solar_system_id = cs.solar_system_id\n                    where mus.map_id = m.id and mus.tracking_allowed) as \"pilots!\"\n           from maps m\n           where m.id = any($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "systems!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "connections!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "members!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "archived!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "pinned!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_activity?",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "pilots!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "3b562da44ff0fbbdafa02f516459bb25141ffb5845f3ef1ba4d8cb109d3885cd"
+}

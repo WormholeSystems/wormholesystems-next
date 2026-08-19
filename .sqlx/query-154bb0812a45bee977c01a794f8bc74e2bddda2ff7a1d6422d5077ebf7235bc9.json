@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, name, security_status, wormhole_class_id, pos_x, pos_y, pos_z\n         from solar_systems where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "security_status",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "security_status"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "wormhole_class_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "pos_x",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "pos_x"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "pos_y",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "pos_y"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "pos_z",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "pos_z"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "154bb0812a45bee977c01a794f8bc74e2bddda2ff7a1d6422d5077ebf7235bc9"
+}

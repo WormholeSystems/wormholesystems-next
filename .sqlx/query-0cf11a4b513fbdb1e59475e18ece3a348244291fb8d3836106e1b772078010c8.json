@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select mass from types where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mass",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "mass"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0cf11a4b513fbdb1e59475e18ece3a348244291fb8d3836106e1b772078010c8"
+}

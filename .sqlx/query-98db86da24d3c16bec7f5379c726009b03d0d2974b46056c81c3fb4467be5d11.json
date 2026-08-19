@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update signatures set \"group\" = $1, updated_at = now()\n           where id = $2 and map_id = $3 and \"group\" = 'unknown'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "98db86da24d3c16bec7f5379c726009b03d0d2974b46056c81c3fb4467be5d11"
+}

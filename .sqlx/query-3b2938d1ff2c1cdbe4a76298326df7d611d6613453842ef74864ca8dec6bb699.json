@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select name from solar_systems where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3b2938d1ff2c1cdbe4a76298326df7d611d6613453842ef74864ca8dec6bb699"
+}

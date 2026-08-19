@@ -1,0 +1,240 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first, route_preference, security_penalty,\n                  route_allow_time_status, route_allow_mass_status, route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints, layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tracking_allowed",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "tracking_allowed"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "show_threat_level",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "show_threat_level"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "compact_signature_list",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "compact_signature_list"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "show_statics_first",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "show_statics_first"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "route_preference",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_preference"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "security_penalty",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "security_penalty"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "route_allow_time_status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_allow_time_status"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "route_allow_mass_status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_allow_mass_status"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "route_use_evescout",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "route_use_evescout"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "prompt_for_signature",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "prompt_for_signature"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "suggest_alias",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "suggest_alias"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "copy_bookmark",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "copy_bookmark"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "killmail_filter",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "killmail_filter"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "is_archived",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "is_archived"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "introduction_confirmed!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "hidden_panels",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "hidden_panels"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "layout_breakpoints",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "layout_breakpoints"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "layout_override",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "layout_override"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "is_pinned",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "is_pinned"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "1e38959463dd24e35aac9b59b1289ceffe031d2378d4f68f8f001f36abce50d1"
+}

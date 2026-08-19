@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_access (map_id, subject_type, subject_id, role, expires_at)\n         values ($1, $2, $3, $4, $5)\n         on conflict (map_id, subject_id)\n         do update set subject_type = excluded.subject_type, role = excluded.role,\n             -- $6 = was expires_at present at all: absent leaves the existing expiry,\n             -- a value (null included) replaces it.\n             expires_at = case when $6 then $5 else map_access.expires_at end",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Int8",
+        "Text",
+        "Timestamptz",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8f3d1c8a7bd2f76855d1fd1528616b291981710743218f89c7149f75d7885d27"
+}

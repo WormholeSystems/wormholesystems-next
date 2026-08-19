@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select a.name, a.kind, a.is_active, a.disabled_reason, m.name as map_name\n         from map_alerts a\n         join maps m on m.id = a.map_id\n         where a.created_by_user_id = $1 and ($2::bigint is null or a.map_id = $2)\n         order by m.name, a.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "is_active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "is_active"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "disabled_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "disabled_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "map_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "a809d0f00876cf6214b8d87d3b6d551ecd8fe065fc10d05a878c5adbdc05f031"
+}

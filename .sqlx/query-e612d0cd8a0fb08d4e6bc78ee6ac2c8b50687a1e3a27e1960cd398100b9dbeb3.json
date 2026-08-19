@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select count(*) as \"count!\", coalesce(sum(mass), 0)::bigint as \"sum!\"\n           from map_connection_jumps where connection_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "sum!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "e612d0cd8a0fb08d4e6bc78ee6ac2c8b50687a1e3a27e1960cd398100b9dbeb3"
+}

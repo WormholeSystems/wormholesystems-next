@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select position_x, position_y from map_solar_systems where map_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "position_x",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_x"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position_y",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_y"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "69ebf010318793215c5960d1fd2ed186d02575fb63e0dc9e84314d703ce55fab"
+}

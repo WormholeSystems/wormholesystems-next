@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select t.id, t.name, g.name as group_name, t.mass\n           from types t\n           join groups g on g.id = t.group_id\n           where g.category_id = 6 and t.published and t.name ilike '%' || $1 || '%'\n           order by t.name limit 25",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "group_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "groups",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "mass",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "types",
+            "name": "mass"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "ded36048b2f405923533a86d3bc5ca24f260566c7a5c1934c7fb5aa5633a5baf"
+}
