@@ -42,6 +42,19 @@ function shape(): Node[] {
 	return nodes;
 }
 
+/**
+ * Run the work a handful at a time. Sequentially this is a minute of round trips for a
+ * map worth stress-testing; all at once it is a burst the dev server has no reason to
+ * enjoy.
+ */
+async function inBatches<T, R>(items: T[], size: number, work: (item: T) => Promise<R>) {
+	const out: R[] = [];
+	for (let i = 0; i < items.length; i += size) {
+		out.push(...(await Promise.all(items.slice(i, i + size).map(work))));
+	}
+	return out;
+}
+
 /** Enough distinct systems to hang the shape off, from the ordinary search. */
 async function systemPool(count: number): Promise<number[]> {
 	const ids: number[] = [];
@@ -70,8 +83,7 @@ export async function seedStressChain(map: MapState): Promise<void> {
 		return;
 	}
 
-	const placed: number[] = [];
-	for (const node of nodes) {
+	const placed = await inBatches(nodes, 8, async (node) => {
 		const spot = await api.addSystem({
 			map_id: map.mapId,
 			solar_system_id: systems[node.slot],
@@ -79,12 +91,14 @@ export async function seedStressChain(map: MapState): Promise<void> {
 			y: 100 + node.row * 80,
 			alias: null
 		});
-		placed.push(spot.id);
-	}
+		return spot.id;
+	});
 
-	for (let r = 0; r < ROOTS; r++) {
-		await api.setPinned({ map_id: map.mapId, map_solar_system_id: placed[r], value: true });
-	}
+	await Promise.all(
+		placed
+			.slice(0, ROOTS)
+			.map((id) => api.setPinned({ map_id: map.mapId, map_solar_system_id: id, value: true }))
+	);
 
 	const edges: [number, number][] = nodes
 		.filter((n) => n.parent !== null)
@@ -98,14 +112,14 @@ export async function seedStressChain(map: MapState): Promise<void> {
 	// 3. A leaf back to its own root.
 	edges.push([placed[leaves[1]], placed[1]]);
 
-	for (const [from, to] of edges) {
-		await api.addConnection({
+	await inBatches(edges, 8, ([from, to]) =>
+		api.addConnection({
 			map_id: map.mapId,
 			from_system: from,
 			to_system: to,
 			kind: 'wormhole'
-		});
-	}
+		})
+	);
 
 	await map.refetch();
 }

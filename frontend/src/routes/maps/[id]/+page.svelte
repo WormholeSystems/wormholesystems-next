@@ -482,7 +482,7 @@
 	bind:this={viewportEl}
 	data-testid="map-canvas"
 	tabindex="0"
-	class="group relative h-full w-full overflow-hidden bg-zinc-950 ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
+	class="group relative h-full w-full overflow-hidden bg-canvas ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
 	onpointerdown={onBackgroundDown}
 	onpointerenter={() => map.wakeScrollbars()}
 	onpointermove={onPointerMove}

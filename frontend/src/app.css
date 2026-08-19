@@ -133,7 +133,7 @@
 
   /* The map canvas and its grid lines. The grid is drawn on the canvas at every zoom
      level, so it has to read as a faint ruling rather than as content. */
-  --color-canvas: oklch(96.8% 0 0); /* neutral-100 */
+  --canvas: oklch(96.8% 0 0); /* neutral-100 */
   --color-grid: oklch(90% 0 0);
 
   /* Threat rings. */
@@ -167,7 +167,7 @@
 .dark {
   --color-status-unknown: oklch(37.1% 0 0); /* neutral-700 */
   --color-edge: oklch(37.1% 0 0);
-  --color-canvas: oklch(14.5% 0 0); /* neutral-950 */
+  --canvas: oklch(14.5% 0 0); /* neutral-950 */
   --color-grid: oklch(24% 0 0);
 }
 
@@ -189,6 +189,7 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-canvas: var(--canvas);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --radius-sm: calc(var(--radius) - 4px);
