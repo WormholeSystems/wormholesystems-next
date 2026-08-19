@@ -1,7 +1,6 @@
 <script lang="ts">
-	// The Status section (legacy ConnectionStatus): type / lifetime (with "EOL since"
-	// tooltip) / mass status / preserve-mass / created / updated. Created is the
-	// earliest and Updated the latest across the connection and its linked signatures.
+	// Created is the earliest and Updated the latest across the connection and its linked
+	// signatures.
 	import HeartIcon from '@lucide/svelte/icons/heart';
 
 	import type { MapConnection } from '$lib/api/types/MapConnection';

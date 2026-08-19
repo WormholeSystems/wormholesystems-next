@@ -1,8 +1,7 @@
 <script lang="ts">
-	// An image from CCP's image server: the one primitive for every entity kind. Pass the
-	// entity id, a class for sizing/shape, and optionally the server resolution (a power
-	// of two; keep it at or above 2x the displayed size for crisp rendering). Factions
-	// are served from the corporations endpoint (legacy behavior).
+	// An image from CCP's image server, for every entity kind. `size` is the server resolution:
+	// a power of two, at or above 2x the displayed size to stay crisp. Factions are served from
+	// the corporations endpoint.
 	const paths = {
 		character: 'characters',
 		corporation: 'corporations',

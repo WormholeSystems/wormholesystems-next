@@ -1,6 +1,4 @@
 <script lang="ts">
-	// Wormhole Threat Analysis card for the active wormhole system: level badge, top
-	// entities with kill counts and zKillboard links, analysis freshness.
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 

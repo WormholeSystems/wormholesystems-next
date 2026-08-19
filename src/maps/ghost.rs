@@ -6,9 +6,8 @@
 //! system: hold signatures or intel, be routed through, be a waypoint.
 //!
 //! Resolving one is [`resolve_ghost_system`]. When the system turns out to be on the map
-//! already — the hole led back into the chain — the ghost is merged into that placement
-//! rather than duplicating it, which is also what the jump tracker needs when someone
-//! finally flies the hole.
+//! already (the hole led back into the chain) the ghost is merged into that placement
+//! rather than duplicating it.
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -20,12 +19,11 @@ use super::solar_system::{MapSolarSystem, unexpected};
 use super::{Actor, ConnectionType, WormholeSize};
 
 /// Node width in world px, and the clear space kept between nodes, both mirroring
-/// `frontend/src/lib/map/helpers.ts`. The client owns layout for everything it anchors on
-/// a viewport; these exist so a node the *server* places lands on the same lattice.
+/// `frontend/src/lib/map/helpers.ts` so a server-placed node lands on the same lattice.
 const NODE_WIDTH: f64 = 180.0;
 const NODE_GAP_CELLS: f64 = 1.0;
 
-/// The first free slot beside `base`, then down that column — the client's `freePosition`,
+/// The first free slot beside `base`, then down that column: the client's `freePosition`,
 /// for placements made inside a command. Siblings stack under the first one rather than
 /// marching right across the map.
 fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
@@ -71,10 +69,8 @@ fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
 
 /// Raise a ghost for every wormhole scanned in this system that is not on the map yet,
 /// when the map is set up for it. Returns the placements raised, for the caller's undo.
-///
-/// Runs inside the signature write that made the hole known — a pasted scan, a row typed
-/// in by hand, a signature recategorised as a wormhole — so the nodes and the scan land in
-/// one transaction, as one entry in the history, whichever client did the writing.
+/// Runs inside the signature write that made the hole known, so the nodes and the scan land
+/// in one transaction and one history entry.
 pub(super) async fn ghost_unmapped_holes(
     tx: &mut Tx<'_>,
     map_id: i64,
@@ -566,14 +562,10 @@ pub(super) async fn apply_restore_ghost_system(
     .undo_with(inverse))
 }
 
-/// The ghosts that removing these placements or connections would strand.
-///
-/// A ghost is the far side of a wormhole and nothing else, so one with no connection left
-/// is not a place at all and goes with whatever it hung off. Real systems are left alone
-/// even when they end up edgeless: somebody put those on the map on purpose.
-///
-/// Asked before the deletion rather than after, so the caller can fold the answer into the
-/// snapshot it takes and undo brings the whole thing back in one step.
+/// The ghosts that removing these placements or connections would strand. A ghost with no
+/// connection left is not a place at all and goes with whatever it hung off; real systems
+/// are left alone even when they end up edgeless. Asked before the deletion, so the caller
+/// can fold the answer into its snapshot and undo restores both in one step.
 pub(super) async fn stranded_ghosts(
     tx: &mut Tx<'_>,
     map_id: i64,

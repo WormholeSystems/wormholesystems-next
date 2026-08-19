@@ -10,11 +10,8 @@ use super::{Actor, Role, SubjectType};
 
 /// The user's effective role on a map: the highest role they match across *all* their
 /// characters (a character's own id, its corporation, or its alliance). `None` means no
-/// access at all.
-///
-/// Generic over the executor so the same predicate serves both a pool and an open
-/// transaction; it is the authorization rule, and a second copy of it is a second thing to
-/// get right.
+/// access at all. Generic over the executor so the same predicate serves both a pool and
+/// an open transaction.
 pub async fn effective_role<'e, E>(executor: E, map_id: i64, user_id: i64) -> Result<Option<Role>>
 where
     E: sqlx::PgExecutor<'e>,
@@ -61,11 +58,8 @@ pub(super) async fn require_role(
     require(effective_role(pool, map_id, user_id).await?, min)
 }
 
-/// Who is looking at a map, for the read paths.
-///
-/// A map can be read by someone with a grant, and — when it has been shared — by anyone
-/// at all. The two are told apart because a guest is a viewer and nothing more: no pilots,
-/// no history, no settings of their own, and no writes.
+/// Who is looking at a map, for the read paths. A guest (no grant, reaching a shared map)
+/// is a viewer and nothing more: no pilots, no history, no settings, no writes.
 #[derive(Debug, Clone, Copy)]
 pub struct Reader {
     /// The signed-in user, when there is one. `None` is a guest with a link.
@@ -135,7 +129,6 @@ pub(super) async fn require_role_tx(
     require(effective_role(&mut **tx, map_id, user_id).await?, min)
 }
 
-/// Whether `character_id` belongs to `user_id`.
 pub(super) async fn owns_character(pool: &PgPool, user_id: i64, character_id: i64) -> Result<bool> {
     let exists = sqlx::query_scalar!(
         "select exists(select 1 from characters where id = $1 and user_id = $2)",
@@ -161,8 +154,7 @@ pub struct AccessEntry {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
-/// Every grant on the map, owners first. Viewer+: knowing who can see a chain is part of
-/// deciding what to put on it.
+/// Every grant on the map, owners first. Viewer+.
 pub async fn list_access(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec<AccessEntry>> {
     require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
     let entries = sqlx::query_as!(
@@ -215,9 +207,7 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
     if cmd.role > actor_role {
         return Err(MapError::Forbidden);
     }
-    // A map has one owner: whoever made it, until they hand it on deliberately. Handing it
-    // on is [`transfer_ownership`], which is a different question from "who can help run
-    // this", and is asked somewhere that says what it costs.
+    // A map has exactly one owner; moving it is `transfer_ownership`, not a grant.
     if cmd.role == Role::Owner {
         return Err(MapError::Validation(
             "ownership is transferred, not granted".into(),
@@ -230,8 +220,8 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
          values ($1, $2, $3, $4, $5)
          on conflict (map_id, subject_id)
          do update set subject_type = excluded.subject_type, role = excluded.role,
-             -- Absent leaves whatever expiry the grant already had; a value, including
-             -- null, replaces it.
+             -- $6 = was expires_at present at all: absent leaves the existing expiry,
+             -- a value (null included) replaces it.
              expires_at = case when $6 then $5 else map_access.expires_at end",
         cmd.map_id,
         cmd.subject_type.as_str(),
@@ -283,11 +273,8 @@ pub struct TransferOwnership {
     pub subject_id: i64,
 }
 
-/// Hand the map to someone else. Owner only.
-///
-/// The new owner must already be a character with a grant on the map, so ownership never
-/// lands on somebody who has not been let in yet, and the old owner stays on as a manager
-/// rather than losing the map they built.
+/// Hand the map to someone else. Owner only. The new owner must already be a character
+/// with a grant on the map, and the old owner stays on as a manager.
 pub async fn transfer_ownership(pool: &PgPool, actor: Actor, cmd: TransferOwnership) -> Result<()> {
     require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
 

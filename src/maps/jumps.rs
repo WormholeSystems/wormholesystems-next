@@ -2,13 +2,13 @@
 //! location polling plus manual entries, feeding the connection's mass-remaining
 //! estimate (`jumps_count` / `jumps_mass_sum` on [`MapConnection`](super::MapConnection)).
 //!
-//! Automatic capture ([`record_transit`]) runs on every observed system change of a
-//! tracked character: stargate hops are ignored, and on each map where the character's
-//! user opted into tracking (Member+), the transit lands on the matching wormhole
-//! connection — or as a **pending** row (`connection_id` null) when the hole isn't
-//! mapped yet. Pending rows are claimed by a connection created within 120 seconds
-//! ([`claim_pending`]) and pruned after 10 minutes otherwise. Masses are hull masses
-//! from the seeded `types` table; in game the effective jump mass varies by ±10%.
+//! [`record_transit`] runs on every observed system change of a tracked character: stargate
+//! hops are ignored, and on each map where the character's user opted into tracking
+//! (Member+) the transit lands on the matching wormhole connection, or as a pending row
+//! (`connection_id` null) when the hole isn't mapped yet. Pending rows are claimed by a
+//! connection created within 120 seconds ([`claim_pending`]) and pruned after 10 minutes
+//! otherwise. Masses are hull masses from the seeded `types` table; in game the effective
+//! jump mass varies by ±10%.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -338,7 +338,6 @@ pub async fn read_jumps(
     Ok(jumps)
 }
 
-/// Read one jump inside the applying transaction, or `NotFound`.
 async fn fetch_jump_tx(tx: &mut Tx<'_>, map_id: i64, jump_pk: i64) -> Result<ConnectionJump> {
     sqlx::query_as!(
         ConnectionJump,
@@ -580,7 +579,6 @@ pub async fn prune_unclaimed(pool: &PgPool) -> Result<u64> {
     Ok(pruned)
 }
 
-/// Spawn the pending-row prune loop (every 5 minutes).
 pub fn start_prune(pool: PgPool) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(300));

@@ -41,7 +41,7 @@ where
 
 /// A Rust enum stored as `text` (per the schema's [enum convention](../../docs/database/README.md)).
 /// Generates the variants, `as_str` / `from_db`, and the sqlx glue so the enum binds and
-/// decodes directly in queries. Variant order is the `Ord` order — used for `Role`.
+/// decodes directly in queries. Variant order is the `Ord` order: used for `Role`.
 macro_rules! text_enum {
     ($(#[$m:meta])* $vis:vis enum $name:ident { $($variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
@@ -131,7 +131,7 @@ text_enum! {
 
 text_enum! {
     /// Max ship-mass class that can transit a wormhole. Ordered most-permissive →
-    /// most-restrictive, so `max` (= `Small`) is the "weakest"/worst — the conservative
+    /// most-restrictive, so `max` (= `Small`) is the "weakest"/worst: the conservative
     /// pick when two ends disagree (they shouldn't: both ends of a hole share a size).
     pub enum WormholeSize {
         Xl => "xl",
@@ -157,7 +157,7 @@ text_enum! {
 }
 
 impl Default for SignatureGroup {
-    /// An unresolved sig is `Unknown` until its group is scanned/classified.
+    /// An unresolved signature is `Unknown` until its group is scanned.
     fn default() -> Self {
         Self::Unknown
     }
@@ -178,8 +178,7 @@ text_enum! {
 }
 
 impl Default for SystemStatus {
-    /// A freshly placed system is `Unknown` until someone classifies it (matching the
-    /// legacy default: no status icon, neutral border).
+    /// A freshly placed system is `Unknown` until someone classifies it.
     fn default() -> Self {
         Self::Unknown
     }
@@ -230,12 +229,9 @@ pub struct GridConfig {
     pub viewport_height: f64,
 }
 
-/// The canvas geometry for this process, installed at startup.
-///
-/// A command has nothing but its transaction to work with, and placing a node inside one
-/// (a ghost raised by a paste) still has to land somewhere sensible, so the geometry lives
-/// here rather than being threaded through every command that might need it. Unset in
-/// tests, which get the defaults the client also falls back to.
+/// The canvas geometry for this process, installed at startup. Global so commands can
+/// place nodes without threading it through. Unset in tests, which get the defaults the
+/// client also falls back to.
 static GRID: std::sync::OnceLock<GridConfig> = std::sync::OnceLock::new();
 
 pub fn set_grid(grid: GridConfig) {

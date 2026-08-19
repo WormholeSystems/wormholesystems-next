@@ -7,7 +7,6 @@ import type { MapNaming } from "./MapNaming";
  */
 export type UpdateMap = { map_id: number, name?: string, description?: string | null, image_url?: string | null, 
 /**
- * All-or-nothing: the naming block is edited as one form, so a partial payload here
- * would only ever mean a half-saved form.
+ * All-or-nothing: the naming block is edited as one form.
  */
 naming?: MapNaming, ghost_unlinked_wormholes?: boolean, layout?: string, allow_layout_override?: boolean, is_public?: boolean, };

@@ -1,12 +1,7 @@
 <script lang="ts">
-	// The wormhole effect badge: a lettered colored circle (legacy palette); clicking it
-	// opens a popover listing every modifier at this system's class.
-	//
-	// Shared by the map node and every system list, so an effect looks the same wherever it
-	// appears and a search result costs one glyph instead of a column of prose.
-	//
-	// The modifiers are fetched when the popover opens rather than on mount: a list of
-	// wormholes would otherwise fire a request per row for a table nobody has asked to see.
+	// The wormhole effect badge: a lettered colored circle that opens a popover listing every
+	// modifier at this system's class. Modifiers are fetched on open, not on mount, or a list of
+	// wormholes would fire one request per row for a table nobody asked to see.
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
@@ -18,10 +13,7 @@
 	let {
 		name,
 		wormholeClassId,
-		/**
-		 * Whether clicking opens the modifier table. Off inside a list row: the click would
-		 * have to be taken from the row, which is there to be clicked.
-		 */
+		/** Whether clicking opens the modifier table. Off in list rows, whose own click wins. */
 		detail = true
 	}: { name: string; wormholeClassId: number; detail?: boolean } = $props();
 

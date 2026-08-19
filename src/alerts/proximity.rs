@@ -1,12 +1,10 @@
 //! How far a system is from a chain, in gate jumps.
 //!
-//! A multi-source breadth-first search from every system on the map at once, over the
-//! static stargate graph merged with the map's own wormhole connections. Unweighted,
-//! because an alert only ever asks "how many jumps", never "which way is safer" — that is
-//! the client's weighted router, and porting it would be answering a question nobody asked.
-//!
-//! Searching from all of the map's systems at once rather than once per system is what
-//! keeps this cheap: one traversal answers "how close is the nearest part of my chain".
+//! A multi-source breadth-first search from every system on the map at once, over the static
+//! stargate graph merged with the map's own wormhole connections. Unweighted, because an
+//! alert only ever asks "how many jumps", never "which way is safer". Searching from all the
+//! map's systems at once is what keeps it cheap: one traversal answers "how close is the
+//! nearest part of my chain".
 
 use std::collections::{HashMap, HashSet, VecDeque};
 

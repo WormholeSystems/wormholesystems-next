@@ -16,7 +16,6 @@ use crate::maps::solar_system::{
 };
 use crate::maps::{MapEvent, MapSolarSystem};
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/maps/{id}/clear", post(clear_map))
@@ -39,7 +38,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/maps/{id}/systems/{mss}/details", get(system_details))
 }
 
-/// `POST /api/maps/{id}/systems/resolve-ghost` — say which system a ghost turned out to
+/// `POST /api/maps/{id}/systems/resolve-ghost`, say which system a ghost turned out to
 /// be. Merging into an existing placement removes the ghost, so that goes out too.
 pub async fn resolve_ghost_system(
     State(state): State<AppState>,
@@ -193,7 +192,7 @@ detail_handler!(set_rally, SetRally, crate::maps::solar_system::set_rally);
 
 detail_handler!(set_pinned, SetPinned, crate::maps::solar_system::set_pinned);
 
-/// `GET /api/maps/{id}/systems/{mss}/details` — member-gated intel (notes). 403 for viewers.
+/// `GET /api/maps/{id}/systems/{mss}/details`, member-gated intel (notes). 403 for viewers.
 pub async fn system_details(
     State(state): State<AppState>,
     jar: CookieJar,

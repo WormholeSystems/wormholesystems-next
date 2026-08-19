@@ -1,13 +1,8 @@
 <script lang="ts">
-	// Who is where: every pilot sharing their location on this map, and how far away.
-	//
-	// The list is flat rather than grouped, so it reads the same whether two people are on
-	// or twenty. What keeps it useful at twenty is the ordering: pilots who can act come
-	// first, and the ones who cannot (docked, in a pod, sitting in a scanning frigate) sink
-	// without being hidden, because "my alt is docked in D2" is still worth knowing.
-	//
-	// Distance is measured from the same origin as the watchlist and the Find tools, so
-	// every number on the page agrees about where "here" is.
+	// Who is where: every pilot sharing their location on this map, and how far away. Pilots
+	// who can act sort first; the ones who cannot (docked, podded, in a scanning frigate) sink
+	// without being hidden. Distance is measured from the same origin as the watchlist and
+	// Find, so every number on the page agrees about where "here" is.
 	import type { MapCharacter } from '$lib/api/types/MapCharacter';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -29,14 +24,13 @@
 	const pilots = $derived(map.characters);
 	const sorted = $derived(orderPilots(pilots));
 
-	// A pilot in known space is common, and should still read as a name rather than an id.
+	// A pilot outside the mapped chain should still read as a name rather than an id.
 	$effect(() => {
 		map.ensureResolved(
 			pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null)
 		);
 	});
 
-	/** Everything a row needs to name a pilot's location, on the map or off it. */
 	function place(solarSystemId: number | null) {
 		if (solarSystemId === null) return null;
 		const info = map.systemInfo(solarSystemId);
@@ -75,8 +69,8 @@
 	}
 </script>
 
-<!-- The badges and the ship name are tooltips, which need a provider in scope; a card can
-     be mounted anywhere in the grid, so it brings its own rather than assuming one. -->
+<!-- Tooltips need a provider in scope, and a card can be mounted anywhere in the grid, so
+     it brings its own. -->
 <Tooltip.Provider delayDuration={300}>
 	<MapPanel testid="characters-card">
 		<MapPanelHeader>
@@ -98,8 +92,6 @@
 						{@const route = pilot.solar_system_id === null
 							? undefined
 							: routes.get(pilot.solar_system_id)}
-						<!-- Right-click reaches the same system menu as anywhere else a system is
-						     named: set destination, add to map, external links. -->
 						{#snippet row()}
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div

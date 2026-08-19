@@ -1,7 +1,7 @@
 <script lang="ts">
-	// Mass tracking (legacy MassTracking): remaining-mass bar with 10%/50% ticks, the
-	// jump log in a nested popover, and the manual log/edit form in a third. The bar is
-	// an estimate from tracked hull masses; the manual mass-status flag is independent.
+	// Remaining-mass bar with 10%/50% ticks, the jump log in a nested popover, and the manual
+	// log form in a third. The bar is an estimate from tracked hull masses; the manual
+	// mass-status flag is independent of it.
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import MoveLeftIcon from '@lucide/svelte/icons/move-left';
@@ -60,7 +60,6 @@
 		return 'bg-green-500';
 	});
 
-	// --- jump log ---
 	let logOpen = $state(false);
 	let jumps = $state<ConnectionJump[]>([]);
 	async function refreshLog() {
@@ -70,7 +69,7 @@
 			jumps = [];
 		}
 	}
-	// New transits arrive via the map refetch; keep the open log in sync.
+	// New transits arrive with the map refetch, so an open log has to be re-read.
 	$effect(() => {
 		void connection.jumps_count;
 		void connection.jumps_mass_sum;
@@ -105,7 +104,6 @@
 		});
 	}
 
-	// --- manual jump form (add / edit) ---
 	let formOpen = $state(false);
 	let editing = $state<ConnectionJump | null>(null);
 	let direction = $state<JumpDirection>('outbound');
@@ -137,8 +135,8 @@
 		shipTypeId = jump.ship_type_id;
 		shipLabel = jump.ship_type_name ?? '';
 		massKt = String(Math.round((jump.mass / 1_000_000) * 10) / 10);
-		// Deferred: the closing dropdown's focus restore would dismiss a popover
-		// opened in the same tick (legacy has the same workaround).
+		// Deferred: the closing dropdown's focus restore would dismiss a popover opened in the
+		// same tick.
 		setTimeout(() => (formOpen = true));
 	}
 
@@ -339,7 +337,6 @@
 					</span>
 				</div>
 
-				<!-- Manual log / edit form (nested, matching legacy). -->
 				<Popover.Root bind:open={formOpen}>
 					<Popover.Trigger class="pointer-events-none absolute top-0 right-0" tabindex={-1} />
 					<Popover.Content

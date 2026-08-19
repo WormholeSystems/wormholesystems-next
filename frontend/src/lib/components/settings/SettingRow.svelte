@@ -1,9 +1,7 @@
 <script lang="ts">
 	// One setting: what it is on the left, the control on the right, the reason underneath.
-	//
-	// Every settings page is a list of these, which is most of what makes the pages look
-	// like one thing rather than several. The description is not optional decoration: a
-	// switch labelled "Suggest alias" tells you nothing about what it will do to your map.
+	// The description is not decoration, a switch labelled "Suggest alias" says nothing about
+	// what it will do to your map.
 	import { cn } from '$lib/utils';
 
 	let {

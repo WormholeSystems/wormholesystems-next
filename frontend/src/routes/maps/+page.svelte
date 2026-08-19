@@ -1,9 +1,6 @@
 <script lang="ts">
-	// Every map you can reach.
-	//
-	// Ordered by when the chain last changed, because the map you want is nearly always the
-	// one you were just in. Legacy left this in insertion order, which means the map you
-	// use every day drifts to wherever it happened to be created.
+	// Every map you can reach, ordered by when the chain last changed: the map you want is
+	// nearly always the one you were just in.
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import PinOffIcon from '@lucide/svelte/icons/pin-off';
@@ -35,14 +32,12 @@
 	let showArchived = $state(false);
 	let now = $state(new Date());
 
-	// Create dialog.
 	let creating = $state(false);
 	let newName = $state('');
 	let newDescription = $state('');
 	let busy = $state(false);
 
-	// Delete confirmation. Holding the whole entry, not just an id, so the dialog can name
-	// what it is about to destroy.
+	// The whole entry, not just an id, so the dialog can name what it is about to destroy.
 	let deleting = $state<MapEntry | null>(null);
 
 	function reload() {
@@ -54,7 +49,7 @@
 
 	$effect(() => {
 		reload();
-		// "4m ago" should stay true while the page is open.
+		// "4m ago" has to stay true while the page is open.
 		const clock = setInterval(() => (now = new Date()), 30_000);
 		return () => clearInterval(clock);
 	});
@@ -85,8 +80,6 @@
 		pilots: active.reduce((n, m) => n + m.pilots_online, 0)
 	});
 
-	// How the new map places its systems. Asked here rather than left to settings, because
-	// it changes what the map is to work with, and it is one click to change later.
 	async function create() {
 		const name = newName.trim();
 		if (!name || busy) return;
@@ -96,7 +89,6 @@
 			creating = false;
 			newName = '';
 			newDescription = '';
-			// Straight into the map: creating one is how you say you want to use it.
 			await goto(`/maps/${map.id}`);
 		} catch (err) {
 			error = (err as Error).message;
@@ -106,9 +98,8 @@
 	}
 
 	/**
-	 * Pin a map into the top bar. The bar is loaded with the page, so the shortcut only
-	 * appears once the page has been read again — `invalidateAll` does that without
-	 * throwing away where you are.
+	 * The top bar is loaded with the page, so the shortcut only appears once the page has been
+	 * read again. `invalidateAll` does that without throwing away where you are.
 	 */
 	async function setPinned(map: MapEntry, value: boolean) {
 		try {
@@ -161,7 +152,6 @@
 		data-testid="map-card"
 		data-map={map.name}
 	>
-		<!-- The whole body is the link, so the card is one target. -->
 		<a href="/maps/{map.id}" class="flex flex-1 flex-col gap-2 p-3">
 			<span class="flex items-start justify-between gap-2">
 				<span class="min-w-0">
@@ -189,7 +179,6 @@
 					{map.role}
 				</Badge>
 				{#if map.pilots_online > 0}
-					<!-- The one thing that says a chain is live rather than merely saved. -->
 					<span
 						class="flex items-center gap-1 font-mono text-[10px] text-emerald-500"
 						data-testid="map-pilots"
@@ -287,8 +276,6 @@
 	{/if}
 
 	{#if maps !== null && maps.length > 0}
-		<!-- Sized to its content: three numbers stretched across an ultrawide read as three
-		     unrelated panels rather than one summary. -->
 		<div class="flex w-fit divide-x divide-border border border-border">
 			{#each [{ label: 'Maps', value: totals.maps }, { label: 'Systems', value: totals.systems }, { label: 'Pilots online', value: totals.pilots }] as stat (stat.label)}
 				<div class="min-w-28 px-4 py-2">

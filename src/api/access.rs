@@ -25,7 +25,6 @@ pub struct AccessSubject {
     pub ticker: Option<String>,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/access-subjects/search", get(search_access_subjects))
@@ -39,10 +38,10 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// `GET /api/access-subjects/search?q=` — characters, corporations and alliances that can
+/// `GET /api/access-subjects/search?q=`, characters, corporations and alliances that can
 /// be granted access. Only entities Vector has already cached are searchable (a character
-/// who has signed in, or a corp/alliance one of them belongs to), which is why the UI also
-/// accepts a raw EVE id.
+/// who has signed in, or a corp/alliance one of them belongs to), hence the UI also
+/// accepting a raw EVE id.
 pub async fn search_access_subjects(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -87,7 +86,7 @@ pub async fn search_access_subjects(
     ))
 }
 
-/// `GET /api/maps/{id}/access` — who can see this map, and at what role. Viewer+.
+/// `GET /api/maps/{id}/access`, who can see this map, and at what role. Viewer+.
 pub async fn list_access(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -124,7 +123,7 @@ pub async fn revoke_access(
     Ok(Json(()))
 }
 
-/// `POST /api/maps/{id}/access/transfer` — hand the map to another character on it.
+/// `POST /api/maps/{id}/access/transfer`, hand the map to another character on it.
 pub async fn transfer_ownership(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -138,7 +137,7 @@ pub async fn transfer_ownership(
     Ok(Json(()))
 }
 
-/// `POST /api/maps/{id}/share` — mint a share link, replacing any earlier one.
+/// `POST /api/maps/{id}/share`, mint a share link, replacing any earlier one.
 pub async fn rotate_share_token(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -150,7 +149,7 @@ pub async fn rotate_share_token(
     Ok(Json(token))
 }
 
-/// `DELETE /api/maps/{id}/share` — withdraw the share link.
+/// `DELETE /api/maps/{id}/share`, withdraw the share link.
 pub async fn revoke_share_token(
     State(state): State<AppState>,
     jar: CookieJar,

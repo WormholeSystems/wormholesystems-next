@@ -1,9 +1,7 @@
 <script lang="ts">
 	// Raidable skyhooks: which ones are open, which are about to be, and how far away.
-	//
-	// The whole list is shown rather than a slice near you, because a two-hour window is
-	// long enough to fly a long way for. What makes that readable is sorting: distance
-	// first by default, so the ones you could reach are the ones you see.
+	// The whole list is shown rather than a slice near you, because a two-hour window is long
+	// enough to fly a long way for. Sorted by distance by default.
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
@@ -42,12 +40,10 @@
 
 	let skyhooks = $state<Skyhook[]>([]);
 	let now = $state(new Date());
-	// Skyhooks only go on the planets that yield reagents, so lava and ice is the whole
-	// vocabulary. One at a time, because the reagent is what you went for: a mixed list
-	// would need a per-row marker to say which is which, and this says it once.
+	// Skyhooks only go on reagent planets, so lava and ice is the whole vocabulary. Shown one
+	// kind at a time, because the reagent is what the trip was for.
 	let kind = $state<PlanetKind>('lava');
-	// Which of the three live states to show. Closed ones are never listed: the window is
-	// over, so there is nothing to go and do.
+	// Closed skyhooks are never listed: the window is over, so there is nothing to go and do.
 	let shown = $state<string[]>(['upcoming', 'open', 'closing']);
 	let column = $state<Column>('jumps');
 	let ascending = $state(true);
@@ -104,11 +100,8 @@
 	});
 
 	/**
-	 * Lava and ice always; anything else only once there is one to show.
-	 *
-	 * A skyhook can only go on a reagent planet, so "other" should stay empty forever. It
-	 * is still counted, because a permanent third button is clutter but a skyhook that
-	 * silently cannot be displayed is a bug you would never see.
+	 * "Other" should stay empty forever (skyhooks only go on reagent planets), but it is still
+	 * counted so one that cannot be displayed shows up instead of vanishing.
 	 */
 	const choices = $derived([
 		{ key: 'lava' as const, label: 'Lava' },
@@ -153,11 +146,8 @@
 	}
 
 	/**
-	 * The row's system in the shape the context menu wants.
-	 *
-	 * Built from the payload rather than resolved: a skyhook already carries everything the
-	 * menu needs, and a row that cannot be right-clicked until a second request lands is a
-	 * row that sometimes cannot be right-clicked at all.
+	 * Built from the payload rather than resolved: a skyhook carries everything the menu
+	 * needs, so no row waits on a second request before it can be right-clicked.
 	 */
 	function systemOf(skyhook: Skyhook): SystemSearchResult {
 		return {
@@ -215,10 +205,8 @@
 				<span class="font-mono text-amber-400">{live.length}</span>
 			</span>
 			{#snippet actions()}
-				<!-- Tabs rather than a toggle group: the choice is exclusive, and a toggle's
-				     "on" background is the same colour as its hover, so the selected one was
-				     only distinguishable by accident. The line variant marks it with an
-				     underline as well as full-strength text. -->
+				<!-- Tabs rather than a toggle group: a toggle's "on" background is the same colour
+				     as its hover, so the selected one was only distinguishable by accident. -->
 				<Tabs.Root
 					value={kind}
 					onValueChange={(v) => v && (kind = v as PlanetKind)}
@@ -291,8 +279,6 @@
 					</p>
 				{:else}
 					{#each sorted as row (row.skyhook.planet_id)}
-						<!-- Right-click reaches the system menu, same as anywhere else a system is
-						     named: set destination, add to map, external links. -->
 						{#snippet line()}
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div

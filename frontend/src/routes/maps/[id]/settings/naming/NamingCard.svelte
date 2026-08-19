@@ -1,9 +1,6 @@
 <script lang="ts">
-	// How the map names its chain: the alias sequence, and the three bookmark formats.
-	//
-	// The formats are opaque token strings, so each one previews against a worked example
-	// as you type. Without that you only find out you wrote `{sig}` where you meant
-	// `{wh}` after the bookmark is already in the folder.
+	// The alias sequence and the three bookmark formats. The formats are opaque token strings,
+	// so each previews against a worked example as you type.
 	import { untrack } from 'svelte';
 
 	import { guessNextAlias } from '$lib/alias';
@@ -52,7 +49,7 @@
 
 	const scheme = $derived(draft.alias_scheme as AliasScheme);
 
-	/// The first three children of a chain, so switching scheme shows the difference.
+	/** The first three children of a chain, so switching scheme shows the difference. */
 	const aliasPreview = $derived.by(() => {
 		const taken: string[] = [];
 		for (let i = 0; i < 3; i++) {

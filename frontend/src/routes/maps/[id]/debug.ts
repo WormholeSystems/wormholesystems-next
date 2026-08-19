@@ -1,8 +1,6 @@
-// Throwaway map fixtures, for looking at the canvas under load.
-//
-// Development only: the menu that reaches this is behind `import.meta.env.DEV` and the
-// module is imported dynamically, so none of it ships. Everything here goes through the
-// ordinary API, so what it builds is a map like any other and can be cleared like one.
+// Throwaway map fixtures, for looking at the canvas under load. Development only: the menu
+// that reaches this is behind `import.meta.env.DEV` and the module is imported dynamically,
+// so none of it ships.
 
 import { toast } from 'svelte-sonner';
 
@@ -44,11 +42,7 @@ function shape(): Node[] {
 	return nodes;
 }
 
-/**
- * Run the work a handful at a time. Sequentially this is a minute of round trips for a
- * map worth stress-testing; all at once it is a burst the dev server has no reason to
- * enjoy.
- */
+/** A handful at a time: sequentially this is a minute of round trips, all at once a burst. */
 async function inBatches<T, R>(items: T[], size: number, work: (item: T) => Promise<R>) {
 	const out: R[] = [];
 	for (let i = 0; i < items.length; i += size) {
@@ -70,12 +64,9 @@ async function systemPool(count: number): Promise<number[]> {
 }
 
 /**
- * Build a chain worth looking at: three pinned roots, a branching tree out of each, and
- * three loops back into it — one between two roots with other roots between them, one
- * across two branches, and one from a leaf back to its own root.
- *
- * The loops are the point. They are the edges a tree layout cannot draw as a tree, so
- * they are where the routing has to prove it stays out of the nodes.
+ * Three pinned roots, a branching tree out of each, and three loops back into it. The loops
+ * are the point: a tree layout cannot draw them as a tree, so they are where edge routing
+ * has to prove it stays out of the nodes.
  */
 export async function seedStressChain(map: MapState): Promise<void> {
 	const nodes = shape();

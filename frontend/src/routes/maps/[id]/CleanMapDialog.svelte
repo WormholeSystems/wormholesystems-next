@@ -1,8 +1,6 @@
 <script lang="ts">
-	// What "clean map" is about to do, before it does it.
-	//
-	// Removing a branch is easy to regret and hard to read off the canvas, so this names
-	// every system going and says what keeps the rest: it is a list, not a warning.
+	// What "clean map" is about to do. Removing a branch is easy to regret and hard to read
+	// off the canvas, so this names every system going and says what keeps the rest.
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';

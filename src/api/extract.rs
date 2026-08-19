@@ -42,17 +42,15 @@ pub(crate) fn check_map_id(path_id: i64, body_id: i64) -> Result<(), ApiError> {
     }
 }
 
-/// The share token, when the caller has one. Absent for everybody who is signed in with a
-/// grant, which is the ordinary case.
+/// The share token, when the caller has one.
 #[derive(Deserialize)]
 pub struct ShareQuery {
     #[serde(default)]
     pub share: Option<String>,
 }
 
-/// The share token a watcher is holding for this map, from the URL or, once they have
-/// followed the link, from the cookie the share route left behind. Following a link should
-/// not mean carrying the token in every address afterwards.
+/// The token the share route left behind, so following a link once does not mean carrying
+/// the token in every address afterwards.
 pub(crate) fn share_cookie(jar: &CookieJar, map_id: i64) -> Option<String> {
     jar.get(&format!("map_share_{map_id}"))
         .map(|c| c.value().to_string())

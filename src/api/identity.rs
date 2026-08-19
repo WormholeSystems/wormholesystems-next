@@ -54,7 +54,6 @@ pub struct ScopeStatus {
     pub granted: bool,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/me", get(me))
@@ -70,7 +69,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/waypoints/all", post(set_waypoint_all))
 }
 
-/// `GET /api/me` — who's signed in, if anyone.
+/// `GET /api/me`, who's signed in, if anyone.
 pub async fn me(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -90,7 +89,7 @@ pub async fn me(
     })))
 }
 
-/// `GET /api/me/status` — live status of the active character (online / system / ship).
+/// `GET /api/me/status`, live status of the active character (online / system / ship).
 pub async fn me_status(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -121,7 +120,7 @@ pub async fn me_status(
     })))
 }
 
-/// `GET /api/me/discord` — the linked Discord account, if any.
+/// `GET /api/me/discord`: the linked Discord account, if any.
 pub async fn my_discord(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -132,16 +131,15 @@ pub async fn my_discord(
     ))
 }
 
-/// `POST /api/me/discord/unlink` — forget it, and stop what depended on it.
+/// `POST /api/me/discord/unlink`, forget it, and stop what depended on it.
 pub async fn unlink_discord(State(state): State<AppState>, jar: CookieJar) -> ApiResult<()> {
     let actor = require_actor(&state.db, &jar).await?;
     crate::discord::link::unlink(&state.db, actor.user_id).await;
     Ok(Json(()))
 }
 
-/// `GET /api/me/scopes` — every ESI permission the app can use, and whether the acting
-/// character has granted it. Always the full list, in a fixed order: the introduction shows
-/// what is missing as prominently as what is there.
+/// `GET /api/me/scopes`, every ESI permission the app can use, and whether the acting
+/// character has granted it. Always the full list, so the UI can show what is missing.
 pub async fn my_scopes(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -159,7 +157,7 @@ pub async fn my_scopes(
     ))
 }
 
-/// `GET /api/me/characters` — the user's characters, marking the active and preferred ones.
+/// `GET /api/me/characters`: the user's characters, marking the active and preferred ones.
 pub async fn my_characters(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -195,7 +193,7 @@ pub struct CharacterIdBody {
     pub character_id: i64,
 }
 
-/// `POST /api/me/switch-character` — switch the session's active character.
+/// `POST /api/me/switch-character`, switch the session's active character.
 pub async fn switch_character(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -212,7 +210,7 @@ pub async fn switch_character(
     Ok(Json(()))
 }
 
-/// `POST /api/me/preferred-character` — choose which character new sessions start as.
+/// `POST /api/me/preferred-character`, choose which character new sessions start as.
 pub async fn preferred_character(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -227,7 +225,7 @@ pub async fn preferred_character(
     Ok(Json(()))
 }
 
-/// `POST /api/me/remove-character` — remove one of the user's characters. Refuses to remove
+/// `POST /api/me/remove-character`, remove one of the user's characters. Refuses to remove
 /// the last one. If it's the active character, the session switches to another first (so
 /// the session isn't cascade-deleted).
 pub async fn remove_character(
@@ -380,7 +378,7 @@ async fn validate_waypoint_destination(
     }
 }
 
-/// `POST /api/waypoints` — set a destination/waypoint for one of the caller's characters.
+/// `POST /api/waypoints`, set a destination/waypoint for one of the caller's characters.
 pub async fn set_waypoint(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -410,7 +408,7 @@ pub async fn set_waypoint(
     Ok(Json(()))
 }
 
-/// `POST /api/waypoints/all` — set the destination for every online character of the
+/// `POST /api/waypoints/all`, set the destination for every online character of the
 /// caller. Best-effort: characters without the scope are skipped; fails only when none
 /// succeed.
 pub async fn set_waypoint_all(

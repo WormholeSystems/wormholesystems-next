@@ -28,9 +28,7 @@
 			.catch(() => {});
 	});
 
-	// A few shortcuts, and the rest behind a count: the bar is for getting to a map
-	// quickly, and a row of twenty names is not quick. Three fit without the names being
-	// squeezed to nothing at the width a map is usually read at.
+	// Three fit without the names being squeezed to nothing; the rest go behind a count.
 	const INLINE = 3;
 	const inline = $derived(pinned.slice(0, INLINE));
 	const overflow = $derived(pinned.slice(INLINE));
@@ -48,15 +46,13 @@
 </script>
 
 <nav class="sticky top-0 z-40 border-b border-border bg-background">
-	<!-- Three columns rather than one row: the middle holds its place whatever the left
-	     grows to, so a long list of shortcuts can never walk into the server status. -->
+	<!-- Three columns so the middle holds its place however long the shortcut list grows. -->
 	<div class="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-4 px-5">
 		<div class="flex min-w-0 items-center gap-4">
 		<a href="/" class="font-heading text-sm font-semibold tracking-[0.2em] text-foreground">
 			VECTOR
 		</a>
-		<!-- Nothing to list without an account, and somebody watching a shared map has no
-		     use for a link that only leads to the sign-in page. -->
+		<!-- Without an account this only leads to the sign-in page, so it is not shown. -->
 		{#if me}
 			<a
 				href="/maps"
@@ -69,7 +65,6 @@
 			</a>
 		{/if}
 
-		<!-- Pinned maps: one click from anywhere, and the one you are on is marked. -->
 		<span class="hidden min-w-0 items-center gap-1 lg:flex" data-testid="pinned-maps">
 			{#each inline as map (map.id)}
 				<a
@@ -111,7 +106,6 @@
 
 		</div>
 
-		<!-- Tranquility's state belongs to no page in particular, so it sits in the middle. -->
 		<span class="hidden justify-self-center md:block">
 			<ServerStatus signedIn={me !== null} />
 		</span>

@@ -1,8 +1,7 @@
 //! Unpacking `.zip` archives onto disk.
 //!
-//! Generic over any zip — it has no SDE knowledge; it's used to unpack a
-//! downloaded SDE build before the loaders read it. Fails fast: a successful
-//! result means every entry was written.
+//! Generic over any zip, though the only caller unpacks a downloaded SDE build. Fails fast:
+//! a successful result means every entry was written.
 
 use std::{fs, io, path::Path};
 

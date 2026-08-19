@@ -1,7 +1,5 @@
 <script lang="ts">
-	// One signature row (legacy Signature.vue): inline-editable ID, category select,
-	// type/connection inputs, age cell, copy-bookmark and the overflow menu. Paste-diff
-	// status tints via data attributes.
+	// One signature row. Paste-diff status tints ride on data attributes.
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import MoreVerticalIcon from '@lucide/svelte/icons/more-vertical';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
@@ -61,7 +59,7 @@
 		return map.systems.find((s) => s.id === otherPid) ?? null;
 	});
 
-	// --- Inline ID editing (legacy: alnum only, uppercased, dash after 3 chars) ---
+	// Inline ID editing: alphanumerics only, uppercased, dash after 3 characters.
 	let editingId = $state(false);
 	let idDraft = $state('');
 	let idInput = $state<HTMLInputElement | null>(null);
@@ -102,17 +100,15 @@
 		update({ group });
 	}
 
-	// The bookmark names the *far* end of the hole: it is filed in game as "where this
-	// leads", not as where you are standing. Until the hole is mapped the only thing known
-	// about that end is the class the signature type promises.
+	// The bookmark names the far end of the hole ("where this leads"), not where you are
+	// standing. Until the hole is mapped, the signature type's promised class is all we know.
 	function copyBookmark() {
 		const type = typeById(catalog, sig.signature_type_id);
 		const far = linkedTarget;
 		const text = formatBookmark(
 			{
 				alias: far?.alias ?? null,
-				// Blank rather than borrowing this system's: an unmapped hole's far side is
-				// genuinely unknown, and the class the type promises is all we can say.
+				// Blank rather than borrowing this system's: the far side is genuinely unknown.
 				name: far?.name ?? '',
 				region: far?.region ?? null,
 				wormholeClassId: far?.wormhole_class_id ?? type?.target_class ?? null,
@@ -169,7 +165,6 @@
 	data-sig={sig.signature_id}
 	data-status={status}
 >
-	<!-- ID -->
 	<div class="w-16 shrink-0">
 		{#if editingId}
 			<Input
@@ -199,7 +194,6 @@
 		{/if}
 	</div>
 
-	<!-- Category -->
 	<div class="w-20 shrink-0">
 		<Select.Root
 			type="single"
@@ -232,7 +226,6 @@
 		</Select.Root>
 	</div>
 
-	<!-- Type -->
 	<div class="min-w-0 flex-1 {isWormhole ? 'max-w-44' : ''}">
 		<TypeInput
 			{system}
@@ -246,19 +239,17 @@
 		/>
 	</div>
 
-	<!-- Connection (wormhole rows only; sites let the type cell absorb the column) -->
+	<!-- Wormhole rows only; on a site the type cell absorbs the column. -->
 	{#if isWormhole}
 		<div class="min-w-0 flex-1">
 			<ConnectionInput {map} {system} {sig} {catalog} {compact} {canWrite} />
 		</div>
 	{/if}
 
-	<!-- Age -->
 	<div class="w-10 shrink-0 text-right">
 		<TimeDetails {sig} {connection} {compact} />
 	</div>
 
-	<!-- Actions -->
 	<div class="flex w-12 shrink-0 items-center justify-end gap-1">
 		{#if isWormhole}
 			<Button

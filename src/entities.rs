@@ -1,16 +1,11 @@
 //! Naming the things EVE only gives us ids for.
 //!
-//! Killmails, sovereignty and threat analysis all arrive as bare numbers, and all three
-//! need to show a name. This is the one place that turns an id into a row: ask what we
-//! already know, fetch only the rest, and keep it until it goes stale.
-//!
 //! Characters resolved here land in `characters` alongside the ones people sign in with,
-//! without a `user_id`. That column is what separates the two: everything that cares about
-//! whose character it is already filters on it.
+//! but without a `user_id`. That column is what separates the two.
 //!
-//! Nothing here belongs on an ingest path. Resolving is a background errand that runs
-//! *after* the thing that needed it was recorded, so a slow or rate-limited ESI can never
-//! hold up writing a killmail.
+//! Nothing here belongs on an ingest path. Resolving is a background errand that runs after
+//! the thing that needed it was recorded, so a slow or rate-limited ESI can never hold up
+//! writing a killmail.
 
 use std::collections::HashSet;
 
@@ -22,7 +17,7 @@ use crate::tracking::run_bounded;
 /// Entries older than this are re-fetched: pilots change corp, corps change alliance.
 const FRESH_FOR: &str = "7 days";
 
-/// Max concurrent ESI lookups. Deliberately modest — this is never urgent.
+/// Max concurrent ESI lookups. Deliberately modest, since this is never urgent.
 const CONCURRENCY: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,12 +89,9 @@ pub async fn unresolved(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> 
 
 /// Name a large batch of characters in as few calls as possible.
 ///
-/// The per-character endpoint is one request each, which is fine for the handful a live
-/// killmail mentions and hopeless for the tens of thousands in a year of history. The bulk
-/// endpoint takes a thousand ids at a time and returns only names, which is all a killmail
-/// row asks of a character anyway.
-///
-/// Ids already known and still fresh are skipped, so re-running an import costs nothing.
+/// The bulk endpoint takes a thousand ids at a time and returns only names, which is all a
+/// killmail row asks of a character; the per-character endpoint is one request each, which
+/// is hopeless for the tens of thousands in a year of history.
 pub async fn ensure_character_names(pool: &PgPool, esi: &EsiClient, ids: &[i64]) -> usize {
     let wanted: HashSet<i64> = ids.iter().copied().filter(|id| *id > 0).collect();
     if wanted.is_empty() {
@@ -151,10 +143,9 @@ async fn fetch_character(pool: PgPool, esi: EsiClient, id: i64) {
     let Ok(character) = esi.character_public(id).await else {
         return;
     };
-    // Two things to be careful of. The upsert leaves `user_id` and `owner_hash` alone, so
-    // resolving a name never disturbs whose login a character is. And the affiliations are
-    // foreign keys, so an organisation we have not resolved yet is stored as null rather
-    // than failing the whole insert and losing the name with it.
+    // The upsert leaves `user_id` and `owner_hash` alone, so resolving a name never disturbs
+    // whose login a character is. Affiliations are foreign keys, so an organisation we have
+    // not resolved yet is stored as null rather than failing the insert and losing the name.
     let _ = sqlx::query!(
         "insert into characters (id, name, corporation_id, alliance_id)
          values ($1, $2,
@@ -224,7 +215,6 @@ async fn fetch_alliance(pool: PgPool, esi: EsiClient, id: i64) {
     .await;
 }
 
-/// Documented here so the freshness window is stated once rather than inlined thrice.
 pub const fn fresh_for() -> &'static str {
     FRESH_FOR
 }

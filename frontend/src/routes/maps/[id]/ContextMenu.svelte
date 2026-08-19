@@ -1,6 +1,5 @@
 <script lang="ts">
-	// The right-click menu, structured and iconed to legacy parity. Hand-rolled
-	// (coordinate-positioned) with CSS-hover flyout submenus.
+	// The right-click menu: hand-rolled, coordinate-positioned, with CSS-hover flyouts.
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import BugIcon from '@lucide/svelte/icons/bug';
 	import BrushCleaningIcon from '@lucide/svelte/icons/brush-cleaning';
@@ -49,7 +48,7 @@
 	const panel =
 		'absolute left-full top-0 z-40 hidden min-w-40 border border-border bg-popover py-1 shadow-md group-hover/sub:block';
 
-	// Legacy ship-size catalogue (vector's `small` is legacy `frigate`).
+	// `small` is what EVE calls frigate-sized.
 	const SIZE_OPTIONS: { value: WormholeSize; label: string; letter: string }[] = [
 		{ value: 'small', label: 'Frigate', letter: 'S' },
 		{ value: 'medium', label: 'Medium', letter: 'M' },
@@ -61,11 +60,9 @@
 		map.closeMenu();
 	}
 
-	// --- map ---
-
 	function addSystem() {
 		map.linkFrom = null;
-		// Land the new system where the map was right-clicked (centered on the click).
+		// Centred on the click, so the new system lands where the map was right-clicked.
 		const w = map.toWorld(menu.x, menu.y);
 		map.searchAnchor = { x: w.x - NODE_W / 2, y: w.y - map.nodeH / 2 };
 		map.paletteOpen = true;
@@ -79,7 +76,7 @@
 		close();
 	}
 
-	// Development only, and loaded on demand, so none of it reaches a built app.
+	// Loaded on demand, so none of it reaches a built app.
 	const dev = import.meta.env.DEV;
 
 	function stressChain() {
@@ -107,9 +104,7 @@
 		close();
 	}
 
-	// --- node ---
-
-	/// The palette doubles as the picker: on-map hits merge, off-map ones name the ghost.
+	/** The palette doubles as the picker: on-map hits merge, off-map ones name the ghost. */
 	function assignSystem(id: number) {
 		map.assignGhostId = id;
 		map.linkFrom = null;
@@ -120,8 +115,8 @@
 
 	function connectFrom(id: number) {
 		map.linkFrom = id;
-		// Anchor on the source node itself; the placement helper steps out from there and
-		// owns the spacing, so every way of adding a system leaves the same gap.
+		// Anchor on the source node: the placement helper steps out from there and owns the
+		// spacing, so every way of adding a system leaves the same gap.
 		const s = map.systems.find((s) => s.id === id);
 		map.searchAnchor = s ? { x: s.position_x, y: s.position_y } : null;
 		map.paletteOpen = true;
@@ -156,8 +151,6 @@
 		close();
 	}
 
-	// --- ESI waypoints (k-space targets only) ---
-
 	const onlineCharacters = $derived(map.myCharacters.filter((c) => c.online));
 
 	function waypoint(characterId: number, destinationId: number, clearOthers: boolean) {
@@ -179,8 +172,6 @@
 		);
 		close();
 	}
-
-	// --- connection ---
 
 	const connection = $derived(
 		menu.target.kind === 'connection'
@@ -264,7 +255,7 @@
 {/snippet}
 
 <!-- Keep pointerdown from reaching the canvas: its background handler closes the menu,
-which would unmount these buttons before their click can fire. -->
+     which would unmount these buttons before their click can fire. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="fixed z-30 min-w-44 border border-border bg-popover py-1 shadow-md"

@@ -463,7 +463,23 @@ export class MapState {
 	}
 
 	/** The static routing tables (stargates, security, Jove/station/service indexes). */
+	private routingLoad: Promise<void> | null = null;
+
+	/**
+	 * Resolves once the static routing tables are in. Jump tracking waits on this rather
+	 * than reading `stargates` directly, since a jump taken seconds after the map opens
+	 * would otherwise be judged against an empty gate table.
+	 */
+	whenRoutingLoaded(): Promise<void> {
+		return this.routingLoad ?? this.loadRoutingGraph();
+	}
+
 	async loadRoutingGraph() {
+		this.routingLoad ??= this.fetchRoutingGraph();
+		return this.routingLoad;
+	}
+
+	private async fetchRoutingGraph() {
 		try {
 			const g = await api.routingGraph();
 			this.stargates = new Map(

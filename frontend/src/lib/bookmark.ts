@@ -1,8 +1,6 @@
-// Connection bookmark names.
-//
-// The name is what you read in the in-game bookmark list, so it has to say where the hole
-// goes without the map open. The format is per map, because every group names their chain
-// differently and a mixed convention is worse than either one.
+// Connection bookmark names. The name is read from the in-game bookmark list, so it has to
+// say where the hole goes without the map open. Formats are per map because every group
+// names their chain differently.
 
 import { isIgnoredAlias } from '$lib/alias';
 import { classMeta, isWormholeClass } from '$lib/map/classes';
@@ -71,10 +69,8 @@ export interface BookmarkFormats {
 /**
  * Whether naming `destinationAlias` describes the way back up the chain.
  *
- * Chain aliases extend their parent's, so an ancestor is always a prefix of the alias you
- * are standing on. A sibling branch (`B` seen from `AB`) is not, and stays a forward
- * bookmark. Without the opposite endpoint there is nothing to compare against, so the
- * return format is never chosen.
+ * Chain aliases extend their parent's, so an ancestor is always a prefix of the alias you are
+ * standing on, while a sibling branch (`B` seen from `AB`) is not.
  */
 export function isReturnBookmark(
 	destinationAlias: string | null | undefined,
@@ -91,9 +87,8 @@ export function isReturnBookmark(
 }
 
 /**
- * `C3` for wormhole space, otherwise `HS` / `LS` / `NS` / `P`, and blank when the
- * destination is unknown: guessing from a security of zero would confidently label an
- * unscanned hole as lowsec.
+ * `C3` for wormhole space, otherwise `HS` / `LS` / `NS` / `P`. Blank when the destination is
+ * unknown, since a security of zero would label an unscanned hole as lowsec.
  */
 export function bookmarkClass(wormholeClassId: number | null, security: number | null): string {
 	if (wormholeClassId === null && security === null) return '';
@@ -126,9 +121,8 @@ export function bookmarkTokens(
 }
 
 /**
- * Substitute `{token}` placeholders, dropping empty ones and collapsing the gap they
- * leave. An unknown placeholder is left as written, so a typo in the format is visible
- * rather than silently swallowing part of the name.
+ * Substitute `{token}` placeholders, collapsing the gap empty ones leave. Unknown
+ * placeholders are left as written so a typo in the format stays visible.
  */
 export function renderBookmark(
 	template: string,
@@ -145,8 +139,8 @@ export function renderBookmark(
 /**
  * The bookmark name for a system across a connection, using the map's formats.
  *
- * `oppositeAlias` is the alias at the other end. When it says this bookmark points back up
- * the chain, the return format replaces the wormhole/k-space choice.
+ * `oppositeAlias` is the alias at the other end: when it marks this bookmark as pointing back
+ * up the chain, the return format replaces the wormhole/k-space choice.
  */
 export function formatBookmark(
 	system: BookmarkSystem,

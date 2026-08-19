@@ -2,12 +2,11 @@
 //! realtime WebSocket handlers. This is the client/server boundary for the SvelteKit
 //! frontend.
 //!
-//! One module per area of the API, each owning both its handlers and the routes that
-//! reach them, plus the wire types it serves. [`extract`] holds the request plumbing they
-//! all share, and [`router`] is the merge of their routers.
+//! One module per area, each owning its handlers, its routes and the wire types it serves.
+//! [`extract`] holds the shared request plumbing, [`router`] merges the area routers.
 //!
-//! The acting [`Actor`](crate::maps::Actor) is resolved **from the session cookie**
-//! server-side — never sent by the client. Each mutating handler publishes the matching
+//! The acting [`Actor`](crate::maps::Actor) is resolved from the session cookie
+//! server-side, never sent by the client. Each mutating handler publishes the matching
 //! [`MapEvent`](crate::maps::MapEvent) to the hub after the action commits.
 pub mod access;
 pub mod alerts;
@@ -39,8 +38,8 @@ use crate::maps::MapError;
 
 pub(crate) use extract::require_actor;
 
-// The wire types live next to the handlers that serve them; these re-exports are for the
-// rest of the crate, which should not care which area a type belongs to.
+// Wire types live next to their handlers; these re-exports save the rest of the crate from
+// caring which area a type belongs to.
 pub use access::AccessSubject;
 pub use connections::ShipSearchResult;
 pub use eve_scout::EveScoutConnection;
@@ -108,8 +107,6 @@ impl From<sqlx::Error> for ApiError {
 
 pub type ApiResult<T> = Result<Json<T>, ApiError>;
 
-/// The whole API surface: one router per area, each owning the routes for the handlers
-/// that sit next to it. Adding an endpoint means touching one file, not two.
 pub fn router() -> Router<AppState> {
     Router::new()
         .merge(identity::routes())

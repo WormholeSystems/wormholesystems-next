@@ -1,10 +1,7 @@
 <script lang="ts">
-	// The map page laid out as a free-form grid: the canvas is a tile like any other, so
-	// canvas space can be traded against panel space.
-	//
-	// Tiles are absolutely positioned from their {x,y,w,h} against the breakpoint's column
-	// count. Placement itself lives in `$lib/layout/grid` as pure functions; this component
-	// only turns pointers into calls on them.
+	// The map page as a free-form grid: the canvas is a tile like any other. Tiles are
+	// absolutely positioned from their {x,y,w,h} against the breakpoint's column count;
+	// placement itself lives in `$lib/layout/grid`, this only turns pointers into calls.
 	import { untrack } from 'svelte';
 
 	import XIcon from '@lucide/svelte/icons/x';
@@ -49,9 +46,8 @@
 	const layouts = $derived(resolveLayouts(map.layoutDraft));
 	const layout = $derived(layouts[activeKey]);
 	const hidden = $derived(new Set(map.userSettings?.hidden_panels ?? []));
-	// Compacted after filtering, so hiding a panel in the middle closes the hole it leaves
-	// rather than showing a gap. The stored positions are untouched, which is what lets a
-	// panel go back where it was when it is unhidden.
+	// Compacted after filtering, so hiding a panel closes the hole rather than leaving a gap.
+	// The stored positions are untouched, so an unhidden panel returns where it was.
 	const items = $derived(
 		compact(
 			layout.items.filter(
@@ -67,20 +63,17 @@
 	/** Empty rows kept below the layout while arranging, so there is somewhere to drag a
 	 *  tile *to* when it is already at the bottom. */
 	const EDIT_SLACK_ROWS = 3;
-	/** Rows the grid had when the current gesture started. Holding the height at that floor
-	 *  stops the page shrinking under the pointer as tiles reflow, which would otherwise
-	 *  jump the scroll position mid-drag. */
+	/** Rows the grid had when the gesture started. Holding that floor stops the page
+	 *  shrinking under the pointer as tiles reflow, which would jump the scroll position. */
 	let gestureFloor = $state(0);
 	const gridRows = $derived(
 		map.editingLayout ? Math.max(rows, gestureFloor) + EDIT_SLACK_ROWS : rows
 	);
 
 	/**
-	 * A drag or resize in flight.
-	 *
-	 * `dx`/`dy` are the raw pixel offset: the tile being dragged follows those exactly, so it
-	 * tracks the cursor rather than jumping a cell at a time. `live` is the snapped layout it
-	 * would land in, which is what the other tiles reflow to and what the placeholder shows.
+	 * `dx`/`dy` are the raw pixel offset, so the held tile tracks the cursor instead of
+	 * jumping a cell at a time. `live` is the snapped layout it would land in, which is what
+	 * the other tiles reflow to and what the placeholder shows.
 	 */
 	let gesture = $state<{
 		id: PanelId;
@@ -93,15 +86,12 @@
 		live: GridItem[] | null;
 	} | null>(null);
 
-	// Rendered in a fixed order, never the engine's. Tiles are positioned with left/top, so
-	// DOM order buys nothing, and letting it follow the layout means every move reorders a
-	// keyed `each` — which detaches the focused tile and drops focus, so a second arrow key
-	// goes nowhere.
+	// Rendered in a fixed order, never the layout's: tiles are positioned with left/top, and
+	// reordering a keyed `each` detaches the focused tile, so a second arrow key goes nowhere.
 	const shown = $derived(
 		[...(gesture?.live ?? items)].sort((a, b) => a.i.localeCompare(b.i))
 	);
 
-	/** Where the dragged tile will land, in grid units. */
 	const placeholder = $derived(
 		gesture?.live ? (gesture.live.find((i) => i.i === gesture!.id) ?? null) : null
 	);
@@ -115,9 +105,8 @@
 		const top = g.origin.y * layout.row_height;
 		if (g.kind === 'move') {
 			const width = g.origin.w * colWidth;
-			// Held inside the grid rather than tracking the pointer past the edges: a tile
-			// cannot land outside, and letting it hang off the right would widen the document
-			// and give the whole window a horizontal scrollbar mid-drag.
+			// Held inside the grid: hanging off the right would widen the document and flash a
+			// horizontal scrollbar mid-drag.
 			return {
 				left: clamp(left + g.dx, 0, Math.max(0, gridWidth - width)),
 				top: Math.max(0, top + g.dy),
@@ -125,8 +114,6 @@
 				height: g.origin.h * layout.row_height
 			};
 		}
-		// Resizing grows from the tile's own corner, and stops where the grid and the
-		// panel's minimum say it must.
 		return {
 			left,
 			top,
@@ -232,9 +219,8 @@
 	<div
 		class={cn(
 			'absolute transition-[left,top,width,height] duration-150',
-			// The held tile follows the pointer directly, so it must not animate or it would
-			// lag behind the cursor. Releasing re-enables the transition, which is what makes
-			// it glide into the slot the placeholder was showing.
+			// The held tile follows the pointer directly, so it must not animate. Releasing
+			// re-enables the transition and it glides into the placeholder's slot.
 			held && 'z-30 shadow-2xl duration-0'
 		)}
 		style:width="{held ? held.width : item.w * colWidth}px"
@@ -288,14 +274,11 @@
 			{/if}
 
 			{#if map.editingLayout}
-				<!-- Edit mode replaces the tile's own chrome with its own, over the whole card.
-				     The shield is what makes a drag anywhere on the card move the tile instead
-				     of reaching the content under it: without it, dragging across the canvas
-				     would pan the map. Covering the panel header too means the panel's own
-				     controls cannot be nudged while you are arranging, and the hide button has
-				     somewhere to sit that does not collide with them.
-				     Both are buttons rather than divs so they focus and take the arrow keys,
-				     which is what makes the layout usable without a pointer. -->
+				<!-- The shield makes a drag anywhere on the card move the tile instead of
+				     reaching the content under it: without it, dragging across the canvas would
+				     pan the map. It covers the panel header too, so the panel's own controls
+				     cannot be nudged while arranging. Buttons rather than divs so they focus and
+				     take the arrow keys. -->
 				<div
 					class="absolute inset-x-0 top-0 z-20 flex h-9 items-center justify-between bg-muted/90 pr-1 pl-3 backdrop-blur-sm"
 				>
@@ -332,17 +315,12 @@
 					data-panel={item.i}
 					onpointerdown={(ev) => onPointerDown(ev, item.i as PanelId, 'resize')}
 				>
-					<!-- The corner grip: two strokes, as legacy drew it. The button around it is
-					     bigger than the mark so it stays easy to grab. -->
 					<span
 						class="size-2 border-r-2 border-b-2 border-muted-foreground/70 group-hover/resize:border-foreground"
 					></span>
 				</button>
-				<!-- The frame is a sibling drawn over the content, not an outline on it: as an
-				     outline it was painted underneath the panel's own header background.
-				     It is inset so it stays within its own card: tiles sit flush, so frames
-				     drawn on the edges would meet at every seam and read as one heavy line
-				     rather than as two cards. -->
+				<!-- A sibling drawn over the content, not an outline: as an outline it was painted
+				     underneath the panel's own header background. -->
 				<div
 					class="pointer-events-none absolute inset-[3px] z-40 border-2 border-dashed border-muted-foreground/60"
 					data-testid="tile-frame"
@@ -365,12 +343,10 @@
 	</MapPanel>
 {/snippet}
 
-<!-- `overflow-x: clip` rather than `hidden`: it keeps a tile's drop shadow, or a tile
-     mid-reflow, from widening the document and flashing a horizontal scrollbar, without
-     making this a scroll container or affecting the vertical flow. It does not clip the
-     map's context menus, which are `position: fixed` against the viewport.
-     `data-dragging` is on while a gesture previews: committed positions only land once it
-     clears, so that is what to wait on rather than a timeout. -->
+<!-- `overflow-x: clip` rather than `hidden`: it stops a shadow or a reflowing tile from
+     flashing a horizontal scrollbar without making this a scroll container.
+     `data-dragging` is on while a gesture previews, so tests wait on it clearing rather
+     than on a timeout. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	bind:this={gridEl}
@@ -384,9 +360,8 @@
 	onpointercancel={onPointerUp}
 >
 	{#if placeholder}
-		<!-- Where the held tile will land. It sits under the tiles so the one being dragged
-		     stays readable over it, and it does not animate: it is showing a decision about
-		     which cell, so easing between cells would just lag behind that decision. -->
+		<!-- Under the tiles so the held one stays readable. No transition: it shows which cell
+		     the tile has picked, and easing would lag behind that. -->
 		<div
 			class="absolute z-0 border-2 border-dashed border-muted-foreground/60 bg-muted/50"
 			data-testid="tile-placeholder"

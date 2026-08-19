@@ -1,9 +1,7 @@
 //! Getting a message to Discord.
 //!
-//! Three ways in, one message. A channel webhook needs no bot, no permissions and no OAuth,
-//! so it is what somebody can set up in a minute. The bot can post in a channel it has been
-//! given access to, and can direct-message anyone who has linked their account. All three
-//! share the embed, the retry and the rate-limit handling.
+//! Three ways in (a channel webhook, the bot posting in a channel, the bot direct-messaging
+//! a linked user) sharing one embed, retry and rate-limit path.
 //!
 //! Discord rate-limits per webhook and answers 429 with `retry_after`. Honouring it is not
 //! optional: ignoring it gets the whole application limited, not just the one webhook.
@@ -133,18 +131,16 @@ impl Message {
 pub enum SendError {
     /// The destination is gone: a deleted webhook or channel. Retrying will not help.
     Gone,
-    /// Anything else — network, 5xx, exhausted retries.
+    /// Anything else: network, 5xx, exhausted retries.
     Failed(String),
 }
 
 const ATTEMPTS: usize = 3;
 
 /// Post a message to a Discord webhook, honouring rate limits.
-/// Post a message to a Discord webhook.
 ///
-/// A 404 is a webhook somebody deleted, a 401 or 403 one whose token was rotated. None of
-/// those come back on their own, so the alert is told to stop rather than retry forever
-/// against a destination that no longer exists.
+/// A 404 is a webhook somebody deleted, a 401 or 403 one whose token was rotated. Neither
+/// comes back on its own, so the alert is told to stop rather than retry forever.
 pub async fn post_webhook(
     http: &reqwest::Client,
     url: &str,
@@ -174,8 +170,7 @@ pub async fn post_channel(
 ///
 /// Two calls: Discord has no "message this user" endpoint, only "open a channel with this
 /// user" followed by the usual channel post. The channel id is stable, but caching it would
-/// mean holding a mapping that goes stale when somebody blocks the bot, and the open call
-/// is cheap.
+/// go stale when somebody blocks the bot, and the open call is cheap.
 pub async fn post_dm(
     http: &reqwest::Client,
     token: &str,

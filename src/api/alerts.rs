@@ -1,8 +1,7 @@
 //! The alerts API: what a map watches for, and what happened to those watches.
 //!
-//! Manager+ throughout. An alert carries a webhook URL or a channel id, which is a key to
-//! somebody's Discord server; the people who can hand out map access are the people who
-//! should be able to point the map at a channel.
+//! Manager+ throughout: an alert carries a webhook URL or a channel id, which is a key to
+//! somebody's Discord server.
 
 use axum::Router;
 use axum::extract::{Path, State};
@@ -19,7 +18,6 @@ use crate::maps::{MapError, Role};
 
 use super::{ApiError, ApiResult, require_actor};
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/maps/{id}/alerts", get(list_alerts).post(create_alert))
@@ -109,7 +107,7 @@ async fn require_manager(state: &AppState, jar: &CookieJar, map_id: i64) -> Resu
     }
 }
 
-/// `GET /api/maps/{id}/alerts` — every alert on the map. Manager+.
+/// `GET /api/maps/{id}/alerts`, every alert on the map. Manager+.
 pub async fn list_alerts(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -174,8 +172,8 @@ async fn load(pool: &PgPool, map_id: i64) -> Result<Vec<MapAlert>, ApiError> {
 pub struct MapWebhook {
     pub id: i64,
     pub name: String,
-    /// Enough of the URL to tell two destinations apart, never enough to use one. The URL
-    /// is a bearer token for somebody's channel, and this list is read by every manager.
+    /// Enough of the URL to tell two destinations apart, never enough to use one: the URL is
+    /// a bearer token for somebody's channel, and every manager reads this list.
     pub summary: String,
     /// How many alerts would stop working if this were deleted.
     pub alert_count: i64,
@@ -206,7 +204,7 @@ fn webhook_summary(url: &str) -> String {
     }
 }
 
-/// `GET /api/maps/{id}/webhooks` — the map's destinations. Manager+.
+/// `GET /api/maps/{id}/webhooks`: the map's destinations. Manager+.
 pub async fn list_webhooks(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -243,7 +241,7 @@ pub struct SaveWebhook {
     pub url: Option<String>,
 }
 
-/// `POST /api/maps/{id}/webhooks` — register a destination. Manager+.
+/// `POST /api/maps/{id}/webhooks`, register a destination. Manager+.
 pub async fn create_webhook(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -287,10 +285,8 @@ pub async fn create_webhook(
     }))
 }
 
-/// `DELETE /api/maps/{id}/webhooks/{webhook_id}`. Manager+.
-///
-/// Alerts pointing at it go with it: an alert with nowhere to post is not an alert, and
-/// leaving it enabled-but-broken is worse than saying it is gone.
+/// `DELETE /api/maps/{id}/webhooks/{webhook_id}`. Manager+. Alerts pointing at it are
+/// deleted too, rather than left enabled with nowhere to post.
 pub async fn delete_webhook(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -319,7 +315,7 @@ pub async fn delete_webhook(
     Ok(Json(()))
 }
 
-/// `GET /api/maps/{id}/roles` — the map's named Discord roles. Manager+.
+/// `GET /api/maps/{id}/roles`: the map's named Discord roles. Manager+.
 pub async fn list_roles(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -351,7 +347,7 @@ pub struct SaveRole {
     pub discord_role_id: String,
 }
 
-/// `POST /api/maps/{id}/roles` — register a role to ping. Manager+.
+/// `POST /api/maps/{id}/roles`, register a role to ping. Manager+.
 pub async fn create_role(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -366,7 +362,7 @@ pub async fn create_role(
     // Discord ids are snowflakes: decimal, and long. Anything else is a copy-paste slip.
     if role_id.len() < 5 || !role_id.chars().all(|c| c.is_ascii_digit()) {
         return Err(ApiError::bad_request(
-            "a Discord role id is a long number — right-click the role with developer mode on",
+            "a Discord role id is a long number: right-click the role with developer mode on",
         ));
     }
     let id = sqlx::query_scalar!(
@@ -518,7 +514,7 @@ impl SaveAlert {
     }
 }
 
-/// `POST /api/maps/{id}/alerts` — create one. Manager+.
+/// `POST /api/maps/{id}/alerts`, create one. Manager+.
 pub async fn create_alert(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -558,7 +554,7 @@ pub async fn create_alert(
     one(&state.db, map_id, id).await
 }
 
-/// `PUT /api/maps/{id}/alerts/{alert_id}` — replace its settings. Manager+.
+/// `PUT /api/maps/{id}/alerts/{alert_id}`, replace its settings. Manager+.
 pub async fn update_alert(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -616,7 +612,7 @@ pub struct SetAlertActive {
     pub is_active: bool,
 }
 
-/// `POST /api/maps/{id}/alerts/{alert_id}/active` — turn it on or off by hand. Manager+.
+/// `POST /api/maps/{id}/alerts/{alert_id}/active`, turn it on or off by hand. Manager+.
 pub async fn set_alert_active(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -624,8 +620,7 @@ pub async fn set_alert_active(
     Json(body): Json<SetAlertActive>,
 ) -> ApiResult<MapAlert> {
     let user_id = require_manager(&state, &jar, map_id).await?;
-    // Turning it back on clears the reason it stopped: whatever went wrong, somebody has
-    // looked at it and says it is fixed.
+    // Turning it back on clears the reason it stopped.
     let updated = sqlx::query!(
         "update map_alerts set
              is_active = $3,
@@ -693,7 +688,7 @@ pub struct EventsQuery {
     pub limit: Option<i64>,
 }
 
-/// `GET /api/maps/{id}/alerts/events` — the audit trail. Manager+.
+/// `GET /api/maps/{id}/alerts/events`: the audit trail. Manager+.
 pub async fn list_alert_events(
     State(state): State<AppState>,
     jar: CookieJar,

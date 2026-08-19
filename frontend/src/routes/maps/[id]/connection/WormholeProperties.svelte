@@ -1,6 +1,5 @@
 <script lang="ts">
-	// The Properties section (legacy WormholeProperties): physics of the resolved
-	// wormhole type from the enriched signature catalog.
+	// Physics of the resolved wormhole type, from the enriched signature catalog.
 	import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
 	import { formatKt, shipSizeLetter } from '$lib/map/helpers';
 

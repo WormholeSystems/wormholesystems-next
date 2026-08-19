@@ -1,8 +1,7 @@
-// Client-side route computation, ported from the legacy routing worker: Dijkstra with a
-// binary heap over the static stargate graph plus the map's live wormhole edges and
-// (optionally) EVE Scout's public connections. Zarzakh is always excluded. One
-// single-source relaxation serves A→B routes, all watchlist targets, and the
-// closest-systems search alike.
+// Client-side route computation, ported from the legacy routing worker: Dijkstra over the
+// static stargate graph plus live wormhole and EVE Scout edges. Zarzakh is always excluded.
+// One single-source relaxation serves A→B routes, watchlist targets, and the closest-systems
+// search alike.
 
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
@@ -48,11 +47,10 @@ type DynamicAdjacency = Map<
 >;
 
 export interface RouteGraph {
-	/** Static stargate adjacency (both directions present). */
+	/** Both directions are present. */
 	stargates: Adjacency;
-	/** Live wormhole + EVE Scout edges with their life-cycle state. */
 	dynamic: DynamicAdjacency;
-	/** Security by solar system id, for the safer / less-secure cost functions. */
+	/** Security by solar system id. */
 	security: Map<number, number>;
 }
 
@@ -162,8 +160,8 @@ interface Relaxation {
 }
 
 /**
- * The single-source relaxation behind every query. `onSettle` sees each node when its
- * final distance is known (in cost order) and may return `false` to stop early.
+ * The single-source relaxation behind every query. `onSettle` sees each node when its final
+ * distance is known (in cost order) and may return `false` to stop early.
  */
 function relax(
 	graph: RouteGraph,
@@ -263,10 +261,7 @@ export function findRoutes(
 	return out;
 }
 
-/**
- * The colour a jump count is shown in: green is next door, amber is a trip, red is far.
- * Shared so the watchlist and the pilots card cannot drift apart on what "close" means.
- */
+/** Shared so the watchlist and the pilots card agree on what "close" means. */
 export function jumpTone(jumps: number): string {
 	if (jumps < 8) return 'text-green-400';
 	if (jumps < 15) return 'text-amber-400';

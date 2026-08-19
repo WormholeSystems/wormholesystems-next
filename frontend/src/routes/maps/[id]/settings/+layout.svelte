@@ -1,14 +1,10 @@
 <script lang="ts">
-	// A map's settings, in sections.
+	// A map's settings, split by who a setting belongs to: General, Access and Alerts change
+	// the map for everyone and are Manager+, Display, Mapping and Routing are per viewer.
+	// Sections you cannot use are hidden rather than shown and refused.
 	//
-	// The split is by who a setting belongs to as much as by subject: General, Access and
-	// Alerts change the map for everyone on it and are Manager+; Display, Mapping and
-	// Routing are yours alone and everyone has them. Sections you cannot use are not shown,
-	// rather than shown and refused.
-	//
-	// Naming is the one section with both: the aliases and bookmark formats belong to the
-	// map, the clipboard toggle to you. It stays visible to everyone, read-only, because
-	// what your bookmarks will say is worth reading even when you cannot change it.
+	// Naming holds both, so it stays visible to everyone read-only: what your bookmarks will
+	// say is worth reading even when you cannot change it.
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';

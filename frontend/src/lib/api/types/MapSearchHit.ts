@@ -6,12 +6,7 @@ import type { ThreatMatch } from "./ThreatMatch";
  * One hit from the map command palette. `map_solar_system_id` is set when the system is
  * already placed; otherwise the hit is an off-map system the palette can add.
  */
-export type MapSearchHit = { 
-/**
- * The same payload every other system picker renders, so the palette's rows line up
- * with them instead of being styled by hand.
- */
-system: SystemSearchResult, map_solar_system_id: number | null, alias: string | null, occupying_group: string | null, 
+export type MapSearchHit = { system: SystemSearchResult, map_solar_system_id: number | null, alias: string | null, occupying_group: string | null, 
 /**
  * The matching slice of the system's notes, when the query hit the notes. Member+ only.
  */

@@ -10,12 +10,11 @@ use super::ApiResult;
 use super::extract::{ShareQuery, read_map_as};
 use crate::auth::AppState;
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new().route("/api/maps/{id}/killmails", get(map_killmails))
 }
 
-/// `GET /api/maps/{id}/killmails` — recent kills in this map's systems, newest first.
+/// `GET /api/maps/{id}/killmails`, recent kills in this map's systems, newest first.
 /// Viewer+, like reading the graph: a killmail is public record on zKillboard anyway.
 pub async fn map_killmails(
     State(state): State<AppState>,

@@ -24,9 +24,8 @@ pub struct Config {
 
 /// What the Discord half of the integration needs.
 ///
-/// All or nothing: a half-configured app fails in ways that look like bugs (an OAuth
-/// redirect that 400s, an interaction endpoint Discord silently marks unhealthy), so it is
-/// read as one unit and left `None` unless every part is present.
+/// All or nothing: a half-configured app fails in ways that look like bugs, so this is read
+/// as one unit and left `None` unless every part is present.
 #[derive(Debug, Clone)]
 pub struct DiscordConfig {
     pub client_id: String,

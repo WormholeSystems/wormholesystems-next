@@ -155,8 +155,7 @@ export const api = {
 		get<SystemSearchResult[]>(`/api/systems/resolve?ids=${ids.join(',')}`),
 	threatAnalysis: (solarSystemId: number) =>
 		get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
-	// The response is cached for a day; the version param busts browser caches when
-	// the payload shape grows.
+	// Cached for a day; bump the version param when the payload shape changes.
 	routingGraph: () =>
 		get<{
 			adjacency: Record<string, number[]>;
@@ -206,8 +205,8 @@ export const api = {
 	skyhooks: () => get<Skyhook[]>('/api/skyhooks'),
 	mapKillmails: (mapId: number) => get<MapKillmail[]>(`/api/maps/${mapId}/killmails`),
 
-	// A tracked jump: places the system, connects it, and links the signature in one
-	// undoable step. The response is empty; the socket drives the refetch.
+	// Places the system, connects it, and links the signature in one undoable step. The
+	// response is empty, the socket drives the refetch.
 	trackJump: (cmd: TrackJump) => post<null>(`/api/maps/${cmd.map_id}/track-jump`, cmd),
 
 	// Connections

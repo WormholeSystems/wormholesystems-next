@@ -2,10 +2,6 @@
 import type { KillParty } from "./KillParty";
 
 /**
- * A killmail as the card shows it.
- *
- * Only what a row renders, rather than the raw payload: the ESI body carries every
- * attacker and every destroyed item, which for fifty kills is orders of magnitude more
- * than the handful of fields on screen.
+ * A killmail as the card shows it: what a row renders, not the raw payload.
  */
 export type MapKillmail = { id: number, solar_system_id: number, system_name: string, region: string, security_status: number, wormhole_class_id?: number, time: string, victim: KillParty, final_blow: KillParty, total_value?: number, attacker_count: number, is_npc: boolean, is_solo: boolean, };

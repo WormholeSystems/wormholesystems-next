@@ -1,13 +1,8 @@
-// Every action a person can take on a map, and what the map says about it.
+// Every action a person can take on a map, and what the map says about it. One catalogue
+// rather than a phrase per call site, so the silent ones are silent on purpose.
 //
-// One catalogue rather than a phrase at each call site, so the wording is consistent, the
-// silent ones are silent on purpose, and adding an action means deciding here what it says
-// rather than inventing a sentence in a click handler.
-//
-// The rule for `done`: say something only when the map does not. Dragging a node, renaming
-// one, or removing a connection are all visible where they happened, and announcing them
-// would bury the ones worth reading. What earns a line is work that lands somewhere you
-// are not looking: the clipboard, the EVE client, the far end of a long undo.
+// The rule for `done`: say something only when the map does not. What earns a line is work
+// that lands somewhere you are not looking: the clipboard, the EVE client, a long undo.
 
 export interface ActionCopy {
 	/** What went wrong, in words. The server's message rides along as the detail. */
@@ -58,9 +53,8 @@ export const MAP_ACTIONS = {
 	// --- the map's own state ---
 	watch: { failed: 'Could not add it to the watchlist' },
 	unwatch: { failed: 'Could not remove it from the watchlist' },
-	// The change may be anywhere on the map, including off screen, so these say so.
-	// These three carry the step they walked past as their detail, so the toast says what
-	// moved rather than only that something did.
+	// The change may be anywhere on the map, including off screen. These three carry the step
+	// they walked past as their detail, so the toast says what moved.
 	undo: { failed: 'Could not undo', done: 'Undone' },
 	redo: { failed: 'Could not redo', done: 'Redone' },
 	goToEvent: { failed: 'Could not go to that point', done: 'Map moved back to' },

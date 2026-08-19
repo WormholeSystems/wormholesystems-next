@@ -1,13 +1,11 @@
 //! The single entry point for changing a map.
 //!
-//! Every mutation is a [`MapCommand`] variant applied through [`execute`], which opens
-//! one transaction, authorizes, applies, and records a [`map_events`] row before
-//! committing. The per-command `apply_*` functions are `pub(super)`, so the API layer
-//! cannot reach them: mutating a map without an audit entry is unrepresentable, and
-//! authorization lives in exactly one place instead of being repeated per action.
-//!
-//! Because an [`Effect`]'s `inverse` is itself a `MapCommand`, undo is just another
-//! execution (see [`super::events_log`]) and redo is undoing the undo row.
+//! Every mutation is a [`MapCommand`] applied through [`execute`], which opens one
+//! transaction, authorizes, applies, and records a `map_events` row before committing. The
+//! `apply_*` functions stay `pub(super)` so a mutation without an audit entry is
+//! unrepresentable outside this module. An [`Effect`]'s `inverse` is itself a
+//! `MapCommand`, so undo is just another execution (see [`super::events_log`]) and redo is
+//! undoing the undo row.
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -56,9 +54,8 @@ impl EventActor {
     }
 }
 
-/// Several commands applied as one. Only produced as an inverse: it lets a command whose
-/// undo is more than one step stay a single entry in the history, so a tracked jump that
-/// added a system, an edge and a signature link is one undo rather than three.
+/// Several commands applied as one. Only produced as an inverse, so a command whose undo
+/// takes several steps still occupies one entry in the history.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sequence {
     pub map_id: i64,
@@ -125,8 +122,8 @@ pub enum CommandOutput {
 }
 
 impl CommandOutput {
-    /// Take the value a command promised. A mismatch is a wiring mistake between the
-    /// command and its `apply`, not something a caller can act on, so it is one error.
+    /// A mismatch is a wiring mistake between a command and its `apply`, never something a
+    /// caller can act on.
     fn wrong(self) -> MapError {
         MapError::Validation(format!("unexpected command output: {self:?}"))
     }
@@ -355,10 +352,9 @@ async fn apply_sequence(tx: &mut Tx<'_>, cmd: Sequence, actor: EventActor) -> Re
     )
 }
 
-/// Apply a command: authorize, mutate, and record — all in one transaction.
-///
-/// Recording also advances the map's history cursor onto the new step, so a change made
-/// after an undo branches off where the map is sitting rather than off the newest row.
+/// Authorize, mutate, and record, all in one transaction. Recording also advances the
+/// map's history cursor onto the new step, so a change made after an undo branches off
+/// where the map is sitting rather than off the newest row.
 pub async fn execute(pool: &PgPool, actor: Actor, cmd: MapCommand) -> Result<CommandOutput> {
     execute_as(pool, EventActor::Character(actor), cmd).await
 }

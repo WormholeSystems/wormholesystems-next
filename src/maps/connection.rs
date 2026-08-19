@@ -2,15 +2,13 @@
 //! life-cycle state of edges. All are Member+ (see [access.md](../../docs/database/access.md)).
 //!
 //! A connection carries its own `mass_status` / `time_status` / `size` so a hole can be
-//! marked massed/EOL even before any signature is linked. Once a signature *is* linked, the
-//! `map_*_sync` DB triggers (migration 0009) keep the connection and its signatures in
-//! lock-step — worst-wins on link, verbatim on edit. See the
-//! [sync spec](../../docs/database/mapping.md).
+//! marked massed/EOL before any signature is linked. Once one is linked, the `map_*_sync`
+//! DB triggers (migration 0009) keep connection and signatures in lock-step: worst-wins on
+//! link, verbatim on edit. See the [sync spec](../../docs/database/mapping.md).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// Used by the cross-target struct + command definitions.
 use super::{ConnectionType, MassStatus, TimeStatus, WormholeSize};
 
 use sqlx::PgPool;

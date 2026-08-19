@@ -2,7 +2,6 @@
 
 export type CreateMapBody = { name: string, 
 /**
- * What the map is for. Optional, and blank counts as absent rather than as an empty
- * description nobody meant to write.
+ * Blank counts as absent.
  */
 description?: string, };

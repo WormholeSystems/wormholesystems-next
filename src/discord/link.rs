@@ -1,11 +1,10 @@
 //! Linking a Vector account to a Discord one.
 //!
-//! Standard OAuth2 with the `identify` scope: the only thing Vector wants from Discord is
-//! "which Discord user is this", so it can direct-message the right person and know who a
-//! slash command is speaking for. Nothing about servers, nothing about messages.
+//! Standard OAuth2 with the `identify` scope, which is all Vector needs to direct-message
+//! the right person and know who a slash command is speaking for.
 //!
 //! The handshake reuses `oauth_login_flows`, the same single-use state table the EVE login
-//! uses. One flow table for two providers is one place to get expiry and replay right.
+//! uses, so expiry and replay are handled in one place.
 
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
@@ -19,7 +18,7 @@ use crate::session;
 
 use super::{API, DiscordUser};
 
-/// `GET /discord/connect` — start the link. Requires a Vector session.
+/// `GET /discord/connect`, start the link. Requires a Vector session.
 pub async fn connect(State(state): State<AppState>, jar: CookieJar) -> Response {
     let Some(config) = state.discord.as_ref() else {
         return (StatusCode::NOT_FOUND, "Discord is not configured").into_response();
@@ -68,7 +67,7 @@ pub struct CallbackQuery {
     state: String,
 }
 
-/// `GET /discord/callback` — finish the link.
+/// `GET /discord/callback`, finish the link.
 pub async fn callback(
     State(state): State<AppState>,
     Query(query): Query<CallbackQuery>,

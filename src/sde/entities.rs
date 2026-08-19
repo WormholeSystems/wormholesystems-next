@@ -1,11 +1,9 @@
-//! The entity→file→key table.
+//! The entity to file to key table: each row wires one top-level SDE struct to its source
+//! `.jsonl` file and primary key, which is what lets [`super::load`] / [`super::load_all`]
+//! work for every entity.
 //!
-//! Each row wires one top-level SDE struct to its source `.jsonl` file and
-//! primary key, which is what lets the generic loaders [`super::load`] /
-//! [`super::load_all`] work for every entity.
-//!
-//! Two key shapes occur: most files key on an integer `_key` (the `i32` arm),
-//! a handful key on a string (the `String` arm, which clones the field).
+//! Most files key on an integer `_key` (the `i32` arm); a handful key on a string (the
+//! `String` arm, which clones the field).
 
 use super::SdeEntity;
 

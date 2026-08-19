@@ -17,8 +17,6 @@ use crate::auth::AppState;
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct MapSearchHit {
-    /// The same payload every other system picker renders, so the palette's rows line up
-    /// with them instead of being styled by hand.
     pub system: SystemSearchResult,
     pub map_solar_system_id: Option<i64>,
     pub alias: Option<String>,
@@ -44,12 +42,11 @@ pub struct ThreatMatch {
     pub kills: i32,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new().route("/api/maps/{id}/search", get(search_map))
 }
 
-/// `GET /api/maps/{id}/search?q=` — the map command palette. Matches placed systems by
+/// `GET /api/maps/{id}/search?q=`: the map command palette. Matches placed systems by
 /// name, alias, occupier and (for members) notes, then falls back to off-map systems the
 /// palette can offer to add. Viewer+.
 pub async fn search_map(
@@ -70,7 +67,7 @@ pub async fn search_map(
     let prefix = format!("{q}%");
 
     // The same columns the standalone system search selects, so both build an identical
-    // SystemSearchResult and the pickers render the same way.
+    // SystemSearchResult.
     let placed = sqlx::query!(
         r#"select mss.id as "map_solar_system_id!", ss.id as "solar_system_id!",
                   ss.name as "name!", r.name as "region!",
@@ -230,16 +227,12 @@ const THREAT_ENTITIES: i64 = 5;
 
 const THREAT_SYSTEMS: usize = 12;
 
-/// Systems where an organisation matching the query is a top killer.
-///
-/// The other half of "who is out there": the palette can already find a system by the
-/// occupier someone typed onto it, which only works for chains you have already scouted.
-/// This finds them from the killmails instead, so searching a corp name answers "where do
-/// these people actually operate" across all of wormhole space.
+/// Systems where an organisation matching the query is a top killer, found from the
+/// killmails rather than from occupiers anyone typed in.
 ///
 /// Organisations are ranked exact match, then prefix, then anywhere in the name, and by
-/// total kills within each tier, so a search for a well-known alliance is not buried under
-/// the one-kill corporations that happen to contain the same letters.
+/// total kills within each tier, so a well-known alliance is not buried under the one-kill
+/// corporations that happen to contain the same letters.
 async fn threat_hits(
     db: &sqlx::PgPool,
     map_id: i64,

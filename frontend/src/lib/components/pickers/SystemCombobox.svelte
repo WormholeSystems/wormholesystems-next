@@ -1,11 +1,7 @@
 <script lang="ts">
-	// A compact solar-system combobox: trigger shows the chosen system, opens a
-	// Command-driven search (arrow keys + Enter to pick, Escape to close), rendering
-	// the shared class/name/region rows.
-	//
-	// Before anything is typed it offers `suggestions` rather than an empty box. The systems
-	// worth picking are nearly always ones already in play (the selected system, where you
-	// are, a pinned watchlist entry), so the common case needs no typing at all.
+	// A compact solar-system combobox over a Command-driven search. Before anything is typed it
+	// offers `suggestions` rather than an empty box, since the system you want is nearly always
+	// one already in play (selected, where you are, a pinned watchlist entry).
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import NavigationIcon from '@lucide/svelte/icons/navigation';
 	import PinIcon from '@lucide/svelte/icons/pin';
@@ -83,9 +79,8 @@
 		}, 150);
 	});
 
-	// The list owns the tracks and every row is a subgrid of them, so the columns line up
-	// down the list instead of each row sizing itself. The trailing track is Command's own
-	// check indicator, which it appends to every item.
+	// See `pickers/columns.ts`: the list owns the tracks and rows are subgrids. The trailing
+	// track is Command's own check indicator, which it appends to every item.
 	const LIST_TRACKS =
 		'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2';
 	const ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
@@ -110,8 +105,7 @@
 		<Command.Root shouldFilter={false}>
 			<Command.Input placeholder="Search…" bind:value={query} />
 			{#if !searching && offered.length > 0}
-				<!-- Chips rather than rows: these are shortcuts to systems already in play, and
-				     drawing them like search results would suggest they are search results. -->
+				<!-- Chips, not rows, so shortcuts do not read as search results. -->
 				<div class="flex flex-wrap gap-1.5 border-b border-border/50 p-2" data-testid="picker-suggestions">
 					{#each offered as s (s.system.id)}
 						<button

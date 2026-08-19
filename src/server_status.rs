@@ -1,10 +1,9 @@
 //! Is Tranquility up?
 //!
-//! Two jobs. The visible one is the header indicator: players online, and EVE's own clock.
-//! The load-bearing one is the gate — during downtime every authenticated ESI call fails,
-//! and hammering a server that is rebooting just burns through the error limit for nothing.
-//! So the pollers that talk to ESI ask [`ServerWatch::should_poll`] before each tick, and
-//! this loop is the only one that keeps running, because it is what notices the recovery.
+//! Feeds the header indicator, and gates the other ESI pollers: during downtime every
+//! authenticated call fails, and hammering a rebooting server burns the error limit for
+//! nothing. Pollers ask [`ServerWatch::should_poll`] before each tick, and this loop is the
+//! only one that keeps running, because it is what notices the recovery.
 
 use std::time::Duration;
 
@@ -17,9 +16,8 @@ use tokio::time::{MissedTickBehavior, interval};
 use crate::esi::EsiClient;
 use crate::user_channel::{UserEvent, UserHub};
 
-/// How often to ask. Matches legacy: a minute is well inside the downtime window and
-/// nowhere near ESI's rate limit. `SERVER_STATUS_POLL_SECS` tightens it, which the e2e
-/// stack does so a test can take the server down without waiting out a real minute.
+/// A minute is well inside the downtime window and nowhere near ESI's rate limit.
+/// `SERVER_STATUS_POLL_SECS` tightens it for the e2e stack.
 fn poll_interval() -> Duration {
     let secs = std::env::var("SERVER_STATUS_POLL_SECS")
         .ok()
@@ -33,7 +31,7 @@ fn poll_interval() -> Duration {
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
 pub enum ServerState {
-    /// Nothing polled yet — this process just started.
+    /// Nothing polled yet; this process just started.
     Unknown,
     Online,
     /// Up, but only CCP can log in.
@@ -45,11 +43,9 @@ pub enum ServerState {
 }
 
 impl ServerState {
-    /// Whether it is worth making an ESI call right now.
-    ///
-    /// `Unknown` counts as yes: a process that has just started should not sit idle waiting
-    /// for its first status poll, and a single failed call is cheap. `Vip` counts as yes
-    /// too — the few characters that *are* online are still worth tracking.
+    /// Whether it is worth making an ESI call right now. `Unknown` counts as yes (a fresh
+    /// process should not sit idle waiting for its first poll), and so does `Vip` (the few
+    /// characters that are online are still worth tracking).
     pub fn worth_polling(self) -> bool {
         !matches!(self, ServerState::Offline | ServerState::Unreachable)
     }

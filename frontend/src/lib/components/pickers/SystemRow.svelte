@@ -1,13 +1,8 @@
 <script lang="ts">
-	// One solar system result row, shared by every system picker: colored class, name,
-	// region, then the holder — statics and effect for J-space, sovereignty for k-space.
-	// The cells are grid items; the parent owns the track sizes (see SYSTEM_ROW_COLUMNS)
-	// and rows use `grid-cols-subgrid`, so every list aligns and resizes together.
-	//
-	// The last cell says the same things a map node does, drawn the same way: the static
-	// destinations as coloured class letters and the effect as its lettered circle. Spelling
-	// "Wolf-Rayet Star" out took a column of prose to say what one glyph says, and it said
-	// nothing about where the hole leads, which is the thing you pick a wormhole for.
+	// One solar system result row, shared by every system picker: class, name, region, then the
+	// holder cell (statics and effect for J-space, sovereignty for k-space). The cells are grid
+	// items and the parent owns the track sizes, see `pickers/columns.ts`. The holder cell draws
+	// statics and effects exactly as a map node does, since the glyphs say where a hole leads.
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import EffectBadge from '$lib/components/EffectBadge.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -32,8 +27,8 @@
 <span class="min-w-0 truncate text-foreground">{system.name}</span>
 <span class="min-w-0 truncate text-xs text-muted-foreground">{system.region}</span>
 {#if system.statics.length > 0 || system.effect_name}
-	<!-- Its own provider: these rows appear inside dialogs and popovers that have none, and
-	     a missing provider is a crash rather than a missing tooltip. -->
+	<!-- Its own provider: these rows sit in dialogs and popovers that have none, and a missing
+	     provider is a crash rather than a missing tooltip. -->
 	<Tooltip.Provider delayDuration={500}>
 		<span class="flex items-center justify-end gap-1">
 			{#each system.statics as st (st.code)}

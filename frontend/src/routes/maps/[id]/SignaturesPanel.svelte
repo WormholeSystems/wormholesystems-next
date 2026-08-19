@@ -1,7 +1,6 @@
 <script lang="ts">
-	// The signatures panel (legacy Signatures.vue port): sortable column table with
-	// category filters, compact mode, clipboard-driven paste with diff tints and lazy
-	// delete, and per-row editing. Scoped to the active system.
+	// Signatures for the active system: sortable columns, category filters, clipboard paste
+	// with diff tints and lazy delete, and per-row editing.
 	import ClipboardPasteIcon from '@lucide/svelte/icons/clipboard-paste';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Rows2Icon from '@lucide/svelte/icons/rows-2';
@@ -48,7 +47,7 @@
 	const compact = $derived(map.userSettings?.compact_signature_list ?? false);
 	const showStaticsFirst = $derived(map.userSettings?.show_statics_first ?? false);
 
-	// Category filters: the HIDDEN set persists, so new categories default to visible.
+	// The HIDDEN set is what persists, so a new category defaults to visible.
 	let hidden = $state<string[]>(
 		browser ? JSON.parse(localStorage.getItem('signatures-category-hidden-filters') ?? '[]') : []
 	);
@@ -59,7 +58,7 @@
 		CATEGORIES.map((c) => c.group as string).filter((g) => !hidden.includes(g))
 	);
 
-	// Sorting (legacy default: id desc; ties by id ascending; nulls last).
+	// Default: id desc, ties by id ascending, nulls last.
 	type SortColumn = 'id' | 'category' | 'type' | 'age';
 	let sort = $state<{ column: SortColumn; direction: 'asc' | 'desc' }>(
 		(browser && JSON.parse(localStorage.getItem('signatures-sort') ?? 'null')) || {
@@ -84,7 +83,7 @@
 	function typeName(s: Signature): string | null {
 		return (catalog && typeById(catalog, s.signature_type_id)?.name) ?? s.name;
 	}
-	// Wormhole ages run from creation; site ages from the last update (legacy).
+	// Wormhole ages run from creation; site ages from the last update.
 	function modifiedDate(s: Signature): number {
 		return Date.parse(s.group === 'wormhole' ? s.created_at : s.updated_at);
 	}
@@ -113,7 +112,7 @@
 					cmp = cmpNullableStrings(typeName(a), typeName(b));
 					break;
 				case 'age':
-					// Newest first in ascending order (legacy quirk).
+					// Newest first in ascending order.
 					cmp = modifiedDate(b) - modifiedDate(a);
 					break;
 			}
@@ -122,17 +121,16 @@
 		});
 	});
 
-	// --- Paste selection + diff ---
-	// The pre-paste ids are snapshotted so new (green) vs updated (amber) stays stable
-	// after the server round-trip creates the new rows.
+	// The pre-paste ids are snapshotted so new (green) against updated (amber) stays stable
+	// after the round-trip creates the new rows.
 	let pasted = $state<PastedSignature[] | null>(null);
 	let preIds = $state<Set<string>>(new Set());
 	let pending = $state<PastedSignature[] | null>(null);
 	let mismatchOpen = $state(false);
 	let mismatchSystem = $state('Unknown');
 
-	// Refetches hand the panel a fresh `system` object, so guard on the actual id: the
-	// paste selection only clears when the active system really changes.
+	// A refetch hands the panel a fresh `system` object, so guard on the id: the paste
+	// selection only clears when the active system really changes.
 	let lastSystemId = $state<number | null>(null);
 	$effect(() => {
 		if (system.id !== lastSystemId) {
@@ -224,7 +222,7 @@
 		pasted = null;
 	}
 
-	// --- New signature (inline row; saved once a valid 7-char id is typed) ---
+	// The inline new row saves itself once a valid 7-character id is typed.
 	let creating = $state(false);
 	let newId = $state('');
 	let newInput = $state<HTMLInputElement | null>(null);
@@ -371,7 +369,6 @@
 			</div>
 		{:else}
 		<Tooltip.Provider delayDuration={300}>
-			<!-- Column header (always rendered, even with zero rows). -->
 			<div
 				class="flex items-center gap-2 border-b border-border/30 bg-muted/20 px-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase {compact
 					? 'py-0.5'

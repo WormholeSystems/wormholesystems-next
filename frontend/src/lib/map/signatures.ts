@@ -1,6 +1,5 @@
-// Signature catalog access, category metadata, and the scanner-paste parser
-// (legacy ports). The catalog comes from `/api/signature-types` and is cached for the
-// session; category metadata mirrors the legacy icon/color vocabulary.
+// Signature catalog access, category metadata, and the scanner-paste parser. The catalog
+// comes from `/api/signature-types` and is cached for the session.
 
 import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 import CloudIcon from '@lucide/svelte/icons/cloud';
@@ -64,8 +63,8 @@ export function loadCatalog(): Promise<SignatureCatalog> {
 }
 
 /**
- * Types of one category that can spawn in a system of the given class, sorted by their
- * destination class (wormholes) with sites in catalog order.
+ * Types of one category that can spawn in a system of the given class, sorted by destination
+ * class (wormholes) with sites left in catalog order.
  */
 export function typesForCategory(
 	catalog: SignatureCatalog,
@@ -88,12 +87,11 @@ export function typeById(catalog: SignatureCatalog, id: number | null): Signatur
 }
 
 /**
- * Parse a pasted in-game probe scan (legacy SignatureParser port). Tab-separated rows:
- * `id, scan group (ignored), category, type name, signal %, distance`. Rows without at
- * least 4 columns or a 7-char id are skipped. The category matches by exact name, then
- * by ` - ` segments (first known segment wins). The type matches by exact name within
- * the category — never for wormholes (a hole's type is chosen by the user, not the
- * scanner). An unmatched type name is kept as the raw `name`.
+ * Parse a pasted in-game probe scan. Tab-separated rows of `id, scan group (ignored),
+ * category, type name, signal %, distance`; rows under 4 columns or without a 7-char id are
+ * skipped. Category matches by exact name then by ` - ` segments (first known segment wins).
+ * Type matches by exact name within the category, but never for wormholes, whose type the user
+ * picks rather than the scanner. An unmatched type name is kept as the raw `name`.
  */
 export function parseScan(text: string, catalog: SignatureCatalog): PastedSignature[] {
 	const out: PastedSignature[] = [];

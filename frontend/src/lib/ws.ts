@@ -16,12 +16,9 @@ const FIRST_RETRY_MS = 500;
 const MAX_RETRY_MS = 15_000;
 
 /**
- * Open the per-map event stream. `onEvent` fires per frame and once per successful
- * reconnect, since anything missed while the socket was down has to be picked up by a
- * refetch. Returns a close function that also stops the retry loop.
- *
- * The event is passed through so a caller can refetch only what changed; it is `null` on
- * the reconnect catch-up, which means "you missed something, reload everything".
+ * Open the per-map event stream. `onEvent` fires per frame and once per successful reconnect,
+ * with `null` for the reconnect catch-up, meaning "you missed something, reload everything".
+ * Returns a close function that also stops the retry loop.
  */
 export function openMapSocket(
 	mapId: number,
@@ -79,10 +76,8 @@ export function openMapSocket(
 
 /**
  * Open the per-user channel (activity heartbeat + status pings). Returns a close function.
- *
- * Unlike the map socket, the payload matters here: the channel carries both events
- * addressed to this user and news that concerns everyone, and a client watching for one
- * should not refetch on the other.
+ * Unlike the map socket the payload matters, since the channel mixes events addressed to this
+ * user with news that concerns everyone.
  */
 export function openUserSocket(onEvent: (event: UserEvent) => void): () => void {
 	const ws = new WebSocket(socketUrl('/ws/user'));

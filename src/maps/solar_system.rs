@@ -51,7 +51,7 @@ pub struct EffectModifier {
     pub value: String,
 }
 
-/// The modifiers a wormhole effect applies at a given class — reference data, no auth needed.
+/// The modifiers a wormhole effect applies at a given class. Reference data, no auth needed.
 /// The modifier table is keyed by class 1..6; special classes map to the strength tier the
 /// game uses for them (C13 has C6-strength effects, drifter systems C14-18 have C2 strength).
 pub async fn effect_modifiers(
@@ -99,7 +99,7 @@ pub enum Sovereignty {
     },
 }
 
-/// A placed system enriched with everything a map node displays. Read-only — built by
+/// A placed system enriched with everything a map node displays. Read-only, built by
 /// `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
 /// [`MapSolarSystem`].
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -217,16 +217,13 @@ pub async fn remove_system(pool: &PgPool, actor: Actor, cmd: RemoveSystem) -> Re
     Ok(())
 }
 
-/// An effect that changed nothing.
-///
-/// Deliberately has no inverse, which is what keeps it out of the undo history: pressing
+/// An effect that changed nothing. No inverse, so it stays out of the undo history: pressing
 /// delete on a pinned system should not leave a step that undoes to nothing.
 fn kept(kind: &'static str, label: &'static str) -> Effect {
     Effect::new(kind, label, CommandOutput::Count(0)).entries(0)
 }
 
 pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> Result<Effect> {
-    // Same guard as the bulk path: one door left open is how this comes back.
     let protected = sqlx::query_scalar!(
         r#"select (is_home or is_pinned) as "protected!" from map_solar_systems
            where id = $1 and map_id = $2"#,
@@ -240,15 +237,14 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
         return Ok(kept("systems.removed", "kept a protected system"));
     }
 
-    // The unmapped holes hanging off it go with it, and are in the snapshot, so one undo
-    // brings the system and its holes back together.
+    // The unmapped holes hanging off it go with it, and into the same snapshot, so one undo
+    // brings both back.
     let mut ids = vec![cmd.map_solar_system_id];
     ids.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &ids, &[]).await?);
 
     let snapshot = capture_systems(tx, cmd.map_id, &ids).await?;
     remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
-    // The predicate lives on the delete, not only in the check above: a guard a caller has
-    // to remember is a guard that eventually gets forgotten.
+    // The guard is repeated on the delete itself, so the rule travels with the query.
     let deleted = sqlx::query!(
         "delete from map_solar_systems
          where id = any($1) and map_id = $2 and not is_home and not is_pinned",
@@ -282,10 +278,8 @@ pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> 
 }
 
 pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) -> Result<Effect> {
-    // The home system and pinned systems are deliberate markers, and "clear map" already
-    // refuses to take them. Removing them here regardless made pinning mean nothing: a
-    // marquee across the chain quietly took the one system you had pinned so it would not
-    // move.
+    // Home and pinned systems are deliberate markers that every sweep passes over, so a
+    // marquee across the chain must not take them either.
     let rows = sqlx::query!(
         r#"select id, (is_home or is_pinned) as "protected!"
            from map_solar_systems where map_id = $1 and id = any($2)"#,
@@ -298,9 +292,7 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     let held = rows.len() - removable.len();
 
     if removable.is_empty() {
-        // Selecting the home system and dragging a box over the chain are the same gesture.
-        // Refusing the whole delete would punish the second for containing the first, so a
-        // protected system is simply passed over.
+        // A protected system is passed over rather than failing the whole delete.
         return Ok(kept("systems.removed", "kept the protected systems"));
     }
 
@@ -310,9 +302,7 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
 
     let snapshot = capture_systems(tx, cmd.map_id, &removable).await?;
     remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
-    // Repeating the predicate on the delete is deliberate: the query that removes rows
-    // carries the rule, so it holds even if the selection above is ever changed or a new
-    // caller arrives that does not know about it. `clear_map` has always worked this way.
+    // The guard is repeated on the delete itself, so the rule travels with the query.
     let deleted = sqlx::query!(
         "delete from map_solar_systems
          where map_id = $1 and id = any($2) and not is_home and not is_pinned",
@@ -323,7 +313,6 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     .await?
     .rows_affected();
 
-    // Say what was kept, so a selection that shrinks on the way through is not a mystery.
     let label = match held {
         0 => format!("removed {}", snapshot.label()),
         n => format!("removed {} (kept {n} protected)", snapshot.label()),
@@ -399,9 +388,8 @@ pub(super) async fn apply_move_system(tx: &mut Tx<'_>, cmd: MoveSystem) -> Resul
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
-    // Pinning is what "this one does not move" means, so the server holds it too rather
-    // than trusting the client to keep the drag locked. Home is not pinned by being home:
-    // it can be dragged around like anything else.
+    // The server holds the drag lock too, rather than trusting the client. Home is not
+    // pinned by being home: it can be dragged around like anything else.
     if before.is_pinned {
         return Ok(kept("systems.moved", "a pinned system stayed put"));
     }
@@ -839,9 +827,8 @@ pub async fn set_pinned(pool: &PgPool, actor: Actor, cmd: SetPinned) -> Result<(
 }
 
 pub(super) async fn apply_set_pinned(tx: &mut Tx<'_>, cmd: SetPinned) -> Result<Effect> {
-    // Pinning marks a place you have decided matters: it holds the node still, roots the
-    // tree layout, and is passed over by every sweep. A hole nobody has been through is
-    // none of those things yet.
+    // Pinning holds the node still, roots the tree layout, and shields it from every sweep,
+    // none of which mean anything for a hole nobody has been through.
     if cmd.value {
         let system = sqlx::query_scalar!(
             "select solar_system_id from map_solar_systems where id = $1 and map_id = $2",
@@ -925,8 +912,8 @@ pub struct RestoredSignature {
     pub connection_id: Option<i64>,
 }
 
-/// The inverse of a removal: placements plus everything that cascaded with them.
-/// Internal — produced by the remove commands, never routed by the API.
+/// The inverse of a removal: placements plus everything that cascaded with them. Internal,
+/// produced by the remove commands and never routed by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreSystems {
     pub map_id: i64,
@@ -949,9 +936,9 @@ impl RestoreSystems {
     }
 }
 
-/// Take the signatures the snapshot claimed which the database will not cascade: the ones
-/// in the systems *staying* on the map, linked to a connection that is about to die with
-/// its endpoint. Run before the placements go, while their connections still name them.
+/// Take the signatures the snapshot claimed that the database will not cascade: the ones in
+/// the systems staying on the map, linked to a connection about to die with its endpoint.
+/// Must run before the placements go, while their connections still name them.
 async fn remove_captured_signatures(
     tx: &mut Tx<'_>,
     map_id: i64,
@@ -1004,8 +991,7 @@ pub(super) async fn capture_systems(
     .await?;
 
     // Both sides of the hole: this system's own scan, and the signature in the system
-    // across each dying connection. A signature is the record of a hole, and taking the
-    // system it led to away takes the hole with it.
+    // across each dying connection.
     let connection_ids: Vec<i64> = connections.iter().map(|c| c.id).collect();
     let signatures = sqlx::query_as!(
         RestoredSignature,
@@ -1099,9 +1085,9 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
         .await?;
     }
 
-    // Undoing a restore has to drop exactly what was put back, connections included:
-    // a stale-clean can restore edges whose endpoints were never removed, so cascading
-    // from the placements alone would leave them behind.
+    // Undoing a restore drops exactly what was put back, connections included: a stale-clean
+    // can restore edges whose endpoints were never removed, and cascading from the
+    // placements alone would leave those behind.
     let inverse = MapCommand::RemoveRestored(RemoveRestored {
         map_id: cmd.map_id,
         system_ids: cmd.systems.iter().map(|s| s.id).collect(),
@@ -1122,8 +1108,8 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
         .undo_with(inverse))
 }
 
-/// The inverse of a restore: drop exactly these placements and edges. Internal — the two
-/// commands are each other's inverse, so undo and redo cycle without drift.
+/// The inverse of a restore: drop exactly these placements and edges. The two commands are
+/// each other's inverse, so undo and redo cycle without drift.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoveRestored {
     pub map_id: i64,
@@ -1228,13 +1214,12 @@ async fn detail_text(
     value.ok_or(MapError::NotFound)
 }
 
-/// Which persisted-details column [`detail_text`] should read.
 enum DetailColumn {
     Occupier,
     Notes,
 }
 
-/// A command returned an output shape its wrapper doesn't expect — a bug, not a user error.
+/// A command returned an output shape its wrapper doesn't expect: a bug, not a user error.
 pub(super) fn unexpected(output: CommandOutput) -> MapError {
     MapError::Validation(format!("unexpected command output: {output:?}"))
 }

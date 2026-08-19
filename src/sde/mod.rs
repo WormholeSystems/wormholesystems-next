@@ -12,17 +12,13 @@ pub mod pve;
 pub mod skin;
 pub mod universe;
 
-// Re-export the most commonly used types so callers can write `sde::SolarSystem`.
-// Everything else is reachable via its domain module, e.g. `sde::inventory::Type`.
 pub use universe::SolarSystem;
 
-/// Directory holding the unpacked SDE `.jsonl` files, relative to the crate
-/// root. The downloader writes the archive into `data/` and unpacks it here;
-/// hand-authored static JSON that augments the SDE lives alongside in `data/`.
+/// Directory holding the unpacked SDE `.jsonl` files, relative to the crate root.
 pub const SDE_DIR: &str = "data/sde";
 
 /// Where the downloaded SDE archive lands before it's unpacked into [`SDE_DIR`].
-/// Both this and [`SDE_DIR`] are gitignored — they're regenerated from CCP.
+/// Both this and [`SDE_DIR`] are gitignored; they're regenerated from CCP.
 pub const SDE_ARCHIVE: &str = "data/sde.zip";
 
 /// The marker file CCP ships at the root of the SDE archive; its presence under
@@ -39,15 +35,11 @@ pub enum EnsurePresentError {
     Extract(#[from] crate::util::archive::ExtractError),
 }
 
-/// Ensure the unpacked SDE is present under [`SDE_DIR`], downloading it if not.
+/// Ensure the unpacked SDE is present under [`SDE_DIR`], downloading it if not. Returns
+/// whether a download actually happened; when the marker file is already there this is a
+/// single `exists()` check.
 ///
-/// On a fresh checkout `data/sde/` is gitignored and absent, so the first launch
-/// must fetch CCP's latest build (~100 MB) into [`SDE_ARCHIVE`] and unpack it.
-/// When the marker file is already there this is a single `exists()` check.
-/// Returns whether a download actually happened (`false` = already present).
-///
-/// This does blocking network and disk I/O; call it via `spawn_blocking` when on
-/// an async runtime.
+/// Blocking network and disk I/O; call it via `spawn_blocking` when on an async runtime.
 pub fn ensure_present() -> Result<bool, EnsurePresentError> {
     if Path::new(SDE_DIR).join(SDE_MARKER).exists() {
         return Ok(false);
@@ -64,9 +56,7 @@ pub fn ensure_present() -> Result<bool, EnsurePresentError> {
 }
 
 /// An SDE record type backed by one `.jsonl` file and addressable by a primary key.
-///
-/// Implemented for every top-level type (see `entities.rs`), which is what lets
-/// the generic [`load`] / [`load_all`] loaders work for any entity.
+/// Implemented for every top-level type in `entities.rs`.
 pub trait SdeEntity: serde::de::DeserializeOwned {
     /// The primary key type (`i32` for most files, `String` for a few).
     type Id: std::hash::Hash + std::cmp::Eq;

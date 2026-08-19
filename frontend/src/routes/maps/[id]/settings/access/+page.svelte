@@ -38,7 +38,6 @@
 	let access = $state<AccessEntry[]>([]);
 	let error = $state('');
 
-	// Grant form: a search over cached entities, or a raw EVE id typed straight in.
 	let query = $state('');
 	let matches = $state<AccessSubject[]>([]);
 	let picked = $state<AccessSubject | null>(null);
@@ -46,18 +45,15 @@
 	let newRole = $state<Role>('member');
 
 	const canManage = $derived(atLeast(view?.role, 'manager'));
-	// Ownership is not on this list: it moves through the danger zone on the General
-	// section, one owner at a time, rather than being handed out like a permission.
+	// Ownership is not grantable here: it is handed on from the General section instead.
 	const ROLES: Role[] = ['viewer', 'member', 'manager'];
 	const ALL_ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
-	// Roles read as words in the interface and stay lowercase on the wire.
 	const ROLE_LABEL: Record<Role, string> = {
 		viewer: 'Viewer',
 		member: 'Member',
 		manager: 'Manager',
 		owner: 'Owner'
 	};
-	// Each role is everything below it plus one thing more, which is the part worth saying.
 	const ROLE_HELP: Record<Role, string> = {
 		viewer: 'Reads the chain: systems, connections, signatures and notes. Changes nothing.',
 		member: 'Everything a viewer does, and maps: systems, connections, signatures, intel.',
@@ -98,8 +94,6 @@
 		picking = false;
 	}
 
-	// Filtering and sorting are per column, because "who can see this" and "what runs out
-	// when" are different questions asked of the same list.
 	let filter = $state('');
 	let sort = $state<{ key: 'name' | 'subject_type' | 'role' | 'expires_at'; descending: boolean }>({
 		key: 'role',
@@ -131,7 +125,7 @@
 				case 'subject_type':
 					return a.subject_type.localeCompare(b.subject_type);
 				case 'expires_at':
-					// The ones that end come first; the permanent ones have no answer to give.
+					// The ones that end come first; permanent grants sort last.
 					return (
 						(a.expires_at ? Date.parse(a.expires_at) : Infinity) -
 						(b.expires_at ? Date.parse(b.expires_at) : Infinity)
@@ -163,8 +157,7 @@
 		);
 	}
 
-	// The link is only ever shown to a manager: the API withholds the token from anyone
-	// who could not mint one anyway.
+	// Only a manager sees the link: the API withholds the token from anyone else.
 	let revoking = $state(false);
 	const shareUrl = $derived(
 		view?.map.share_token ? `${page.url.origin}/share/${view.map.share_token}` : ''
@@ -198,9 +191,8 @@
 		}
 	}
 
-	// How long a grant lasts. Access for one operation is the common case people forget to
-	// tidy up afterwards, so the form can hand it an end from the start: the usual spans as
-	// one click, and a date for everything else.
+	// Access for one operation is the case people forget to tidy up, so the form can set an
+	// end from the start.
 	const DURATIONS = [
 		{ hours: 12, label: 'For 12 hours' },
 		{ hours: 24, label: 'For a day' },
@@ -234,8 +226,8 @@
 	}
 
 	function grant() {
-		// A pasted id has no cached name; grant it as a character and let the next load
-		// resolve whatever it turns out to be.
+		// A pasted id has no cached name; grant it as a character and let the next load resolve
+		// whatever it turns out to be.
 		const raw = Number(query.trim());
 		const subject =
 			picked ?? (raw > 0 ? { subject_type: 'character' as const, subject_id: raw } : null);
@@ -344,7 +336,6 @@
 								<CalendarIcon class="size-3.5 shrink-0 text-muted-foreground" />
 							</Popover.Trigger>
 							<Popover.Content class="w-auto p-0" align="end">
-								<!-- The spans people actually use, and a date for the ones they do not. -->
 								<div class="flex flex-col border-b border-border/50 p-1">
 									<button
 										class="px-2 py-1 text-left text-xs hover:bg-accent"
@@ -386,9 +377,7 @@
 					</div>
 			</div>
 
-			<!-- Every role in one place: choosing one is choosing how far down this list to
-			     go, and that is easier to see side by side than one line at a time. Owner is
-			     here to be read, not chosen: it is handed on, not granted. -->
+			<!-- Owner is listed to be read, not chosen: it is handed on, not granted. -->
 			<div class="border border-border/60" data-testid="role-help">
 				{#each ALL_ROLES as r (r)}
 					<div
@@ -404,8 +393,6 @@
 			</div>
 		{/if}
 
-		<!-- A table because the questions people ask of this list are per column: who has
-		     access, at what level, and which of them run out. -->
 		<div class="flex items-center gap-2">
 			<Input
 				bind:value={filter}
@@ -528,10 +515,8 @@
 	</Card.Content>
 </Card.Root>
 
-<!--
-	Sharing is on this page because it is the same question the grants answer — who can see
-	the chain — asked of people without an account.
--->
+<!-- Sharing lives here because it answers the same question as the grants (who can see the
+     chain) for people without an account. -->
 {#if canManage}
 	<Card.Root class="mt-6" data-testid="sharing-card">
 		<Card.Header>

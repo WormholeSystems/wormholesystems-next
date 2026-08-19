@@ -1,11 +1,10 @@
-//! Two-tier character-status polling — see
+//! Two-tier character-status polling, see
 //! [processes.md](../docs/processes.md#character-status-polling).
 //!
-//! Single process, no job queue: tokio async concurrency handles the parallelism (these are
-//! I/O-bound ESI calls), bounded by a [`Semaphore`] so we stay within ESI's error limit and
-//! fit each tier's time budget. Tier 1 polls online state for the characters of active users
-//! every 60s; tier 2 polls location + ship for the *online* ones every 5s. After a poll
-//! observes an actual change, we ping its user's private channel so their UI refetches.
+//! Tier 1 polls online state for the characters of active users every 60s; tier 2 polls
+//! location and ship for the online ones every 5s. Both are bounded by a [`Semaphore`] so we
+//! stay within ESI's error limit and fit each tier's time budget. A poll that observes an
+//! actual change pings its user's private channel so their UI refetches.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -23,7 +22,7 @@ use crate::maps::MapHub;
 use crate::server_status::ServerWatch;
 use crate::user_channel::{UserEvent, UserHub};
 
-/// Max ESI requests in flight per tick — the one tuning knob. Raise to fit more characters
+/// Max ESI requests in flight per tick, the one tuning knob. Raise to fit more characters
 /// in the 5s tier-2 budget; lower to stay further under ESI's error limit.
 const CONCURRENCY: usize = 32;
 
@@ -191,7 +190,7 @@ where
 }
 
 /// Poll one character's online state (tier 1). Errors (missing scope, ESI failure) skip the
-/// character — the next tick retries.
+/// character; the next tick retries.
 async fn poll_online(
     pool: PgPool,
     sso: Arc<Sso>,
@@ -210,9 +209,8 @@ async fn poll_online(
     let Ok(status) = esi.character_online(&token, due.character_id).await else {
         return;
     };
-    // The write always runs (`updated_at` = last successful poll, `last_online_at` keeps
-    // refreshing while online), but the user is only pinged on an actual transition — the
-    // CTE snapshots the prior value so the publish can compare against it.
+    // The write always runs (`updated_at` is the last successful poll), but the user is only
+    // pinged on an actual transition, so the CTE snapshots the prior value to compare against.
     let Ok(row) = sqlx::query!(
         r#"with prev as (
              select online from character_status where character_id = $1
@@ -244,9 +242,8 @@ async fn poll_online(
     }
 }
 
-/// Poll one character's location + ship (tier 2). Location and ship use independent scopes,
-/// so a missing one skips just that field. Docking (station/structure) is left null until we
-/// cache those entities — see the module note.
+/// Poll one character's location and ship (tier 2). The two use independent scopes, so a
+/// missing one skips just that field. Docking is left null until we cache those entities.
 async fn poll_location_ship(
     pool: PgPool,
     sso: Arc<Sso>,
@@ -284,7 +281,7 @@ async fn poll_location_ship(
             || row.prev_station_id.is_some()
             || row.prev_structure_id.is_some();
 
-        // A system change is a potential wormhole transit — jump capture must never
+        // A system change is a potential wormhole transit: jump capture must never
         // break polling, so failures are logged and dropped.
         if let Some(prev) = row.prev_solar_system_id
             && prev != location.solar_system_id
@@ -327,11 +324,8 @@ async fn poll_location_ship(
     }
 }
 
-/// Tell every map this user shares their position with that its pilot list moved.
-///
-/// The per-user ping above only reaches the pilot's own tabs. Without this, everyone else
-/// on the map sees a stale pilot list until the next presence poll, which is the gap the
-/// legacy app closed with a map-wide broadcast.
+/// Tell every map this user shares their position with that its pilot list moved. The
+/// per-user ping above only reaches the pilot's own tabs.
 async fn announce_presence(pool: &PgPool, maps: &MapHub, user_id: i64) {
     let Ok(map_ids) = sqlx::query_scalar!(
         "select map_id from map_user_settings where user_id = $1 and tracking_allowed",

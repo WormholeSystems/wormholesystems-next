@@ -1,10 +1,5 @@
 //! Discord alerts: rules a map watches for, and the messages they send.
 //!
-//! An alert is a standing question about the chain — "tell me when anything dies within
-//! five jumps of us", "tell me when Jita comes within three" — that answers itself into a
-//! Discord channel. The map is already the thing everyone has open; this is for when it
-//! is not.
-//!
 //! Everything here is best-effort and off the critical path. Evaluating an alert must
 //! never hold up ingesting a killmail or placing a system, and a Discord outage must cost
 //! a message rather than a map change.
@@ -20,10 +15,8 @@ pub mod ships;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-/// The shared state alert evaluation needs: the stargate graph and an HTTP client.
-///
-/// Held for the life of the process. The graph is static reference data and the client
-/// pools connections, so building either per killmail would cost more than the evaluation.
+/// The stargate graph and HTTP client, held for the life of the process so neither is
+/// rebuilt per killmail.
 pub struct Runtime {
     universe: proximity::Universe,
     http: reqwest::Client,
@@ -57,10 +50,8 @@ impl Runtime {
         killmail::evaluate(pool, &self.http, self.token(), &self.universe, kill).await;
     }
 
-    /// Re-evaluate a map's alerts after its shape changed.
-    ///
-    /// Both kinds that watch the map fire from here: a new system can put a target within
-    /// gate range, within jump range, or neither.
+    /// Re-evaluate a map's alerts after its shape changed. A new system can put a target
+    /// within gate range, within jump range, or neither, so both kinds fire from here.
     pub async fn placed(&self, pool: &PgPool, map_id: i64, map_solar_system_id: i64) {
         place::evaluate(
             pool,
@@ -77,9 +68,8 @@ impl Runtime {
 
 /// Watch every map for the changes alerts care about.
 ///
-/// A subscriber rather than a hook in the command dispatcher: alerts are an audience for
-/// map changes, not a participant in them, and nothing here should be able to fail a
-/// placement. Dropping events when it falls behind is the same trade.
+/// A subscriber rather than a hook in the command dispatcher, and lagged events are simply
+/// dropped: nothing here should be able to fail a placement.
 pub fn start(pool: PgPool, hub: crate::maps::MapHub, runtime: std::sync::Arc<Runtime>) {
     tokio::spawn(async move {
         let mut events = hub.subscribe_all();
@@ -227,7 +217,6 @@ impl DisabledReason {
     }
 }
 
-/// One alert, as everything here works with it.
 #[derive(Debug, Clone)]
 pub struct Alert {
     pub id: i64,
@@ -253,10 +242,8 @@ pub struct Alert {
     pub is_active: bool,
 }
 
-/// Every active alert of a kind, across every map.
-///
-/// Loaded whole rather than per map: a killmail arrives without knowing which maps care,
-/// and there are tens of alerts in total, not thousands.
+/// Every active alert of a kind, across every map. Loaded whole rather than per map: a
+/// killmail arrives without knowing which maps care, and there are tens of alerts in total.
 pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> {
     let rows = sqlx::query!(
         r#"select a.id, a.map_id, a.created_by_user_id, a.name, a.kind, a.delivery,
@@ -299,11 +286,8 @@ pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> 
         .collect())
 }
 
-/// Deliver one alert, once: claim the dedup key, send, and mark it sent — or hand the key
-/// back so a later run can retry, disabling the alert only when the destination is gone.
-///
-/// Every alert kind goes through here, so the protocol is decided in one place rather than
-/// re-derived per kind.
+/// Deliver one alert, once: claim the dedup key, send, and mark it sent, or hand the key
+/// back so a later run can retry. Only a gone destination disables the alert.
 pub async fn fire(
     pool: &PgPool,
     http: &reqwest::Client,
@@ -326,8 +310,7 @@ pub async fn fire(
 /// Send one alert's message, wherever it is meant to go.
 ///
 /// `Err(true)` means the destination is gone and the alert should stop; `Err(false)` means
-/// try again next time. The three delivery types differ only in where the message is
-/// addressed, so the mention, the retry and the rate limiting are decided once here.
+/// try again next time.
 pub async fn deliver(
     pool: &PgPool,
     http: &reqwest::Client,
@@ -336,8 +319,7 @@ pub async fn deliver(
     embed: delivery::Embed,
 ) -> Result<(), bool> {
     // Checked at send time rather than hooked to every access change: access can be lost in
-    // half a dozen ways (a role revoked, a character moved corp, a whole grant deleted),
-    // and this is the one place that must be right.
+    // half a dozen ways, and this is the one place that must be right.
     if let Some(creator) = alert.created_by_user_id
         && !can_still_see(pool, alert.map_id, creator).await
     {
@@ -411,7 +393,6 @@ pub async fn deliver(
     }
 }
 
-/// Whether the alert's creator can still see the map it watches.
 async fn can_still_see(pool: &PgPool, map_id: i64, user_id: i64) -> bool {
     crate::maps::access::effective_role(pool, map_id, user_id)
         .await
@@ -420,11 +401,9 @@ async fn can_still_see(pool: &PgPool, map_id: i64, user_id: i64) -> bool {
         .is_some()
 }
 
-/// Claim the right to deliver this alert for this occasion.
-///
-/// `false` means somebody already has: a retry of a send that half-finished, or a second
-/// evaluation of the same killmail. The row is written before the message goes out, so a
-/// crash between the two costs a message rather than sending it twice.
+/// Claim the right to deliver this alert for this occasion; `false` means somebody already
+/// has. Claimed before the message goes out, so a crash between the two costs a message
+/// rather than sending it twice.
 pub async fn claim(pool: &PgPool, alert_id: i64, dedup_key: &str) -> bool {
     sqlx::query!(
         "insert into map_alert_deliveries (map_alert_id, dedup_key)

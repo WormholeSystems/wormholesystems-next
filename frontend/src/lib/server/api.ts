@@ -23,10 +23,7 @@ export function currentCharacter(event: RequestEvent): Promise<CharacterSummary 
 	return get<CharacterSummary | null>(event, '/api/me');
 }
 
-/**
- * The maps this user keeps in the top bar. A failure here is not worth a broken page: the
- * shortcuts are a convenience, and the rest of the app still works without them.
- */
+/** The maps this user keeps in the top bar. A failure is swallowed, they are a convenience. */
 export async function pinnedMaps(event: RequestEvent): Promise<MapEntry[]> {
 	try {
 		const maps = await get<MapEntry[]>(event, '/api/maps');
@@ -37,9 +34,8 @@ export async function pinnedMaps(event: RequestEvent): Promise<MapEntry[]> {
 }
 
 /**
- * The map a share link leads to, or null. The token is resolved against every map, so a
- * withdrawn or mistyped one is simply not found: the same answer either way, which is the
- * point of a secret in a URL.
+ * The map a share link leads to, or null. A withdrawn token and a mistyped one both come back
+ * as not found, which is the point of a secret in a URL.
  */
 export async function sharedMapId(event: RequestEvent, token: string): Promise<number | null> {
 	try {

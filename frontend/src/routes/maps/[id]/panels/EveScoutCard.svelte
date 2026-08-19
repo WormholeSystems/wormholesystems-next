@@ -1,14 +1,8 @@
 <script lang="ts">
-	// The public wormholes out of Thera and Turnur, as EVE Scout's scouts have them.
-	//
-	// One hub at a time. The two lists have nothing to do with each other — a Thera hole is
-	// not an alternative route to a Turnur one — and interleaving them would mean a column
-	// saying which hub every row belongs to, repeated on every line, to say something a tab
-	// says once.
-	//
-	// The jump count is the reason to look: it is measured through your own chain, so a
-	// public hole three jumps from your staging is worth knowing about and one forty jumps
-	// out is not. Rows sort by it by default.
+	// The public wormholes out of Thera and Turnur, as EVE Scout's scouts have them. One hub
+	// at a time: a Thera hole is not an alternative route to a Turnur one.
+	// The jump count is measured through your own chain, which is the reason to look, so rows
+	// sort by it by default.
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -56,8 +50,7 @@
 
 	$effect(() => {
 		load();
-		// EVE Scout is scouted by hand, so it changes on the order of minutes at best. The
-		// server caches for a minute on top of this.
+		// EVE Scout is scouted by hand, so it changes on the order of minutes at best.
 		const poll = setInterval(load, 5 * 60_000);
 		const clock = setInterval(() => (now = new Date()), 60_000);
 		return () => {
@@ -66,9 +59,8 @@
 		};
 	});
 
-	// The far side of every connection, resolved once for names, regions and sovereignty.
-	// The hubs themselves are resolved too, so a row whose destination is the other hub
-	// still renders.
+	// The hubs are resolved along with the far sides, so a row whose destination is the other
+	// hub still renders.
 	let systems = $state<Map<number, SystemSearchResult>>(new Map());
 	const wanted = $derived(
 		[...new Set(connections.map((c) => c.solar_system_id))].sort((a, b) => a - b).join(',')
@@ -82,11 +74,8 @@
 			.catch(() => {});
 	});
 
-	// One search from the origin covers every row, rather than one per destination.
-	//
-	// The hub itself is excluded as a stepping stone: a route to a Thera hole that goes
-	// *through* Thera is measuring the wrong thing, since reaching Thera is the whole
-	// problem the card is helping with.
+	// One search from the origin covers every row. The hub itself is excluded as a stepping
+	// stone: a route to a Thera hole that goes through Thera measures the wrong thing.
 	const routes = $derived.by<Map<number, RouteResult>>(() => {
 		const graph = map.graph;
 		const origin = map.routeOrigin;
@@ -128,10 +117,8 @@
 	}
 
 	/**
-	 * Legacy's ordering, which is not alphabetical: known space first and ordered by
-	 * security descending, then wormholes by class. It reads the way a scout thinks — the
-	 * highsec exits are what most people are looking for, and a C5 is a different kind of
-	 * answer to a C1 — where an A-to-Z list would interleave all of them.
+	 * Not alphabetical: known space first by security descending, then wormholes by class,
+	 * which is the order a scout looks for an exit in.
 	 */
 	function bySystem(a: Row, b: Row) {
 		const am = classMeta(a.system?.wormhole_class_id ?? null, a.system?.security ?? 0);
@@ -167,9 +154,8 @@
 		return rows.sort((a, b) => {
 			const primary = compare[column](a, b) * direction;
 			if (primary) return primary;
-			// Ties fall back to the class ordering and then the name, so a column with a lot
-			// of equal values (no origin, so no jumps) still reads as a sorted list rather
-			// than in whatever order EVE Scout happened to return.
+			// Ties fall back to class then name, so a column of equal values (no origin, so no
+			// jumps) still reads as sorted rather than in EVE Scout's order.
 			return bySystem(a, b) || name(a).localeCompare(name(b));
 		});
 	});
@@ -350,8 +336,8 @@
 									{/if}
 								</span>
 
-								<!-- The signature in the hub: what you warp to once you are there. The far
-								     side's own id is on the tooltip, for the scan you will do on arrival. -->
+								<!-- The hub-side signature is what you warp to; the far side's own id is on
+								     the tooltip, for the scan on arrival. -->
 								<Tooltip.Root>
 									<Tooltip.Trigger
 										class="w-14 shrink-0 cursor-help text-left font-mono text-[10px] text-muted-foreground"

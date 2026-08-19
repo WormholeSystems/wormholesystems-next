@@ -1,6 +1,5 @@
 <script lang="ts">
-	// One side of the hole (legacy SignatureSection): "Out Sig" / "In Sig" with the
-	// resolved type, scanner id, and destination class.
+	// One side of the hole: the resolved type, scanner id, and destination class.
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import { destClassMeta } from '$lib/map/classes';

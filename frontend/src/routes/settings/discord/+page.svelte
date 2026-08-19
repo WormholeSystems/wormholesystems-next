@@ -1,8 +1,6 @@
 <script lang="ts">
-	// Linking this Vector account to a Discord one.
-	//
-	// Per account, not per map: the link answers "which Discord user is this", which is what
-	// a direct message and a slash command both need, whichever map they are about.
+	// Linking this Vector account to a Discord one. Per account, not per map: a direct message
+	// and a slash command both need to know which Discord user this is.
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 
@@ -96,20 +94,20 @@
 			<ul class="flex flex-col gap-2 text-sm">
 				<li>
 					<code class="text-foreground">/vector account</code>
-					<span class="text-muted-foreground"> — which Vector account this Discord user is.</span>
+					<span class="text-muted-foreground">: which Vector account this Discord user is.</span>
 				</li>
 				<li>
 					<code class="text-foreground">/vector alerts list</code>
-					<span class="text-muted-foreground"> — the alerts you created, and whether they are on.</span>
+					<span class="text-muted-foreground">: the alerts you created, and whether they are on.</span>
 				</li>
 				<li>
 					<code class="text-foreground">/vector alerts enable · disable · remove</code>
-					<span class="text-muted-foreground"> — manage one without leaving Discord.</span>
+					<span class="text-muted-foreground">: manage one without leaving Discord.</span>
 				</li>
 				<li>
 					<code class="text-foreground">/vector route</code>
 					<span class="text-muted-foreground">
-						— how far a system is from one of your chains, counting wormholes as free.
+						: how far a system is from one of your chains, counting wormholes as free.
 					</span>
 				</li>
 			</ul>

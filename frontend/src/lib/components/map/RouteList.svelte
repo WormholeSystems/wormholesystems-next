@@ -1,8 +1,6 @@
 <script lang="ts">
-	// An ordered jump route: numbered rows rendered with the shared SystemRow (class,
-	// name, region, sovereignty or effect), plus the hop marker and an optional ignore
-	// button. One grid owns the tracks; rows are subgrids, so every column lines up and
-	// resizes with the container.
+	// An ordered jump route: numbered rows built from the shared SystemRow, plus the hop marker
+	// and an optional ignore button. One grid owns the tracks, rows are subgrids.
 	import XIcon from '@lucide/svelte/icons/x';
 
 	import { api } from '$lib/api/client';
@@ -40,8 +38,7 @@
 
 </script>
 
-<!-- Tracks: index, hop marker, then the shared system columns (class / name / region /
-     holder), then the ignore slot. Rows are subgrids of these tracks. -->
+<!-- Tracks: index, hop marker, the four shared system columns, then the ignore slot. -->
 <ol
 	class="grid max-h-64 grid-cols-[min-content_min-content_min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2 overflow-y-auto"
 	data-testid="route-list"
@@ -54,8 +51,8 @@
 					<span class="text-right text-muted-foreground">{i}</span>
 					<span class="text-center">
 						{#if step.via === 'wormhole'}
-							<!-- The signature is what you actually look for in the scanner, so show it
-							     in place of the generic marker whenever the hole has one scanned. -->
+							<!-- The signature is what you look for in the scanner, so it replaces the
+							     generic marker whenever the hole has one scanned. -->
 							<span
 								class="font-mono text-amber-500"
 								data-testid="route-wormhole"

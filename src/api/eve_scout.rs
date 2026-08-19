@@ -9,11 +9,9 @@ use serde::{Deserialize, Serialize};
 use super::ApiResult;
 use crate::auth::AppState;
 
-/// A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it.
-///
-/// Oriented hub-first rather than in EVE Scout's own in/out terms, because that is the only
-/// orientation either consumer cares about: the card groups by hub, and the router treats
-/// the pair as an undirected edge. Statuses are normalized to Vector's own vocabulary.
+/// A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it. Oriented
+/// hub-first rather than in EVE Scout's in/out terms, and statuses normalized to Vector's
+/// own vocabulary.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct EveScoutConnection {
@@ -38,7 +36,6 @@ pub struct EveScoutConnection {
     pub updated_at: Option<String>,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new().route("/api/evescout", get(eve_scout))
 }
@@ -99,7 +96,7 @@ pub(crate) fn eve_scout_connection(sig: &serde_json::Value) -> Option<EveScoutCo
     })
 }
 
-/// `GET /api/evescout` — public Thera/Turnur connections, proxied and cached for 60s.
+/// `GET /api/evescout`, public Thera/Turnur connections, proxied and cached for 60s.
 /// Upstream failures degrade to an empty list.
 pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScoutConnection>> {
     use std::sync::{Mutex, OnceLock};

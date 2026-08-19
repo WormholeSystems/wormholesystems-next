@@ -74,7 +74,7 @@ export function classMeta(wormholeClassId: number | null, security: number | nul
 	return CLASSES.get(wormholeClassId ?? classFromSecurity(security ?? 0)) ?? UNKNOWN;
 }
 
-/** Metadata for a static's destination class (letter form used by legacy: strip nothing). */
+/** Metadata for a static's destination class. */
 export function destClassMeta(destClass: number | null): ClassMeta {
 	return destClass === null ? UNKNOWN : (CLASSES.get(destClass) ?? UNKNOWN);
 }
@@ -85,12 +85,11 @@ export function isWormholeClass(wormholeClassId: number | null): boolean {
 
 /** Search-dialog badge: class short label for w-space, otherwise the rounded security. */
 export function searchClassification(s: SystemSearchResult): { badge: string; token: string } {
-	// Class letters everywhere (H/L/N/C5...), not raw security numbers.
 	const m = classMeta(s.wormhole_class_id, s.security);
 	return { badge: m.short, token: m.token };
 }
 
-/** Legacy keyword map: the text color for a wormhole effect name. */
+/** Text color for a wormhole effect, matched on keyword. */
 export function effectTextColor(name: string | null | undefined): string {
 	const n = name?.toLowerCase() ?? '';
 	if (n.includes('pulsar')) return 'text-blue-400';

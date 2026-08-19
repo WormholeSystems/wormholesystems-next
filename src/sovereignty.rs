@@ -1,12 +1,9 @@
-//! Sovereignty sync — keeps `system_sovereignty` (and the alliance/corp entities it names)
+//! Sovereignty sync: keeps `system_sovereignty` (and the alliance/corp entities it names)
 //! current so map nodes can show human-readable holders.
 //!
-//! Single periodic loop, like [`tracking`](crate::tracking) but simpler: the sovereignty +
-//! corporation/alliance ESI endpoints are **public** (no token, no scopes, no per-character
-//! work), so it needs only the pool and an [`EsiClient`]. Each tick fetches the full
-//! sovereignty map in one call, fetches any holder entity we don't already have (or haven't
-//! refreshed in a week), and upserts the per-system holder. Factions come from the SDE, so
-//! they're never fetched.
+//! The endpoints involved are public, so this needs no token and no per-character work. Each
+//! tick fetches the whole sovereignty map in one call, resolves any holder entity we don't
+//! have fresh, and upserts the per-system holder. Factions come from the SDE, never ESI.
 
 use std::time::Duration;
 
@@ -56,7 +53,7 @@ async fn sync_once(pool: &PgPool, esi: &EsiClient) {
 
     for system in &systems {
         if let Err(err) = upsert_system(pool, system).await {
-            // A system we don't have in the SDE, or an entity that failed to resolve — skip
+            // A system we don't have in the SDE, or an entity that failed to resolve. Skip
             // it; the next tick retries.
             eprintln!(
                 "sovereignty upsert for system {} skipped: {err}",

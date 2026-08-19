@@ -1,7 +1,5 @@
 <script lang="ts">
-	// The route-calculation settings popover (legacy AutopilotSettings): preference,
-	// security penalty, wormhole lifetime/mass tolerance, EVE Scout toggle. Stored per
-	// user per map.
+	// Route-calculation settings, stored per user per map.
 	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import { Slider } from '$lib/components/ui/slider';
 

@@ -1,9 +1,6 @@
 <script lang="ts">
-	// Creating or editing one alert.
-	//
-	// The form changes shape with the kind, because the kinds ask different questions: a
-	// killmail alert wants to know whose kills, a proximity alert wants to know which system.
-	// Showing both at once and greying half out would be more chrome for less clarity.
+	// Creating or editing one alert. The form changes shape with the kind: a killmail alert
+	// asks whose kills, a proximity alert asks which system.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -39,8 +36,8 @@
 		oncancel: () => void;
 	} = $props();
 
-	// Seeded from the alert once, on purpose: this is an editing buffer, and the parent
-	// remounts the form (keyed on the alert) when you switch to a different one.
+	// Seeded once on purpose: this is an editing buffer, and the parent remounts the form
+	// (keyed on the alert) when you switch to a different one.
 	/* svelte-ignore state_referenced_locally */
 	const seed = alert;
 	let name = $state(seed?.name ?? '');
@@ -86,8 +83,7 @@
 		{ value: 'rorqual', label: 'Rorqual', base: 5.0 },
 		{ value: 'black_ops', label: 'Black Ops', base: 4.0 }
 	];
-	// The same arithmetic the server does, shown while you pick, because "JDC 5" means
-	// nothing until it is a number of light years.
+	// The same arithmetic the server does: "JDC 5" means nothing until it is light years.
 	const range = $derived(
 		((SHIPS.find((s) => s.value === shipType)?.base ?? 3.5) * (1 + 0.2 * jdcLevel)).toFixed(1)
 	);
@@ -134,7 +130,6 @@
 		filters = filters.filter((_, i) => i !== index);
 	}
 
-	/** Ids are typed as a list because that is what they are: "any of these alliances". */
 	function idsOf(rule: Rule): string {
 		return rule.ids.join(', ');
 	}

@@ -1,10 +1,9 @@
 //! Raidable skyhooks: what CCP is currently advertising as stealable.
 //!
-//! ESI publishes the whole raidable set on a public endpoint and drops entries once their
-//! window has passed, so the local table is a mirror rather than a log: whatever the last
-//! successful fetch returned is exactly what is in it. That makes the sync a full replace,
-//! which is why it runs in one transaction — a partial failure that deleted the rows it
-//! could not re-insert would empty the card for everyone.
+//! ESI publishes the whole raidable set and drops entries once their window has passed, so
+//! the local table is a mirror rather than a log. The sync is therefore a full replace, run
+//! in one transaction: a partial failure that deleted rows it could not re-insert would
+//! empty the card for everyone.
 
 use std::time::Duration;
 
@@ -18,9 +17,8 @@ use crate::esi::skyhooks::RaidableSkyhook;
 use crate::maps::Sovereignty;
 use crate::server_status::ServerWatch;
 
-/// Windows are two hours long and ESI advertises them ahead of time, so five minutes is
-/// plenty to never miss one. Matches legacy. `SKYHOOK_POLL_SECS` tightens it, which the
-/// e2e stack does so a test can move a timer without waiting out a real interval.
+/// Windows are two hours long and ESI advertises them ahead of time, so five minutes never
+/// misses one. `SKYHOOK_POLL_SECS` tightens it for the e2e stack.
 fn interval_secs() -> Duration {
     let secs = std::env::var("SKYHOOK_POLL_SECS")
         .ok()
@@ -29,9 +27,8 @@ fn interval_secs() -> Duration {
     Duration::from_secs(secs.max(1))
 }
 
-/// Which reagent a skyhook's planet yields, which is the only reason anyone sorts them.
-/// Derived from the planet's type name rather than a list of type ids, so a new variant
-/// (the shattered ones, say) classifies itself.
+/// Which reagent a skyhook's planet yields, the only reason anyone sorts them. Derived from
+/// the type name rather than a list of type ids, so a new variant classifies itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
@@ -118,11 +115,8 @@ pub async fn sync_once(pool: &PgPool, esi: &EsiClient) -> Result<usize, SyncErro
     Ok(stored)
 }
 
-/// Replace the table with `fetched`, in one transaction.
-///
-/// The transaction is the point: the delete and the insert are one step, so a failure
-/// cannot leave the table emptied of rows it was about to put back. Legacy deletes
-/// unconditionally after a best-effort loop, which wipes the card on a bad batch.
+/// Replace the table with `fetched`. The delete and the insert are one transaction, so a
+/// failure cannot leave the table emptied of rows it was about to put back.
 pub async fn store(pool: &PgPool, fetched: &[RaidableSkyhook]) -> sqlx::Result<usize> {
     let planet_ids: Vec<i64> = fetched.iter().map(|s| s.planet_id).collect();
     let system_ids: Vec<i64> = fetched.iter().map(|s| s.solar_system_id).collect();
@@ -141,9 +135,8 @@ pub async fn store(pool: &PgPool, fetched: &[RaidableSkyhook]) -> sqlx::Result<u
     .execute(&mut *tx)
     .await?;
 
-    // Unnesting the four arrays writes the whole set in one statement. Planets the SDE has
-    // never heard of are skipped rather than failing the sync: a content patch should not
-    // take the card down until the next seed.
+    // Planets the SDE has never heard of are skipped rather than failing the sync: a content
+    // patch should not take the card down until the next seed.
     let stored = sqlx::query_scalar!(
         "with incoming as (
              select * from unnest($1::bigint[], $2::bigint[], $3::timestamptz[], $4::timestamptz[])
@@ -172,8 +165,7 @@ pub async fn store(pool: &PgPool, fetched: &[RaidableSkyhook]) -> sqlx::Result<u
     Ok(stored)
 }
 
-/// Build the holder from the joined columns. Mirrors the systems queries, so a skyhook row
-/// names its holder exactly as the map node does.
+/// Mirrors the systems queries, so a skyhook row names its holder exactly as a map node does.
 fn sovereignty_of(
     kind: Option<&str>,
     id: Option<i64>,
@@ -198,9 +190,8 @@ fn sovereignty_of(
 
 /// The in-game name of a planet: its system, then its position in Roman numerals.
 ///
-/// The SDE ships a `name` for only 43 of the 68,000-odd planets, so the label is built
-/// rather than looked up. Every planet has a celestial index, and this is exactly how the
-/// client derives the name from it, so the two always agree.
+/// The SDE ships a `name` for only 43 of the 68,000-odd planets, so the label is built the
+/// way the client builds it, from the celestial index every planet has.
 fn planet_label(system: &str, celestial_index: i32, stored: Option<&str>) -> String {
     if let Some(name) = stored.map(str::trim).filter(|n| !n.is_empty()) {
         return name.to_string();

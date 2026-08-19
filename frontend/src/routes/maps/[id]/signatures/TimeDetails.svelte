@@ -1,8 +1,6 @@
 <script lang="ts">
-	// The Age cell (legacy SignatureTimeDetails): compact relative age, tooltip with
-	// absolute times, and lifetime/mass color coding with the linked connection's state
-	// bleeding in (connection mass wins; connection lifetime applies while the
-	// signature's own is healthy).
+	// Relative age, with the linked connection's state bleeding into the colouring: the
+	// connection's mass wins, and its lifetime applies while the signature's own is healthy.
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { Signature } from '$lib/api/types/Signature';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -19,7 +17,7 @@
 		return () => clearInterval(t);
 	});
 
-	// Wormhole ages run from creation (earliest of sig / connection); sites from the
+	// Wormhole ages run from creation (earliest of signature or connection); sites from the
 	// last update.
 	const baseDate = $derived.by(() => {
 		if (sig.group === 'wormhole') {

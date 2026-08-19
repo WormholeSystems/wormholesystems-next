@@ -1,16 +1,9 @@
 <script lang="ts">
 	// Cmd+K over one map: jump to a placed system, or add one that is not on the map yet.
-	//
-	// Also the map's only way in to a system search: right-clicking the canvas or a node and
-	// asking to add or connect opens this, with an anchor for where the result should land
-	// and, for a connection, the node it should hang off. One search UI rather than two that
-	// drifted apart, and the palette already knew how to do both halves.
+	// Also the map's only system search, so add/connect/assign from the canvas open this with
+	// an anchor for where the result should land.
 	// Matching happens server-side (name, alias, occupier, and notes for members), so the
 	// Command's own filtering is off and the rows arrive already ranked.
-	//
-	// Rows are the shared SystemRow, on the shared tracks, so the palette lines up with every
-	// other system list. The extra cell (why it matched, or the Add badge) is a track
-	// appended to those rather than a hand-rolled layout.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	import { api } from '$lib/api/client';
@@ -31,16 +24,10 @@
 	let generation = 0;
 
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
-	// Threat hits are systems too, but they answer a different question — where does this
-	// corp operate — so they get their own section rather than being mixed into results
-	// that matched by name.
+	// Threat hits answer a different question (where does this corp operate), so they get
+	// their own section rather than mixing into results that matched by name.
 	const threats = $derived(results.filter((h) => h.threat));
-	/**
-	 * One section per organisation, the way legacy's threat search reads.
-	 *
-	 * Flat rows would repeat the name you just typed on every line and squeeze the kill
-	 * count — the one number that differs between them — out of the cell.
-	 */
+	/** One section per organisation, so the name is not repeated on every row. */
 	const threatGroups = $derived.by(() => {
 		const groups = new Map<number, { name: string; kind: string; total: number; hits: MapSearchHit[] }>();
 		for (const hit of threats) {
@@ -57,15 +44,14 @@
 	const linking = $derived(map.linkFrom !== null);
 	/**
 	 * Opened from a ghost's "assign a system": every pick says what that hole leads to,
-	 * on-map hits included — those merge the ghost into the placement already there.
+	 * on-map hits included: those merge the ghost into the placement already there.
 	 */
 	const assigning = $derived(map.assignGhostId !== null);
 	const onMap = $derived(named.filter((h) => h.map_solar_system_id !== null));
 	const offMap = $derived(named.filter((h) => h.map_solar_system_id === null));
 
-	// The list owns the tracks; rows are subgrids of them. Both groups sit in the one grid,
-	// so an on-map row and an off-map row line up with each other, not just within a group.
-	// Tracks: the four SystemRow cells, the hint/badge, and Command's own check indicator.
+	// The list owns the tracks and rows are subgrids of them, so on-map and off-map rows line
+	// up with each other. Tracks: four SystemRow cells, the hint/badge, Command's indicator.
 	const LIST_TRACKS =
 		'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_minmax(0,0.7fr)_min-content] items-center gap-x-2';
 	const ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
@@ -96,7 +82,7 @@
 			.catch(() => {});
 	});
 
-	/** What to show in the trailing cell: the reason this row matched, when it was not the name. */
+	/** Why this row matched, when it was not the name. */
 	function hint(h: MapSearchHit): string | null {
 		if (h.note_excerpt) return h.note_excerpt;
 		if (h.matched === 'alias') return h.alias;
@@ -109,8 +95,7 @@
 			assign(hit.system.id);
 			return;
 		}
-		// Already on the map, and we were asked for a connection: join the two instead of
-		// panning to it.
+		// Already on the map and a connection was asked for: join the two instead of panning.
 		if (linking && hit.map_solar_system_id !== null) {
 			connect(hit.map_solar_system_id);
 			return;
@@ -177,9 +162,8 @@
 			return;
 		}
 		const from = map.linkFrom;
-		// Where the caller asked for it: the point the map was right-clicked, or the node the
-		// connection starts from. Plain Cmd+K has no anchor, so it lands in the middle of
-		// what you are looking at.
+		// The anchor is where the canvas was right-clicked. Plain Cmd+K has none, so the system
+		// lands in the middle of the view.
 		const base = map.searchAnchor ?? centerWorld(map.pan, map.zoom, map.viewportRect());
 		open = false;
 		const at = freePosition(map.systems, base, map.grid);
@@ -225,9 +209,8 @@
 				: 'System, alias, occupier or notes…'}
 		bind:value={query}
 	/>
-	<!-- Headings are plain cells rather than Command.Group, because a group wraps its items
-	     in an element of its own and that break in the ancestry is exactly what a subgrid
-	     cannot cross. -->
+	<!-- Headings are plain cells, not Command.Group: a group wraps its items in an element of
+	     its own, and a subgrid cannot cross that break in the ancestry. -->
 	<Command.List class="p-1 {LIST_TRACKS}" data-testid="palette-list">
 		<Command.Empty class="col-span-full">
 			{query.trim().length < 2 ? 'Type at least two characters to search.' : 'Nothing found.'}

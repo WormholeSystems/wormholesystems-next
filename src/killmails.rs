@@ -56,9 +56,9 @@ struct R2Z2Killmail {
 
 /// A killmail's ESI body, narrowed to the fields anything here reads.
 ///
-/// Typed rather than `serde_json::Value`: the full body lists every item the victim
-/// carried, and against a year of archives those allocations dominate the import. Every
-/// field is optional so a malformed payload costs one killmail rather than a batch.
+/// Typed rather than `serde_json::Value`: the full body lists every item the victim carried,
+/// and against a year of archives those allocations dominate the import. Every field is
+/// optional so a malformed payload costs one killmail rather than a batch.
 #[derive(Default, Deserialize)]
 struct EsiKillmail {
     killmail_id: Option<i64>,
@@ -331,10 +331,9 @@ pub async fn list_for_map(
         .collect())
 }
 
-/// Put names to the ids on recent killmails.
-///
-/// A separate loop from the ingest: a killmail must be recorded whether or not ESI is
-/// answering, and the names are only wanted by the time someone opens the card.
+/// Put names to the ids on recent killmails. A separate loop from the ingest: a killmail
+/// must be recorded whether or not ESI is answering, and the names are only wanted by the
+/// time someone opens the card.
 async fn resolve_loop(pool: PgPool, esi: EsiClient) {
     loop {
         resolve_recent(&pool, &esi).await;
@@ -467,7 +466,7 @@ async fn ingest_next(
 }
 
 /// Offer the kill to the Discord alerts watching for one. Names come from what is already
-/// stored: "Someone lost a Loki" now beats a complete message a minute later.
+/// stored, since "Someone lost a Loki" now beats a complete message a minute later.
 async fn alert_on(
     pool: &PgPool,
     alerts: &crate::alerts::Runtime,
@@ -522,10 +521,8 @@ async fn alert_on(
     alerts.killmail(pool, &kill).await;
 }
 
-/// Tell every map holding this system that something died in it.
-///
-/// The event carries no payload: what a client should show depends on its own filter and
-/// its own list, so it refetches rather than trying to splice one row in.
+/// Tell every map holding this system that something died in it. The event carries no
+/// payload: what a client shows depends on its own filter, so it refetches.
 async fn announce(pool: &PgPool, maps: &crate::maps::MapHub, solar_system_id: i64) {
     let Ok(map_ids) = sqlx::query_scalar!(
         "select distinct map_id from map_solar_systems where solar_system_id = $1",
@@ -735,14 +732,11 @@ struct ArchivedKill {
     detail: Detail,
 }
 
-/// Turn a downloaded `.tar.bz2` into rows, without touching the disk.
+/// Turn a downloaded `.tar.bz2` into rows, without touching the disk. A day is around 24,000
+/// separate JSON files, and writing them out to extract them cost more than the decompression
+/// and the insert put together.
 ///
-/// A day is around 24,000 separate JSON files. Extracting them with the system `tar` meant
-/// writing every one out and reading it straight back, which cost more than the
-/// decompression and the database insert put together.
-///
-/// Blocking and CPU-bound, so callers run it off the async runtime. The reduced rows are far
-/// smaller than the JSON they come from, so holding a whole day is cheap.
+/// Blocking and CPU-bound, so callers run it off the async runtime.
 fn read_archive(bytes: &[u8]) -> std::io::Result<Vec<ArchivedKill>> {
     use std::io::Read;
 
@@ -774,19 +768,18 @@ fn read_archive(bytes: &[u8]) -> std::io::Result<Vec<ArchivedKill>> {
             solar_system_id,
             time,
             orgs: serde_json::to_value(extract_orgs(&km)).map_err(std::io::Error::other)?,
-            // The archives carry the ESI body but not zKillboard's block, so everything
-            // except the ISK value and the solo/NPC flags comes through. Writing what we
-            // have matters: the card ignores rows with no victim ship, so a backfill that
-            // stored only the bare minimum would import history nobody could see.
+            // The archives carry the ESI body but not zKillboard's block, so everything but
+            // the ISK value and the solo/NPC flags comes through. The card ignores rows with
+            // no victim ship, so storing only the bare minimum would import invisible history.
             detail: extract_detail(&km, &serde_json::Value::Null),
         });
     }
     Ok(kills)
 }
 
-/// How far back a boot fills, matching the window threat analysis looks over: a fresh
-/// instance is otherwise useless for months, since the live listener only ever sees kills
-/// that happen from now on.
+/// How far back a boot fills, matching the window threat analysis looks over. The live
+/// listener only ever sees kills from now on, so without this a fresh instance is useless
+/// for months.
 pub const BACKFILL_DAYS: u32 = 90;
 
 /// The days in the last `days` that are not imported yet, most recent first.
@@ -832,10 +825,8 @@ async fn import_day(
     let bytes = res.error_for_status()?.bytes().await?;
     let kills = tokio::task::spawn_blocking(move || read_archive(&bytes)).await??;
 
-    // Every entity the day mentions, deduped before anything is fetched. A busy day is
-    // tens of thousands of killmails naming a few thousand distinct pilots and a few
-    // hundred organisations, so resolving per killmail would be almost entirely
-    // repeated work.
+    // Every entity the day mentions, deduped before anything is fetched: tens of thousands
+    // of killmails name only a few thousand distinct pilots.
     let mut day_characters: std::collections::HashSet<i64> = std::collections::HashSet::new();
     let mut day_corporations: std::collections::HashSet<i64> = std::collections::HashSet::new();
     let mut day_alliances: std::collections::HashSet<i64> = std::collections::HashSet::new();
@@ -849,9 +840,8 @@ async fn import_day(
     }
 
     let mut inserted = 0usize;
-    // Rows go in a few thousand at a time. The statement binds fixed arrays rather than
-    // one placeholder per value, so the batch is bounded by memory rather than by
-    // Postgres's parameter limit.
+    // The statement binds fixed arrays rather than one placeholder per value, so the batch
+    // is bounded by memory rather than by Postgres's parameter limit.
     for chunk in kills.chunks(2_000) {
         let mut ids = Vec::new();
         let mut hashes = Vec::new();
@@ -929,9 +919,8 @@ async fn import_day(
         .rows_affected();
         inserted += n as usize;
     }
-    // Organisations first and one at a time, because their tickers are what a row
-    // shows and only the per-entity endpoint returns them; there are few enough that
-    // it stays cheap. Characters then go through the thousand-at-a-time bulk endpoint.
+    // Organisations one at a time, because their tickers are what a row shows and only the
+    // per-entity endpoint returns them. Characters go through the bulk endpoint.
     let alliances: Vec<i64> = day_alliances.into_iter().collect();
     let corporations: Vec<i64> = day_corporations.into_iter().collect();
     let characters: Vec<i64> = day_characters.into_iter().collect();
@@ -979,11 +968,8 @@ pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), B
     Ok(())
 }
 
-/// Background: fill in the archived days this instance is missing.
-///
-/// Runs once per boot rather than on a schedule, because the live listener covers everything
-/// from startup onwards; the archives only exist to give a new instance a past. Sequential
-/// and unhurried, since nothing is waiting on it.
+/// Background: fill in the archived days this instance is missing. Once per boot rather than
+/// on a schedule, because the live listener covers everything from startup onwards.
 async fn backfill_loop(pool: PgPool, esi: EsiClient, days: u32) {
     let http = http_client();
     let missing = match missing_days(&pool, days).await {

@@ -1,7 +1,6 @@
 <script lang="ts">
-	// Per-system notes (markdown, legacy SolarsystemDetails port). Member-gated: viewers get
-	// a 403 from the details endpoint and the panel disappears. Pencil to edit, borderless
-	// mono textarea, explicit Save/Cancel in the header.
+	// Per-system notes, in markdown. Member-gated: a viewer gets a 403 from the details
+	// endpoint and the panel disappears.
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import { marked } from 'marked';
 
@@ -40,7 +39,6 @@
 	const rendered = $derived.by(() => {
 		if (!notes) return '';
 		const html = marked.parse(notes, { async: false, breaks: true }) as string;
-		// Open links in a new tab.
 		return html.replaceAll('<a href', '<a target="_blank" rel="noopener" href');
 	});
 

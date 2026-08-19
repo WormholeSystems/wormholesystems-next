@@ -3,18 +3,13 @@
 /**
  * A map in the user's list, with their role on it.
  */
-export type MapEntry = { id: number, name: string, description?: string, role: string, 
-/**
- * How big the chain is right now.
- */
-system_count: number, connection_count: number, 
+export type MapEntry = { id: number, name: string, description?: string, role: string, system_count: number, connection_count: number, 
 /**
  * How many people can see it, counting every grant however it was made.
  */
 member_count: number, 
 /**
- * Tracked pilots currently online in one of its systems, which is the difference
- * between a map being live and merely existing.
+ * Tracked pilots currently online in one of its systems.
  */
 pilots_online: number, 
 /**

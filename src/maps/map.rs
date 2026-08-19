@@ -1,7 +1,7 @@
 //! The map entity: create, update, delete, list, and read the graph.
 //!
-//! Each mutating action takes a dedicated command struct (its future HTTP request body);
-//! `actor` stays a separate argument, injected from the session — never the payload.
+//! Each mutating action takes a dedicated command struct (the HTTP request body); `actor`
+//! stays a separate argument, injected from the session, never read from the payload.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -43,8 +43,8 @@ pub struct Map {
     pub share_token: Option<String>,
 }
 
-/// How a map names its chain. Map-wide rather than per-user, because an alias is written
-/// on the map for everyone and a bookmark folder in three conventions is unreadable.
+/// How a map names its chain. Map-wide rather than per-user: an alias is written on the
+/// map for everyone to read.
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct MapNaming {
@@ -172,9 +172,7 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     Ok(map)
 }
 
-/// Seeded onto every new map's watchlist, pinned, as legacy's `CreateMapAction` does. A
-/// chain is worth mapping mostly for what it is close to, and that is nearly always one of
-/// these; a map that starts empty makes you type them in before it can tell you anything.
+/// Seeded onto every new map's watchlist, pinned, as legacy's `CreateMapAction` does.
 const TRADE_HUBS: [&str; 5] = ["Jita", "Amarr", "Dodixie", "Rens", "Hek"];
 
 /// A partial update of a map's fields. `None` leaves a field unchanged; `Some(None)`
@@ -192,8 +190,7 @@ pub struct UpdateMap {
     #[serde(default, deserialize_with = "super::double_option")]
     #[ts(optional)]
     pub image_url: Option<Option<String>>,
-    /// All-or-nothing: the naming block is edited as one form, so a partial payload here
-    /// would only ever mean a half-saved form.
+    /// All-or-nothing: the naming block is edited as one form.
     #[serde(default)]
     #[ts(optional)]
     pub naming: Option<MapNaming>,
@@ -358,8 +355,8 @@ pub struct GetMap {
     pub map_id: i64,
 }
 
-/// Read a map's graph — the map, its placed systems, and its connections. Viewer+.
-/// Live pilot locations are not included (that's the member-gated tracking path).
+/// Read a map's graph: the map, its placed systems, and its connections. Viewer+. Live
+/// pilot locations are not included (that's the member-gated tracking path).
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
     let role = require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
     read_map(
@@ -381,8 +378,7 @@ pub async fn read_map(
     cmd: GetMap,
 ) -> Result<MapView> {
     let role = reader.role;
-    // The share token is a key to the map. Only the people who can mint one ever see it;
-    // to everybody else the field is simply absent.
+    // The share token is a key to the map, so only the people who can mint one ever see it.
     let hide_token = role < Role::Manager;
 
     let map = map_from_row!(
@@ -534,9 +530,8 @@ pub async fn read_map(
     .fetch_all(pool)
     .await?;
 
-    // Whether the *acting character* is covered, which is a different question from
-    // whether the user is: someone can hold a map through one character and be flying
-    // another. A guest has no character, and nothing to warn about.
+    // Whether the acting character is covered, a different question from whether the user
+    // is. A guest has no character, and nothing to warn about.
     let character_has_access = match reader.actor {
         Some(actor) => {
             sqlx::query_scalar!(
@@ -573,10 +568,8 @@ pub async fn read_map(
     })
 }
 
-/// Mint a share link for the map, replacing any link already out there. Manager+.
-///
-/// Replacing rather than adding is the revocation story: one link at a time means
-/// "regenerate" is how you lock out whoever you gave the old one to.
+/// Mint a share link for the map, replacing any link already out there. Manager+. One link
+/// at a time, so regenerating is how you lock out whoever holds the old one.
 pub async fn rotate_share_token(pool: &PgPool, actor: Actor, map_id: i64) -> Result<String> {
     require_role(pool, map_id, actor.user_id, Role::Manager).await?;
     let token = uuid::Uuid::new_v4().simple().to_string();

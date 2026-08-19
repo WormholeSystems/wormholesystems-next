@@ -1,8 +1,7 @@
 <script lang="ts">
-	// The navigation panel, redesigned from the legacy three-tab layout: the A→B route
-	// planner is always on top, the shared watchlist below it, and the closest-systems
-	// Find section at the bottom. One origin drives watchlist and Find distances: the
-	// route From, else the active system, else the tracked character's location.
+	// Route planner, shared watchlist, and closest-systems Find, in that order. One origin
+	// drives the watchlist and Find distances: the route From, else the active system, else
+	// the tracked character's location.
 	import ArrowLeftRightIcon from '@lucide/svelte/icons/arrow-left-right';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -61,8 +60,8 @@
 	};
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 
-	// The routing tables and the assembled graph live on the map state, shared with the
-	// pilots card so both measure distance the same way from one fetch.
+	// Routing tables and the graph live on the map state, so every card measures distance the
+	// same way from one fetch.
 	const routingSettings = $derived(map.routingSettings);
 	const useEveScout = $derived(map.useEveScout);
 	const joveSystems = $derived(map.joveSystems);
@@ -70,7 +69,6 @@
 	const serviceOptions = $derived(map.serviceOptions);
 	const graph = $derived(map.graph);
 
-	// EVE Scout edges refresh every 5 minutes while enabled.
 	$effect(() => {
 		if (!useEveScout) return;
 		map.loadEveScout();
@@ -78,7 +76,6 @@
 		return () => clearInterval(t);
 	});
 
-	// --- display-data resolution cache (watchlist rows, chips, origin label, find) ---
 	let resolved = $state<Map<number, SystemSearchResult>>(new Map());
 	function needResolve(ids: number[]) {
 		const missing = ids.filter((id) => !resolved.has(id));
@@ -93,7 +90,6 @@
 			.catch(() => {});
 	}
 
-	// --- A→B route ---
 	const abResult = $derived.by(() => {
 		if (!graph || map.routeFromId === null || map.routeToId === null) return null;
 		return findRoute(graph, map.routeFromId, map.routeToId, routingSettings, map.ignoredSystems);
@@ -104,11 +100,8 @@
 		map.routePath = map.hoverPath ?? abPath;
 	});
 
-	// --- picker suggestions ---
-	//
-	// The systems worth routing to are nearly always already in play, so both pickers offer
-	// them before anything is typed. They live inside the picker rather than as chips beside
-	// it, so choosing one is unambiguous about which end it fills.
+	// Both pickers offer the systems already in play before anything is typed. They sit inside
+	// the picker, so choosing one is unambiguous about which end it fills.
 	const suggestedIds = $derived.by(() => {
 		const picks: { id: number; reason: string; icon: 'selected' | 'location' | 'pinned' }[] = [];
 		const active = map.activeSystem;
@@ -138,7 +131,6 @@
 			)
 	);
 
-	// --- watchlist ---
 	const origin = $derived(map.routeOrigin);
 	const originName = $derived(origin === null ? null : (resolved.get(origin)?.name ?? '…'));
 	$effect(() => {
@@ -204,7 +196,6 @@
 		});
 	});
 
-	// --- add-to-watchlist search (header plus) ---
 	let addOpen = $state(false);
 	let addQuery = $state('');
 	let addResults = $state<SystemSearchResult[]>([]);
@@ -228,7 +219,6 @@
 		addOpen = false;
 	}
 
-	// --- Find (closest systems) ---
 	let findOpen = $state(false);
 	const CONDITIONS = [
 		{ value: 'observatories', label: 'Jove Observatories' },
@@ -239,7 +229,6 @@
 	];
 	let condition = $state('observatories');
 	let findLimit = $state('15');
-	/** What the trigger shows: the chosen condition, station services included. */
 	const conditionLabel = $derived(
 		CONDITIONS.find((c) => c.value === condition)?.label ??
 			serviceOptions.find((svc) => `service_${svc.id}` === condition)?.name ??
@@ -248,8 +237,8 @@
 	const activeService = $derived(
 		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null
 	);
-	// Station lists collapse by default: a service can match a dozen stations per
-	// system, which would bury the jump-ordered results.
+	// Station lists collapse by default: a service can match a dozen stations per system,
+	// which would bury the jump-ordered results.
 	let expandedFind = $state<Set<number>>(new Set());
 	$effect(() => {
 		void condition;
@@ -314,9 +303,8 @@
 					<Popover.Content class="w-96 p-0" align="end">
 						<Command.Root shouldFilter={false}>
 							<Command.Input placeholder="Watch a system…" bind:value={addQuery} />
-							<!-- The list owns the tracks and rows are subgrids of them, so the columns
-							     line up down the list. The trailing track is Command's own check
-							     indicator, which it appends to every item. -->
+							<!-- The list owns the tracks and rows are subgrids of them. The trailing
+							     track is Command's own check indicator, appended to every item. -->
 							<Command.List
 								class="max-h-48 grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2 p-1"
 							>
@@ -347,7 +335,6 @@
 		{/snippet}
 	</MapPanelHeader>
 	<MapPanelContent>
-		<!-- Route planner: always on top, no tab switch needed. -->
 		<div class="flex flex-col gap-2 border-b border-border/50 p-3 text-xs">
 			<div class="flex items-center gap-1.5">
 				<SystemCombobox
@@ -407,8 +394,7 @@
 			{/if}
 		</div>
 
-		<!-- Watchlist. One grid owns the tracks so every row (and the header) shares the
-		     same column widths via subgrid. -->
+		<!-- One grid owns the tracks so every row and the header share column widths. -->
 		<div class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2">
 			<div
 				class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
@@ -480,8 +466,7 @@
 						</RoutePopover>
 					{:else}
 						<!-- `nowrap` because a hyphen is a line-break opportunity: with every row
-						     unreachable the column's min-content collapses to one dash and the
-						     pair wraps, making every row a line taller. -->
+						     unreachable, the dashes wrap and every row grows a line. -->
 						<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">
 							--
 						</span>
@@ -526,7 +511,6 @@
 			{/each}
 		</div>
 
-		<!-- Find: closest systems matching a condition. -->
 		<div class="flex flex-col">
 			<button
 				class="flex items-center gap-1 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase hover:text-foreground"
@@ -602,10 +586,8 @@
 					{@const r = resolved.get(result.id)}
 					{@const stations = activeService?.stationsBySystem.get(result.id) ?? []}
 					{@const expandable = stations.length > 0}
-					<!-- The whole row toggles its station list; the jump badge stops its own
-					     click from bubbling, and right-click still opens the system menu.
-					     The role/tabindex pair is conditional (button only when there is
-					     something to expand), which the static a11y check can't follow. -->
+					<!-- The role/tabindex pair is conditional (button only when there is something
+					     to expand), which the static a11y check cannot follow. -->
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
 						class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30 {expandable
@@ -655,10 +637,8 @@
 					</div>
 					{#if expandedFind.has(result.id)}
 						{#each stations as station (station.id)}
-							<!-- Right-click a station to set it as the in-game destination. -->
 							<DestinationMenu destinationId={station.id} class="col-span-full">
-								<!-- A station belongs to its system: hovering it keeps that
-								     system's route highlighted on the canvas. -->
+								<!-- Hovering a station keeps its system's route highlighted. -->
 								<div
 									class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
 									data-testid="find-station"

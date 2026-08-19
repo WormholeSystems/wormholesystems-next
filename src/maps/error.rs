@@ -3,7 +3,7 @@
 /// of variant → situation that the action contracts (and their tests) rely on.
 #[derive(Debug, thiserror::Error)]
 pub enum MapError {
-    /// The map (or a referenced row) doesn't exist, or the user has no access to it —
+    /// The map (or a referenced row) doesn't exist, or the user has no access to it ,
     /// the two are deliberately indistinguishable, so we don't leak a map's existence.
     #[error("not found")]
     NotFound,

@@ -1,7 +1,6 @@
 <script lang="ts">
-	// The connection details popover (legacy ConnectionPopover + MapConnectionDetails):
-	// opened by left-clicking an edge, anchored at the click point. Read-mostly — the
-	// only writes live in the jump log; all other mutation stays in the context menu.
+	// Connection details, anchored at the click on the edge. Read-mostly: the only writes are
+	// in the jump log, every other mutation stays in the context menu.
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import * as Popover from '$lib/components/ui/popover';
@@ -43,7 +42,7 @@
 	function codeOf(sig: Signature): string | null {
 		return (catalog && typeById(catalog, sig.signature_type_id)?.signature) ?? null;
 	}
-	// Legacy quirk kept: an untyped signature counts as the outbound side.
+	// An untyped signature counts as the outbound side.
 	const outSig = $derived(sigs.find((s) => !codeOf(s)?.startsWith('K162')) ?? null);
 	const inSig = $derived(sigs.find((s) => codeOf(s)?.startsWith('K162')) ?? null);
 

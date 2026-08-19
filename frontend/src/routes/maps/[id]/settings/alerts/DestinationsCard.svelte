@@ -1,8 +1,7 @@
 <script lang="ts">
-	// Where alerts can post, and who they can ping. Registered once per map and pointed at
-	// by name, so a webhook URL is pasted once rather than into every alert, and rotating
-	// one is a single edit. Roles get names for the same reason: nobody recognises
-	// 1189734502938472 as the scouts.
+	// Where alerts can post, and who they can ping. Registered once per map and pointed at by
+	// name, so a webhook URL is pasted once and rotating one is a single edit. Roles get names
+	// for the same reason: nobody recognises 1189734502938472 as the scouts.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 

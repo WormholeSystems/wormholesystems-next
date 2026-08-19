@@ -5,10 +5,10 @@
 //! system, connects it and links the signature, so a mis-picked signature is one undo
 //! rather than three separate ones to unpick.
 //!
-//! This is deliberately separate from [`super::jumps::record_transit`], which records the
-//! same movement for mass accounting whether or not anyone is looking at the map. The two
-//! meet at [`super::jumps::claim_pending_tx`]: a transit recorded before the hole was
-//! mapped is claimed by the connection this creates.
+//! Separate from [`super::jumps::record_transit`], which records the same movement for mass
+//! accounting whether or not anyone is looking at the map. The two meet at
+//! [`super::jumps::claim_pending_tx`]: a transit recorded before the hole was mapped is
+//! claimed by the connection this creates.
 
 use serde::{Deserialize, Serialize};
 
@@ -59,7 +59,7 @@ pub async fn track_jump(
 
 pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<Effect> {
     // The origin is where the character was, so it is always a real system; a ghost there
-    // means the placement was resolved out from under the jump.
+    // means the placement changed under the jump.
     let from_system = sqlx::query_scalar!(
         "select solar_system_id from map_solar_systems where id = $1 and map_id = $2",
         cmd.from_map_solar_system_id,
@@ -74,8 +74,8 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
         return Err(MapError::Validation("a jump must change system".into()));
     }
 
-    // Gate travel never builds a wormhole. The client checks too, but it is working from a
-    // cached stargate graph and this is the copy that decides.
+    // Gate travel never builds a wormhole. The client checks too, off a cached stargate
+    // graph, but this is the copy that decides.
     let is_gate = sqlx::query_scalar!(
         "select exists(
              select 1 from stargates
@@ -275,11 +275,9 @@ pub(super) async fn signature_state(
     })
 }
 
-/// Put the signature back to how it was scanned.
-///
-/// Deliberately not `RestoreSignatures`: that one undoes a *deletion*, so its own inverse
-/// deletes the rows again, and redoing a jump would take the signature with it. These two
-/// commands are each other's inverse, so the step survives being walked back and forth.
+/// Put the signature back to how it was scanned. Deliberately not `RestoreSignatures`: that
+/// undoes a deletion, so its own inverse deletes the rows again and redoing a jump would
+/// take the signature with it.
 pub(super) fn undo_signature(map_id: i64, before: Option<&SignatureState>) -> Vec<MapCommand> {
     let Some(before) = before else {
         return Vec::new();
@@ -311,11 +309,8 @@ pub(super) fn undo_signature(map_id: i64, before: Option<&SignatureState>) -> Ve
     steps
 }
 
-/// Link a signature to the connection, promoting it to a wormhole first.
-///
-/// A signature is often still `unknown` when it is jumped: you scanned the id, warped and
-/// went through without ever typing it. Refusing to link that would make the common case
-/// the one that does not work.
+/// Link a signature to the connection, promoting it to a wormhole first. A jumped signature
+/// is usually still `unknown`: the id was scanned but never classified.
 pub(super) async fn link(
     tx: &mut Tx<'_>,
     map_id: i64,

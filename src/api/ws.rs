@@ -12,7 +12,7 @@ use crate::auth::AppState;
 use crate::maps::MapHub;
 use crate::user_channel::UserHub;
 
-/// `GET /ws/map/{map_id}` — the map's events as JSON, gated at the same bar as reading it:
+/// `GET /ws/map/{map_id}`: the map's events as JSON, gated at the same bar as reading it:
 /// a grant, or the share it has been opened with. A watcher following a link gets the
 /// stream too; the frames say only that something changed.
 pub async fn map_ws(
@@ -37,9 +37,9 @@ pub async fn map_ws(
     }
 }
 
-/// `GET /ws/user` — the signed-in user's private channel. For now it's the activity
-/// heartbeat: while connected we ping the client and bump `last_active_at` on each pong,
-/// which gates the tracking poller. User-targeted pushes will ride this same socket later.
+/// `GET /ws/user`: the signed-in user's private channel, and the activity heartbeat: while
+/// connected we ping the client and bump `last_active_at` on each pong, which is what gates
+/// the tracking poller.
 pub async fn user_ws(
     State(state): State<AppState>,
     jar: CookieJar,

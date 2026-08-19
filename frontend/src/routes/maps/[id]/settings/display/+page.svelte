@@ -1,9 +1,6 @@
 <script lang="ts">
-	// What the map shows you. Yours alone: two people on the same chain can disagree about
-	// how dense the signature list should be without arguing about it.
-	//
-	// Placement is the exception on this page: the mode is the map's, and this row only
-	// appears when the map hands the choice to each viewer.
+	// What the map shows you, per viewer. Placement is the exception: the mode is the map's,
+	// and the row only appears when the map hands the choice to each viewer.
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';

@@ -5,7 +5,7 @@ import type { SystemStatus } from "./SystemStatus";
 import type { ThreatLevel } from "./ThreatLevel";
 
 /**
- * A placed system enriched with everything a map node displays. Read-only — built by
+ * A placed system enriched with everything a map node displays. Read-only, built by
  * `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
  * [`MapSolarSystem`].
  */

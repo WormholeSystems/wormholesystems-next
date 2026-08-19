@@ -1,10 +1,7 @@
 <script lang="ts">
-	// A solar system's class letter (C5, H, L, NS, P…) in its class colour.
-	//
-	// The colour is applied as a CSS variable rather than a utility class on purpose: the
-	// class tokens live in a plain `:root` block, not in `@theme`, so Tailwind never
-	// generates `text-c5` and a class-based version silently renders in whatever colour it
-	// inherits. Every call site went through this component so that cannot happen again.
+	// A solar system's class letter (C5, H, L, NS, P…) in its class colour. The colour has to go
+	// through a CSS variable: the class tokens live in a plain `:root` block, not in `@theme`,
+	// so Tailwind never generates `text-c5` and a utility class would silently inherit.
 	import { classMeta } from '$lib/map/classes';
 	import { cn } from '$lib/utils';
 

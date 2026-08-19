@@ -1,9 +1,7 @@
 //! Fetching the SDE from CCP's static-data endpoint.
 //!
-//! This is the *acquisition* half of the module: it talks to the network and
-//! knows nothing about how the `.jsonl` files are parsed (see the loaders in
-//! [`super`]). Hand the downloaded archive to [`crate::util::archive::extract`]
-//! to unpack it onto disk before loading.
+//! Hand the downloaded archive to [`crate::util::archive::extract`] to unpack it onto disk
+//! before the loaders in [`super`] can read it.
 
 use std::io;
 
@@ -53,8 +51,8 @@ impl Downloader {
 
     /// Download a specific build's archive and write it to `dest`.
     ///
-    /// The body is streamed straight to the file rather than buffered in
-    /// memory — the archive is ~100 MB.
+    /// The body is streamed straight to the file rather than buffered in memory, since the
+    /// archive is ~100 MB.
     pub fn download_build(
         &self,
         build: i64,

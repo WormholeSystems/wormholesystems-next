@@ -1,9 +1,7 @@
 <script lang="ts">
 	// The frame every settings page sits in: a title, a sidebar of sections, and the page.
-	//
-	// Sections rather than one long scroll, because settings are looked up rather than read:
-	// you arrive knowing which one you want. A single page also gives no way to say what is
-	// per-map and what is only yours, which is the distinction people actually get wrong.
+	// Sections rather than one long scroll, so a page can say what is per-map and what is
+	// only yours.
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 
 	import { page } from '$app/state';

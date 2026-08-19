@@ -1,8 +1,6 @@
 <script lang="ts">
-	// The Conn cell (wormhole rows): link/unlink the signature to one of the system's
-	// connections. Unclaimed connections list first, already-claimed ones under
-	// "Connected"; a typed signature filters to connections whose far end matches the
-	// type's destination class.
+	// Links a signature to one of the system's connections. Unclaimed ones list first, and a
+	// typed signature filters to connections whose far end matches the type's destination.
 	import { api } from '$lib/api/client';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';

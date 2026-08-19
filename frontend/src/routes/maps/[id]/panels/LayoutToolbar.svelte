@@ -1,6 +1,5 @@
 <script lang="ts">
-	// The floating bar shown while arranging panels. Everything that acts on the layout as
-	// a whole lives here; per-tile controls (move, resize, hide) live on the tiles.
+	// Everything that acts on the layout as a whole; per-tile controls live on the tiles.
 	import { toast } from 'svelte-sonner';
 
 	import ClipboardCopyIcon from '@lucide/svelte/icons/clipboard-copy';

@@ -1,5 +1,5 @@
 //! Reference reads: the fixed universe and the caches over it. None of it belongs to a
-//! map, so none of it is authorized against one — a few need a session, no more.
+//! map, so none of it is authorized against one; a few need a session, no more.
 
 use axum::Json;
 use axum::Router;
@@ -27,8 +27,7 @@ pub struct SystemSearchResult {
     /// Wormhole effect, for J-space rows (shown where k-space rows show sovereignty).
     pub effect_name: Option<String>,
     pub sovereignty: Option<crate::maps::solar_system::Sovereignty>,
-    /// The statics a wormhole always has. Empty for k-space, and the whole reason to pick
-    /// one chain over another, so a row that offers to add a system says where it leads.
+    /// The statics a wormhole always has. Empty for k-space.
     pub statics: Vec<crate::maps::solar_system::Static>,
 }
 
@@ -51,7 +50,6 @@ pub struct ThreatAnalysis {
     pub entities: Vec<ThreatEntity>,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/grid-config", get(grid_config))
@@ -64,7 +62,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/skyhooks", get(skyhooks))
 }
 
-/// `GET /api/grid-config` — the server-owned map canvas geometry.
+/// `GET /api/grid-config`: the server-owned map canvas geometry.
 pub async fn grid_config(State(state): State<AppState>) -> ApiResult<GridConfig> {
     Ok(Json(state.grid))
 }
@@ -75,7 +73,7 @@ pub struct EffectsQuery {
     pub class: i32,
 }
 
-/// `GET /api/effects?name=&class=` — the buffs/debuffs a wormhole effect applies at a
+/// `GET /api/effects?name=&class=`: the buffs/debuffs a wormhole effect applies at a
 /// system's class. Reference data, so no actor/role check.
 pub async fn effect_modifiers(
     State(state): State<AppState>,
@@ -91,8 +89,7 @@ pub struct SearchQuery {
     pub q: String,
 }
 
-/// Build the sovereignty holder from the joined columns. Shared by every query that selects
-/// a solar system for display, so the pickers cannot drift apart on what they show.
+/// Build the sovereignty holder from the joined columns.
 pub(super) fn sovereignty_of(
     kind: Option<&str>,
     id: Option<i64>,
@@ -121,10 +118,8 @@ pub(super) fn sovereignty_of(
     }
 }
 
-/// The statics of every wormhole among `ids`, grouped by system.
-///
-/// One query for the whole page rather than a join on the search itself: statics are
-/// one-to-many, so joining would multiply the rows the search worked to rank.
+/// The statics of every wormhole among `ids`, grouped by system. Kept out of the search
+/// query itself: statics are one-to-many, so joining would multiply its ranked rows.
 pub(super) async fn statics_for(
     db: &sqlx::PgPool,
     ids: &[i64],
@@ -158,7 +153,7 @@ pub(super) async fn statics_for(
     Ok(out)
 }
 
-/// `GET /api/systems/search?q=` — search the SDE solar systems by name. Prefix matches rank
+/// `GET /api/systems/search?q=`, search the SDE solar systems by name. Prefix matches rank
 /// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
 pub async fn search_systems(
     State(state): State<AppState>,
@@ -234,7 +229,7 @@ pub async fn search_systems(
     Ok(Json(results))
 }
 
-/// `GET /api/routing-graph` — the static half of the routing graph: k-space stargate
+/// `GET /api/routing-graph`: the static half of the routing graph: k-space stargate
 /// adjacency (`{from_id: [to_id, ...]}`, Zarzakh excluded since its gates are
 /// faction-gated) plus per-system security for the safer/less-secure cost functions.
 /// Static reference data: cacheable for a day.
@@ -269,10 +264,10 @@ pub async fn routing_graph(
     let stations: Vec<i64> = sqlx::query_scalar!("select distinct solar_system_id from stations")
         .fetch_all(&state.db)
         .await?;
-    // The Find conditions offer the legacy "essential" station services. Each entry
-    // carries the concrete stations, so results can name the station, not just the
-    // system. Security Offices (27) are a known quirk: only CONCORD-owned stations in
-    // lowsec actually run one, despite the operation listing the service everywhere.
+    // The legacy "essential" station services, each carrying its concrete stations so a
+    // result can name the station. Security Offices (27) are a known quirk: only
+    // CONCORD-owned lowsec stations actually run one, despite the operation listing the
+    // service everywhere.
     const ESSENTIAL_SERVICES: [i64; 6] = [5, 10, 13, 14, 15, 27];
     const SECURITY_OFFICE: i64 = 27;
     const CONCORD_CORPORATION: i64 = 1000125;
@@ -329,7 +324,7 @@ pub async fn routing_graph(
     ))
 }
 
-/// `GET /api/systems/resolve?ids=a,b,c` — resolve solar system ids to display data for
+/// `GET /api/systems/resolve?ids=a,b,c`, resolve solar system ids to display data for
 /// route rows. Capped at 200 ids.
 pub async fn resolve_systems(
     State(state): State<AppState>,
@@ -425,7 +420,7 @@ pub struct ResolveQuery {
     pub ids: String,
 }
 
-/// `GET /api/threat/{solar_system_id}` — a wormhole system's threat analysis. 404 for
+/// `GET /api/threat/{solar_system_id}`: a wormhole system's threat analysis. 404 for
 /// k-space systems (threat is only computed for wormhole space).
 pub async fn threat_analysis(
     State(state): State<AppState>,
@@ -463,7 +458,7 @@ pub async fn threat_analysis(
     }))
 }
 
-/// `GET /api/skyhooks` — every skyhook currently or shortly raidable. Public EVE data, so
+/// `GET /api/skyhooks`, every skyhook currently or shortly raidable. Public EVE data, so
 /// no per-map gating; a session is still required, like the rest of the API.
 pub async fn skyhooks(
     State(state): State<AppState>,
@@ -473,7 +468,7 @@ pub async fn skyhooks(
     Ok(Json(crate::skyhooks::list(&state.db).await?))
 }
 
-/// `GET /api/server-status` — what Tranquility is doing. Public: the header shows it
+/// `GET /api/server-status`, what Tranquility is doing. Public: the header shows it
 /// signed in or not, and it is the same figure ESI serves to anyone.
 pub async fn server_status(
     State(state): State<AppState>,

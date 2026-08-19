@@ -51,8 +51,8 @@ impl EsiClient {
     /// Names for up to 1000 ids of any kind, in one call.
     ///
     /// The per-entity endpoints return far more (a corporation's ticker, a character's
-    /// corp), so this is only worth reaching for when a name is genuinely all that is
-    /// needed and the list is long — importing a year of killmails, say.
+    /// corp), so this is only worth reaching for when a name is all that is needed and the
+    /// list is long, as when importing a year of killmails.
     pub async fn universe_names(&self, ids: &[i64]) -> Result<Vec<UniverseName>> {
         self.post_json("/universe/names", &ids, None).await
     }

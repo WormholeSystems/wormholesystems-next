@@ -1,6 +1,5 @@
 <script lang="ts">
-	// Account settings: the things that are true of you wherever you are, rather than of one
-	// map. Same shell as the map's settings, so the two feel like one idea.
+	// Account settings: the things that are true of you wherever you are, not of one map.
 	import IdCardIcon from '@lucide/svelte/icons/id-card';
 	import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
 

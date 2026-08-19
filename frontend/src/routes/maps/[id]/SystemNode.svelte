@@ -1,7 +1,6 @@
 <script lang="ts">
-	// One placed system, rendered to legacy parity: class label, alias/name/occupier, an
-	// icon cluster with tooltips, region or statics, and four styling channels (status
-	// border, selected background, active ring, hover outline).
+	// One placed system. Four styling channels stack on it: status border, selected
+	// background, active ring, hover outline.
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import ApertureIcon from '@lucide/svelte/icons/aperture';
 	import CircleDashedIcon from '@lucide/svelte/icons/circle-dashed';
@@ -83,19 +82,18 @@
 	} = $props();
 
 	const cls = $derived(classMeta(node.wormhole_class_id, node.security_status));
-	// Threat ring: high/critical only, user-toggleable, suppressed while active.
+	// Suppressed while active, so the amber ring is not fighting the threat ring.
 	const threatRing = $derived(
 		showThreat && !active && (node.threat_level === 'high' || node.threat_level === 'critical')
 			? node.threat_level
 			: null
 	);
 	const showStatics = $derived(isWormholeClass(node.wormhole_class_id) && node.statics.length > 0);
-	// A hole nobody has been through: drawn as a node so the chain can be laid out and
-	// named, dashed so it never reads as somewhere you can actually go.
+	// A hole nobody has been through: drawn as a node so the chain can be laid out and named,
+	// dashed so it never reads as somewhere you can actually go.
 	const ghost = $derived(node.solar_system_id === null);
 	const unmapped = $derived(Math.max(0, sigCounts.wormholes - connectionCount));
-	// EVE's image server serves a faction's logo from the corporations endpoint keyed by
-	// the faction id, so the faction id can be used directly.
+	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id.
 	const sovKind = $derived(node.sovereignty?.kind === 'alliance' ? 'alliance' : 'corporation');
 
 	const STATUS_ICONS: Record<SystemStatus, typeof ShieldCheckIcon> = {
@@ -108,7 +106,6 @@
 	};
 	const StatusIcon = $derived(STATUS_ICONS[node.status]);
 
-	// Alias/occupier editor, opened by double-clicking the card.
 	let editorOpen = $state(false);
 	let editAlias = $state('');
 	let editOccupier = $state('');
@@ -149,7 +146,6 @@
 		oncontextmenu={onmenu}
 		ondblclick={() => editable && openEditor()}
 	>
-		<!-- Drag handle (top), hover-only, hidden when pinned or placed for you. -->
 		{#if !node.is_pinned && draggable}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -161,9 +157,8 @@
 				}}
 			></div>
 		{/if}
-		<!-- Connection handle (right edge), hover-only. Not on an unmapped hole: a
-		     connection out of it would claim the unknown system on its far side leads
-		     somewhere, which is exactly what nobody knows yet. -->
+		<!-- No connection handle on a ghost: a connection out of it would claim the unknown
+		     system on its far side leads somewhere, which nobody knows yet. -->
 		{#if !ghost && linkable}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -173,7 +168,6 @@
 			></div>
 		{/if}
 
-		<!-- Row 1: class, alias/name/occupier, icon cluster. -->
 		<div class="flex min-w-0 items-center gap-1">
 			<ClassBadge
 				classId={node.wormhole_class_id}
@@ -276,7 +270,6 @@
 			</span>
 		</div>
 
-		<!-- Row 2: region for k-space, statics for w-space. -->
 		<div class="flex items-center gap-1.5 text-[10px]">
 			{#if showStatics}
 				{#each node.statics as st (st.code)}
@@ -328,7 +321,6 @@
 			</Tooltip.Root>
 		{/if}
 
-		<!-- Alias/occupier editor (double click). -->
 		<Popover.Root bind:open={editorOpen}>
 			<Popover.Trigger class="pointer-events-none absolute inset-x-0 top-0" tabindex={-1} />
 			<Popover.Content

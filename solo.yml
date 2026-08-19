@@ -63,7 +63,7 @@ processes:
     restart_when_changed: []
     env: {}
   Export TS types:
-    command: TS_RS_EXPORT_DIR=$PWD/frontend/src/lib/api/types TS_RS_LARGE_INT=number cargo test export_bindings
+    command: cargo test export_bindings
     working_dir: null
     auto_start: false
     auto_restart: false

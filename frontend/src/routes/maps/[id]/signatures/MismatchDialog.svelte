@@ -1,6 +1,5 @@
 <script lang="ts">
-	// Warn before pasting into a system the active character isn't in (legacy
-	// PasteSignatureWarningDialog).
+	// Warn before pasting into a system the active character is not in.
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 

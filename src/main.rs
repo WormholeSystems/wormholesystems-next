@@ -33,8 +33,7 @@ async fn main() {
     }
 
     // `vector threat-analysis` recomputes every wormhole system's threat from the killmails
-    // already stored, then exits. The server does this daily and after a backfill; this is
-    // for when you want the numbers now.
+    // already stored, then exits. The server does this daily anyway.
     if args.iter().any(|a| a == "threat-analysis") {
         dotenvy::dotenv().ok();
         let url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
@@ -54,11 +53,11 @@ async fn main() {
     use vector::config::Config;
     use vector::esi::{EsiClient, Sso};
 
-    // Config, the database, and SSO are all essential — fail fast if any is unavailable.
+    // Config, the database, and SSO are all essential, so fail fast if any is unavailable.
     let config = Config::from_env()
-        .expect("missing configuration — copy .env.example to .env and fill in the variables");
+        .expect("missing configuration: copy .env.example to .env and fill in the variables");
     let db = vector::db::connect(&config.database_url).await.expect(
-        "could not connect to Postgres — is it running? start it with `docker compose up -d`",
+        "could not connect to Postgres. Is it running? start it with `docker compose up -d`",
     );
     // Keep the reference tables in sync with the bundled SDE. Runs only on first boot
     // or when data/sde holds a newer build; otherwise it's a single cheap query.
@@ -70,7 +69,7 @@ async fn main() {
     let sso = Arc::new(
         Sso::discover(reqwest::Client::new(), config.sso)
             .await
-            .expect("could not reach the EVE SSO — check your network connection"),
+            .expect("could not reach the EVE SSO: check your network connection"),
     );
     if config.esi_base_url != vector::esi::BASE_URL {
         println!("ESI: {}", config.esi_base_url);
@@ -89,8 +88,8 @@ async fn main() {
     // is started first.
     let server = vector::server_status::start(db.clone(), esi.clone(), user_hub.clone());
 
-    // Background: poll live character status for active users (no queue; in-process). Pings
-    // each user's private channel when their character's status changes.
+    // Background: poll live character status for active users, pinging each user's private
+    // channel on a change.
     vector::tracking::start(
         db.clone(),
         sso.clone(),
@@ -106,8 +105,8 @@ async fn main() {
     // Background: mirror the raidable skyhooks CCP is currently advertising.
     vector::skyhooks::start(db.clone(), esi.clone(), server.clone());
 
-    // Background: Discord alerts. One runtime shared by everything that can fire one; the
-    // stargate graph it holds is the expensive part and is the same for all of them.
+    // Background: Discord alerts. One runtime shared by everything that can fire one, since
+    // the stargate graph it holds is the expensive part.
     let bot_token = config.discord.as_ref().and_then(|d| d.bot_token.clone());
     let alerts = match vector::alerts::Runtime::load(&db, bot_token).await {
         Ok(runtime) => Some(Arc::new(runtime)),

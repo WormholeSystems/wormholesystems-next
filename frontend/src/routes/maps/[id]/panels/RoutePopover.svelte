@@ -1,6 +1,4 @@
 <script lang="ts">
-	// The hop-list popover behind a jump badge (legacy RoutePopover): jump count, an
-	// in-game Set Destination dropdown, and the hops with per-hop ignore.
 	import NavigationIcon from '@lucide/svelte/icons/navigation';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import type { Snippet } from 'svelte';

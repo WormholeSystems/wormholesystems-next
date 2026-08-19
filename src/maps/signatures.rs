@@ -8,15 +8,14 @@
 //! which fires the `map_*_sync` triggers (migration 0009): the connection and its
 //! signatures reconcile to the worst state per field, then stay in lock-step.
 //!
-//! Paste ([`paste_signatures`]) is upsert-only: it never deletes, never touches life-cycle
-//! state, and preserves an existing wormhole type. Rows that vanished from a scan go
-//! through [`remove_signatures`], which cascades: a connection dies with its last same-side
-//! signature, and endpoints left unpinned, unmarked and connection-less leave the map.
+//! Paste ([`paste_signatures`]) is upsert-only: it never deletes. Rows that vanished from a
+//! scan go through [`remove_signatures`], which cascades: a connection dies with its last
+//! same-side signature, and endpoints left unpinned, unmarked and connection-less leave the
+//! map.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// Used by the cross-target struct + command definitions.
 use super::{MassStatus, SignatureGroup, TimeStatus, WormholeSize};
 
 use sqlx::PgPool;
@@ -50,8 +49,7 @@ pub struct Signature {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Whether a group is allowed to carry wormhole life-cycle state (`size`/`mass`/`time`) and
-/// a connection link.
+/// Only this group may carry life-cycle state (`size`/`mass`/`time`) and a connection link.
 fn is_wormhole(group: SignatureGroup) -> bool {
     group == SignatureGroup::Wormhole
 }
@@ -343,7 +341,6 @@ pub(super) async fn apply_update_signature(
     )
     .fetch_one(&mut **tx)
     .await?;
-    // Undo replays the previous values verbatim.
     let inverse = MapCommand::UpdateSignature(UpdateSignature {
         map_id: cmd.map_id,
         signature_pk: cmd.signature_pk,
@@ -385,7 +382,7 @@ pub struct RemovedSignature {
 
 /// Delete a signature. Legacy cascade: if it was the last signature on its side of a
 /// linked connection, the connection goes too (the other end's signature, if any, is
-/// unlinked by the FK). Endpoint systems are left in place — that cleanup belongs to the
+/// unlinked by the FK). Endpoint systems are left in place; that cleanup belongs to the
 /// bulk path ([`remove_signatures`]).
 pub async fn remove_signature(
     pool: &PgPool,
@@ -728,8 +725,8 @@ pub struct PasteSignatures {
     pub signatures: Vec<PastedSignature>,
 }
 
-/// Upsert a pasted in-game scan into a system's signatures — legacy semantics, so this
-/// never deletes anything (the panel diffs client-side and calls [`remove_signatures`]):
+/// Upsert a pasted in-game scan into a system's signatures. Legacy semantics, so this never
+/// deletes anything (the panel diffs client-side and calls [`remove_signatures`]):
 ///
 /// - group: pasted value, else keep
 /// - catalog type: an existing wormhole type always survives; a site row takes the
@@ -1002,7 +999,6 @@ pub(super) async fn apply_restore_signatures(
     })))
 }
 
-/// Read one signature inside the applying transaction, or `NotFound`.
 async fn fetch_signature_tx(tx: &mut Tx<'_>, map_id: i64, signature_pk: i64) -> Result<Signature> {
     sqlx::query_as!(
         Signature,
@@ -1041,7 +1037,7 @@ async fn ensure_system_placed(tx: &mut Tx<'_>, map_id: i64, solar_system_id: i64
 
 /// Purge stale signatures (legacy expiry): unlinked wormhole sigs older than 3 days, other
 /// sigs untouched for 7 days (presence in a paste refreshes `updated_at`, keeping live
-/// sites alive). Linked sigs are never expired — they represent a mapped connection.
+/// sites alive). Linked sigs are never expired: they represent a mapped connection.
 /// Returns the affected `(map_id, solar_system_id)` pairs.
 pub async fn expire_signatures(pool: &PgPool) -> Result<Vec<(i64, i64)>> {
     let rows = sqlx::query!(
@@ -1062,8 +1058,8 @@ pub async fn expire_signatures(pool: &PgPool) -> Result<Vec<(i64, i64)>> {
     Ok(pairs)
 }
 
-/// Spawn the daily expiry loop (runs every 6 hours; the cutoffs make the cadence
-/// uncritical). Publishes a `SignatureChanged` per affected system so open maps refresh.
+/// Publishes a `SignatureChanged` per affected system so open maps refresh. The cutoffs are
+/// days, so the tick cadence is uncritical.
 pub fn start_expiry(pool: PgPool, hub: MapHub) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));

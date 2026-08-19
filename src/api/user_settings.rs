@@ -13,7 +13,6 @@ use super::layout::PanelLayouts;
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new().route(
         "/api/maps/{id}/settings/user",
@@ -128,7 +127,7 @@ pub struct UpdateMapUserSettings {
     pub layout_breakpoints: Option<PanelLayouts>,
 }
 
-/// `GET /api/maps/{id}/settings/user` — the caller's per-map preferences (defaults when
+/// `GET /api/maps/{id}/settings/user`: the caller's per-map preferences (defaults when
 /// no row exists yet). Requires any access to the map.
 pub async fn map_user_settings(
     State(state): State<AppState>,
@@ -206,7 +205,7 @@ pub async fn map_user_settings(
     }))
 }
 
-/// `POST /api/maps/{id}/settings/user` — partial update (upsert) of the caller's per-map
+/// `POST /api/maps/{id}/settings/user`, partial update (upsert) of the caller's per-map
 /// preferences.
 pub async fn update_map_user_settings(
     State(state): State<AppState>,
@@ -241,8 +240,7 @@ pub async fn update_map_user_settings(
     {
         return Err(ApiError::bad_request("invalid mass tolerance"));
     }
-    // Reject an arrangement that could not render, rather than storing it and breaking
-    // the page on the next load.
+    // Reject an arrangement that could not render, rather than breaking the next load.
     let layout_json =
         match &body.layout_breakpoints {
             Some(layouts) => {

@@ -14,7 +14,6 @@ use crate::maps::watchlist::{
     AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned, WatchlistEntry,
 };
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/maps/{id}/watchlist", get(list_watchlist))
@@ -29,7 +28,7 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// `GET /api/maps/{id}/watchlist` — the map's tracked destinations.
+/// `GET /api/maps/{id}/watchlist`: the map's tracked destinations.
 pub async fn list_watchlist(
     State(state): State<AppState>,
     jar: CookieJar,

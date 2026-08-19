@@ -68,7 +68,7 @@ fn safe_return_to(path: &str) -> Option<String> {
     ok.then(|| path.to_string())
 }
 
-/// `GET /auth/login` — record a one-time CSRF `state` and redirect to the EVE SSO. With
+/// `GET /auth/login`: record a one-time CSRF `state` and redirect to the EVE SSO. With
 /// `?link=true` and an active session, the new character links to the current user;
 /// `?scopes=` re-consents for more permissions on the character already signed in.
 pub async fn login(
@@ -154,7 +154,7 @@ pub struct CallbackQuery {
     state: String,
 }
 
-/// `GET /auth/callback` — validate the handshake, persist the character + token, open a
+/// `GET /auth/callback`: validate the handshake, persist the character and token, open a
 /// session, set the cookie, and redirect into the app.
 pub async fn callback(
     State(state): State<AppState>,
@@ -262,7 +262,7 @@ pub async fn callback(
     (jar.add(cookie), Redirect::to(&destination)).into_response()
 }
 
-/// `GET /auth/logout` — end the session and clear the cookie.
+/// `GET /auth/logout`: end the session and clear the cookie.
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
     if let Some(cookie) = jar.get(session::SESSION_COOKIE) {
         let _ = session::delete_session(&state.db, cookie.value()).await;

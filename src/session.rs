@@ -1,10 +1,9 @@
 //! App sessions and the SSO login → identity resolution.
 //!
-//! A login authenticates a *character*; we resolve it to one of our [`users`] accounts per
-//! [authentication.md](../docs/database/authentication.md), persist the character + token,
-//! and open a [`sessions`] row. The cookie carries only the opaque session id; the active
-//! character is per-session. Expiry is enforced in SQL (`now()`), so this never needs
-//! chrono's clock.
+//! A login authenticates a character, which resolves to one of our `users` accounts per
+//! [authentication.md](../docs/database/authentication.md). The cookie carries only the
+//! opaque session id; the active character is per-session. Expiry is enforced in SQL
+//! (`now()`), so this never needs chrono's clock.
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -44,10 +43,8 @@ pub async fn actor_for_session(
 
 /// Open a 30-day session for a user. Returns the opaque id to put in the cookie.
 ///
-/// The session starts as the user's preferred character rather than as `character_id`, the
-/// one that just signed in: which alt the SSO happened to hand back is not a choice the
-/// user made, and the preferred one is. It only falls back to `character_id` for a user
-/// with no preference at all.
+/// Starts as the user's preferred character, falling back to `character_id`: which alt the
+/// SSO happened to hand back is not a choice the user made.
 pub async fn create_session(
     pool: &PgPool,
     user_id: i64,
@@ -68,7 +65,7 @@ pub async fn create_session(
     Ok(id)
 }
 
-/// Mark the user as active *now* — gates which characters the tracking poller polls
+/// Mark the user as active now, which gates which characters the tracking poller polls
 /// (see [processes.md](../docs/processes.md#character-status-polling)). Driven by the
 /// per-user WebSocket heartbeat.
 pub async fn touch_activity(pool: &PgPool, user_id: i64) -> Result<(), sqlx::Error> {
@@ -155,12 +152,11 @@ pub async fn ensure_preferred_character(pool: &PgPool, user_id: i64) -> Result<(
     Ok(())
 }
 
-/// Resolve the SSO login to a user and persist the character. Returns the owning `user_id`
-/// (the character id is `claims.character_id`). Implements the identity rules from the spec:
-/// returning login reuses the user; an **owner-hash change** (character transfer) reassigns
-/// the character to a fresh user; a brand-new character creates a user; `link_user_id`
-/// attaches the character to an already-signed-in user. The first character of a user
-/// becomes its preferred one.
+/// Resolve the SSO login to a user and persist the character, returning the owning `user_id`.
+///
+/// The identity rules: a returning login reuses the user, an owner-hash change (character
+/// transfer) reassigns the character to a fresh user, a brand-new character creates a user,
+/// and `link_user_id` attaches the character to an already-signed-in user.
 pub async fn persist_identity(
     pool: &PgPool,
     claims: &Claims,

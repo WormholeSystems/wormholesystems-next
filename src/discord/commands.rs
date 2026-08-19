@@ -1,11 +1,8 @@
 //! The slash commands.
 //!
-//! `/vector` with subcommands rather than four top-level names: one entry in the command
-//! list is one thing to register, one thing to find, and it keeps Vector's commands from
-//! colliding with whatever else lives in the server.
-//!
-//! Every reply is ephemeral and every command needs a linked account, because everything
-//! they answer is about the sender's own maps. The unlinked reply is a link to go and link.
+//! One `/vector` with subcommands, so Vector claims a single name in a server's command
+//! list. Every reply is ephemeral and every command needs a linked account, because
+//! everything they answer is about the sender's own maps.
 
 use serde_json::{Value, json};
 
@@ -80,9 +77,8 @@ pub fn definition() -> Value {
 
 /// Upload the command tree to Discord, replacing whatever is registered.
 ///
-/// Global commands, not per-guild: Vector is one application used from many servers, and
-/// registering per guild would mean tracking which ones. The cost is that Discord takes a
-/// few minutes to roll a change out.
+/// Registered globally rather than per guild, so nothing has to track which servers Vector
+/// is in. The cost is that Discord takes a few minutes to roll a change out.
 pub async fn register(application_id: &str, bot_token: &str) -> Result<(), String> {
     let response = reqwest::Client::new()
         .put(format!(
@@ -134,9 +130,8 @@ pub async fn run(state: &AppState, interaction: &Interaction) -> String {
 
 /// What an invocation asks for, once the subcommand tree has been walked.
 ///
-/// Discord nests a group's arguments two levels down, so reading them off the top level
-/// finds nothing and says nothing about it. Walking the tree is therefore its own step,
-/// with its own tests, rather than a match arm reaching into `options` and hoping.
+/// Discord nests a group's arguments two levels down, and reading them off the top level
+/// finds nothing without saying so, which is why walking the tree is its own tested step.
 #[derive(Debug, PartialEq)]
 enum Action<'a> {
     Account,
@@ -262,7 +257,7 @@ async fn alerts(state: &AppState, user_id: i64, map_filter: Option<&str>) -> Str
             "on".to_string()
         } else {
             format!(
-                "off — {}",
+                "off ({})",
                 row.disabled_reason.as_deref().unwrap_or("manual")
             )
         };
@@ -274,8 +269,7 @@ async fn alerts(state: &AppState, user_id: i64, map_filter: Option<&str>) -> Str
     out
 }
 
-/// The alert, if this user created it. Ownership is the permission: an alert you made is
-/// yours to turn off from wherever you are, and one you did not is not yours to touch.
+/// The alert, if this user created it. Ownership is the permission for these commands.
 async fn owned(state: &AppState, user_id: i64, alert_id: i64) -> Option<(i64, String, i64)> {
     sqlx::query!(
         "select id, name, map_id from map_alerts where id = $1 and created_by_user_id = $2",
@@ -469,7 +463,7 @@ async fn alerts_for(state: &AppState, user_id: i64, typed: &str) -> Vec<Value> {
         .map(|row| {
             json!({
                 "name": format!(
-                    "{} — {}{}",
+                    "{}, {}{}",
                     row.name,
                     row.map_name,
                     if row.is_active { "" } else { " (off)" }
@@ -502,7 +496,7 @@ async fn systems_like(state: &AppState, typed: &str) -> Vec<Value> {
     rows.into_iter()
         .map(|row| {
             json!({
-                "name": format!("{} — {}", row.name, row.region),
+                "name": format!("{}, {}", row.name, row.region),
                 "value": row.id.to_string()
             })
         })
@@ -542,9 +536,8 @@ mod tests {
             .options
     }
 
-    /// The arguments of a subcommand group sit two levels down. Reading them off the top
-    /// level found nothing, so `enable`, `disable` and `remove` all quietly answered with
-    /// the list instead of doing anything.
+    /// The arguments of a subcommand group sit two levels down. Read off the top level they
+    /// come back empty, and the action quietly falls through to the list.
     #[test]
     fn an_alert_action_is_read_from_inside_its_group() {
         let enable = options(
@@ -578,7 +571,7 @@ mod tests {
         assert_eq!(parse(&remove), Action::AlertsRemove { alert: Some(42) });
     }
 
-    /// The same nesting, and the same bug: `list` filtered by nothing whatever was picked.
+    /// The same nesting: without it `list` filters by nothing whatever map was picked.
     #[test]
     fn listing_alerts_keeps_the_map_it_was_filtered_by() {
         let filtered = options(

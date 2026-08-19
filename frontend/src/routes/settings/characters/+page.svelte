@@ -1,9 +1,7 @@
 <script lang="ts">
-	// The characters signed in to this account: which one is acting, which one you start as,
-	// what EVE lets Vector see for them, and how to add or drop one.
-	//
-	// Permissions live here rather than on a map, because they are granted per character at
-	// the EVE SSO and apply everywhere. Adding one is the same login flow with `?link=true`.
+	// The characters signed in to this account. Permissions live here rather than on a map:
+	// they are granted per character at the EVE SSO and apply everywhere. Adding one is the
+	// same login flow with `?link=true`.
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import StarIcon from '@lucide/svelte/icons/star';
@@ -22,7 +20,6 @@
 	let scopes = $state<ScopeStatus[]>([]);
 	let error = $state<string | null>(null);
 
-	// What each permission is for, in terms of what stops working without it.
 	const SCOPES: Record<string, { name: string; blurb: string }> = {
 		'esi-location.read_location.v1': {
 			name: 'Character location',

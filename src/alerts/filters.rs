@@ -4,10 +4,6 @@
 //! whether matching it means include or exclude. Rules combine per the alert's match mode:
 //! `any` fires when one include rule matches, `all` when every one does. An exclude rule
 //! always vetoes, whatever the mode, and an alert with no rules matches every kill.
-//!
-//! Ported from legacy's `KillmailWebhookMatcher`, minus its pool-building: Vector already
-//! stores the victim and the killing blow as columns, so matching is comparison rather
-//! than indexing a payload.
 
 use serde::{Deserialize, Serialize};
 

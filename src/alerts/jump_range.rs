@@ -105,7 +105,7 @@ fn build(exit: &Located, target: &Located, ship: JumpShip, jdc: i32, distance: f
         title: format!("New exit {distance:.2} ly from {}", target.name),
         url: Some(dotlan.clone()),
         description: Some(format!(
-            "**{}** was just added, **{distance:.2} ly** from **{}** — within {} range.",
+            "**{}** was just added, **{distance:.2} ly** from **{}**, within {} range.",
             exit.name,
             target.name,
             ship.label()
@@ -121,7 +121,7 @@ fn build(exit: &Located, target: &Located, ship: JumpShip, jdc: i32, distance: f
             Field::new(
                 "Ship",
                 format!(
-                    "{} (JDC {jdc}) — {:.1} ly max",
+                    "{} (JDC {jdc}): {:.1} ly max",
                     ship.label(),
                     ship.max_range_ly(jdc)
                 ),

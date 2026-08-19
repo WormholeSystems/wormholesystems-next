@@ -1,10 +1,8 @@
 <script lang="ts">
-	// Naming: what the chain calls its systems, what that makes the bookmarks say, and
-	// whether one lands on your clipboard as you map.
+	// What the chain calls its systems, and what that makes the bookmarks say.
 	//
-	// Mixed ownership, unlike the other sections: the names are the map's and Manager+, the
-	// clipboard is yours. Non-managers still see the names, because reading what your
-	// bookmarks will say is worth doing even when you cannot change it.
+	// Mixed ownership: the names are the map's and Manager+, the clipboard toggle is yours.
+	// Non-managers still see the names read-only.
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapNaming } from '$lib/api/types/MapNaming';

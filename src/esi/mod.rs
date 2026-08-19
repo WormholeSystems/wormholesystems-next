@@ -19,8 +19,6 @@ pub mod sovereignty;
 pub mod status;
 pub mod ui;
 
-// These read as "unused" only because nothing consumes the crate yet (it's a binary);
-// they are the surface the web layer will use.
 #[allow(unused_imports)]
 pub use {
     character::{CharacterLocation, CharacterOnline, CharacterPublic, CharacterShip},
@@ -78,9 +76,8 @@ impl EsiClient {
         req
     }
 
-    /// Send a request, returning the response or an [`EsiError::Api`] that captures the
-    /// body on a non-success status. (`reqwest`'s `error_for_status` discards the body,
-    /// which we want.)
+    /// Send a request, returning the response or an [`EsiError::Api`] that captures the body
+    /// on a non-success status, which `reqwest`'s `error_for_status` discards.
     async fn send_checked(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response> {
         let resp = req.send().await?;
         let status = resp.status();

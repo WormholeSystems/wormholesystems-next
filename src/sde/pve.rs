@@ -4,10 +4,6 @@
 use super::common::LocalizedString;
 use serde::Deserialize;
 
-// ---------------------------------------------------------------------------
-// missions.jsonl
-// ---------------------------------------------------------------------------
-
 /// `missions.jsonl`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,7 +29,6 @@ pub struct Mission {
     pub agent_type_id: Option<i32>,
 }
 
-/// Nested `killMission` object on a [`Mission`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionKillMission {
@@ -45,8 +40,6 @@ pub struct MissionKillMission {
     pub drop_item_in_mission_container: Option<i32>,
 }
 
-/// One entry in a [`Mission`]'s `messages` array: a keyed, possibly partial
-/// localized string.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionMessage {
@@ -56,7 +49,6 @@ pub struct MissionMessage {
     pub text: LocalizedString,
 }
 
-/// Nested `courierMission` object on a [`Mission`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionCourierMission {
@@ -66,7 +58,6 @@ pub struct MissionCourierMission {
     pub objective_type_id: i32,
 }
 
-/// Nested `missionRewards` object on a [`Mission`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionRewards {
@@ -75,7 +66,6 @@ pub struct MissionRewards {
     pub reward: Option<MissionRewardItem>,
 }
 
-/// A single reward payout (`reward` / `bonusReward`) on [`MissionRewards`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionRewardItem {
@@ -84,7 +74,6 @@ pub struct MissionRewardItem {
     pub reward_type_id: Option<i32>,
 }
 
-/// One entry in a [`Mission`]'s `extraStandings` map-like array.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionExtraStanding {
@@ -93,10 +82,6 @@ pub struct MissionExtraStanding {
     #[serde(rename = "_value")]
     pub value: f64,
 }
-
-// ---------------------------------------------------------------------------
-// dungeons.jsonl
-// ---------------------------------------------------------------------------
 
 /// `dungeons.jsonl`
 #[derive(Debug, Clone, Deserialize)]
@@ -114,10 +99,6 @@ pub struct Dungeon {
     pub gameplay_description: Option<LocalizedString>,
 }
 
-// ---------------------------------------------------------------------------
-// epicArcs.jsonl
-// ---------------------------------------------------------------------------
-
 /// `epicArcs.jsonl`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -133,7 +114,6 @@ pub struct EpicArc {
     pub name: LocalizedString,
 }
 
-/// One entry in an [`EpicArc`]'s `missions` array.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpicArcMission {
@@ -145,10 +125,6 @@ pub struct EpicArcMission {
     pub fail_mission_id: Option<i32>,
     pub next_missions: Option<Vec<i32>>,
 }
-
-// ---------------------------------------------------------------------------
-// militaryCampaigns.jsonl
-// ---------------------------------------------------------------------------
 
 /// `militaryCampaigns.jsonl`
 #[derive(Debug, Clone, Deserialize)]
@@ -163,7 +139,6 @@ pub struct MilitaryCampaign {
     pub title: LocalizedString,
 }
 
-/// Nested `issuer` object on a [`MilitaryCampaign`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MilitaryCampaignIssuer {
@@ -171,8 +146,8 @@ pub struct MilitaryCampaignIssuer {
     pub faction_id: i32,
 }
 
-/// Nested `annotations` object on a [`MilitaryCampaign`]. A grab-bag of UI
-/// asset paths, localized copy blocks and a focus entity id.
+/// Nested `annotations` object on a [`MilitaryCampaign`]: UI asset paths, localized copy
+/// blocks and a focus entity id.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MilitaryCampaignAnnotations {
@@ -265,10 +240,6 @@ pub struct MilitaryCampaignAnnotations {
     pub tow_campaign_card_button_image: String,
 }
 
-// ---------------------------------------------------------------------------
-// militaryCampaignObjectives.jsonl
-// ---------------------------------------------------------------------------
-
 /// `militaryCampaignObjectives.jsonl`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -291,8 +262,6 @@ pub struct MilitaryCampaignObjective {
     pub annotations: Option<ObjectiveAnnotations>,
 }
 
-/// Nested `contributionMethodConfiguration` object on a
-/// [`MilitaryCampaignObjective`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveContributionMethod {
@@ -300,7 +269,6 @@ pub struct ObjectiveContributionMethod {
     pub parameters: Vec<ObjectiveParameter>,
 }
 
-/// One entry in [`ObjectiveContributionMethod::parameters`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveParameter {
@@ -308,14 +276,12 @@ pub struct ObjectiveParameter {
     pub matcher: ObjectiveMatcher,
 }
 
-/// Nested `matcher` object on an [`ObjectiveParameter`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveMatcher {
     pub values: Vec<ObjectiveMatcherValue>,
 }
 
-/// One entry in [`ObjectiveMatcher::values`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveMatcherValue {
@@ -339,7 +305,6 @@ pub struct ObjectiveFactionIssuer {
     pub faction_id: i32,
 }
 
-/// Nested `rewards` object on a [`MilitaryCampaignObjective`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveRewards {
@@ -348,7 +313,6 @@ pub struct ObjectiveRewards {
     pub standing: ObjectiveStandingReward,
 }
 
-/// ISK / LP reward payout on [`ObjectiveRewards`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveCurrencyReward {
@@ -357,7 +321,6 @@ pub struct ObjectiveCurrencyReward {
     pub progress_interval: i32,
 }
 
-/// Standing reward payout on [`ObjectiveRewards`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveStandingReward {
@@ -366,7 +329,6 @@ pub struct ObjectiveStandingReward {
     pub progress_interval: i32,
 }
 
-/// Nested `annotations` object on a [`MilitaryCampaignObjective`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveAnnotations {
@@ -376,10 +338,6 @@ pub struct ObjectiveAnnotations {
     pub warning1: LocalizedString,
     pub warning2: Option<LocalizedString>,
 }
-
-// ---------------------------------------------------------------------------
-// mercenaryTacticalOperations.jsonl
-// ---------------------------------------------------------------------------
 
 /// `mercenaryTacticalOperations.jsonl`
 #[derive(Debug, Clone, Deserialize)]
@@ -396,10 +354,6 @@ pub struct MercenaryTacticalOperation {
     pub name: LocalizedString,
 }
 
-// ---------------------------------------------------------------------------
-// freelanceJobSchemas.jsonl
-// ---------------------------------------------------------------------------
-
 /// `freelanceJobSchemas.jsonl`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -410,7 +364,6 @@ pub struct FreelanceJobSchema {
     pub value: Vec<FreelanceJob>,
 }
 
-/// One job definition in a [`FreelanceJobSchema`]'s `_value` array.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceJob {
@@ -430,8 +383,6 @@ pub struct FreelanceJob {
     pub title: LocalizedString,
 }
 
-/// A labelled numeric meta-input (`maxContributionsPerParticipant`,
-/// `maxProgressPerContribution`) on a [`FreelanceJob`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceMetaField {
@@ -442,7 +393,6 @@ pub struct FreelanceMetaField {
     pub unset_description: LocalizedString,
 }
 
-/// Nested `contributionMultiplier` object on a [`FreelanceJob`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceContributionMultiplier {
@@ -468,7 +418,6 @@ pub struct FreelanceParameter {
     pub item_delivery: Option<FreelanceItemDelivery>,
 }
 
-/// Nested `matcher` object on a [`FreelanceParameter`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceMatcher {
@@ -484,7 +433,6 @@ pub struct FreelanceMatcher {
     pub unset_description: LocalizedString,
 }
 
-/// Nested `boolean` object on a [`FreelanceParameter`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceBoolean {
@@ -498,8 +446,6 @@ pub struct FreelanceBoolean {
     pub title: LocalizedString,
 }
 
-/// One of the labelled options (`optionTrue` / `optionFalse`) on a
-/// [`FreelanceBoolean`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceBooleanOption {
@@ -507,7 +453,6 @@ pub struct FreelanceBooleanOption {
     pub title: LocalizedString,
 }
 
-/// Nested `itemDelivery` object on a [`FreelanceParameter`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceItemDelivery {
@@ -519,7 +464,6 @@ pub struct FreelanceItemDelivery {
     pub title: LocalizedString,
 }
 
-/// Nested `deliveryLocation` selector on a [`FreelanceItemDelivery`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceDeliveryLocation {
@@ -532,7 +476,6 @@ pub struct FreelanceDeliveryLocation {
     pub unset_description: LocalizedString,
 }
 
-/// Nested `inventoryType` selector on a [`FreelanceItemDelivery`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceInventoryType {
@@ -544,11 +487,7 @@ pub struct FreelanceInventoryType {
     pub unset_description: LocalizedString,
 }
 
-// ---------------------------------------------------------------------------
-// sovereigntyUpgrades.jsonl  (NOTE: this file uses snake_case JSON keys)
-// ---------------------------------------------------------------------------
-
-/// `sovereigntyUpgrades.jsonl`
+/// `sovereigntyUpgrades.jsonl`. Unlike the rest of the SDE, this file uses snake_case keys.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SovereigntyUpgrade {
@@ -567,7 +506,6 @@ pub struct SovereigntyUpgrade {
     pub workforce_production: Option<i32>,
 }
 
-/// Nested `fuel` object on a [`SovereigntyUpgrade`].
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SovereigntyUpgradeFuel {
@@ -578,10 +516,6 @@ pub struct SovereigntyUpgradeFuel {
     #[serde(rename = "type_id")]
     pub type_id: i32,
 }
-
-// ---------------------------------------------------------------------------
-// tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {

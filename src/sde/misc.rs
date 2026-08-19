@@ -195,7 +195,7 @@ pub struct TranslationLanguage {
     pub name: String,
 }
 
-/// `_sde.jsonl` — single metadata row.
+/// `_sde.jsonl`, a single metadata row.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdeMeta {

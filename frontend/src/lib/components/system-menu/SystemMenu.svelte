@@ -1,9 +1,7 @@
 <script lang="ts">
-	// The app-wide solar-system context menu (legacy DestinationContextMenu port): wrap
-	// any rendered system reference and right-click (or long-press) it for Add to map,
-	// external links, ESI destination/waypoints, route planner, and the rally toggle.
-	// Map-dependent items appear only when a MapState is provided via the 'map-state'
-	// context, so the wrapper stays usable on future non-map surfaces.
+	// The app-wide solar-system context menu: wrap any rendered system reference and
+	// right-click (or long-press) it. Map-dependent items appear only when a MapState is
+	// provided via the 'map-state' context, so the wrapper works on non-map surfaces too.
 	import CircleIcon from '@lucide/svelte/icons/circle';
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -38,8 +36,7 @@
 		children: Snippet;
 	} = $props();
 
-	// Optional: only map-page surfaces provide this (as a getter, so the context value
-	// registered at init stays valid when the page swaps maps).
+	// A getter, so the context value registered at init survives the page swapping maps.
 	const getMap = getContext<(() => MapState) | undefined>('map-state');
 	const map = $derived(getMap?.());
 

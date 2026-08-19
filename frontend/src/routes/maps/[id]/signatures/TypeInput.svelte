@@ -1,8 +1,6 @@
 <script lang="ts">
-	// The Type cell: catalog types of the row's category that can spawn in this system.
-	// Wormhole rows get the legacy sections (Statics first when enabled, then K162, then
-	// Wormholes) and are narrowed to the linked target's class once linked. An unmatched
-	// raw scanner name shows muted until a type is chosen.
+	// Catalog types of the row's category that can spawn in this system, narrowed to the
+	// linked target's class once linked. An unmatched raw scanner name shows muted.
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
@@ -40,8 +38,8 @@
 		return linkedClass === null ? all : all.filter((t) => t.target_class === linkedClass);
 	});
 
-	// Wormhole sections, legacy order. A static's code can also be scanned outbound, so
-	// statics are pulled out first, then K162, then the rest.
+	// A static's code can also be scanned outbound, so statics come first, then K162, then
+	// the rest.
 	const sections = $derived.by(() => {
 		if (!isWormhole) return [{ label: null, types: available }];
 		const staticCodes = new Set(system.statics.map((s) => s.code));

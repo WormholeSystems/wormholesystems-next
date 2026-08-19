@@ -1,9 +1,7 @@
 <script lang="ts">
-	// "Which signature did you jump?" — the prompt that turns a jump into a mapped hole.
-	//
-	// It opens mid-flight, so the whole thing has to be answerable without the mouse: the
-	// search field keeps focus, the arrow keys walk the list underneath it, and the most
-	// likely signature starts selected so Enter alone confirms the common case.
+	// "Which signature did you jump?", the prompt that turns a jump into a mapped hole.
+	// It opens mid-flight, so it has to be answerable without the mouse: the search field keeps
+	// focus, the arrow keys walk the list, and the likeliest signature starts selected.
 	import SearchIcon from '@lucide/svelte/icons/search';
 
 	import { toast } from 'svelte-sonner';
@@ -40,8 +38,7 @@
 	let mass = $state<MassStatus>('stable');
 	let size = $state<WormholeSize | 'auto'>('auto');
 
-	// Reset for each jump. Keyed on the prompt itself so a second jump arriving while the
-	// dialog is open starts clean rather than carrying the last answer over.
+	// Keyed on the prompt itself, so a jump arriving while the dialog is open starts clean.
 	let seeded = $state<unknown>(null);
 	$effect(() => {
 		if (!prompt || seeded === prompt) return;
@@ -67,8 +64,8 @@
 	/** An identified hole dictates its own size, so the select is locked while one is picked. */
 	const lockedSize = $derived(sizeForJumpMass(typeOf(chosen)?.max_jump_mass));
 
-	// Adopt what the signature already says, but only where it says something: a scanned
-	// "stable" should not overwrite a lifetime the user just picked by hand.
+	// Only where the signature says something: a scanned "stable" must not overwrite a
+	// lifetime just picked by hand.
 	$effect(() => {
 		const signature = chosen;
 		if (!signature) return;
@@ -215,8 +212,7 @@
 <Dialog.Root
 	{open}
 	onOpenChange={(next) => {
-		// Dismissing is a deliberate "not now": the hole stays unmapped rather than being
-		// guessed at, which is recoverable by jumping back through it.
+		// Dismissing is a deliberate "not now": the hole stays unmapped rather than guessed at.
 		if (!next) tracker.dismiss();
 	}}
 >

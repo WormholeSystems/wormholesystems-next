@@ -12,7 +12,6 @@ use crate::auth::AppState;
 use crate::maps::MapEvent;
 use crate::maps::events_log::{GotoMapEvent, MapHistory, MapIdBody};
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/maps/{id}/events", get(list_map_events))
@@ -21,7 +20,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/maps/{id}/events/goto", post(goto_map_event))
 }
 
-/// `GET /api/maps/{id}/events` — the map's history tree and where it currently sits. Viewer+.
+/// `GET /api/maps/{id}/events`: the map's history tree and where it currently sits. Viewer+.
 pub async fn list_map_events(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -32,7 +31,7 @@ pub async fn list_map_events(
     Ok(Json(history))
 }
 
-/// `POST /api/maps/{id}/events/undo` — step back to the previous point in the history.
+/// `POST /api/maps/{id}/events/undo`, step back to the previous point in the history.
 /// Member+. Moving the cursor can touch anything the steps it crosses did, so it publishes
 /// `HistoryChanged` and clients refetch rather than trying to reconstruct a targeted event.
 pub async fn undo_map_event(
@@ -48,7 +47,7 @@ pub async fn undo_map_event(
     Ok(Json(()))
 }
 
-/// `POST /api/maps/{id}/events/redo` — step forward onto the most recent next point. Member+.
+/// `POST /api/maps/{id}/events/redo`, step forward onto the most recent next point. Member+.
 pub async fn redo_map_event(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -62,7 +61,7 @@ pub async fn redo_map_event(
     Ok(Json(()))
 }
 
-/// `POST /api/maps/{id}/events/goto` — move the map onto any step, including one on a
+/// `POST /api/maps/{id}/events/goto`, move the map onto any step, including one on a
 /// branch that was left behind by an undo. Member+.
 pub async fn goto_map_event(
     State(state): State<AppState>,

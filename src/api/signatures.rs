@@ -54,7 +54,6 @@ pub struct SignatureCatalog {
     pub types: Vec<SignatureTypeInfo>,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/signature-types", get(signature_catalog))
@@ -71,7 +70,7 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// `GET /api/maps/{id}/signatures` — all signatures on the map.
+/// `GET /api/maps/{id}/signatures`, all signatures on the map.
 pub async fn list_signatures(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -197,7 +196,7 @@ pub async fn remove_signature(
     Ok(Json(()))
 }
 
-/// `POST /api/maps/{id}/signatures/remove-bulk` — the panel's "delete missing
+/// `POST /api/maps/{id}/signatures/remove-bulk`: the panel's "delete missing
 /// signatures" path, with the legacy connection + orphan-endpoint cascade.
 pub async fn remove_signatures_bulk(
     State(state): State<AppState>,
@@ -229,7 +228,7 @@ pub async fn remove_signatures_bulk(
     Ok(Json(()))
 }
 
-/// `GET /api/signature-types` — the seeded signature catalog (categories + types with
+/// `GET /api/signature-types`: the seeded signature catalog (categories + types with
 /// spawn areas). Reference data, so no actor/role check; cacheable for a day.
 pub async fn signature_catalog(
     State(state): State<AppState>,

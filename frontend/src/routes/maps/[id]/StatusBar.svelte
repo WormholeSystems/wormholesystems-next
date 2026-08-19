@@ -1,7 +1,6 @@
 <script lang="ts">
-	// The map's chrome strip: identity on the left, warnings in the middle, and the
-	// controls that act on the whole map on the right. Everything here is either about
-	// the map as a whole or about the viewer, never about one system.
+	// The map's chrome strip. Everything here is about the map as a whole or about the viewer,
+	// never about one system.
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import EyeIcon from '@lucide/svelte/icons/eye';
 	import HistoryIcon from '@lucide/svelte/icons/history';
@@ -33,21 +32,20 @@
 	let { map }: { map: MapState } = $props();
 
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
-	// Somebody following a share link: they have the map and nothing else, so the warnings
-	// about the acting pilot have nobody to be about.
+	// Somebody following a share link has no pilot, so the pilot warnings have nobody to be
+	// about.
 	const watching = $derived(page.data.me == null);
 	const rows = $derived(historyRows(map.entries));
 
-	// The trunk runs oldest-first, so the map's position is near the bottom of a long
-	// history. Binding the marker means this fires once the popover's rows are in the DOM,
-	// with no timer to guess at.
+	// The trunk runs oldest-first, so the map's position is near the bottom of a long history.
+	// Binding the marker fires this once the popover's rows are in the DOM, with no timer.
 	let headLabel = $state<HTMLElement | null>(null);
 	$effect(() => {
 		headLabel?.scrollIntoView({ block: 'nearest' });
 	});
 
-	// Where the acting pilot is, resolved against the map's own systems so we can show the
-	// class chip. A pilot outside the mapped chain still gets their system id.
+	// Resolved against the map's own systems for the class chip; a pilot outside the chain
+	// still gets their system id.
 	const pilot = $derived(map.myCharacters.find((c) => c.is_active) ?? null);
 	const pilotSystem = $derived(
 		map.systems.find((s) => s.solar_system_id === pilot?.solar_system_id) ?? null
@@ -104,8 +102,8 @@
 	class="flex h-10 items-center gap-2 border-b border-border/50 bg-muted/30 px-3"
 	data-testid="status-bar"
 >
-	<!-- A watcher has no map list to go back to, no panels worth arranging (nowhere to keep
-	     the arrangement) and no settings; the chain is the whole page for them. -->
+	<!-- A watcher has no map list, no saved arrangement and no settings: the chain is the
+	     whole page for them. -->
 	{#if !watching}
 		<a
 			href="/maps"
@@ -396,9 +394,9 @@
 										: 'Recorded automatically; not part of undo'}
 									onclick={() => map.gotoEvent(entry.id)}
 								>
-									<!-- The graph gutter: a rail for each line still open above this row,
-									     then this row's own dot. Every line is centred in a 16px cell, so a
-									     branch's connector meets the rail it left exactly. -->
+									<!-- A rail for each line still open above this row, then this row's own
+									     dot. Every line is centred in a 16px cell, so a branch's connector
+									     meets the rail it left exactly. -->
 									{#each row.rails as passing, i (i)}
 										<span class="relative w-4 shrink-0">
 											{#if passing}

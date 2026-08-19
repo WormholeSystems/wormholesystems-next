@@ -21,10 +21,9 @@ fn en(name: &LocalizedString) -> String {
 
 /// Chunked multi-row insert, returning the row count.
 ///
-/// The four-arg form ends with `on conflict do nothing` — correct for tables whose
-/// primary key *is* the whole row (link/junction tables: nothing to update). The
-/// five-arg form takes an explicit conflict clause so entity tables can upsert
-/// (`on conflict (id) do update set …`), keeping them in sync as the SDE changes.
+/// The four-arg form ends with `on conflict do nothing`, for link tables whose primary key
+/// is the whole row. The five-arg form takes an explicit conflict clause so entity tables
+/// can upsert and stay in sync as the SDE changes.
 macro_rules! bulk {
     ($tx:expr, $table_cols:literal, $conflict:literal, $rows:expr, |$b:ident, $r:pat_param| $body:expr) => {{
         let rows = $rows;
@@ -59,17 +58,15 @@ pub async fn run() -> Result<(), BoxError> {
 }
 
 /// Make sure the unpacked SDE exists under `data/sde`, downloading it on first run.
-///
-/// [`crate::sde::ensure_present`] does blocking network + disk I/O, so it runs on a
-/// blocking thread to keep the async runtime free. Logs around a real download so a
-/// 30s+ first boot isn't silent.
+/// Blocking network and disk I/O, so it runs off the async runtime, and it logs around a
+/// real download because a first boot can take 30s+.
 async fn ensure_sde_present() -> Result<(), BoxError> {
     let downloaded = tokio::task::spawn_blocking(|| {
         if !std::path::Path::new(crate::sde::SDE_DIR)
             .join("_sde.jsonl")
             .exists()
         {
-            println!("SDE not found under {} — downloading the latest build (~100 MB), this can take a minute…", crate::sde::SDE_DIR);
+            println!("SDE not found under {}, downloading the latest build (~100 MB), this can take a minute…", crate::sde::SDE_DIR);
         }
         crate::sde::ensure_present()
     })
@@ -126,7 +123,6 @@ fn bundled_build() -> Result<SdeBuild, BoxError> {
 }
 
 async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
-    // Load the SDE rows we need (the loaders read data/sde/*.jsonl).
     let categories = crate::sde::load_all::<inventory::Category>()?;
     let groups = crate::sde::load_all::<inventory::Group>()?;
     let market_groups = crate::sde::load_all::<inventory::MarketGroup>()?;
@@ -217,7 +213,7 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
     );
     println!("factions: {n}");
 
-    // Only the SDE-owned columns are updated — alliance_id / member_count stay ESI-managed.
+    // Only the SDE-owned columns are updated: alliance_id and member_count stay ESI-managed.
     let n = bulk!(
         tx,
         "corporations (id, name, ticker, faction_id, ceo_id)",
@@ -327,8 +323,8 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
 
 // ---- larger SDE entities: dogma catalogue + celestial topology ----
 //
-// Each is loaded right before its insert and dropped at the end of its scope, so the
-// big celestial files (moons is ~220 MB) don't all sit in memory at once.
+// Each is loaded right before its insert and dropped at the end of its scope, so the big
+// celestial files (moons is ~220 MB) don't all sit in memory at once.
 
 async fn seed_entities(
     tx: &mut sqlx::PgConnection,

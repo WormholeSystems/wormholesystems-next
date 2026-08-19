@@ -1,11 +1,8 @@
 <script lang="ts">
-	// A single map: the interactive graph. Systems are draggable DOM nodes on a fixed world;
-	// connections are smooth curves in one SVG overlay. The world is panned (middle-mouse /
-	// virtual scrollbars) and zoomed (buttons) inside a fixed-height viewport.
-	//
-	// Realtime: every mutation publishes a MapEvent server-side; the WS triggers a refetch.
-	// Pan/zoom/selection live outside the fetched data and nodes are keyed by id, so a
-	// refetch updates data in place without losing interaction state.
+	// Systems are draggable DOM nodes on a panned/zoomed world, connections one SVG overlay.
+	// Every mutation publishes a MapEvent server-side and the WS triggers a refetch; pan, zoom
+	// and selection live outside the fetched data and nodes are keyed by id, so a refetch
+	// keeps interaction state.
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import OrbitIcon from '@lucide/svelte/icons/orbit';
@@ -53,19 +50,15 @@
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const map = $derived(new MapState(mapId, page.data.me != null));
-	// A viewer, including somebody watching a shared map, moves nothing: the canvas reads
-	// the same, but the handles that would start a write are not there to grab.
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
 	const tracker = $derived(new JumpTracker(map));
-	// Held so the status bar can bring the guide back after it has been waved away.
 	// The app-wide system context menu reads the map through this getter.
 	setContext('map-state', () => map);
 
 	let viewportEl = $state<HTMLElement | null>(null);
 
-	// Gestures commit only after 4px of travel (legacy hysteresis); until then they are
-	// pending and a release is treated as a tap.
+	// Gestures commit only after 4px of travel; until then a release counts as a tap.
 	const HYSTERESIS = 4;
 	let pendingDrag: { cx: number; cy: number; drag: Drag } | null = null;
 	let pendingBand: { cx: number; cy: number } | null = null;
@@ -75,15 +68,13 @@
 		map.viewportEl = viewportEl;
 	});
 
-	// Reading it back is a write, so it happens here rather than in the constructor: the
-	// map state is built inside a `$derived`, where mutating state is not allowed.
+	// A write, so it cannot happen in the constructor: the map state is built inside a
+	// `$derived`, where mutating state is not allowed.
 	$effect(() => {
 		map.restoreZoom();
 	});
 
-	// The canvas is sized by its container rather than by a fixed height, so its size has
-	// to be observed: `getBoundingClientRect` is not reactive, and the virtual scrollbars
-	// are derived from it.
+	// `getBoundingClientRect` is not reactive, and the virtual scrollbars derive from this.
 	$effect(() => {
 		const el = viewportEl;
 		if (!el) return;
@@ -109,8 +100,8 @@
 		s.loadUserSettings();
 		s.loadRoutingGraph();
 		s.loadIgnored();
-		// Everything below this is about the pilot at the keyboard, and a watcher does not
-		// have one: no presence, no jump tracking, no private channel.
+		// Below here is about the pilot at the keyboard: presence, jump tracking, the private
+		// channel. A watcher has none of it.
 		if (!s.signedIn) {
 			const closeShared = openMapSocket(
 				s.mapId,
@@ -124,29 +115,24 @@
 		tracker.refresh();
 		s.fetchCharacters();
 		const observe = () => tracker.refresh();
-		// A pilot moving publishes `characters_changed`, and their own status rides the user
-		// socket, so this is only the net under a socket that dropped a frame.
+		// Movement arrives over the sockets; this is only the net under a dropped frame.
 		const presence = setInterval(() => {
 			s.fetchCharacters();
 			observe();
 		}, 120_000);
-		// The user socket fires when the character's status changes, which is how a jump is
-		// normally noticed within seconds. Server-status news rides the same channel and
-		// says nothing about where anyone is.
+		// The character's own status change is how a jump is normally noticed within seconds.
 		const closeUserWs = openUserSocket((event) => {
 			if (event.type === 'character_status_changed') observe();
 		});
-		// Coming back to the tab is the other half: flying happens in the game client, so
-		// the jump has usually already happened by the time the map is looked at again.
+		// Flying happens in the game client, so a jump has usually already happened by the
+		// time the tab is looked at again.
 		window.addEventListener('focus', observe);
 		const closeWs = openMapSocket(
 			s.mapId,
 			(event) => {
-				// Pilot movement is its own event so a busy chain does not refetch the whole
-				// graph every five seconds just because someone is flying.
+				// Movement is its own event so a busy chain does not refetch the whole graph.
 				if (event?.type === 'characters_changed') s.fetchCharacters();
-				// A kill changes nothing about the graph, so only the card that shows them
-				// reacts rather than the whole page refetching.
+				// A kill changes nothing about the graph, so only the killmail card reacts.
 				else if (event?.type === 'killmail_received') s.killmailTick += 1;
 				else s.refetch();
 			},
@@ -161,14 +147,12 @@
 	});
 
 	// `replaceState` throws until the router has started, which is still mid-hydration on
-	// first paint. afterNavigate fires once it is ready.
+	// first paint.
 	let routerReady = $state(false);
 	afterNavigate(() => (routerReady = true));
 
-	// The deep link follows the active system wherever it was set from: a node click, the
-	// palette, or the context menu. Keeping it in one effect means no caller can forget.
-	// It only ever writes the param: clearing it would race the load-time restore, which
-	// reads `?system=` before the map data has arrived and an active system exists.
+	// Only ever writes the param: clearing it would race the load-time restore, which reads
+	// `?system=` before the map data has arrived and an active system exists.
 	$effect(() => {
 		const active = map.activeSystem;
 		if (!routerReady || !active) return;
@@ -178,11 +162,8 @@
 		replaceState(url, {});
 	});
 
-	// Wheel over the canvas, by modifier (legacy's rules):
-	//   plain      the page scrolls, so a map inside a long page still gets out of the way
-	//   ctrl/meta  swallowed, so the pinch gesture does not zoom the whole app
-	//   shift      pans the map, which is the only way to scroll it without a drag
-	// Needs a non-passive listener to be allowed to preventDefault.
+	// Wheel: plain scrolls the page, ctrl/meta is swallowed so pinch does not zoom the whole
+	// app, shift pans the map. Needs a non-passive listener to be allowed to preventDefault.
 	$effect(() => {
 		const el = viewportEl;
 		if (!el) return;
@@ -199,8 +180,6 @@
 		return () => el.removeEventListener('wheel', onWheel);
 	});
 
-	// --- pointer plumbing ---
-
 	function updateBandSelection() {
 		const b = map.band;
 		if (!b) return;
@@ -208,8 +187,7 @@
 		const hiX = Math.max(b.x0, b.x1);
 		const loY = Math.min(b.y0, b.y1);
 		const hiY = Math.max(b.y0, b.y1);
-		// Rendered positions, not stored ones: an automatic layout puts the nodes somewhere
-		// else, and the box has to take what it is drawn around.
+		// Rendered positions, not stored ones: an automatic layout draws nodes elsewhere.
 		const hit = map.systems
 			.filter((s) => {
 				const at = map.positions.get(s.id) ?? { x: s.position_x, y: s.position_y };
@@ -242,7 +220,7 @@
 			}
 		}
 		if (map.drag) {
-			// Snap to the grid live (not just on drop) and clamp to the world bounds.
+			// Snap to the grid live, not just on drop.
 			const d = map.drag;
 			const nx = map.clampNodeX(map.snap(w.x - d.offX));
 			const ny = map.clampNodeY(map.snap(w.y - d.offY));
@@ -251,7 +229,7 @@
 			map.linking = { ...map.linking, x: w.x, y: w.y };
 		} else if (map.band) {
 			map.band = { ...map.band, x1: w.x, y1: w.y };
-			// Legacy marquee: the selection follows the band live.
+			// The selection follows the band live.
 			updateBandSelection();
 		} else if (map.panDrag) {
 			const p = map.panDrag;
@@ -261,7 +239,6 @@
 	}
 
 	function onPointerUp(ev: PointerEvent) {
-		// Finish a node drag → persist every dragged member's new position (one bulk move).
 		if (map.drag) {
 			const d = map.drag;
 			map.drag = null;
@@ -273,21 +250,19 @@
 				x: m.sx + dx,
 				y: m.sy + dy
 			}));
-			// Hand each new position to the optimistic override before the refetch, so nodes
-			// stay put instead of flashing back.
+			// Seed the optimistic override before the refetch so nodes stay put.
 			const pending = { ...map.pending };
 			for (const m of moves) pending[m.map_solar_system_id] = { x: m.x, y: m.y };
 			map.pending = pending;
 			map.run('moveSystems', api.moveSystems({ map_id: map.mapId, moves }));
 		}
-		// Finish a connection drag → connect if released over a node.
 		if (map.linking) {
 			const l = map.linking;
 			map.linking = null;
 			const w = map.toWorld(ev.clientX, ev.clientY);
 			const target = nodeAt(map.systems, w.x, w.y, map.grid, map.positions);
-			// Dropping onto an unmapped hole is the same claim from the other end, so it is
-			// no more allowed than starting from one.
+			// Dropping onto a ghost is the same claim from the other end, so it is no more
+			// allowed than starting from one.
 			const ghost = map.systems.some((s) => s.id === target && s.solar_system_id === null);
 			if (target !== null && target !== l.from && !ghost) {
 				map.run(
@@ -302,7 +277,6 @@
 				);
 			}
 		}
-		// Finish a rubber-band: the selection is already live; the band just disappears.
 		// A tap (no band committed) clears the selection.
 		if (map.band) {
 			map.band = null;
@@ -314,8 +288,7 @@
 		map.panDrag = null;
 	}
 
-	// Background press: middle = pan, left on empty = rubber-band (and clear selection/menu).
-	// The pointer is captured only when an interaction starts — capturing on a right-button
+	// The pointer is captured only once an interaction starts: capturing on a right-button
 	// press would retarget the upcoming contextmenu event away from the node under it.
 	function onBackgroundDown(ev: PointerEvent) {
 		map.closeMenu();
@@ -325,8 +298,8 @@
 			map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
 		} else if (ev.button === 0) {
 			viewportEl?.setPointerCapture(ev.pointerId);
-			// An automatic layout has nothing to drag, so a plain drag pans instead — unless
-			// a selection modifier is held, which still belongs to the rubber band.
+			// An automatic layout has nothing to drag, so a plain drag pans instead. A selection
+			// modifier still belongs to the rubber band.
 			const selecting = ev.shiftKey || ev.ctrlKey || ev.metaKey;
 			if (map.layoutLocked && !selecting) {
 				map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
@@ -336,7 +309,6 @@
 		}
 	}
 
-	// Delete key removes the current selection (bulk).
 	function onKey(ev: KeyboardEvent) {
 		if (ev.key === 'Delete' || ev.key === 'Backspace') {
 			const ids = [...map.selected];
@@ -351,12 +323,7 @@
 		}
 	}
 
-	/**
-	 * Press on a node's drag handle: select it and start dragging. Co-dragged members: the
-	 * whole (non-pinned) selection if the grabbed node is part of a multi-selection, else
-	 * just this node. Each member's start position comes from the optimistic override, then
-	 * the data.
-	 */
+	/** Co-drags the whole (non-pinned) selection when the grabbed node is part of one. */
 	function handleNodeDown(ev: PointerEvent, s: MapSystemView) {
 		if (ev.button !== 0 || map.layoutLocked || !canWrite) return;
 		ev.stopPropagation();
@@ -384,8 +351,7 @@
 		if (!sel.has(s.id)) map.selected = new Set();
 		if (s.is_pinned) return;
 		viewportEl?.setPointerCapture(ev.pointerId);
-		// Seed from the node's *current* position, recording the grab offset so the node
-		// doesn't jump under the cursor. The drag only commits after 4px of travel.
+		// Record the grab offset so the node does not jump under the cursor.
 		const w = map.toWorld(ev.clientX, ev.clientY);
 		pendingDrag = {
 			cx: ev.clientX,
@@ -402,8 +368,8 @@
 	}
 
 	function handleNodeSelect(ev: PointerEvent, s: MapSystemView) {
-		// Left-click the body makes this the ACTIVE system (legacy model): it drives the
-		// side panels and the amber ring. The marquee selection is untouched.
+		// The active system drives the side panels and the amber ring. The marquee selection
+		// is untouched.
 		if (ev.button !== 0) return;
 		ev.stopPropagation();
 		map.activeId = s.id;
@@ -417,7 +383,6 @@
 		map.linking = { from: id, x: w.x, y: w.y };
 	}
 
-	// Per-system signature counts and connection counts for the node icon cluster.
 	const sigCountsBySystem = $derived.by(() => {
 		const out = new Map<number, { total: number; uncategorized: number; wormholes: number }>();
 		for (const s of map.sigs) {
@@ -450,8 +415,7 @@
 	});
 
 	function saveAlias(s: MapSystemView, alias: string | null, occupier: string | null) {
-		// Who holds a system is intel about that system; a ghost is not one yet, and only
-		// the alias is the placement's own.
+		// A ghost holds no system yet, so only the alias is its own.
 		const writes = [api.setAlias({ map_id: map.mapId, map_solar_system_id: s.id, alias })];
 		if (s.solar_system_id !== null) {
 			writes.push(api.setOccupier({ map_id: map.mapId, map_solar_system_id: s.id, occupier }));
@@ -481,8 +445,8 @@
 <TrackingDialog {map} {tracker} />
 
 {#if map.loadError}
-	<!-- A visitor with no account lands here when a link has been withdrawn, or when the
-	     map was never open to anyone: the map is the same either way, so the answer is too. -->
+	<!-- A withdrawn link and a map that was never shared look the same to a signed-out
+	     visitor, so the answer is the same too. -->
 	{#if page.data.me == null}
 		<div class="flex flex-col items-center gap-4 p-12 text-center" data-testid="map-error">
 			<p class="text-sm text-muted-foreground">
@@ -531,7 +495,6 @@
 >
 	<IntroductionDialog {map} />
 
-	<!-- The transformed world: nodes + the connection overlay scale & pan together. -->
 	<div
 		class="absolute top-0 left-0 origin-top-left"
 		style:width="{map.grid.world_width}px"
@@ -545,7 +508,6 @@
 			style:width="{map.grid.world_width}px"
 			style:height="{map.grid.world_height}px"
 		>
-			<!-- Edges. -->
 			{#each map.connections as c (c.id)}
 				{@const geometry = map.edgeGeometry.get(c.id)}
 				{#if geometry}
@@ -577,7 +539,6 @@
 						(timeColor ? 1 : 0)}
 					{@const badgeWidth = badgeCount * 18 + 8}
 					<g class="group/edge">
-						<!-- Dash when the hole is degraded; fresh + healthy stays solid. -->
 						<path
 							{d}
 							fill="none"
@@ -589,13 +550,12 @@
 							class="transition-opacity group-hover/edge:opacity-70"
 							data-on-route={onRoute}
 						/>
-						<!-- Solid endpoints, for the curve that stops short of the node on its rail.
-						     An elbow already lands on the node's edge. -->
+						<!-- The curve stops short of the node on its rail; an elbow already lands on
+						     the node's edge. -->
 						{#if !elbow}
 							<circle cx={sx} cy={sy} r="4" fill={stroke} />
 							<circle cx={ex} cy={ey} r="4" fill={stroke} />
 						{/if}
-						<!-- Midpoint badge cluster (legacy EdgeBadges): pill with glyph indicators. -->
 						{#if badgeCount > 0}
 							<foreignObject
 								x={geometry.center.x - badgeWidth / 2}
@@ -624,7 +584,7 @@
 								</div>
 							</foreignObject>
 						{/if}
-						<!-- Wide invisible hit area, drawn last so it sits on top (legacy: 24px). -->
+						<!-- Wide invisible hit area, drawn last so it sits on top. -->
 						<path
 							{d}
 							fill="none"
@@ -651,7 +611,6 @@
 				{/if}
 			{/each}
 
-			<!-- Live connection-drag preview. -->
 			{#if map.linking}
 				{@const from = map.positions.get(map.linking.from)}
 				{#if from}
@@ -672,7 +631,6 @@
 				{/if}
 			{/if}
 
-			<!-- Rubber-band rectangle. -->
 			{#if map.band}
 				{@const b = map.band}
 				<rect
@@ -687,7 +645,7 @@
 			{/if}
 		</svg>
 
-		<!-- Nodes (DOM, keyed by id so refetch diffs in place). -->
+		<!-- Keyed by id so a refetch diffs in place. -->
 		{#each map.systems as s (s.id)}
 			<SystemNode
 				node={s}
@@ -721,11 +679,10 @@
 		{/each}
 	</div>
 
-	<!-- Virtual scrollbars (proportional thumbs reflecting viewport over the world). -->
 	<Scrollbars {map} />
 
-	<!-- Placement, when the map lets each viewer choose. Picking the map's own mode clears
-	     the override, so a later change to the map still reaches you. -->
+	<!-- Picking the map's own mode clears the override, so a later change to the map still
+	     reaches this viewer. -->
 	{#if map.data?.map.allow_layout_override}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
@@ -751,8 +708,7 @@
 		</div>
 	{/if}
 
-	<!-- Zoom: one step per click, with the level spelled out between them.
-	     The press is stopped here like the scrollbars do: the canvas captures the pointer on
+	<!-- The press is stopped here, like the scrollbars do: the canvas captures the pointer on
 	     background press, which retargets the click onto the canvas and never reaches the
 	     button. -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->

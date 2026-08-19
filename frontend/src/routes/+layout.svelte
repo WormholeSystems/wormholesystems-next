@@ -8,8 +8,7 @@
 
 	let { children, data } = $props();
 
-	// The map fills the window edge to edge and sits flush under the nav; every other page
-	// wants the usual page padding.
+	// The map page fills the window edge to edge; every other page wants the usual padding.
 	const flush = $derived(/^\/maps\/\d+$/.test(page.url.pathname));
 
 	// Marks the page as interactive; e2e tests wait for this before clicking, since

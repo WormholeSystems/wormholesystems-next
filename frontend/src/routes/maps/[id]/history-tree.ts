@@ -1,13 +1,9 @@
 // Laying the history tree out as a list of rows, newest at the top.
 //
-// Indentation tracks divergence, not the cursor: a step with a single child carries straight
-// on at the same depth whether or not the map is currently sitting on it, so rewinding to an
-// earlier point leaves the line straight instead of stepping every later change sideways.
-// Only a step with more than one child forks, and then just the sides that were not taken.
-//
-// Rails come from which *line* a row belongs to rather than from its neighbours. Two branches
-// off the same step sit next to each other in the list while belonging to different lines, so
-// a neighbour-based rule would draw a rail joining them.
+// Indentation tracks divergence, not the cursor: only a step with more than one child forks,
+// and then just the sides that were not taken, so rewinding leaves the line straight.
+// Rails come from which *line* a row belongs to rather than from its neighbours: two branches
+// off the same step are adjacent in the list but belong to different lines.
 
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 
@@ -34,11 +30,8 @@ interface Node {
 }
 
 /**
- * Order the entries newest first, with each row's graph rails resolved.
- *
- * Entries whose parent is missing (retention dropped it, or it fell outside the page we
- * fetched) are treated as roots, so a truncated history still renders in full rather than
- * silently hiding everything below the cut.
+ * Entries whose parent is missing (retention dropped it, or it fell outside the fetched
+ * page) are treated as roots, so a truncated history still renders in full.
  */
 export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 	const present = new Set(entries.map((e) => e.id));
@@ -57,8 +50,7 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 	const nodes: Node[] = [];
 	let nextLine = 0;
 
-	// Walk oldest-first so a parent is placed before its children; the list is reversed at
-	// the end, which puts the newest work at the top without disturbing the shape.
+	// Walk oldest-first so a parent is placed before its children; reversed at the end.
 	const walk = (parent: number | null, lineage: number[]) => {
 		const depth = lineage.length - 1;
 		const children = byParent.get(parent) ?? [];
@@ -69,9 +61,8 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 
 		const steps = children.filter((c) => c.is_step);
 		if (steps.length === 0) return;
-		// One child always carries the line on at this depth. Prefer the one the map is on,
-		// so the current path stays straight; with the cursor rewound past all of them,
-		// prefer the newest, so the line last worked on is the one that stays straight.
+		// One child carries the line on at this depth: the one the map is on, or the newest
+		// when the cursor is rewound past all of them.
 		const main = steps.find((c) => c.applied) ?? steps[steps.length - 1];
 		for (const step of steps) {
 			if (step === main) continue;

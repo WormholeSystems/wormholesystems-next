@@ -1,9 +1,6 @@
-// When a skyhook's theft window is, in the terms the card talks about.
-//
-// One module rather than one copy per component. Legacy computes this twice, in the panel
-// and in the row, with two different date parsers, and the two only agree by accident. All
-// of it is pure and takes `now` as an argument, which is also what makes it testable
-// without waiting two hours for a real window.
+// When a skyhook's theft window is, in the terms the card talks about. Everything here is
+// pure and takes `now` as an argument so the panel and the row cannot disagree, and so the
+// tests do not have to wait two hours for a real window.
 
 import type { Skyhook } from '$lib/api/types/Skyhook';
 
@@ -22,10 +19,7 @@ export const CLOSING_SOON_MS = 15 * 60 * 1000;
 
 export interface SkyhookTiming {
 	status: SkyhookStatus;
-	/**
-	 * Milliseconds to the moment that matters: the close while it is open, the open while
-	 * it is upcoming, and the (past) close once it is over.
-	 */
+	/** Milliseconds to the close while open, to the open while upcoming, since the close once over. */
 	untilMs: number;
 }
 
@@ -40,10 +34,7 @@ export function timing(skyhook: Skyhook, now: Date): SkyhookTiming {
 	return { status: left < CLOSING_SOON_MS ? 'closing' : 'open', untilMs: left };
 }
 
-/**
- * A duration as the card writes it: `<1m`, `47m`, `2h 05m`, `1d 04h`. Coarse on purpose,
- * because the number is read at a glance and a ticking second count is noise.
- */
+/** `<1m`, `47m`, `2h 05m`, `1d 04h`. Coarse on purpose, a ticking second count is noise. */
 export function formatDuration(ms: number): string {
 	const minutes = Math.floor(Math.abs(ms) / 60_000);
 	if (minutes < 1) return '<1m';

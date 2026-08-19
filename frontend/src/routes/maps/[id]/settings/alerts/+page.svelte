@@ -1,10 +1,6 @@
 <script lang="ts">
 	// Discord alerts for one map: standing questions about the chain that answer themselves
 	// into a channel.
-	//
-	// Its own page rather than a card on the settings page, because an alert is a small form
-	// with several dependent parts — a killmail alert wants filters and no target, a
-	// proximity alert wants a target and no filters — and that does not fold into a row.
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
@@ -37,8 +33,8 @@
 	let error = $state<string | null>(null);
 	let editing = $state<MapAlert | null>(null);
 	let creating = $state(false);
-	// The server is the authority on who may manage alerts; a successful list is the answer.
-	// Rendering the controls before it replies would offer buttons that 403.
+	// The server is the authority on who may manage alerts, so nothing renders until the list
+	// comes back: otherwise the controls would offer buttons that 403.
 	let canManage = $state(false);
 
 	async function load() {
@@ -100,12 +96,11 @@
 		role: 'Pings a role',
 		everyone: 'Pings everyone'
 	};
-	// Said plainly, because "disabled" on its own sends people hunting.
 	const REASON: Record<string, string> = {
 		manual: 'Turned off by hand',
 		discord_unlinked: 'The creator unlinked their Discord account',
 		access_revoked: 'The creator lost access to this map',
-		destination_gone: 'Discord rejected the destination — the webhook or channel is gone',
+		destination_gone: 'Discord rejected the destination: the webhook or channel is gone',
 		delivery_failed: 'Too many failed deliveries'
 	};
 
@@ -171,8 +166,7 @@
 		</Card.Header>
 		<Card.Content class="flex flex-col gap-3">
 			{#if creating || editing}
-				<!-- Keyed so switching which alert is being edited reseeds the form rather than
-				     leaving the previous one's values in it. -->
+				<!-- Keyed so switching alerts reseeds the form instead of keeping the old values. -->
 				{#key editing?.id ?? 'new'}
 					<AlertForm
 						alert={editing}
@@ -284,7 +278,7 @@
 							<span class="min-w-0 flex-1 truncate">
 								{event.alert_name ?? event.detail ?? '—'}
 								{#if event.detail && event.alert_name}
-									<span class="text-muted-foreground"> — {event.detail}</span>
+									<span class="text-muted-foreground">: {event.detail}</span>
 								{/if}
 							</span>
 							<span class="shrink-0 text-muted-foreground">{event.actor ?? 'system'}</span>

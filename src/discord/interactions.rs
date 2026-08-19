@@ -1,12 +1,10 @@
 //! Discord interactions, delivered over HTTPS and verified by signature.
 //!
 //! Discord signs every interaction with the application's Ed25519 key over
-//! `timestamp || body`. Verifying it is the whole of the security model here: the endpoint
-//! is public, and an unsigned or badly-signed request must be rejected with a 401 or
-//! Discord marks the endpoint unhealthy and stops using it.
-//!
-//! The body has to be verified as raw bytes, before any JSON parsing, because the signature
-//! covers the exact bytes sent.
+//! `timestamp || body`, and that check is the whole security model: the endpoint is public,
+//! and a badly-signed request must get a 401 or Discord marks the endpoint unhealthy. The
+//! body is verified as raw bytes, before any JSON parsing, since the signature covers the
+//! exact bytes sent.
 
 use axum::body::Bytes;
 use axum::extract::State;
@@ -32,7 +30,7 @@ const AUTOCOMPLETE_RESULT: u8 = 8;
 /// so it stays out of the channel.
 const EPHEMERAL: u32 = 1 << 6;
 
-/// `POST /discord/interactions` — the bot.
+/// `POST /discord/interactions`, the bot.
 pub async fn handle(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
     let Some(config) = state.discord.as_ref() else {
         return (StatusCode::NOT_FOUND, "Discord is not configured").into_response();

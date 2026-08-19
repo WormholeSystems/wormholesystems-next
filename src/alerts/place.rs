@@ -1,11 +1,10 @@
 //! "Tell me when the chain gets near somewhere."
 //!
 //! Fires when a system is placed on the map: the chain just changed shape, so anything it
-//! was too far from a moment ago might not be now. Legacy's framing, and the right one —
-//! a proximity alert is about the map moving, not about the target.
+//! was too far from a moment ago might not be now.
 //!
-//! The claim is per placement, so a system added, removed and added again is a new
-//! occasion worth a message, while a hundred other edits are not.
+//! The claim is per placement, so a system added, removed and added again is a new occasion
+//! worth a message, while a hundred other edits are not.
 
 use sqlx::PgPool;
 

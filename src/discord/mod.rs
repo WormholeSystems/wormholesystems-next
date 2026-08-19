@@ -1,9 +1,8 @@
 //! The Discord side of the integration: linking an account, and answering slash commands.
 //!
-//! No gateway process. Discord will deliver interactions over HTTPS to an endpoint that
-//! proves it holds the application's key, which means the bot is a route in this server
-//! rather than a second long-lived thing to deploy, reconnect and supervise. Legacy runs a
-//! websocket process because PHP leaves it no choice.
+//! No gateway process. Discord delivers interactions over HTTPS to an endpoint that proves
+//! it holds the application's key, so the bot is a route in this server rather than a second
+//! long-lived thing to deploy, reconnect and supervise.
 
 pub mod commands;
 pub mod interactions;
@@ -11,8 +10,8 @@ pub mod link;
 
 use serde::Deserialize;
 
-/// Discord's API root. Not overridable: unlike ESI there is no stub worth pointing at, and
-/// the tests here are about signature verification and command shapes, not transport.
+/// Discord's API root. Not overridable: the tests here are about signature verification and
+/// command shapes, not transport.
 pub const API: &str = "https://discord.com/api/v10";
 
 /// The bits of a Discord user Vector stores.

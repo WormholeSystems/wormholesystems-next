@@ -1,9 +1,7 @@
-// Building the chain as you fly it.
-//
-// Watching the active character's system is the whole trick, and every guard here exists
-// because some other way of moving between systems also changes that number: switching
-// character, logging in, taking a gate. Only a real jump through an unmapped hole should
-// put anything on the map, so anything ambiguous is dropped rather than guessed at.
+// Building the chain as you fly it. Watching the active character's system is the whole
+// trick, and every guard here exists because something other than a jump also changes that
+// number: switching character, logging in, taking a gate. Anything ambiguous is dropped
+// rather than guessed at.
 
 import { api } from '$lib/api/client';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
@@ -42,20 +40,17 @@ function statusFromSignature(signature: Signature | null) {
 	};
 }
 
-/** The size a wormhole type promises, which beats whatever was typed on the signature. */
 export class JumpTracker {
 	private map: MapState;
 
-	/** The open prompt, or null. The dialog renders this and nothing else. */
 	prompt = $state<JumpPrompt | null>(null);
 
 	// What the last poll saw, so a change can be told apart from the first reading.
 	private seenCharacterId: number | null = null;
 	private seenSystemId: number | null = null;
 
-	// Refreshes are serialised rather than overlapped: two in flight can come back out of
-	// order, and an older reply landing after a newer one reads as a jump in the wrong
-	// direction. A trigger arriving mid-flight is coalesced into one follow-up run.
+	// Refreshes are serialised: two in flight can come back out of order, and an older reply
+	// landing after a newer one reads as a jump in the wrong direction.
 	private refreshing: Promise<void> | null = null;
 	private pending = false;
 
@@ -67,7 +62,7 @@ export class JumpTracker {
 		return this.map.userSettings?.tracking_allowed === true;
 	}
 
-	/** Reload where the pilot is and take a reading. Safe to call from several triggers. */
+	/** Safe to call from several triggers at once. */
 	refresh(): Promise<void> {
 		this.pending = true;
 		if (this.refreshing) return this.refreshing;
@@ -82,11 +77,8 @@ export class JumpTracker {
 	}
 
 	/**
-	 * Take a reading of where the active character is.
-	 *
-	 * Called on every character refresh. Returns without doing anything unless two
-	 * consecutive readings show the same character in two different systems, which is the
-	 * only shape a jump can have.
+	 * Two consecutive readings of the same character in two different systems is the only
+	 * shape a jump can have. Anything else is ignored.
 	 */
 	observe() {
 		const active = this.map.myCharacters.find((c) => c.is_active) ?? null;
@@ -111,10 +103,9 @@ export class JumpTracker {
 	}
 
 	/**
-	 * The unmapped holes already drawn off this system, by the connection that draws them.
-	 *
-	 * Flying one of these is the moment it stops being a ghost, so the jump resolves the
-	 * node that is already there instead of putting the same system on the map twice.
+	 * The unmapped holes already drawn off this system, keyed by connection. Flying one is
+	 * the moment it stops being a ghost, so the jump resolves the node already there instead
+	 * of mapping the same system twice.
 	 */
 	private ghostsFrom(origin: MapSystemView): Map<number, number> {
 		const ghosts = new Map<number, number>();
@@ -139,10 +130,9 @@ export class JumpTracker {
 		const origin = map.systems.find((s) => s.solar_system_id === fromSystemId) ?? null;
 		if (!origin) return;
 
-		// A gate jump is not a new hole. The page loads this table on open, so a jump taken
-		// before it arrives is left alone rather than mapped as a wormhole.
-		const gates = map.stargates;
-		if (!gates || gates.get(fromSystemId)?.includes(toSystemId)) return;
+		// A gate jump is not a new hole, so the gate table has to be in before judging one.
+		await map.whenRoutingLoaded();
+		if (map.stargates?.get(fromSystemId)?.includes(toSystemId)) return;
 
 		const existing = map.systems.find((s) => s.solar_system_id === toSystemId) ?? null;
 		const linked = existing ? this.existingConnection(origin, existing) : null;
@@ -162,9 +152,8 @@ export class JumpTracker {
 			new Set(ghosts.keys())
 		);
 
-		// Nothing to ask about: either the user turned the question off, or the origin has
-		// no signature that could be this hole. A connection with no signature to link is
-		// all the server would accept anyway.
+		// Nothing to ask about: the question is off, or no signature on the origin could be
+		// this hole.
 		if (!map.userSettings?.prompt_for_signature || groups.likely.length === 0) {
 			if (linked) return;
 			// Nobody to ask, but the chain already says there is exactly one unflown hole
@@ -212,10 +201,7 @@ export class JumpTracker {
 		};
 	}
 
-	/**
-	 * What we know about where the character ended up. A system already on the map carries
-	 * its own class; anywhere else has to be looked up.
-	 */
+	/** A system already on the map carries its own class; anywhere else has to be resolved. */
 	private async describeTarget(solarSystemId: number, existing: MapSystemView | null) {
 		if (existing?.name != null) {
 			return {
@@ -269,7 +255,7 @@ export class JumpTracker {
 		);
 	}
 
-	/** Post the jump. One command, so a mis-picked signature is one undo. */
+	/** One command, so a mis-picked signature is one undo. */
 	submit(choice: {
 		origin: MapSystemView;
 		targetSolarSystemId: number;

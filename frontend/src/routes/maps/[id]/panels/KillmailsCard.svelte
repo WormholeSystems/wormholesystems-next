@@ -1,9 +1,6 @@
 <script lang="ts">
-	// What has died in the chain lately.
-	//
-	// The list answers two questions at a glance: is anything hunting here, and was it
-	// worth anything. So the ISK column is the one that shouts, and the attacker count
-	// carries the shape of the fight (solo, blob, or just rats).
+	// What has died in the chain lately: whether anything is hunting here, and whether it was
+	// worth anything.
 	import FilterIcon from '@lucide/svelte/icons/list-filter';
 
 	import { api } from '$lib/api/client';
@@ -43,16 +40,13 @@
 	}
 
 	$effect(() => {
-		// Timers are read to the minute; the list itself arrives by push.
+		// The list itself arrives by push; this is only the clock.
 		const clock = setInterval(() => (now = new Date()), 30_000);
 		return () => clearInterval(clock);
 	});
 
-	// A kill anywhere on the map bumps the tick; refetch rather than splice, because what
-	// belongs in the list depends on this viewer's own filter.
-	// The set of systems the list covers, as a value rather than an array identity: the
-	// graph is refetched constantly and a new array each time would mean refetching kills
-	// on every one of them.
+	// A value rather than an array identity: the graph is refetched constantly, and a new
+	// array each time would refetch kills on every one of them.
 	const systemKey = $derived(
 		map.systems
 			.map((s) => s.solar_system_id)
@@ -62,8 +56,8 @@
 	);
 
 	$effect(() => {
-		// The list is scoped to the map's systems, so adding one is as much a change as a
-		// fresh kill arriving or the filter moving.
+		// The list is scoped to the map's systems, so adding one is as much a change as a fresh
+		// kill arriving. Read here to register the dependency.
 		filter;
 		systemKey;
 		map.killmailTick;
@@ -100,10 +94,7 @@
 		return map.systems.find((s) => s.solar_system_id === kill.solar_system_id)?.alias ?? null;
 	}
 
-	/**
-	 * What the attacker count means, not just how many. An NPC kill in your chain is
-	 * noise; a solo kill is a hunter.
-	 */
+	/** An NPC kill in the chain is noise; a solo kill is a hunter. */
 	function crowdTone(kill: MapKillmail): string {
 		if (kill.is_npc) return 'text-muted-foreground/50';
 		if (kill.is_solo) return 'text-amber-400';
@@ -190,7 +181,6 @@
 								onmouseenter={() => hover(kill, true)}
 								onmouseleave={() => hover(kill, false)}
 							>
-								<!-- What died, and who was flying it. -->
 								<Tooltip.Root>
 									<Tooltip.Trigger class="flex shrink-0 items-center gap-1">
 										{#if kill.victim.ship_type_id}
@@ -232,7 +222,6 @@
 									</span>
 								</span>
 
-								<!-- Who landed the blow, and how many were on it. -->
 								<Tooltip.Root>
 									<Tooltip.Trigger class="flex w-12 shrink-0 items-center justify-end gap-1">
 										{#if kill.final_blow.ship_type_id}

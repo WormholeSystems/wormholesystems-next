@@ -11,7 +11,6 @@ export type SystemSearchResult = { id: number, name: string, security: number, r
  */
 effect_name: string | null, sovereignty: Sovereignty | null, 
 /**
- * The statics a wormhole always has. Empty for k-space, and the whole reason to pick
- * one chain over another, so a row that offers to add a system says where it leads.
+ * The statics a wormhole always has. Empty for k-space.
  */
 statics: Array<Static>, };

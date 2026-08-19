@@ -1,11 +1,8 @@
-// The map page's tiles and the arrangements they start from.
+// The map page's tiles and the arrangements they start from. The canvas is a tile like any
+// other, so canvas space can be traded against panel space.
 //
-// The map canvas is a tile like any other, which is the whole point: you can trade canvas
-// space against panel space instead of living with a fixed sidebar.
-//
-// Minimum sizes live here rather than in the stored layout on purpose. They are a property
-// of the panel, not of anyone's arrangement, so tightening one reaches people who already
-// saved a layout.
+// Minimum sizes live here rather than in the stored layout: they are a property of the
+// panel, so tightening one reaches people who already saved a layout.
 
 import { type GridItem, bottom, compact } from '$lib/layout/grid';
 
@@ -233,11 +230,9 @@ export function breakpointFor(width: number): BreakpointKey {
 }
 
 /**
- * The stored layout merged over the defaults.
- *
- * A saved arrangement that predates a panel gets that panel appended at the bottom rather
- * than losing it, so shipping a new panel makes it appear for everyone instead of
- * silently vanishing for anyone who has ever saved.
+ * The stored layout merged over the defaults. A saved arrangement that predates a panel
+ * gets it appended at the bottom, so a new panel appears for everyone instead of vanishing
+ * for anyone who has ever saved.
  */
 export function resolveLayouts(stored: PanelLayouts | null): PanelLayouts {
 	const out: PanelLayouts = {};

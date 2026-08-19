@@ -1,12 +1,9 @@
 <script lang="ts">
-	// What the map does for you while you fly: whether it may follow you, and how much of
-	// the mapping it fills in when you jump a hole.
+	// What the map does for you while you fly. Location sharing gates the rest, and is shown
+	// as gating it rather than leaving dead toggles around.
 	//
-	// Location sharing gates the rest, and is shown as such rather than left to be
-	// discovered by toggling something that then does nothing.
-	//
-	// The scanning card above it is the map's, not yours: an unmapped hole put on the map
-	// is a node everyone sees, so it cannot be one person's preference.
+	// The scanning card is the map's setting, not this viewer's: an unmapped hole put on the
+	// map is a node everyone sees.
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';

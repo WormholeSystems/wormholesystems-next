@@ -1,11 +1,7 @@
 <script lang="ts">
-	// Custom proportional scrollbars: thumb size/position is the viewport-over-world ratio at
-	// the current zoom. Click the track to jump, or drag to scroll (the thumb follows the
-	// cursor).
-	//
-	// They fade in while the view is moving or the cursor is on the canvas and fade out
-	// again once it settles: on a map they answer "where am I in the chain", which is only
-	// a question while you are navigating.
+	// Proportional scrollbars: thumb size and position are the viewport-over-world ratio at
+	// the current zoom. They fade out once the view settles, since they only answer "where am
+	// I in the chain" while you are navigating.
 	import { clamp } from '$lib/map/helpers';
 	import type { MapState } from './map-state.svelte';
 
@@ -28,7 +24,6 @@
 		return { start: start * 100, size: frac * 100 };
 	});
 
-	// Center the thumb at a client coordinate within its track, panning that axis.
 	function hSet(clientX: number) {
 		if (!hTrack) return;
 		const r = hTrack.getBoundingClientRect();
@@ -52,7 +47,8 @@
 	}
 
 	const thumb = 'absolute rounded-full bg-muted-foreground/50';
-	// The track keeps its hit area while hidden would be misleading, so it goes with it.
+	// The hit area goes with the thumb: a track that still catches clicks while invisible
+	// would be misleading.
 	const track = $derived(
 		map.scrollbarsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
 	);

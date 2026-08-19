@@ -2,7 +2,7 @@
 
 /**
  * Max ship-mass class that can transit a wormhole. Ordered most-permissive →
- * most-restrictive, so `max` (= `Small`) is the "weakest"/worst — the conservative
+ * most-restrictive, so `max` (= `Small`) is the "weakest"/worst: the conservative
  * pick when two ends disagree (they shouldn't: both ends of a hole share a size).
  */
 export type WormholeSize = "xl" | "large" | "medium" | "small";

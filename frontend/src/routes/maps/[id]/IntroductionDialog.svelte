@@ -1,16 +1,10 @@
 <script lang="ts">
-	// The one-time walkthrough a map opens with, ported from legacy's MapIntroduction:
-	// welcome, the ESI permissions, the preferences that depend on them, and a summary.
+	// The one-time walkthrough a map opens with: welcome, the ESI permissions, the preferences
+	// that depend on them, and a summary.
 	//
-	// The reason it is a wizard where the setup guide is a checklist: permissions are the
-	// one part of the setup a map cannot infer or do for you. A scope is granted in EVE's
-	// SSO, off-site, and until it is nothing else on this screen works. So it gets a step
-	// of its own that states plainly what each permission buys and what it costs.
-	//
-	// Two things it does that legacy does not. Granting one permission asks for everything
-	// already consented to as well, because SSO reissues the token wholesale and legacy's
-	// per-scope link silently dropped the rest. And the settings step disables what the
-	// missing scopes cannot support, rather than offering switches that quietly do nothing.
+	// Granting one permission asks for everything already consented to as well, because SSO
+	// reissues the token wholesale and a per-scope link would drop the rest. The settings step
+	// disables what the missing scopes cannot support rather than offering dead switches.
 import { api } from '$lib/api/client';
 		import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
@@ -52,7 +46,6 @@ import { api } from '$lib/api/client';
 		{ title: 'Ready to fly', blurb: 'Here is where everything ended up.' }
 	];
 
-	// Copy for each ESI scope: what it is called in EVE, and what it actually buys here.
 	const SCOPES = [
 		{
 			scope: 'esi-location.read_location.v1',
@@ -92,7 +85,6 @@ import { api } from '$lib/api/client';
 	let scopes = $state<ScopeStatus[]>([]);
 
 	$effect(() => {
-		// Nobody to have scopes: a watcher never sees this dialog.
 		if (!map.signedIn) return;
 		api
 			.myScopes()
@@ -119,9 +111,7 @@ import { api } from '$lib/api/client';
 		return `/auth/login?${params}`;
 	}
 
-	// Placement is the map's, not this viewer's, so it is only offered to someone who can
-	// set it — and only here, where a new map is being set up, rather than in the create
-	// dialog where there is nothing yet to picture.
+	// Placement is the map's, not this viewer's, so only a manager is offered it.
 	const canManage = $derived(atLeast(map.data?.role, 'manager'));
 	const placement = $derived(map.data?.map.layout === 'tree' ? 'tree' : 'manual');
 	const PLACEMENTS = [

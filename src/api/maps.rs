@@ -23,13 +23,11 @@ pub struct MapEntry {
     #[ts(optional)]
     pub description: Option<String>,
     pub role: String,
-    /// How big the chain is right now.
     pub system_count: i64,
     pub connection_count: i64,
     /// How many people can see it, counting every grant however it was made.
     pub member_count: i64,
-    /// Tracked pilots currently online in one of its systems, which is the difference
-    /// between a map being live and merely existing.
+    /// Tracked pilots currently online in one of its systems.
     pub pilots_online: i64,
     /// Whether this user keeps it in the top bar.
     pub is_pinned: bool,
@@ -63,7 +61,6 @@ pub struct MapCharacter {
     pub is_mine: bool,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/maps", get(my_maps).post(create_map))
@@ -75,7 +72,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/maps/{id}/characters", get(map_characters))
 }
 
-/// `GET /api/maps` — every map the signed-in character can access, with their role.
+/// `GET /api/maps`, every map the signed-in character can access, with their role.
 pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult<Vec<MapEntry>> {
     let actor = require_actor(&state.db, &jar).await?;
     let maps = crate::maps::map::list_maps(&state.db, actor.user_id).await?;
@@ -141,14 +138,13 @@ pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult
 #[ts(export)]
 pub struct CreateMapBody {
     pub name: String,
-    /// What the map is for. Optional, and blank counts as absent rather than as an empty
-    /// description nobody meant to write.
+    /// Blank counts as absent.
     #[serde(default)]
     #[ts(optional)]
     pub description: Option<String>,
 }
 
-/// `POST /api/maps` — create a map owned by the active character.
+/// `POST /api/maps`, create a map owned by the active character.
 pub async fn create_map(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -167,7 +163,7 @@ pub async fn create_map(
     Ok(Json(map))
 }
 
-/// `DELETE /api/maps/{id}` — delete a map (owner only).
+/// `DELETE /api/maps/{id}`, delete a map (owner only).
 pub async fn delete_map(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -178,7 +174,7 @@ pub async fn delete_map(
     Ok(Json(()))
 }
 
-/// `GET /api/maps/{id}` — the full map view (map + systems + connections).
+/// `GET /api/maps/{id}`: the full map view (map + systems + connections).
 pub async fn fetch_map(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -191,11 +187,9 @@ pub async fn fetch_map(
     Ok(Json(view))
 }
 
-/// `GET /api/share/{token}` — the map a share link leads to, for whoever holds it.
-///
-/// Answers `NotFound` for a token that matches nothing, a withdrawn one, and a map that
-/// was never shared alike: a link either works or it does not, and saying which is which
-/// would turn the token into something to guess at.
+/// `GET /api/share/{token}`: the map a share link leads to, for whoever holds it. A token
+/// that matches nothing, a withdrawn one and a never-shared map all answer `NotFound`, so
+/// the response gives a guesser nothing to work from.
 pub async fn fetch_shared_map(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -217,7 +211,7 @@ pub async fn fetch_shared_map(
     Ok(Json(view))
 }
 
-/// `GET /api/maps/{id}/characters` — presence: online characters of users who opted into
+/// `GET /api/maps/{id}/characters`, presence: online characters of users who opted into
 /// tracking on this map, holding the location scope, whose user has member-or-better
 /// access. Member+ may view (viewers never see pilot data).
 pub async fn map_characters(
@@ -289,7 +283,7 @@ pub async fn map_characters(
     ))
 }
 
-/// `POST /api/maps/{id}/update` — rename a map or change its description/image. Manager+.
+/// `POST /api/maps/{id}/update`, rename a map or change its description/image. Manager+.
 pub async fn update_map(
     State(state): State<AppState>,
     jar: CookieJar,

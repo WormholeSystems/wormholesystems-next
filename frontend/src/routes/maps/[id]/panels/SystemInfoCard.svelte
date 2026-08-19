@@ -1,7 +1,4 @@
 <script lang="ts">
-	// The System Info panel for the active system (legacy SystemInfo port): hero with class,
-	// alias, effect, shattered chip, occupier and region/links line; then bordered blocks
-	// for statics (physics popovers), effect modifiers, and sovereignty.
 	import { api } from '$lib/api/client';
 	import type { EffectModifier } from '$lib/api/types/EffectModifier';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';

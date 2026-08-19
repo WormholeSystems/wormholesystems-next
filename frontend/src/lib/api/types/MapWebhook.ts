@@ -5,8 +5,8 @@
  */
 export type MapWebhook = { id: number, name: string, 
 /**
- * Enough of the URL to tell two destinations apart, never enough to use one. The URL
- * is a bearer token for somebody's channel, and this list is read by every manager.
+ * Enough of the URL to tell two destinations apart, never enough to use one: the URL is
+ * a bearer token for somebody's channel, and every manager reads this list.
  */
 summary: string, 
 /**

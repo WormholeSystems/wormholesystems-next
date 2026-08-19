@@ -2,14 +2,14 @@
 //!
 //! Rows are written by [`command::execute`](super::command::execute) inside the same
 //! transaction as the change they describe, so the log can never drift from the state.
-//! Steps form a tree (each points at the step that was current when it was applied) and
-//! the map holds a cursor onto it, so undo and redo *move* rather than append. Undoing and
-//! then making a new change branches instead of destroying the old step, and a branch stays
-//! reachable through [`goto`].
+//! Steps form a tree (each points at the step that was current when it was applied) and the
+//! map holds a cursor onto it, so undo and redo move rather than append: undoing and then
+//! making a new change branches instead of destroying the old step, and the abandoned
+//! branch stays reachable through [`goto`].
 //!
-//! Each step stores both directions: `inverse` undoes it, `forward` re-applies it. They are
-//! not written by hand. Applying one direction produces the other as its own inverse, which
-//! is what keeps restored rows on their original ids however often you walk back and forth.
+//! Each step stores both directions (`inverse` undoes it, `forward` re-applies it), each
+//! produced by applying the other. That is what keeps restored rows on their original ids
+//! however often you walk back and forth.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -63,11 +63,9 @@ pub struct MapHistory {
 }
 
 /// Write the journal row for an applied command, and advance the cursor onto it. Called
-/// only from [`command::execute`](super::command::execute), inside its transaction.
-///
-/// A command with no inverse is not undoable, so it is recorded for the audit trail but
-/// never becomes a step: leaving it as the head would strand undo behind something it
-/// cannot reverse.
+/// only from [`command::execute`](super::command::execute), inside its transaction. A
+/// command with no inverse is recorded for the audit trail but never becomes a step:
+/// leaving it as the head would strand undo behind something it cannot reverse.
 pub(super) async fn record(
     tx: &mut Tx<'_>,
     map_id: i64,
@@ -79,9 +77,8 @@ pub(super) async fn record(
         Some(cmd) => Some(to_json(cmd)?),
         None => None,
     };
-    // Audit rows get a parent too, even though they are not steps. It is what lets the
-    // history show them at the point in the chain where they happened instead of floating
-    // loose; nothing ever descends from one, so they stay leaves.
+    // Audit rows get a parent too, so the history shows them where they happened. Nothing
+    // ever descends from one, so they stay leaves.
     let parent_id = head_of(tx, map_id).await?;
 
     let id = sqlx::query_scalar!(
@@ -101,8 +98,6 @@ pub(super) async fn record(
     .fetch_one(&mut **tx)
     .await?;
 
-    // A new step hangs off the head, so undoing and then editing branches rather than
-    // overwriting: the step that was undone stays put as a sibling.
     if is_step {
         set_head(tx, map_id, Some(id)).await?;
     }
@@ -215,10 +210,7 @@ pub struct GotoMapEvent {
 }
 
 /// Move the map to `target`, undoing back to the nearest common ancestor and then redoing
-/// down to it.
-///
-/// Undo, redo and jumping into an abandoned branch are all this one operation, which is why
-/// they cannot disagree about what "where am I" means.
+/// down to it. Undo, redo and jumping into an abandoned branch are all this one operation.
 async fn goto_tx(
     tx: &mut Tx<'_>,
     actor: Actor,
@@ -238,7 +230,6 @@ async fn goto_tx(
     let to = ancestors(tx, map_id, target).await?;
     let common = from.iter().find(|id| to.contains(id)).copied();
 
-    // Walk up from the head to the common ancestor, undoing each step on the way.
     let rewind: Vec<i64> = from
         .iter()
         .take_while(|id| Some(**id) != common)
@@ -249,8 +240,7 @@ async fn goto_tx(
         let inverse = step
             .inverse
             .ok_or_else(|| MapError::Conflict("that change cannot be undone".into()))?;
-        // Undoing produces exactly the command that re-applies the step, which is how the
-        // restored rows keep their original ids however often you walk back and forth.
+        // Undoing produces exactly the command that re-applies the step.
         let produced = step_through(tx, actor, inverse).await?;
         sqlx::query!(
             "update map_events set forward = $1 where id = $2",
@@ -261,7 +251,6 @@ async fn goto_tx(
         .await?;
     }
 
-    // Then down from the common ancestor to the target, re-applying each step.
     let mut replay: Vec<i64> = to
         .iter()
         .take_while(|id| Some(**id) != common)
@@ -432,11 +421,9 @@ pub async fn list_history(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Ma
     })
 }
 
-/// Drop entries past the retention window.
-///
-/// The head is never dropped, because the cursor has to keep pointing at a real step. Old
-/// ancestors are fair game: `parent_id` nulls out, the oldest surviving step becomes a root,
-/// and undo simply stops at the retention boundary instead of walking off the end.
+/// Drop entries past the retention window. The head is never dropped, because the cursor
+/// has to keep pointing at a real step. Old ancestors are fair game: `parent_id` nulls out,
+/// the oldest survivor becomes a root, and undo stops at the retention boundary.
 pub async fn purge(pool: &PgPool) -> Result<u64> {
     let deleted = sqlx::query!(
         "delete from map_events e
@@ -450,7 +437,6 @@ pub async fn purge(pool: &PgPool) -> Result<u64> {
     Ok(deleted)
 }
 
-/// Spawn the daily history purge.
 pub fn start_purge(pool: PgPool) {
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));

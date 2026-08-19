@@ -1,15 +1,11 @@
 //! In-process realtime event bus for map changes.
 //!
-//! Mapping runs as a **single server**, so we don't need a cross-instance bus (Postgres
-//! `LISTEN/NOTIFY`, Redis, …). A typed [`MapEvent`] is published to an in-process
-//! [`MapHub`] — one `tokio::broadcast` channel per `map_id` — and the (future) WebSocket
-//! layer subscribes per connected viewer and forwards events so the client refetches the
-//! affected slice. Background producers (e.g. the tracking poller) publish to the same hub
-//! directly, which is exactly the routing that `LISTEN/NOTIFY` makes awkward.
-//!
-//! Events are **notify-then-refetch**: a payload names *what* changed (ids), not the new
-//! data. The client re-reads via the read actions; on (re)connect it does a full `get_map`,
-//! so a missed event self-heals. See [`docs/features/realtime.md`](../../docs/features/realtime.md).
+//! Mapping runs as a single server, so events go through an in-process [`MapHub`] (one
+//! `tokio::broadcast` channel per `map_id`) rather than a cross-instance bus; the WebSocket
+//! layer and background producers both use it directly. Events are notify-then-refetch: a
+//! payload names what changed (ids), not the new data, and a (re)connect does a full
+//! `get_map`, so a missed event self-heals. See
+//! [`docs/features/realtime.md`](../../docs/features/realtime.md).
 
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +18,7 @@ use tokio::sync::broadcast;
 /// layer treats that as "you're behind" and triggers a full refetch.
 const CHANNEL_CAPACITY: usize = 128;
 
-/// A change to a map that its viewers should react to. Carries ids, not data — consumers
+/// A change to a map that its viewers should react to. Carries ids, not data: consumers
 /// refetch the named slice.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -42,7 +38,7 @@ pub enum MapEvent {
         map_id: i64,
         map_solar_system_id: i64,
     },
-    /// A placed system's intel/flags changed (alias, status, occupier, home, pinned) — the
+    /// A placed system's intel/flags changed (alias, status, occupier, home, pinned): the
     /// position is unchanged, but its details should be refetched.
     SystemDetailsChanged {
         map_id: i64,
@@ -86,7 +82,7 @@ impl MapEvent {
     }
 }
 
-/// The in-process event bus. Cheaply cloneable (an `Arc` inside) — hold one in app state.
+/// The in-process event bus. Cheaply cloneable (an `Arc` inside): hold one in app state.
 #[derive(Clone)]
 pub struct MapHub {
     channels: Arc<Mutex<HashMap<i64, broadcast::Sender<MapEvent>>>>,
@@ -108,11 +104,8 @@ impl MapHub {
         Self::default()
     }
 
-    /// Every map's events in one stream.
-    ///
-    /// A background consumer that falls behind is told it lagged and carries on from the
-    /// present, which for alerts is the right trade: a missed placement costs a message,
-    /// where blocking the publisher would cost the map change itself.
+    /// Every map's events in one stream. A consumer that falls behind is told it lagged and
+    /// carries on from the present; publishing never blocks on a slow subscriber.
     pub fn subscribe_all(&self) -> broadcast::Receiver<MapEvent> {
         self.all.subscribe()
     }

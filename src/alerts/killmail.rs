@@ -1,9 +1,7 @@
 //! "Tell me when something dies near us."
 //!
-//! Every killmail the ingest stores is offered to every active killmail alert. An alert
-//! fires when its filters match the kill *and* the kill happened within its jump range of
-//! the map, so a corp-wide watch on an alliance only pings the chains that are actually
-//! close to it.
+//! Every killmail the ingest stores is offered to every active killmail alert, which fires
+//! when its filters match the kill and the kill happened within its jump range of the map.
 //!
 //! Runs after the killmail is written and off the ingest's critical path: the stream is
 //! sequential, and a slow Discord must not stall it.

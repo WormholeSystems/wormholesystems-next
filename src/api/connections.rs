@@ -30,7 +30,6 @@ pub struct ShipSearchResult {
     pub mass: Option<f64>,
 }
 
-/// The routes this module owns, merged into the API router.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/ships/search", get(search_ships))
@@ -68,9 +67,8 @@ pub fn routes() -> Router<AppState> {
 
 /// `POST /api/maps/{id}/connections/add`
 ///
-/// The ghost guard sits here rather than in the command, because it is a rule about what a
-/// person may draw: raising a ghost creates the one connection an unmapped hole is allowed
-/// to have, and that goes through the same command from the inside.
+/// The ghost guard sits here, not in the command: raising a ghost creates the one connection
+/// an unmapped hole may have, and that goes through the same command from the inside.
 pub async fn add_connection(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -137,7 +135,7 @@ pub async fn remove_connection(
     Ok(Json(()))
 }
 
-/// `GET /api/maps/{id}/connections/{cid}/jumps` — the latest 10 jump-log rows.
+/// `GET /api/maps/{id}/connections/{cid}/jumps`: the latest 10 jump-log rows.
 pub async fn list_connection_jumps(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -203,7 +201,7 @@ pub async fn remove_connection_jump(
     Ok(Json(()))
 }
 
-/// `GET /api/maps/{id}/connections/stale` — edges that have been critical for over an hour.
+/// `GET /api/maps/{id}/connections/stale`, edges that have been critical for over an hour.
 pub async fn list_stale_connections(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -214,7 +212,7 @@ pub async fn list_stale_connections(
     Ok(Json(rows))
 }
 
-/// `POST /api/maps/{id}/connections/clean-stale` — sweep them, and the placements they
+/// `POST /api/maps/{id}/connections/clean-stale`, sweep them, and the placements they
 /// orphan, as one undoable change.
 pub async fn clean_stale_connections(
     State(state): State<AppState>,
@@ -234,7 +232,7 @@ pub struct ShipSearchQuery {
     pub q: String,
 }
 
-/// `GET /api/ships/search?q=` — published ship types (SDE category 6) by name, with
+/// `GET /api/ships/search?q=`, published ship types (SDE category 6) by name, with
 /// hull mass for the manual-jump form. Reference data, no actor check.
 pub async fn search_ships(
     State(state): State<AppState>,

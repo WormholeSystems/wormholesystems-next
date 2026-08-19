@@ -17,9 +17,8 @@ pub struct BreakpointLayout {
     pub items: Vec<LayoutItem>,
 }
 
-/// One tile. Minimum sizes are deliberately absent: they belong to the panel, not to
-/// anyone's arrangement, so they live in the client's panel registry where tightening one
-/// still reaches people who have already saved a layout.
+/// One tile. Minimum sizes deliberately live in the client's panel registry instead, so
+/// tightening one still reaches people who have already saved a layout.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct LayoutItem {
@@ -118,8 +117,8 @@ mod layout_tests {
 
     #[test]
     fn rejects_a_panel_the_client_could_not_draw() {
-        // Deliberately a name no panel will ever have; naming a plausible future one
-        // means the test quietly stops testing anything the day it ships.
+        // A name no panel will ever have: a plausible future one would stop testing
+        // anything the day it ships.
         let bad = layout(10, vec![tile("not-a-panel", 0, 0, 2, 2)]);
         assert!(validate_layouts(&bad).is_err());
     }
