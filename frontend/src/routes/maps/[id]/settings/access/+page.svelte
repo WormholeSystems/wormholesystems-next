@@ -120,7 +120,12 @@
 	<p class="mb-4 text-sm text-destructive" data-testid="settings-error">{error}</p>
 {/if}
 
-<Card.Root>
+<!--
+	`overflow-visible` because the grant search drops its results below the field: shadcn's
+	card clips its content so a full-bleed image is cut to the rounded corners, and that
+	same clip takes the result list with it.
+-->
+<Card.Root class="overflow-visible">
 	<Card.Header>
 		<Card.Title>Access</Card.Title>
 		<Card.Description>Granting a corporation or alliance covers every pilot in it.</Card.Description>
