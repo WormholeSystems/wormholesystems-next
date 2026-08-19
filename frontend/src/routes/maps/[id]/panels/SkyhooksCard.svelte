@@ -7,8 +7,6 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
-	import { toast } from 'svelte-sonner';
-
 	import { api } from '$lib/api/client';
 	import type { PlanetKind } from '$lib/api/types/PlanetKind';
 	import type { Skyhook } from '$lib/api/types/Skyhook';
@@ -189,26 +187,6 @@
 		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
 		map.hoverPath = on ? (row.route?.route.map((s) => s.id) ?? null) : null;
 	}
-
-	// Anything that opens within reach is worth a word, because the card may not be the
-	// tile you are looking at. Only once per skyhook per window.
-	const NEARBY_JUMPS = 15;
-	let announced = new Set<number>();
-	$effect(() => {
-		for (const row of rows) {
-			if (row.status !== 'open') continue;
-			if (row.jumps === null || row.jumps > NEARBY_JUMPS) continue;
-			if (announced.has(row.skyhook.planet_id)) continue;
-			announced.add(row.skyhook.planet_id);
-			toast.info(`${row.skyhook.planet_name} is raidable`, {
-				description: `${row.jumps} jumps out`
-			});
-		}
-		// Forget a skyhook once its window is over, so the next one is announced again.
-		for (const row of rows) {
-			if (row.status === 'closed') announced.delete(row.skyhook.planet_id);
-		}
-	});
 
 	const FILTERS: { key: SkyhookStatus; label: string }[] = [
 		{ key: 'upcoming', label: 'Upcoming' },

@@ -85,8 +85,11 @@ export function computeTreeLayout(
 	// Tight enough to read as one branch, loose enough that a row of pilots underneath a
 	// node does not touch the next one.
 	const siblingGap = snap(options.siblingGap ?? 60);
-	const marginX = snap(options.marginX ?? 60);
-	const marginY = snap(options.marginY ?? 40);
+	// Where the first node's top-left sits. Legacy's margins are 60/40, but its positions
+	// are anchors offset (40, 20) into the node, so its first node lands here too — a node
+	// height and change off both edges, close enough to read as "the chain starts here".
+	const marginX = snap(options.marginX ?? 20);
+	const marginY = snap(options.marginY ?? 20);
 
 	// --- The undirected graph of systems. ---
 	const adjacency = new Map<number, number[]>();

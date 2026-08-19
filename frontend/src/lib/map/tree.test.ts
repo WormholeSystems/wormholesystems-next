@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { computeTreeLayout, type TreeInput } from './tree';
 
-// Defaults: gridSize 20, levelGap 320, siblingGap 60, marginX 60, marginY 40.
+// Defaults: gridSize 20, levelGap 320, siblingGap 60, marginX 20, marginY 20.
 
 function layout(input: Partial<TreeInput>) {
 	return computeTreeLayout({ nodeIds: [], edges: [], rootIds: [], ...input });
@@ -23,9 +23,9 @@ describe('computeTreeLayout', () => {
 			rootIds: [1]
 		});
 
-		expect(positions.get(1)).toEqual({ x: 60, y: 40 });
-		expect(positions.get(2)).toEqual({ x: 380, y: 40 });
-		expect(positions.get(3)).toEqual({ x: 700, y: 40 });
+		expect(positions.get(1)).toEqual({ x: 20, y: 20 });
+		expect(positions.get(2)).toEqual({ x: 340, y: 20 });
+		expect(positions.get(3)).toEqual({ x: 660, y: 20 });
 	});
 
 	it('roots at the home system when nothing is pinned', () => {
@@ -36,8 +36,8 @@ describe('computeTreeLayout', () => {
 			homeId: 2
 		});
 
-		expect(positions.get(2)!.x).toBe(60);
-		expect(positions.get(1)!.x).toBe(380);
+		expect(positions.get(2)!.x).toBe(20);
+		expect(positions.get(1)!.x).toBe(340);
 	});
 
 	it('keeps home in the first column even when other systems are pinned', () => {
@@ -54,8 +54,8 @@ describe('computeTreeLayout', () => {
 			homeId: 9
 		});
 
-		expect(positions.get(9)!.x).toBe(60);
-		expect(positions.get(1)!.x).toBe(60);
+		expect(positions.get(9)!.x).toBe(20);
+		expect(positions.get(1)!.x).toBe(20);
 	});
 
 	it('puts home above the pinned systems, whatever they are called', () => {
@@ -83,8 +83,8 @@ describe('computeTreeLayout', () => {
 		});
 
 		expect(positions.size).toBe(2);
-		expect(positions.get(1)!.x).toBe(60);
-		expect(positions.get(2)!.x).toBe(380);
+		expect(positions.get(1)!.x).toBe(20);
+		expect(positions.get(2)!.x).toBe(340);
 	});
 
 	it('fans children out around their parent, a sibling gap apart', () => {
@@ -100,8 +100,8 @@ describe('computeTreeLayout', () => {
 		const parent = positions.get(1)!;
 		const first = positions.get(2)!;
 		const second = positions.get(3)!;
-		expect(first.x).toBe(380);
-		expect(second.x).toBe(380);
+		expect(first.x).toBe(340);
+		expect(second.x).toBe(340);
 		expect(second.y - first.y).toBe(60);
 		// The parent sits on the snapped midpoint between them.
 		expect(Math.abs(parent.y - (first.y + second.y) / 2)).toBeLessThanOrEqual(10);
@@ -169,8 +169,8 @@ describe('computeTreeLayout', () => {
 			compareNodes: (a, b) => (a === 9 ? -1 : b === 9 ? 1 : a - b)
 		});
 
-		expect(positions.get(1)!.x).toBe(60);
-		expect(positions.get(9)!.x).toBe(60);
+		expect(positions.get(1)!.x).toBe(20);
+		expect(positions.get(9)!.x).toBe(20);
 		expect(positions.get(1)!.y).toBeLessThan(positions.get(9)!.y);
 	});
 
@@ -195,7 +195,7 @@ describe('computeTreeLayout', () => {
 			rootIds: [1]
 		});
 
-		expect(positions.get(10)!.x).toBe(60);
+		expect(positions.get(10)!.x).toBe(20);
 		expect(positions.get(10)!.y).not.toBe(positions.get(1)!.y);
 	});
 
@@ -211,7 +211,7 @@ describe('computeTreeLayout', () => {
 		});
 
 		expect(positions.size).toBe(2);
-		expect(positions.get(2)!.x).toBe(380);
+		expect(positions.get(2)!.x).toBe(340);
 	});
 
 	it('attaches each system to the pinned root nearest it', () => {
@@ -226,9 +226,9 @@ describe('computeTreeLayout', () => {
 		});
 
 		// Both roots in the first column; the 3-4 edge must not drag either deeper.
-		expect(positions.get(1)!.x).toBe(60);
-		expect(positions.get(2)!.x).toBe(60);
-		expect(positions.get(3)!.x).toBe(380);
-		expect(positions.get(4)!.x).toBe(380);
+		expect(positions.get(1)!.x).toBe(20);
+		expect(positions.get(2)!.x).toBe(20);
+		expect(positions.get(3)!.x).toBe(340);
+		expect(positions.get(4)!.x).toBe(340);
 	});
 });
