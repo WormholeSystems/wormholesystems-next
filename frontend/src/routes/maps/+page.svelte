@@ -5,6 +5,9 @@
 	// one you were just in. Legacy left this in insertion order, which means the map you
 	// use every day drifts to wherever it happened to be created.
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
+	import WorkflowIcon from '@lucide/svelte/icons/workflow';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import PinOffIcon from '@lucide/svelte/icons/pin-off';
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
@@ -88,18 +91,46 @@
 
 	// How the new map places its systems. Asked here rather than left to settings, because
 	// it changes what the map is to work with, and it is one click to change later.
+	// Each option is drawn as well as described: what the two do to a chain is a shape, and
+	// a shape is quicker to recognise than a paragraph.
 	const PLACEMENTS = [
 		{
 			value: 'manual' as const,
 			label: 'Custom placement',
+			icon: WaypointsIcon,
 			blurb:
-				'You drag the systems where you want them, and they stay there for everyone. The way most groups map a chain: the shape carries meaning that the connections alone do not.'
+				'You drag the systems where you want them, and they stay there for everyone. How most groups map a chain: the shape carries meaning the connections alone do not.',
+			// Wonky on purpose: a chain somebody arranged by hand.
+			nodes: [
+				{ x: 6, y: 34 },
+				{ x: 30, y: 8 },
+				{ x: 52, y: 38 },
+				{ x: 68, y: 12 }
+			],
+			edges: [
+				[0, 1],
+				[1, 2],
+				[2, 3]
+			]
 		},
 		{
 			value: 'tree' as const,
 			label: 'Automatic placement',
+			icon: WorkflowIcon,
 			blurb:
-				'The map draws itself from the connections, as a tree growing left to right out of your pinned systems. Nobody has to tidy it, and nobody can move anything.'
+				'The map draws itself from the connections, as a tree growing left to right out of your home and pinned systems. Nobody has to tidy it, and nobody can move anything.',
+			// Columns and rows: the same chain, drawn by the layout.
+			nodes: [
+				{ x: 6, y: 23 },
+				{ x: 36, y: 9 },
+				{ x: 36, y: 37 },
+				{ x: 66, y: 37 }
+			],
+			edges: [
+				[0, 1],
+				[0, 2],
+				[2, 3]
+			]
 		}
 	];
 
@@ -417,21 +448,60 @@
 				</Field.Field>
 				<Field.FieldSet>
 					<Field.FieldLegend>Placement</Field.FieldLegend>
-					<Field.FieldDescription>Changeable later, in the map's settings.</Field.FieldDescription>
+					<Field.FieldDescription>
+						Not a decision you are stuck with: the map's settings can switch it at any time,
+						and custom placement keeps the positions either way.
+					</Field.FieldDescription>
 					<div class="flex flex-col gap-2">
 						{#each PLACEMENTS as option (option.value)}
+							{@const chosen = newLayout === option.value}
+							{@const Icon = option.icon}
 							<button
 								type="button"
-								class="flex flex-col gap-1 border p-3 text-left transition-colors {newLayout ===
-								option.value
-									? 'border-primary bg-accent/40'
-									: 'border-border hover:bg-accent/20'}"
-								aria-pressed={newLayout === option.value}
+								class="flex items-start gap-3 border p-3 text-left transition-colors {chosen
+									? 'border-primary/60 bg-accent/40'
+									: 'border-border hover:border-border hover:bg-accent/20'}"
+								aria-pressed={chosen}
 								data-testid="new-map-layout-{option.value}"
 								onclick={() => (newLayout = option.value)}
 							>
-								<span class="text-sm font-medium">{option.label}</span>
-								<span class="text-xs leading-relaxed text-muted-foreground">{option.blurb}</span>
+								<!-- The arrangement itself, at a glance: scattered, or a tree. -->
+								<svg
+									viewBox="0 0 88 52"
+									class="mt-0.5 h-11 w-20 shrink-0 border border-border/60 bg-background/60"
+									aria-hidden="true"
+								>
+									{#each option.edges as [from, to] (`${from}-${to}`)}
+										<line
+											x1={option.nodes[from].x + 8}
+											y1={option.nodes[from].y + 3}
+											x2={option.nodes[to].x}
+											y2={option.nodes[to].y + 3}
+											class={chosen ? 'stroke-primary/60' : 'stroke-border'}
+											stroke-width="1.5"
+										/>
+									{/each}
+									{#each option.nodes as node, i (i)}
+										<rect
+											x={node.x}
+											y={node.y}
+											width="16"
+											height="6"
+											rx="1"
+											class={chosen ? 'fill-primary/70' : 'fill-muted-foreground/50'}
+										/>
+									{/each}
+								</svg>
+								<span class="flex min-w-0 flex-col gap-1">
+									<span class="flex items-center gap-1.5 text-sm font-medium">
+										<Icon class="size-4 {chosen ? 'text-primary' : 'text-muted-foreground'}" />
+										{option.label}
+										{#if chosen}
+											<CheckIcon class="ml-auto size-3.5 text-primary" />
+										{/if}
+									</span>
+									<span class="text-xs leading-relaxed text-muted-foreground">{option.blurb}</span>
+								</span>
 							</button>
 						{/each}
 					</div>
