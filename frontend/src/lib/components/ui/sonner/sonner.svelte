@@ -16,15 +16,15 @@
 	Squared off, thin-bordered and small, like the map's own panels and status bar: a toast
 	is one more readout on the same instrument, not a notification from somewhere else.
 	The kind is carried by the icon's colour rather than by a filled background, which at
-	this size reads as an alarm. No close button: sonner hangs it off the corner as a box of
-	its own, and these clear themselves anyway.
+	this size reads as an alarm. The close button is pulled inside the toast's own right
+	edge; sonner's default hangs it half outside the top-left corner, where it reads as a
+	box of its own rather than as part of the toast.
 -->
 <Sonner
 	theme={theme.dark ? 'dark' : 'light'}
 	class="toaster group"
-	expand
 	gap={6}
-	style="--normal-bg: var(--color-card); --normal-text: var(--color-foreground); --normal-border: var(--color-border);"
+	style="--normal-bg: var(--color-card); --normal-text: var(--color-foreground); --normal-border: var(--color-border); --toast-close-button-start: auto; --toast-close-button-end: 6px; --toast-close-button-transform: translateY(-50%);"
 	toastOptions={{
 		classes: {
 			toast:
@@ -32,6 +32,8 @@
 			title: '!text-xs !font-medium',
 			description: '!text-[11px] !text-muted-foreground !font-mono',
 			icon: '!mr-0',
+			closeButton:
+				'!top-1/2 !rounded-none !border-0 !bg-transparent !text-muted-foreground hover:!text-foreground',
 			success: '[&_[data-icon]]:text-emerald-500',
 			error: '[&_[data-icon]]:text-destructive',
 			info: '[&_[data-icon]]:text-sky-500',
