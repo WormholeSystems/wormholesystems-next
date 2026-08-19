@@ -12,10 +12,32 @@
 	let { ...restProps }: SonnerProps = $props();
 </script>
 
+<!--
+	Squared off, thin-bordered and small, like the map's own panels and status bar: a toast
+	is one more readout on the same instrument, not a notification from somewhere else.
+	The kind is carried by the icon's colour rather than by a filled background, which at
+	this size reads as an alarm. No close button: sonner hangs it off the corner as a box of
+	its own, and these clear themselves anyway.
+-->
 <Sonner
 	theme={theme.dark ? 'dark' : 'light'}
 	class="toaster group"
-	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);"
+	expand
+	gap={6}
+	style="--normal-bg: var(--color-card); --normal-text: var(--color-foreground); --normal-border: var(--color-border);"
+	toastOptions={{
+		classes: {
+			toast:
+				'!rounded-none !border !border-border !bg-card !text-foreground !shadow-none !ring-1 !ring-foreground/10 !gap-2 !px-3 !py-2',
+			title: '!text-xs !font-medium',
+			description: '!text-[11px] !text-muted-foreground !font-mono',
+			icon: '!mr-0',
+			success: '[&_[data-icon]]:text-emerald-500',
+			error: '[&_[data-icon]]:text-destructive',
+			info: '[&_[data-icon]]:text-sky-500',
+			warning: '[&_[data-icon]]:text-amber-500'
+		}
+	}}
 	{...restProps}
 >
 	{#snippet loadingIcon()}
