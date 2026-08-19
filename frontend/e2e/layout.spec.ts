@@ -461,3 +461,26 @@ test('tiles are painted in place rather than gliding there', async ({ page, api 
 	const positions = await page.evaluate(() => (window as unknown as { __tileX: number[] }).__tileX);
 	expect(positions).toHaveLength(1);
 });
+
+// The title bar is the first place anyone grabs a card, and in edit mode it sits above the
+// drag shield, so it has to start a drag itself.
+test('a card can be dragged by its header while arranging', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E HeaderDrag');
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.getByTestId('layout-toggle').click();
+	await expect(page.getByTestId('layout-toolbar')).toBeVisible();
+
+	const before = await box(page, 'notes');
+	const header = page.locator('[data-testid="tile-header"][data-panel="notes"]');
+	await header.scrollIntoViewIfNeeded();
+	const from = await header.boundingBox();
+	if (!from) throw new Error('no header');
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2 + 8, from.y + from.height / 2 + 8);
+	await page.mouse.move(from.x + from.width / 2 + 8, from.y + from.height / 2 + 260, { steps: 8 });
+	await page.mouse.up();
+	await expect(page.getByTestId('panel-grid')).toHaveAttribute('data-dragging', 'false');
+
+	expect(await box(page, 'notes')).not.toEqual(before);
+});

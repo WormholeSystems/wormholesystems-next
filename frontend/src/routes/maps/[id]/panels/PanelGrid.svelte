@@ -288,11 +288,15 @@
 			{#if map.editingLayout}
 				<!-- The shield makes a drag anywhere on the card move the tile instead of
 				     reaching the content under it: without it, dragging across the canvas would
-				     pan the map. It covers the panel header too, so the panel's own controls
-				     cannot be nudged while arranging. Buttons rather than divs so they focus and
+				     pan the map. The header strip is part of it, since a card's title bar is the
+				     first place anyone grabs. Buttons rather than divs where it has to focus and
 				     take the arrow keys. -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="absolute inset-x-0 top-0 z-20 flex h-9 items-center justify-between bg-muted/90 pr-1 pl-3 backdrop-blur-sm"
+					class="absolute inset-x-0 top-0 z-20 flex h-9 cursor-move items-center justify-between bg-muted/90 pr-1 pl-3 backdrop-blur-sm"
+					data-testid="tile-header"
+					data-panel={item.i}
+					onpointerdown={(ev) => onPointerDown(ev, item.i as PanelId, 'move')}
 				>
 					<span class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
 						{meta.label}
@@ -304,6 +308,7 @@
 							aria-label="Hide {meta.label}"
 							data-testid="tile-hide"
 							data-panel={item.i}
+							onpointerdown={(ev) => ev.stopPropagation()}
 							onclick={() => map.hidePanel(item.i)}
 						>
 							<XIcon class="size-3.5" />
