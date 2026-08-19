@@ -631,6 +631,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/maps/{id}/access/set", post(h::set_access))
         .route("/api/maps/{id}/access/revoke", post(h::revoke_access))
         .route(
+            "/api/maps/{id}/access/transfer",
+            post(h::transfer_ownership),
+        )
+        .route(
             "/api/maps/{id}/alerts",
             get(alerts::list_alerts).post(alerts::create_alert),
         )

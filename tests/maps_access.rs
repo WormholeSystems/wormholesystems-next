@@ -7,7 +7,8 @@ use chrono::{Duration, Utc};
 use common::{add_character, member_with_role, new_user, world};
 use sqlx::PgPool;
 use vector::maps::access::{
-    RevokeAccess, SetAccess, effective_role, list_access, revoke_access, set_access,
+    RevokeAccess, SetAccess, TransferOwnership, effective_role, list_access, revoke_access,
+    set_access, transfer_ownership,
 };
 use vector::maps::map::{GetMap, get_map};
 use vector::maps::{Actor, MapError, Role, SubjectType};
@@ -329,5 +330,80 @@ async fn a_grant_can_be_given_a_date_it_runs_out_on(pool: PgPool) {
     assert_eq!(
         effective_role(&pool, w.map_id, scout).await.unwrap(),
         Some(Role::Member)
+    );
+}
+
+#[sqlx::test]
+async fn ownership_is_handed_on_rather_than_granted(pool: PgPool) {
+    let w = world(&pool).await;
+    let mate = member_with_role(&pool, w.owner, w.map_id, 1010, 2001, Role::Manager).await;
+
+    // Even the owner cannot make a second owner: there is one, and it moves.
+    assert!(matches!(
+        set_access(
+            &pool,
+            w.owner,
+            SetAccess {
+                map_id: w.map_id,
+                subject_type: SubjectType::Character,
+                subject_id: 1010,
+                role: Role::Owner,
+                expires_at: None,
+            }
+        )
+        .await,
+        Err(MapError::Validation(_)),
+    ));
+
+    // Only the owner may hand it on.
+    assert!(matches!(
+        transfer_ownership(
+            &pool,
+            mate,
+            TransferOwnership {
+                map_id: w.map_id,
+                subject_id: 1010,
+            }
+        )
+        .await,
+        Err(MapError::Forbidden),
+    ));
+
+    // And only to somebody already on the map.
+    assert!(matches!(
+        transfer_ownership(
+            &pool,
+            w.owner,
+            TransferOwnership {
+                map_id: w.map_id,
+                subject_id: 4444,
+            }
+        )
+        .await,
+        Err(MapError::NotFound),
+    ));
+
+    transfer_ownership(
+        &pool,
+        w.owner,
+        TransferOwnership {
+            map_id: w.map_id,
+            subject_id: 1010,
+        },
+    )
+    .await
+    .unwrap();
+
+    // The map has exactly one owner, and the old one stays on to keep running it.
+    let entries = list_access(&pool, w.owner, w.map_id).await.unwrap();
+    let owners: Vec<_> = entries.iter().filter(|e| e.role == Role::Owner).collect();
+    assert_eq!(owners.len(), 1);
+    assert_eq!(owners[0].subject_id, 1010);
+    assert_eq!(
+        entries
+            .iter()
+            .find(|e| e.subject_id == 1001)
+            .map(|e| e.role),
+        Some(Role::Manager)
     );
 }

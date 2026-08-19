@@ -162,6 +162,14 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
     if cmd.role > actor_role {
         return Err(MapError::Forbidden);
     }
+    // A map has one owner: whoever made it, until they hand it on deliberately. Handing it
+    // on is [`transfer_ownership`], which is a different question from "who can help run
+    // this", and is asked somewhere that says what it costs.
+    if cmd.role == Role::Owner {
+        return Err(MapError::Validation(
+            "ownership is transferred, not granted".into(),
+        ));
+    }
 
     let mut tx = pool.begin().await?;
     sqlx::query!(
@@ -209,6 +217,63 @@ pub async fn revoke_access(pool: &PgPool, actor: Actor, cmd: RevokeAccess) -> Re
     if deleted == 0 {
         return Err(MapError::NotFound);
     }
+    ensure_has_owner(&mut tx, cmd.map_id).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct TransferOwnership {
+    pub map_id: i64,
+    /// The character taking it on. They keep no second role: there is one owner.
+    pub subject_id: i64,
+}
+
+/// Hand the map to someone else. Owner only.
+///
+/// The new owner must already be a character with a grant on the map, so ownership never
+/// lands on somebody who has not been let in yet, and the old owner stays on as a manager
+/// rather than losing the map they built.
+pub async fn transfer_ownership(pool: &PgPool, actor: Actor, cmd: TransferOwnership) -> Result<()> {
+    require_role(pool, cmd.map_id, actor.user_id, Role::Owner).await?;
+
+    let mut tx = pool.begin().await?;
+    let target = sqlx::query_scalar!(
+        r#"select subject_type from map_access
+           where map_id = $1 and subject_id = $2
+             and (expires_at is null or expires_at > now())"#,
+        cmd.map_id,
+        cmd.subject_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    match target.as_deref() {
+        Some("character") => {}
+        Some(_) => {
+            return Err(MapError::Validation(
+                "only a character can own a map".into(),
+            ));
+        }
+        None => return Err(MapError::NotFound),
+    }
+
+    sqlx::query!(
+        "update map_access set role = 'manager'
+         where map_id = $1 and role = 'owner' and subject_id <> $2",
+        cmd.map_id,
+        cmd.subject_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query!(
+        "update map_access set role = 'owner', expires_at = null
+         where map_id = $1 and subject_id = $2",
+        cmd.map_id,
+        cmd.subject_id,
+    )
+    .execute(&mut *tx)
+    .await?;
     ensure_has_owner(&mut tx, cmd.map_id).await?;
     tx.commit().await?;
     Ok(())

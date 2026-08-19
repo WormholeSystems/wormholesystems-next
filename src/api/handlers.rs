@@ -2265,6 +2265,20 @@ pub async fn revoke_access(
     Ok(Json(()))
 }
 
+/// `POST /api/maps/{id}/access/transfer` — hand the map to another character on it.
+pub async fn transfer_ownership(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+    Json(cmd): Json<crate::maps::access::TransferOwnership>,
+) -> ApiResult<()> {
+    check_map_id(map_id, cmd.map_id)?;
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::access::transfer_ownership(&state.db, actor, cmd).await?;
+    state.hub.publish(MapEvent::AccessChanged { map_id });
+    Ok(Json(()))
+}
+
 // --- History ---
 
 /// `GET /api/maps/{id}/events` — the map's history tree and where it currently sits. Viewer+.

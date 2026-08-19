@@ -34,6 +34,10 @@ test('the owner is listed, and granting adds a second entry', async ({ page, api
 
 	const list = page.getByTestId('access-list');
 	await expect(list.getByText('E2E Pilot')).toBeVisible();
+	// Every role explains itself, so picking one is not a guess.
+	const help = page.getByTestId('role-help');
+	await expect(help).toContainText('Viewer');
+	await expect(help).toContainText('Everything a manager does, and can delete the map.');
 
 	// The grant search only knows entities Vector has cached, so a known character resolves.
 	// Driven by keyboard alone, which is what a combobox is for.
@@ -69,6 +73,42 @@ test('a grant can be given an end date, and taken back to permanent', async ({ p
 	// Clicking it drops the end date.
 	await list.getByTestId('access-expiry').click();
 	await expect(list.getByTestId('access-expiry')).toHaveCount(0);
+});
+
+test('ownership is handed on from the danger zone, not granted from the list', async ({
+	page,
+	api
+}) => {
+	const mapId = await createMap(api, 'E2E Ownership');
+	const mate = await createIdentity(7);
+	await grantAccess(mapId, mate.characterId, 'manager');
+
+	await gotoApp(page, `/maps/${mapId}/settings/access`);
+	// Owner is described but not offered: it is not a permission to hand out.
+	await expect(page.getByTestId('role-help')).toContainText('Owner');
+	await page.getByTestId('grant-role').click();
+	await expect(page.getByRole('option', { name: 'Owner' })).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
+	await gotoApp(page, `/maps/${mapId}/settings`);
+	const zone = page.getByTestId('danger-zone');
+	await expect(zone).toContainText('Hand the map to someone else');
+	await zone.getByTestId('transfer-target').click();
+	await page.getByRole('option', { name: 'E2E Extra 7' }).click();
+	page.once('dialog', (d) => d.accept());
+	await zone.getByTestId('transfer-button').click();
+
+	// One owner, and the old one keeps running the map.
+	await expect
+		.poll(async () => {
+			const entries = await (await api.get(`/api/maps/${mapId}/access`)).json();
+			return entries
+				.filter((e: { role: string }) => e.role === 'owner')
+				.map((e: { subject_id: number }) => e.subject_id);
+		})
+		.toEqual([mate.characterId]);
+	// And the danger zone is theirs now, not ours.
+	await expect(page.getByTestId('danger-zone')).toHaveCount(0);
 });
 
 test('a viewer sees the roles but cannot change them', async ({ page, api }) => {

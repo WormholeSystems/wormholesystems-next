@@ -66,6 +66,7 @@ import type { CleanStaleConnections } from './types/CleanStaleConnections';
 import type { AccessSubject } from './types/AccessSubject';
 import type { SetAccess } from './types/SetAccess';
 import type { RevokeAccess } from './types/RevokeAccess';
+import type { TransferOwnership } from './types/TransferOwnership';
 import type { UpdateMap } from './types/UpdateMap';
 import type { MapHistory } from './types/MapHistory';
 import type { GotoMapEvent } from './types/GotoMapEvent';
@@ -267,6 +268,8 @@ export const api = {
 	searchAccessSubjects: (query: string) =>
 		get<AccessSubject[]>(`/api/access-subjects/search?q=${encodeURIComponent(query)}`),
 	setAccess: (cmd: SetAccess) => post<null>(`/api/maps/${cmd.map_id}/access/set`, cmd),
+	transferOwnership: (cmd: TransferOwnership) =>
+		post<null>(`/api/maps/${cmd.map_id}/access/transfer`, cmd),
 	revokeAccess: (cmd: RevokeAccess) => post<null>(`/api/maps/${cmd.map_id}/access/revoke`, cmd),
 
 	searchMap: (mapId: number, query: string) =>

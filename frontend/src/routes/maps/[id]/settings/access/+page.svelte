@@ -32,12 +32,23 @@
 	let newRole = $state<Role>('member');
 
 	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
-	const ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
+	// Ownership is not on this list: it moves through the danger zone on the General
+	// section, one owner at a time, rather than being handed out like a permission.
+	const ROLES: Role[] = ['viewer', 'member', 'manager'];
+	const ALL_ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
+	// Roles read as words in the interface and stay lowercase on the wire.
+	const ROLE_LABEL: Record<Role, string> = {
+		viewer: 'Viewer',
+		member: 'Member',
+		manager: 'Manager',
+		owner: 'Owner'
+	};
+	// Each role is everything below it plus one thing more, which is the part worth saying.
 	const ROLE_HELP: Record<Role, string> = {
-		viewer: 'Can see the map, but change nothing.',
-		member: 'Can add systems, connections and signatures.',
-		manager: 'Can also grant and revoke access.',
-		owner: 'Full control, including deleting the map.'
+		viewer: 'Reads the chain: systems, connections, signatures and notes. Changes nothing.',
+		member: 'Everything a viewer does, and maps: systems, connections, signatures, intel.',
+		manager: 'Everything a member does, and runs the map: access, naming, alerts, settings.',
+		owner: 'Everything a manager does, and can delete the map.'
 	};
 
 	$effect(() => {
@@ -138,10 +149,10 @@
 				<label for="grant-search" class="text-sm font-medium">
 					Add a character, corp or alliance
 				</label>
-				<div class="flex gap-2">
+				<div class="flex items-center gap-2">
 						<Popover.Root bind:open={picking}>
 							<Popover.Trigger
-								class="min-w-0 flex-1 border border-input bg-input/20 px-3 py-1.5 text-left text-sm {picked
+								class="flex h-7 min-w-0 flex-1 items-center rounded-md border border-input bg-input/20 px-2 text-left text-xs/relaxed {picked
 									? ''
 									: 'text-muted-foreground'}"
 								data-testid="grant-search"
@@ -188,12 +199,12 @@
 						</Popover.Root>
 						<Select.Root type="single" bind:value={newRole}>
 							<Select.Trigger class="w-32" data-testid="grant-role">
-								{newRole}
+								{ROLE_LABEL[newRole]}
 							</Select.Trigger>
 							<Select.Content>
 								<Select.Group>
 									{#each ROLES as r (r)}
-										<Select.Item value={r} label={r}>{r}</Select.Item>
+										<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
 									{/each}
 								</Select.Group>
 							</Select.Content>
@@ -212,11 +223,31 @@
 								</Select.Group>
 							</Select.Content>
 						</Select.Root>
-						<Button onclick={grant} disabled={!picked && !Number(query.trim())} data-testid="grant-button">
+						<Button
+							onclick={grant}
+							disabled={!picked && !Number(query.trim())}
+							data-testid="grant-button"
+						>
 							Grant
 						</Button>
 					</div>
-				<p class="text-xs text-muted-foreground">{ROLE_HELP[newRole]}</p>
+			</div>
+
+			<!-- Every role in one place: choosing one is choosing how far down this list to
+			     go, and that is easier to see side by side than one line at a time. Owner is
+			     here to be read, not chosen: it is handed on, not granted. -->
+			<div class="border border-border/60" data-testid="role-help">
+				{#each ALL_ROLES as r (r)}
+					<div
+						class="flex items-start gap-3 border-b border-border/40 px-3 py-2 last:border-b-0 {newRole ===
+						r
+							? 'bg-accent/30'
+							: ''}"
+					>
+						<span class="w-20 shrink-0 text-xs font-medium">{ROLE_LABEL[r]}</span>
+						<span class="text-xs leading-relaxed text-muted-foreground">{ROLE_HELP[r]}</span>
+					</div>
+				{/each}
 			</div>
 		{/if}
 
@@ -257,7 +288,9 @@
 							</button>
 						{/if}
 					</span>
-					{#if canManage}
+					{#if entry.role === 'owner'}
+						<Badge variant="outline">{ROLE_LABEL.owner}</Badge>
+					{:else if canManage}
 						<Select.Root
 							type="single"
 							value={entry.role}
@@ -271,11 +304,11 @@
 									})
 								)}
 						>
-							<Select.Trigger class="w-28">{entry.role}</Select.Trigger>
+							<Select.Trigger class="w-28">{ROLE_LABEL[entry.role]}</Select.Trigger>
 							<Select.Content>
 								<Select.Group>
 									{#each ROLES as r (r)}
-										<Select.Item value={r} label={r}>{r}</Select.Item>
+										<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
 									{/each}
 								</Select.Group>
 							</Select.Content>
@@ -290,7 +323,7 @@
 							<TrashIcon />
 						</Button>
 					{:else}
-						<Badge variant="outline">{entry.role}</Badge>
+						<Badge variant="outline">{ROLE_LABEL[entry.role]}</Badge>
 					{/if}
 				</li>
 			{/each}

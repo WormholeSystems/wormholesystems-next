@@ -6,7 +6,10 @@
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
+	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { MapView } from '$lib/api/types/MapView';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -71,6 +74,37 @@
 				description: description.trim() || null
 			})
 		);
+	}
+
+	// Who the map could be handed to: the characters already granted access.
+	let access = $state<AccessEntry[]>([]);
+	let heir = $state('');
+	const candidates = $derived(
+		access.filter((e) => e.subject_type === 'character' && e.role !== 'owner')
+	);
+
+	$effect(() => {
+		if (!mapId || !isOwner) return;
+		api
+			.listAccess(mapId)
+			.then((a) => (access = a))
+			.catch(() => {});
+	});
+
+	async function transfer() {
+		const subject = Number(heir);
+		const name = candidates.find((c) => c.subject_id === subject)?.name ?? 'them';
+		if (!subject || !confirm(`Hand "${view?.map.name}" to ${name}? You stay on as a manager.`)) {
+			return;
+		}
+		try {
+			await api.transferOwnership({ map_id: mapId, subject_id: subject });
+			heir = '';
+			toast.success(`${name} owns this map now`);
+			await reload();
+		} catch (err) {
+			error = (err as Error).message;
+		}
 	}
 
 	async function destroy() {
@@ -188,20 +222,63 @@
 		</Card.Content>
 	</Card.Root>
 
+	<!-- The two things only an owner can do, and neither of them is undoable. -->
 	{#if isOwner}
-		<Card.Root class="border-destructive/40">
+		<Card.Root class="border-destructive/40" data-testid="danger-zone">
 			<Card.Header>
-				<Card.Title>Delete this map</Card.Title>
-				<Card.Description>
-					Removes the map and everything on it for everyone. There is no undo.
-				</Card.Description>
+				<Card.Title>Danger zone</Card.Title>
+				<Card.Description>Yours alone as the owner, and neither has an undo.</Card.Description>
 			</Card.Header>
-			<Card.Footer>
-				<Button variant="destructive" onclick={destroy} data-testid="delete-map">
-					<TrashIcon data-icon="inline-start" />
-					Delete map
-				</Button>
-			</Card.Footer>
+			<Card.Content class="flex flex-col py-0">
+				<SettingRow
+					id="transfer-ownership"
+					label="Hand the map to someone else"
+					description="The map becomes theirs: only they can transfer it again or delete it. You stay on as a manager. Pick anyone already granted access as a character."
+					blocked={candidates.length === 0
+						? 'Nobody else has access to this map yet.'
+						: undefined}
+				>
+					{#snippet control()}
+						<span class="flex items-center gap-2">
+							<Select.Root type="single" bind:value={heir}>
+								<Select.Trigger class="w-48" data-testid="transfer-target">
+									{candidates.find((c) => String(c.subject_id) === heir)?.name ?? 'Pick a pilot'}
+								</Select.Trigger>
+								<Select.Content>
+									<Select.Group>
+										{#each candidates as c (c.subject_id)}
+											<Select.Item value={String(c.subject_id)} label={c.name ?? String(c.subject_id)}>
+												{c.name ?? c.subject_id}
+											</Select.Item>
+										{/each}
+									</Select.Group>
+								</Select.Content>
+							</Select.Root>
+							<Button
+								variant="destructive"
+								disabled={!heir}
+								onclick={transfer}
+								data-testid="transfer-button"
+							>
+								Transfer
+							</Button>
+						</span>
+					{/snippet}
+				</SettingRow>
+
+				<SettingRow
+					id="delete-map"
+					label="Delete this map"
+					description="Removes the map and everything on it, for everyone on it."
+				>
+					{#snippet control()}
+						<Button variant="destructive" onclick={destroy} data-testid="delete-map">
+							<TrashIcon data-icon="inline-start" />
+							Delete map
+						</Button>
+					{/snippet}
+				</SettingRow>
+			</Card.Content>
 		</Card.Root>
 	{/if}
 </div>

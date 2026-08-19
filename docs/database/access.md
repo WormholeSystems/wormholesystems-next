@@ -21,6 +21,10 @@ a role. The **owner** is just a `role = owner` row here; there is no `owner_id`.
 
 **Invariants & expected behaviour**
 
+- **A map has exactly one owner.** `owner` cannot be granted through `set_access`; it
+  moves with `transfer_ownership`, which demotes the previous owner to `manager` and
+  requires the new one to be a character already granted access. Creating a map makes its
+  creator the owner.
 - `expires_at` (nullable) ends a grant on its own. `null` is the ordinary grant, which
   lasts until it is revoked. A lapsed row is left in place but counts for nothing: it is
   excluded from every role lookup and from the map's own list of grants, so re-granting
