@@ -259,6 +259,7 @@ async fn list_returns_accessible_maps_with_highest_role(pool: PgPool) {
             subject_type: SubjectType::Corporation,
             subject_id: 2002,
             role: Role::Member,
+            expires_at: None,
         },
     )
     .await
@@ -271,6 +272,7 @@ async fn list_returns_accessible_maps_with_highest_role(pool: PgPool) {
             subject_type: SubjectType::Character,
             subject_id: 1002,
             role: Role::Viewer,
+            expires_at: None,
         },
     )
     .await

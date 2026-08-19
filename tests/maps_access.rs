@@ -3,10 +3,14 @@
 
 mod common;
 
+use chrono::{Duration, Utc};
 use common::{add_character, member_with_role, new_user, world};
 use sqlx::PgPool;
-use vector::maps::access::{RevokeAccess, SetAccess, effective_role, revoke_access, set_access};
-use vector::maps::{MapError, Role, SubjectType};
+use vector::maps::access::{
+    RevokeAccess, SetAccess, effective_role, list_access, revoke_access, set_access,
+};
+use vector::maps::map::{GetMap, get_map};
+use vector::maps::{Actor, MapError, Role, SubjectType};
 
 #[sqlx::test]
 async fn set_access_grants_and_then_changes_role_in_place(pool: PgPool) {
@@ -22,6 +26,7 @@ async fn set_access_grants_and_then_changes_role_in_place(pool: PgPool) {
             subject_type: SubjectType::Character,
             subject_id: 1002,
             role: Role::Member,
+            expires_at: None,
         },
     )
     .await
@@ -40,6 +45,7 @@ async fn set_access_grants_and_then_changes_role_in_place(pool: PgPool) {
             subject_type: SubjectType::Character,
             subject_id: 1002,
             role: Role::Manager,
+            expires_at: None,
         },
     )
     .await
@@ -72,7 +78,8 @@ async fn grant_respects_privilege_ceiling(pool: PgPool) {
                 map_id: w.map_id,
                 subject_type: SubjectType::Character,
                 subject_id: 1003,
-                role: Role::Owner
+                role: Role::Owner,
+                expires_at: None,
             }
         )
         .await,
@@ -87,6 +94,7 @@ async fn grant_respects_privilege_ceiling(pool: PgPool) {
             subject_type: SubjectType::Character,
             subject_id: 1003,
             role: Role::Manager,
+            expires_at: None,
         },
     )
     .await
@@ -106,7 +114,8 @@ async fn owner_invariant_blocks_downgrade_and_revoke(pool: PgPool) {
                 map_id: w.map_id,
                 subject_type: SubjectType::Character,
                 subject_id: w.owner.character_id,
-                role: Role::Manager
+                role: Role::Manager,
+                expires_at: None,
             }
         )
         .await,
@@ -190,6 +199,7 @@ async fn access_via_corporation_grant(pool: PgPool) {
             subject_type: SubjectType::Corporation,
             subject_id: 5000,
             role: Role::Member,
+            expires_at: None,
         },
     )
     .await
@@ -228,6 +238,7 @@ async fn map_view_flags_an_active_character_without_its_own_grant(pool: PgPool) 
             subject_type: SubjectType::Character,
             subject_id: 1002,
             role: Role::Member,
+            expires_at: None,
         },
     )
     .await
@@ -254,4 +265,69 @@ async fn map_view_flags_an_active_character_without_its_own_grant(pool: PgPool) 
         .unwrap();
     assert_eq!(view.role, Role::Member);
     assert!(!view.character_has_access);
+}
+
+#[sqlx::test]
+async fn a_grant_can_be_given_a_date_it_runs_out_on(pool: PgPool) {
+    let w = world(&pool).await;
+    let scout = new_user(&pool).await;
+    add_character(&pool, scout, 1500, 2001, None).await;
+    let scout_actor = Actor {
+        user_id: scout,
+        character_id: 1500,
+    };
+
+    // Access for the operation, not for ever.
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1500,
+            role: Role::Member,
+            expires_at: Some(Some(Utc::now() + Duration::hours(4))),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        effective_role(&pool, w.map_id, scout).await.unwrap(),
+        Some(Role::Member)
+    );
+
+    // Once it lapses the row is still there, and counts for nothing.
+    sqlx::query(
+        "update map_access set expires_at = now() - interval '1 minute' where subject_id = 1500",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert_eq!(effective_role(&pool, w.map_id, scout).await.unwrap(), None);
+    assert!(matches!(
+        get_map(&pool, scout_actor, GetMap { map_id: w.map_id }).await,
+        Err(MapError::NotFound),
+    ));
+    // And it is not offered as one of the map's grants either.
+    let listed = list_access(&pool, w.owner, w.map_id).await.unwrap();
+    assert!(listed.iter().all(|e| e.subject_id != 1500));
+
+    // Taking the date off makes it a grant like any other again.
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1500,
+            role: Role::Member,
+            expires_at: Some(None),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        effective_role(&pool, w.map_id, scout).await.unwrap(),
+        Some(Role::Member)
+    );
 }

@@ -1,6 +1,7 @@
 //! Authorization helpers and the access-management actions (`set_access`,
 //! `revoke_access`). See [access.md](../../docs/database/access.md).
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -15,6 +16,7 @@ pub async fn effective_role(pool: &PgPool, map_id: i64, user_id: i64) -> Result<
         r#"select role as "role!: Role"
            from map_access
            where map_id = $1
+             and (expires_at is null or expires_at > now())
              and subject_id in (
                  select id from characters where user_id = $2
                  union all
@@ -60,6 +62,7 @@ pub(super) async fn require_role_tx(
         r#"select role as "role!: Role"
            from map_access
            where map_id = $1
+             and (expires_at is null or expires_at > now())
              and subject_id in (
                  select id from characters where user_id = $2
                  union all
@@ -100,6 +103,9 @@ pub struct AccessEntry {
     pub subject_id: i64,
     pub name: Option<String>,
     pub role: Role,
+    /// When the grant lapses. `None` lasts until someone revokes it.
+    #[ts(optional)]
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 /// Every grant on the map, owners first. Viewer+: knowing who can see a chain is part of
@@ -111,7 +117,8 @@ pub async fn list_access(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec
         r#"select a.subject_type as "subject_type!: SubjectType",
                   a.subject_id,
                   coalesce(c.name, corp.name, al.name) as "name?",
-                  a.role as "role!: Role"
+                  a.role as "role!: Role",
+                  a.expires_at
            from map_access a
            left join characters c
              on a.subject_type = 'character' and c.id = a.subject_id
@@ -120,6 +127,7 @@ pub async fn list_access(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec
            left join alliances al
              on a.subject_type = 'alliance' and al.id = a.subject_id
            where a.map_id = $1
+             and (a.expires_at is null or a.expires_at > now())
            order by
              case a.role
                when 'owner' then 0 when 'manager' then 1
@@ -140,6 +148,11 @@ pub struct SetAccess {
     pub subject_type: SubjectType,
     pub subject_id: i64,
     pub role: Role,
+    /// When it should lapse. Absent leaves an existing expiry alone; `null` makes the
+    /// grant permanent again.
+    #[serde(default, deserialize_with = "super::double_option")]
+    #[ts(optional)]
+    pub expires_at: Option<Option<DateTime<Utc>>>,
 }
 
 /// Grant `role` to a subject, or change an existing subject's role. Manager+, and you
@@ -152,14 +165,19 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
 
     let mut tx = pool.begin().await?;
     sqlx::query!(
-        "insert into map_access (map_id, subject_type, subject_id, role)
-         values ($1, $2, $3, $4)
+        "insert into map_access (map_id, subject_type, subject_id, role, expires_at)
+         values ($1, $2, $3, $4, $5)
          on conflict (map_id, subject_id)
-         do update set subject_type = excluded.subject_type, role = excluded.role",
+         do update set subject_type = excluded.subject_type, role = excluded.role,
+             -- Absent leaves whatever expiry the grant already had; a value, including
+             -- null, replaces it.
+             expires_at = case when $6 then $5 else map_access.expires_at end",
         cmd.map_id,
         cmd.subject_type.as_str(),
         cmd.subject_id,
         cmd.role.as_str(),
+        cmd.expires_at.flatten(),
+        cmd.expires_at.is_some(),
     )
     .execute(&mut *tx)
     .await?;

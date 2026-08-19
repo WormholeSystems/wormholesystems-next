@@ -2,4 +2,9 @@
 import type { Role } from "./Role";
 import type { SubjectType } from "./SubjectType";
 
-export type SetAccess = { map_id: number, subject_type: SubjectType, subject_id: number, role: Role, };
+export type SetAccess = { map_id: number, subject_type: SubjectType, subject_id: number, role: Role, 
+/**
+ * When it should lapse. Absent leaves an existing expiry alone; `null` makes the
+ * grant permanent again.
+ */
+expires_at?: string | null, };

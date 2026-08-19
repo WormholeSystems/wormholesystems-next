@@ -128,6 +128,7 @@ pub async fn member_with_role(
             subject_type: SubjectType::Character,
             subject_id: char_id,
             role,
+            expires_at: None,
         },
     )
     .await

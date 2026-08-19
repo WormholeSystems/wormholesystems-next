@@ -76,6 +76,22 @@
 		}
 	}
 
+	// How long a grant lasts. Access for one operation is the common case people forget to
+	// tidy up afterwards, so the form can hand it an end from the start.
+	const DURATIONS = [
+		{ value: 'forever', label: 'No end date', hours: null },
+		{ value: '12h', label: 'For 12 hours', hours: 12 },
+		{ value: '24h', label: 'For a day', hours: 24 },
+		{ value: '7d', label: 'For a week', hours: 24 * 7 },
+		{ value: '30d', label: 'For a month', hours: 24 * 30 }
+	];
+	let newDuration = $state('forever');
+
+	function endsAt(duration: string): string | null {
+		const hours = DURATIONS.find((d) => d.value === duration)?.hours ?? null;
+		return hours === null ? null : new Date(Date.now() + hours * 3600_000).toISOString();
+	}
+
 	function grant() {
 		// A pasted id has no cached name; grant it as a character and let the next load
 		// resolve whatever it turns out to be.
@@ -88,12 +104,14 @@
 				map_id: mapId,
 				subject_type: subject.subject_type,
 				subject_id: subject.subject_id,
-				role: newRole
+				role: newRole,
+				expires_at: endsAt(newDuration)
 			})
 		).then(() => {
 			query = '';
 			picked = null;
 			matches = [];
+			newDuration = 'forever';
 		});
 	}
 </script>
@@ -168,6 +186,20 @@
 								</Select.Group>
 							</Select.Content>
 						</Select.Root>
+						<Select.Root type="single" value={newDuration} onValueChange={(v) => v && (newDuration = v)}>
+							<Select.Trigger class="w-36" data-testid="grant-duration">
+								{DURATIONS.find((d) => d.value === newDuration)?.label}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Group>
+									{#each DURATIONS as option (option.value)}
+										<Select.Item value={option.value} label={option.label}>
+											{option.label}
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
 						<Button onclick={grant} disabled={!picked && !Number(query.trim())} data-testid="grant-button">
 							Grant
 						</Button>
@@ -186,9 +218,32 @@
 						title={entry.name ?? String(entry.subject_id)}
 						class="size-8 rounded-sm"
 					/>
-					<span class="flex-1 truncate text-sm">
-						{entry.name ?? `Unknown (${entry.subject_id})`}
-						<span class="ml-1 text-xs text-muted-foreground">{entry.subject_type}</span>
+					<span class="flex min-w-0 flex-1 flex-col">
+						<span class="truncate text-sm">
+							{entry.name ?? `Unknown (${entry.subject_id})`}
+							<span class="ml-1 text-xs text-muted-foreground">{entry.subject_type}</span>
+						</span>
+						{#if entry.expires_at}
+							<button
+								type="button"
+								class="w-fit text-xs text-amber-500 hover:underline"
+								data-testid="access-expiry"
+								title={canManage ? 'Click to make it permanent' : undefined}
+								disabled={!canManage}
+								onclick={() =>
+									act(
+										api.setAccess({
+											map_id: mapId,
+											subject_type: entry.subject_type,
+											subject_id: entry.subject_id,
+											role: entry.role,
+											expires_at: null
+										})
+									)}
+							>
+								Until {new Date(entry.expires_at).toLocaleString()}
+							</button>
+						{/if}
 					</span>
 					{#if canManage}
 						<Select.Root

@@ -6,4 +6,8 @@ import type { SubjectType } from "./SubjectType";
  * One grant, with the subject's name resolved for display. `name` is `None` when the
  * subject is an entity we have never cached (a corp nobody on this map belongs to).
  */
-export type AccessEntry = { subject_type: SubjectType, subject_id: number, name: string | null, role: Role, };
+export type AccessEntry = { subject_type: SubjectType, subject_id: number, name: string | null, role: Role, 
+/**
+ * When the grant lapses. `None` lasts until someone revokes it.
+ */
+expires_at?: string, };

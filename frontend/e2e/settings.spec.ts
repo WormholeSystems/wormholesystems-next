@@ -41,6 +41,29 @@ test('the owner is listed, and granting adds a second entry', async ({ page, api
 	await expect(list.getByRole('listitem')).toHaveCount(2);
 });
 
+test('a grant can be given an end date, and taken back to permanent', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Expiry');
+	const mate = await createIdentity(4);
+	await gotoApp(page, `/maps/${mapId}/settings/access`);
+
+	await page.getByTestId('grant-search').fill(String(mate.characterId));
+	await page.getByTestId('grant-duration').click();
+	await page.getByRole('option', { name: 'For a day' }).click();
+	await page.getByTestId('grant-button').click();
+
+	const list = page.getByTestId('access-list');
+	await expect(list.getByRole('listitem')).toHaveCount(2);
+	// The row says when it runs out, rather than looking like any other grant.
+	await expect(list.getByTestId('access-expiry')).toHaveCount(1);
+	const stored = await (await api.get(`/api/maps/${mapId}/access`)).json();
+	expect(stored.find((e: { subject_id: number }) => e.subject_id === mate.characterId).expires_at)
+		.not.toBeNull();
+
+	// Clicking it drops the end date.
+	await list.getByTestId('access-expiry').click();
+	await expect(list.getByTestId('access-expiry')).toHaveCount(0);
+});
+
 test('a viewer sees the roles but cannot change them', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E ViewerSettings');
 	const viewer = await createIdentity(3);
