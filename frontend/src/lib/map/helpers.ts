@@ -98,12 +98,18 @@ export function nodeAt(
 	systems: MapSystemView[],
 	wx: number,
 	wy: number,
-	g: GridConfig
+	g: GridConfig,
+	/**
+	 * Where the nodes actually are. An automatic layout places them somewhere other than
+	 * their stored position, and a hit test has to agree with what is on the screen.
+	 */
+	positions?: ReadonlyMap<number, { x: number; y: number }>
 ): number | null {
 	const h = 2 * g.cell_size;
-	const hit = systems.find(
-		(s) => wx >= s.position_x && wx <= s.position_x + NODE_W && wy >= s.position_y && wy <= s.position_y + h
-	);
+	const hit = systems.find((s) => {
+		const at = positions?.get(s.id) ?? { x: s.position_x, y: s.position_y };
+		return wx >= at.x && wx <= at.x + NODE_W && wy >= at.y && wy <= at.y + h;
+	});
 	return hit ? hit.id : null;
 }
 

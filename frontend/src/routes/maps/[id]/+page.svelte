@@ -192,10 +192,13 @@
 		const hiX = Math.max(b.x0, b.x1);
 		const loY = Math.min(b.y0, b.y1);
 		const hiY = Math.max(b.y0, b.y1);
+		// Rendered positions, not stored ones: an automatic layout puts the nodes somewhere
+		// else, and the box has to take what it is drawn around.
 		const hit = map.systems
 			.filter((s) => {
-				const cx = s.position_x + NODE_W / 2;
-				const cy = s.position_y + map.nodeH / 2;
+				const at = map.positions.get(s.id) ?? { x: s.position_x, y: s.position_y };
+				const cx = at.x + NODE_W / 2;
+				const cy = at.y + map.nodeH / 2;
 				return cx >= loX && cx <= hiX && cy >= loY && cy <= hiY;
 			})
 			.map((s) => s.id);
@@ -266,7 +269,7 @@
 			const l = map.linking;
 			map.linking = null;
 			const w = map.toWorld(ev.clientX, ev.clientY);
-			const target = nodeAt(map.systems, w.x, w.y, map.grid);
+			const target = nodeAt(map.systems, w.x, w.y, map.grid, map.positions);
 			// Dropping onto an unmapped hole is the same claim from the other end, so it is
 			// no more allowed than starting from one.
 			const ghost = map.systems.some((s) => s.id === target && s.solar_system_id === null);
@@ -306,7 +309,10 @@
 			map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
 		} else if (ev.button === 0) {
 			viewportEl?.setPointerCapture(ev.pointerId);
-			if (map.layoutLocked) {
+			// An automatic layout has nothing to drag, so a plain drag pans instead — unless
+			// a selection modifier is held, which still belongs to the rubber band.
+			const selecting = ev.shiftKey || ev.ctrlKey || ev.metaKey;
+			if (map.layoutLocked && !selecting) {
 				map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
 			} else {
 				pendingBand = { cx: ev.clientX, cy: ev.clientY };

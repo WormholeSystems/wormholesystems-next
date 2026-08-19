@@ -145,3 +145,38 @@ test('the creator picks the placement, with both options explained', async ({ pa
 
 	await api.delete(`/api/maps/${mapId}`);
 });
+
+test('shift-drag still rubber-bands while the layout places the systems', async ({
+	page,
+	api
+}) => {
+	const { mapId } = await seedChain(api, 'E2E TreeMarquee');
+	await api.post(`/api/maps/${mapId}/update`, {
+		data: { map_id: mapId, layout: 'tree' }
+	});
+
+	await gotoApp(page, `/maps/${mapId}`);
+	await expect(page.getByTestId('system-node')).toHaveCount(3);
+	const canvas = (await page.getByTestId('map-canvas').boundingBox())!;
+
+	// A plain drag pans: the systems keep their laid-out positions and nothing is picked.
+	await page.mouse.move(canvas.x + 600, canvas.y + 420);
+	await page.mouse.down();
+	await page.mouse.move(canvas.x + 500, canvas.y + 380, { steps: 8 });
+	await page.mouse.up();
+	await expect(page.locator('[data-testid="system-node"].bg-amber-100')).toHaveCount(0);
+
+	// With shift held, the same drag draws a box and takes what it covers.
+	await page.keyboard.down('Shift');
+	await page.mouse.move(canvas.x + 20, canvas.y + 20);
+	await page.mouse.down();
+	await page.mouse.move(canvas.x + 900, canvas.y + 600, { steps: 12 });
+	await page.mouse.up();
+	await page.keyboard.up('Shift');
+
+	await expect
+		.poll(async () => await page.locator('[data-testid="system-node"]').evaluateAll(
+			(nodes) => nodes.filter((n) => n.className.includes('amber')).length
+		))
+		.toBeGreaterThan(0);
+});
