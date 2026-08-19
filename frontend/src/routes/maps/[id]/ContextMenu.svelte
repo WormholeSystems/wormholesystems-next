@@ -280,10 +280,12 @@ which would unmount these buttons before their click can fire. -->
 			<PinIcon class="size-4" />
 			{s.is_pinned ? 'Unpin' : 'Pin'}
 		</button>
-		<button class={item} onclick={() => connectFrom(s.id)}>
-			<WaypointsIcon class="size-4" />
-			Add connection
-		</button>
+		{#if s.solar_system_id !== null}
+			<button class={item} onclick={() => connectFrom(s.id)}>
+				<WaypointsIcon class="size-4" />
+				Add connection
+			</button>
+		{/if}
 
 		{#if s.solar_system_id !== null && s.name !== null}
 		<div class={sub} data-testid="status-subtrigger">

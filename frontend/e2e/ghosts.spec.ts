@@ -65,6 +65,12 @@ test('a pasted wormhole becomes a node, and assigning a system names it', async 
 	await ghost.hover();
 	await expect(ghost.getByTestId('connection-handle')).toHaveCount(0);
 
+	// The menu does not offer it either, from the node or from the API.
+	await ghost.click({ button: 'right' });
+	await expect(page.getByRole('button', { name: 'Assign a system' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Add connection' })).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
 	// And the API says the same, whichever end the connection is asked for.
 	const view = await (await api.get(`/api/maps/${mapId}`)).json();
 	const ghostId = view.systems.find(
