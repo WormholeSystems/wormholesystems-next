@@ -23,7 +23,7 @@
 	<title>Vector</title>
 </svelte:head>
 
-<Toaster position="bottom-center" richColors closeButton />
+<Toaster position="top-center" richColors closeButton />
 <Nav me={data.me} />
 <main class={flush ? "" : "p-6"}>
 	{@render children()}
