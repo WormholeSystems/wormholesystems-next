@@ -45,6 +45,8 @@ const PARALLEL_SPACING = 14;
 const BEND_SPACING = 16;
 /** Corner radius of an elbow. */
 const CORNER_RADIUS = 10;
+/** How far into the lane beside a column a detouring run sits, in world units. */
+const LANE_MARGIN = 40;
 
 function rectAt(position: Vec2, nodeH: number): Rect {
 	return {
@@ -106,6 +108,8 @@ interface Routed {
 	source: Rect;
 	target: Rect;
 	bend: number | null;
+	/** Both ends leave the same side, to get around the nodes between them. */
+	detour: boolean;
 	/** Perpendicular distance and signed offset of the far end, for ordering the fan. */
 	distance: number;
 	signed: number;
@@ -116,10 +120,26 @@ interface Routed {
  *
  * Left and right edges are preferred whenever the boxes are separated horizontally: the
  * long run then drops through the clear lane between the two columns instead of cutting
- * down through the column of stacked siblings. Top and bottom are only used when the
- * boxes share a column, where there is no lane to use.
+ * down through the column of stacked siblings.
+ *
+ * `detour` is for two nodes in the same column with something between them, which is what
+ * a connection between two pinned roots looks like. Both ends leave the *same* side, so
+ * the run happens out in the lane rather than straight down the column and through every
+ * node in the way.
  */
-function facingEnds(source: Rect, target: Rect) {
+function facingEnds(source: Rect, target: Rect, detour: boolean) {
+	if (detour) {
+		return {
+			from: { x: source.maxX, y: source.centerY },
+			to: { x: target.maxX, y: target.centerY },
+			fromNormal: { x: 1, y: 0 },
+			toNormal: { x: 1, y: 0 }
+		};
+	}
+	return facingEndsDirect(source, target);
+}
+
+function facingEndsDirect(source: Rect, target: Rect) {
 	const dx = target.centerX - source.centerX;
 	const dy = target.centerY - source.centerY;
 	const separatedX = target.minX > source.maxX || source.minX > target.maxX;
@@ -141,6 +161,34 @@ function facingEnds(source: Rect, target: Rect) {
 		fromNormal: { x: 0, y: downward ? 1 : -1 },
 		toNormal: { x: 0, y: downward ? -1 : 1 }
 	};
+}
+
+/**
+ * Whether a node sits between these two in their shared column. A run straight down the
+ * column would cross it, and an edge that disappears behind a node says nothing about
+ * what it connects.
+ */
+function blockedInColumn(source: Rect, target: Rect, column: Rect[]): boolean {
+	const top = Math.min(source.centerY, target.centerY);
+	const bottom = Math.max(source.centerY, target.centerY);
+	return column.some(
+		(other) =>
+			other !== source && other !== target && other.minY < bottom && other.maxY > top
+	);
+}
+
+/**
+ * A vertical run may sit in the lanes between columns, never inside one: crossing another
+ * edge is readable, disappearing behind a node is not. Pushes a bend into the lane on the
+ * right of whichever column it landed in.
+ */
+function intoLane(x: number, columns: number[]): number {
+	for (const left of columns) {
+		if (x > left - LANE_MARGIN / 2 && x < left + NODE_W + LANE_MARGIN) {
+			return left + NODE_W + LANE_MARGIN;
+		}
+	}
+	return x;
 }
 
 interface Port {
@@ -225,14 +273,28 @@ export function treeEdges(
 	positions: ReadonlyMap<number, Vec2>,
 	nodeH: number
 ): Map<number, EdgeGeometry> {
+	// One rect per node, shared by everything below: the column index holds the same
+	// objects the edges do, so "is this the node I am joining" stays an identity check.
+	const rects = new Map<number, Rect>();
+	const byColumn = new Map<number, Rect[]>();
+	for (const [id, position] of positions) {
+		const rect = rectAt(position, nodeH);
+		rects.set(id, rect);
+		const column = byColumn.get(rect.minX);
+		if (column) column.push(rect);
+		else byColumn.set(rect.minX, [rect]);
+	}
+	const columns = [...byColumn.keys()].sort((a, b) => a - b);
+
 	const routed: Routed[] = [];
 	for (const c of connections) {
-		const a = positions.get(c.from_system);
-		const b = positions.get(c.to_system);
-		if (!a || !b) continue;
-		const source = rectAt(a, nodeH);
-		const target = rectAt(b, nodeH);
-		const ends = facingEnds(source, target);
+		const source = rects.get(c.from_system);
+		const target = rects.get(c.to_system);
+		if (!source || !target) continue;
+		const detour =
+			source.minX === target.minX &&
+			blockedInColumn(source, target, byColumn.get(source.minX) ?? []);
+		const ends = facingEnds(source, target, detour);
 		routed.push({
 			id: c.id,
 			from: { ...ends.from },
@@ -242,6 +304,7 @@ export function treeEdges(
 			source,
 			target,
 			bend: null,
+			detour,
 			distance: 0,
 			signed: 0
 		});
@@ -272,6 +335,7 @@ export function treeEdges(
 	// how far the far end sits so the runs do not cross.
 	const fans = new Map<string, Routed[]>();
 	for (const edge of routed) {
+		if (edge.detour) continue;
 		const horizontal = edge.fromNormal.x !== 0;
 		const sourceFirst = horizontal
 			? edge.source.centerX <= edge.target.centerX
@@ -301,6 +365,28 @@ export function treeEdges(
 			const base = horizontal ? (edge.from.x + edge.to.x) / 2 : (edge.from.y + edge.to.y) / 2;
 			edge.bend = base + (i - (group.length - 1) / 2) * spacing;
 		});
+	}
+
+	// Detours run in the lane beside their own column, stacked outwards so several
+	// between the same roots stay apart.
+	const detours = new Map<number, Routed[]>();
+	for (const edge of routed.filter((e) => e.detour)) {
+		const group = detours.get(edge.source.minX);
+		if (group) group.push(edge);
+		else detours.set(edge.source.minX, [edge]);
+	}
+	for (const [columnX, group] of detours) {
+		group.sort((a, b) => a.from.y - b.from.y);
+		group.forEach((edge, i) => {
+			edge.bend = columnX + NODE_W + LANE_MARGIN + i * BEND_SPACING;
+		});
+	}
+
+	// Everything else keeps its computed bend, nudged out of any column it landed in: the
+	// midpoint between two columns two apart is exactly the column between them.
+	for (const edge of routed) {
+		if (edge.detour || edge.fromNormal.x === 0) continue;
+		edge.bend = intoLane(edge.bend ?? (edge.from.x + edge.to.x) / 2, columns);
 	}
 
 	const out = new Map<number, EdgeGeometry>();

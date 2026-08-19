@@ -2,6 +2,7 @@
 	// The right-click menu, structured and iconed to legacy parity. Hand-rolled
 	// (coordinate-positioned) with CSS-hover flyout submenus.
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import BugIcon from '@lucide/svelte/icons/bug';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import CompassIcon from '@lucide/svelte/icons/compass';
@@ -73,6 +74,18 @@
 		map.selected = new Set();
 		map.run('remove', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
 		close();
+	}
+
+	// Development only, and loaded on demand, so none of it reaches a built app.
+	const dev = import.meta.env.DEV;
+
+	function stressChain() {
+		close();
+		map.statusLine = 'debug: building a stress-test chain…';
+		import('./debug')
+			.then((debug) => debug.seedStressChain(map))
+			.then(() => (map.statusLine = ''))
+			.catch((err) => (map.statusLine = `debug: ${(err as Error).message}`));
 	}
 
 	function clearMap() {
@@ -267,6 +280,17 @@ which would unmount these buttons before their click can fire. -->
 			<EraserIcon class="size-4" />
 			Clear map
 		</button>
+		{#if dev}
+			<div class="my-0.5 border-t border-border"></div>
+			<div class={sub} data-testid="debug-subtrigger">
+				<BugIcon class="size-4" />
+				Debug
+				<ChevronRightIcon class="ml-auto size-3" />
+				<div class={panel} data-testid="debug-submenu">
+					<button class={item} onclick={stressChain}>Add a stress-test chain</button>
+				</div>
+			</div>
+		{/if}
 	{:else if menu.target.kind === 'node'}
 		{@const s = menu.target.system}
 		{#if s.solar_system_id === null}

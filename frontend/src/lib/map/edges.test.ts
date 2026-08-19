@@ -84,6 +84,53 @@ describe('treeEdges', () => {
 		for (const d of bends) expect(d).toContain('Q');
 	});
 
+	it('detours into the lane when nodes sit between the two in a column', () => {
+		// Four pinned roots in the first column, and a connection joining the outer two:
+		// straight down would vanish behind the two in between.
+		const positions = new Map([
+			[1, { x: 60, y: 40 }],
+			[2, { x: 60, y: 160 }],
+			[3, { x: 60, y: 280 }],
+			[4, { x: 60, y: 400 }]
+		]);
+		const g = treeEdges([connection(10, 1, 4)], positions, NODE_H).get(10)!;
+
+		// Both ends leave the same side, so the run happens beside the column.
+		expect(g.from.x).toBe(60 + NODE_W);
+		expect(g.to.x).toBe(60 + NODE_W);
+		expect(g.center.x).toBeGreaterThan(60 + NODE_W);
+		// And the run clears the nodes it was cutting through.
+		expect(g.center.y).toBeGreaterThan(60);
+		expect(g.center.y).toBeLessThan(420);
+	});
+
+	it('keeps a straight run when the column between them is clear', () => {
+		const positions = new Map([
+			[1, { x: 60, y: 40 }],
+			[2, { x: 60, y: 400 }]
+		]);
+		const g = treeEdges([connection(10, 1, 2)], positions, NODE_H).get(10)!;
+
+		// Nothing in the way, so it takes the short way: out of the bottom, into the top.
+		expect(g.from).toEqual({ x: 60 + NODE_W / 2, y: 80 });
+		expect(g.to).toEqual({ x: 60 + NODE_W / 2, y: 400 });
+	});
+
+	it('never runs vertically through a column it is only passing', () => {
+		// Columns two apart: the midpoint between them is the column in between, which is
+		// exactly where a naive bend would put the vertical run.
+		const positions = new Map([
+			[1, { x: 60, y: 40 }],
+			[2, { x: 380, y: 300 }],
+			[3, { x: 700, y: 40 }]
+		]);
+		const g = treeEdges([connection(10, 1, 3)], positions, NODE_H).get(10)!;
+
+		const run = g.center.x;
+		expect(run).toBeGreaterThan(60 + NODE_W);
+		expect(run < 380 || run > 380 + NODE_W).toBe(true);
+	});
+
 	it('goes out of the top or bottom when the nodes share a column', () => {
 		const positions = new Map([
 			[1, { x: 60, y: 40 }],

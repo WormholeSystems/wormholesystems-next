@@ -156,7 +156,7 @@ render a map outside the live canvas (a share view, an alert preview, a print).
 | Background image | per user, 2 modes, upload + drag-drop | **missing** |
 | Scrollbars | auto-hide, min thumb, track click, drag | *ported*: auto-hide after 1.5s, min thumb, click + drag |
 | Layout modes | manual + tree, per-map default, per-user override | *ported*: same three fields, switcher on the canvas |
-| Tree edge routing | orthogonal with parallel fan-out | *ported*: `$lib/map/edges.ts` |
+| Tree edge routing | orthogonal with parallel fan-out | *ported*, and improved: runs are kept out of the column bands, and an edge between two nodes with something between them detours into the lane |
 | Layout lock | drag/marquee off, left-drag pans | *ported* |
 | Readonly renderer | `MapReadonly.vue` | **missing** |
 
