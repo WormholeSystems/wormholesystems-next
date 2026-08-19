@@ -1,0 +1,43 @@
+name: Query cache
+
+# `.sqlx` is what lets the release image compile without a database: the Dockerfile builds
+# with SQLX_OFFLINE=true. Nothing local notices when it falls behind, because dev builds and
+# tests talk to a real Postgres, so it rots quietly and the next deploy is what finds out.
+# It had drifted by 200 queries before this job existed.
+#
+# This compiles the way the image does rather than running `sqlx prepare --check`: sqlx
+# infers nullability from Postgres's query plan, so an empty CI database and a populated
+# developer one disagree about columns the planner cannot prove non-null, and the check
+# fails on a cache that is perfectly good. Compiling offline asks the question that matters.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  offline:
+    name: builds without a database
+    runs-on: ubuntu-latest
+    # The format job's fix-up commits change no queries.
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+
+    env:
+      SQLX_OFFLINE: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Compile against the query cache
+        run: |
+          if ! cargo check --all-targets --locked; then
+            echo "::error::.sqlx is out of date, so the production image cannot build."
+            echo "Regenerate it against a migrated, seeded database and commit the result:"
+            echo "  cargo sqlx prepare -- --all-targets"
+            exit 1
+          fi
