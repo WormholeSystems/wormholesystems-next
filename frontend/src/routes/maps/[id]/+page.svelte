@@ -81,7 +81,7 @@
 		return () => window.removeEventListener('resize', measure);
 	});
 
-	const COVER_MS = 1000;
+	const COVER_MS = 500;
 	let covered = $state(true);
 	$effect(() => {
 		// Re-covers when the map changes: switching maps rebuilds all of this, and the gap
