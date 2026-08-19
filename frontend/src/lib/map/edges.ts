@@ -16,6 +16,12 @@ export interface Vec2 {
 
 export interface EdgeGeometry {
 	id: number;
+	/**
+	 * `curve` is the manual layout's line; `elbow` the tree layout's right angles. The
+	 * canvas draws an elbow slimmer and without endpoint dots: it meets the node's edge
+	 * square-on, where a curve stops short of it on the rail and needs the dot to land on.
+	 */
+	kind: 'curve' | 'elbow';
 	from: Vec2;
 	to: Vec2;
 	/** Where the badge cluster hangs. */
@@ -79,7 +85,14 @@ export function freeEdges(
 		if (!a || !b) continue;
 		const from = railEndpoint(a.x, a.x + NODE_W, a.y + nodeH / 2, b.x + NODE_W / 2);
 		const to = railEndpoint(b.x, b.x + NODE_W, b.y + nodeH / 2, a.x + NODE_W / 2);
-		out.set(c.id, { id: c.id, from, to, center: midpoint(from, to), d: curveBetween(from, to) });
+		out.set(c.id, {
+			id: c.id,
+			kind: 'curve',
+			from,
+			to,
+			center: midpoint(from, to),
+			d: curveBetween(from, to)
+		});
 	}
 	return out;
 }
@@ -295,6 +308,7 @@ export function treeEdges(
 		const corners = elbowCorners(edge);
 		out.set(edge.id, {
 			id: edge.id,
+			kind: 'elbow',
 			from: edge.from,
 			to: edge.to,
 			center: midpoint(corners[0], corners[1]),

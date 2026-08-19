@@ -35,6 +35,7 @@
 	let creating = $state(false);
 	let newName = $state('');
 	let newDescription = $state('');
+	let newLayout = $state<'manual' | 'tree'>('manual');
 	let busy = $state(false);
 
 	// Delete confirmation. Holding the whole entry, not just an id, so the dialog can name
@@ -81,15 +82,33 @@
 		pilots: active.reduce((n, m) => n + m.pilots_online, 0)
 	});
 
+	// How the new map places its systems. Asked here rather than left to settings, because
+	// it changes what the map is to work with, and it is one click to change later.
+	const PLACEMENTS = [
+		{
+			value: 'manual' as const,
+			label: 'Custom placement',
+			blurb:
+				'You drag the systems where you want them, and they stay there for everyone. The way most groups map a chain: the shape carries meaning that the connections alone do not.'
+		},
+		{
+			value: 'tree' as const,
+			label: 'Automatic placement',
+			blurb:
+				'The map draws itself from the connections, as a tree growing left to right out of your pinned systems. Nobody has to tidy it, and nobody can move anything.'
+		}
+	];
+
 	async function create() {
 		const name = newName.trim();
 		if (!name || busy) return;
 		busy = true;
 		try {
-			const map = await api.createMap(name, newDescription.trim() || undefined);
+			const map = await api.createMap(name, newDescription.trim() || undefined, newLayout);
 			creating = false;
 			newName = '';
 			newDescription = '';
+			newLayout = 'manual';
 			// Straight into the map: creating one is how you say you want to use it.
 			await goto(`/maps/${map.id}`);
 		} catch (err) {
@@ -364,6 +383,27 @@
 						data-testid="new-map-name"
 					/>
 				</Field.Field>
+				<Field.FieldSet>
+					<Field.FieldLegend>Placement</Field.FieldLegend>
+					<Field.FieldDescription>Changeable later, in the map's settings.</Field.FieldDescription>
+					<div class="flex flex-col gap-2">
+						{#each PLACEMENTS as option (option.value)}
+							<button
+								type="button"
+								class="flex flex-col gap-1 border p-3 text-left transition-colors {newLayout ===
+								option.value
+									? 'border-primary bg-accent/40'
+									: 'border-border hover:bg-accent/20'}"
+								aria-pressed={newLayout === option.value}
+								data-testid="new-map-layout-{option.value}"
+								onclick={() => (newLayout = option.value)}
+							>
+								<span class="text-sm font-medium">{option.label}</span>
+								<span class="text-xs leading-relaxed text-muted-foreground">{option.blurb}</span>
+							</button>
+						{/each}
+					</div>
+				</Field.FieldSet>
 				<Field.Field>
 					<Field.FieldLabel for="map-description">Description</Field.FieldLabel>
 					<Textarea

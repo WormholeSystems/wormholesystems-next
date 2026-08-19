@@ -99,6 +99,7 @@ pub async fn world(pool: &PgPool) -> World {
         CreateMap {
             name: "Chain".into(),
             description: None,
+            layout: None,
         },
     )
     .await

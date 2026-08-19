@@ -108,10 +108,23 @@ macro_rules! map_from_row {
 pub struct CreateMap {
     pub name: String,
     pub description: Option<String>,
+    /// How the chain is placed: `manual` or `tree`. Absent starts on `manual`, which is
+    /// what a map dragged into shape by hand needs.
+    #[serde(default)]
+    #[ts(optional)]
+    pub layout: Option<String>,
 }
 
 impl CreateMap {
     pub fn validate(&self) -> Result<()> {
+        if let Some(layout) = &self.layout
+            && layout != "manual"
+            && layout != "tree"
+        {
+            return Err(MapError::Validation(
+                "placement must be manual or tree".into(),
+            ));
+        }
         if self.name.trim().is_empty() {
             return Err(MapError::Validation("name must not be blank".into()));
         }
@@ -130,12 +143,14 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     let mut tx = pool.begin().await?;
     let map = map_from_row!(
         sqlx::query!(
-            "insert into maps (name, description) values ($1, $2)
+            "insert into maps (name, description, layout)
+             values ($1, $2, coalesce($3, 'manual'))
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  ghost_unlinked_wormholes, layout, allow_layout_override,
                  bookmark_wormhole, bookmark_kspace, bookmark_return",
             cmd.name.trim(),
             cmd.description.as_deref(),
+            cmd.layout.as_deref(),
         )
         .fetch_one(&mut *tx)
         .await?

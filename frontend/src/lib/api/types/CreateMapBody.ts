@@ -5,4 +5,8 @@ export type CreateMapBody = { name: string,
  * What the map is for. Optional, and blank counts as absent rather than as an empty
  * description nobody meant to write.
  */
-description?: string, };
+description?: string, 
+/**
+ * How the chain is placed: `manual` or `tree`. Absent starts on `manual`.
+ */
+layout?: string, };

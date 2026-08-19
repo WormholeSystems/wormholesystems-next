@@ -120,3 +120,28 @@ test('the switcher is hidden unless the map hands the choice over', async ({ pag
 	await gotoApp(page, `/maps/${mapId}`);
 	await expect(page.getByTestId('placement-controls')).toHaveCount(0);
 });
+
+test('the creator picks the placement, with both options explained', async ({ page, api }) => {
+	await gotoApp(page, '/maps');
+	await page.getByTestId('new-map').click();
+	await page.getByTestId('new-map-name').fill('E2E TreeCreated');
+
+	// Both options say what they do, so the choice can be made without leaving the dialog.
+	await expect(page.getByTestId('new-map-layout-manual')).toContainText('drag the systems');
+	await expect(page.getByTestId('new-map-layout-tree')).toContainText(
+		'draws itself from the connections'
+	);
+	// Custom placement is the default.
+	await expect(page.getByTestId('new-map-layout-manual')).toHaveAttribute('aria-pressed', 'true');
+
+	await page.getByTestId('new-map-layout-tree').click();
+	await page.getByTestId('new-map-create').click();
+	await page.waitForURL(/\/maps\/\d+/);
+	await page.waitForSelector('[data-testid="panel-grid"]');
+
+	const mapId = Number(page.url().match(/\/maps\/(\d+)/)![1]);
+	const view = await (await api.get(`/api/maps/${mapId}`)).json();
+	expect(view.map.layout).toBe('tree');
+
+	await api.delete(`/api/maps/${mapId}`);
+});

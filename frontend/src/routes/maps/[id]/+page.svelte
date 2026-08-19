@@ -516,6 +516,7 @@
 					{@const { x: sx, y: sy } = geometry.from}
 					{@const { x: ex, y: ey } = geometry.to}
 					{@const d = geometry.d}
+					{@const elbow = geometry.kind === 'elbow'}
 					{@const onRoute = map.routeConnectionIds.has(c.id)}
 					{@const stroke = edgeColor(c.kind, c.mass_status, c.time_status, onRoute)}
 					{@const dashed =
@@ -545,16 +546,19 @@
 							{d}
 							fill="none"
 							{stroke}
-							stroke-width="4"
+							stroke-width={elbow ? 1.5 : 4}
 							stroke-linecap="round"
 							stroke-linejoin="round"
 							stroke-dasharray={dashed ? '2 6' : '0'}
 							class="transition-opacity group-hover/edge:opacity-70"
 							data-on-route={onRoute}
 						/>
-						<!-- Solid endpoint dots (legacy free-layout style). -->
-						<circle cx={sx} cy={sy} r="4" fill={stroke} />
-						<circle cx={ex} cy={ey} r="4" fill={stroke} />
+						<!-- Solid endpoints, for the curve that stops short of the node on its rail.
+						     An elbow already lands on the node's edge. -->
+						{#if !elbow}
+							<circle cx={sx} cy={sy} r="4" fill={stroke} />
+							<circle cx={ex} cy={ey} r="4" fill={stroke} />
+						{/if}
 						<!-- Midpoint badge cluster (legacy EdgeBadges): pill with glyph indicators. -->
 						{#if badgeCount > 0}
 							<foreignObject
