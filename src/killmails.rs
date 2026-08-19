@@ -189,10 +189,15 @@ pub struct KillParty {
     pub corporation_id: Option<i64>,
     #[ts(optional)]
     pub corporation_ticker: Option<String>,
+    /// Spelled out for the tooltip; the row has room for a ticker at most.
+    #[ts(optional)]
+    pub corporation_name: Option<String>,
     #[ts(optional)]
     pub alliance_id: Option<i64>,
     #[ts(optional)]
     pub alliance_ticker: Option<String>,
+    #[ts(optional)]
+    pub alliance_name: Option<String>,
     #[ts(optional)]
     pub ship_type_id: Option<i64>,
     #[ts(optional)]
@@ -256,11 +261,15 @@ pub async fn list_for_map(
                   ws.wormhole_class_id as "wormhole_class_id?",
                   k.victim_character_id, vc.name as "victim_character_name?",
                   k.victim_corporation_id, vco.ticker as "victim_corporation_ticker?",
+                  vco.name as "victim_corporation_name?",
                   k.victim_alliance_id, va.ticker as "victim_alliance_ticker?",
+                  va.name as "victim_alliance_name?",
                   k.victim_ship_type_id, vt.name as "victim_ship_name?",
                   k.final_blow_character_id, fc.name as "final_blow_character_name?",
                   k.final_blow_corporation_id, fco.ticker as "final_blow_corporation_ticker?",
+                  fco.name as "final_blow_corporation_name?",
                   k.final_blow_alliance_id, fa.ticker as "final_blow_alliance_ticker?",
+                  fa.name as "final_blow_alliance_name?",
                   k.final_blow_ship_type_id, ft.name as "final_blow_ship_name?"
            from killmails k
            join map_solar_systems mss
@@ -308,8 +317,10 @@ pub async fn list_for_map(
                 character_name: r.victim_character_name,
                 corporation_id: r.victim_corporation_id,
                 corporation_ticker: r.victim_corporation_ticker,
+                corporation_name: r.victim_corporation_name,
                 alliance_id: r.victim_alliance_id,
                 alliance_ticker: r.victim_alliance_ticker,
+                alliance_name: r.victim_alliance_name,
                 ship_type_id: r.victim_ship_type_id,
                 ship_name: r.victim_ship_name,
             },
@@ -318,8 +329,10 @@ pub async fn list_for_map(
                 character_name: r.final_blow_character_name,
                 corporation_id: r.final_blow_corporation_id,
                 corporation_ticker: r.final_blow_corporation_ticker,
+                corporation_name: r.final_blow_corporation_name,
                 alliance_id: r.final_blow_alliance_id,
                 alliance_ticker: r.final_blow_alliance_ticker,
+                alliance_name: r.final_blow_alliance_name,
                 ship_type_id: r.final_blow_ship_type_id,
                 ship_name: r.final_blow_ship_name,
             },

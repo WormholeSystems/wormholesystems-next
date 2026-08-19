@@ -80,7 +80,8 @@
 	}
 
 	$effect(() => {
-		refresh();
+		// Seeded by the layout, so the first fetch is the poll's, not a repeat of it.
+		if (!status) refresh();
 		// Minutes are all that shows, but ticking faster stops the clock sitting a minute behind
 		// after the tab has been asleep.
 		const clock = setInterval(() => (now = new Date()), 10_000);

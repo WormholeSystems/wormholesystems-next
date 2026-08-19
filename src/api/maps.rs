@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
-use super::extract::{ShareQuery, check_map_id, read_map_as, require_actor, session_actor};
+use super::extract::{ShareQuery, acting_on, read_map_as, require_actor, session_actor};
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 use crate::maps::map::UpdateMap;
@@ -290,8 +290,7 @@ pub async fn update_map(
     Path(map_id): Path<i64>,
     Json(cmd): Json<UpdateMap>,
 ) -> ApiResult<Map> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let map = crate::maps::map::update_map(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(map))

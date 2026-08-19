@@ -1218,8 +1218,3 @@ enum DetailColumn {
     Occupier,
     Notes,
 }
-
-/// A command returned an output shape its wrapper doesn't expect: a bug, not a user error.
-pub(super) fn unexpected(output: CommandOutput) -> MapError {
-    MapError::Validation(format!("unexpected command output: {output:?}"))
-}

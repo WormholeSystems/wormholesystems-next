@@ -65,10 +65,7 @@
 	});
 
 	function setFilter(value: string) {
-		api
-			.updateMapUserSettings(map.mapId, { killmail_filter: value })
-			.then((s) => (map.userSettings = s))
-			.catch(() => {});
+		map.patchUserSettings({ killmail_filter: value }).catch(() => {});
 	}
 
 	/** The row's system in the shape the context menu wants, from the payload. */

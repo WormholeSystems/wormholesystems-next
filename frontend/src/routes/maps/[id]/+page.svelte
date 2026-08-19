@@ -19,10 +19,10 @@
 	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
 	import {
 		NODE_W,
-		curvePath,
 		railEndpoint,
 		centerWorld,
 		edgeColor,
@@ -34,6 +34,7 @@
 	} from '$lib/map/helpers';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { isWormholeClass } from '$lib/map/classes';
+	import { curveBetween } from '$lib/map/edges';
 	import { openMapSocket, openUserSocket } from '$lib/ws';
 	import ConnectionPopover from './ConnectionPopover.svelte';
 	import ContextMenu from './ContextMenu.svelte';
@@ -51,9 +52,11 @@
 	import { atLeast } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	let { data }: { data: { view: MapView | null } } = $props();
+	let {
+		data
+	}: { data: { view: MapView | null; settings: MapUserSettings | null } } = $props();
 
-	const map = $derived(new MapState(mapId, page.data.me != null, data.view));
+	const map = $derived(new MapState(mapId, page.data.me != null, data));
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
 	const tracker = $derived(new JumpTracker(map));
@@ -683,7 +686,7 @@
 						map.linking.x
 					)}
 					<path
-						d={curvePath(start.x, start.y, map.linking.x, map.linking.y)}
+						d={curveBetween(start, { x: map.linking.x, y: map.linking.y })}
 						fill="none"
 						stroke="var(--color-edge)"
 						stroke-width="4"

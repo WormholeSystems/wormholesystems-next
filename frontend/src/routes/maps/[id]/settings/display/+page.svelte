@@ -1,8 +1,8 @@
 <script lang="ts">
 	// What the map shows you, per viewer. Placement is the exception: the mode is the map's,
 	// and the row only appears when the map hands the choice to each viewer.
-	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { saveUserSettings } from '$lib/map/user-settings';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
@@ -24,12 +24,6 @@
 	];
 	const placement = $derived(settings?.layout_override ?? 'map');
 
-	function update(patch: Record<string, unknown>) {
-		api
-			.updateMapUserSettings(mapId, patch)
-			.then(() => invalidate('vector:user-settings'))
-			.catch(() => {});
-	}
 
 	const FILTERS = [
 		{ value: 'all', label: 'Everything' },
@@ -54,7 +48,7 @@
 				<Switch
 					checked={settings?.show_threat_level ?? true}
 					aria-label="Threat level on nodes"
-					onCheckedChange={(v) => update({ show_threat_level: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { show_threat_level: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -68,7 +62,7 @@
 				<Switch
 					checked={settings?.show_statics_first ?? false}
 					aria-label="Statics first in the wormhole list"
-					onCheckedChange={(v) => update({ show_statics_first: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { show_statics_first: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -82,7 +76,7 @@
 				<Switch
 					checked={settings?.compact_signature_list ?? false}
 					aria-label="Compact signature list"
-					onCheckedChange={(v) => update({ compact_signature_list: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { compact_signature_list: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -98,7 +92,7 @@
 						type="single"
 						value={placement}
 						onValueChange={(v) =>
-							v && update({ layout_override: v === 'map' ? null : v })}
+							v && saveUserSettings(mapId, { layout_override: v === 'map' ? null : v })}
 					>
 						<Select.Trigger class="w-52" data-testid="layout-override-select">
 							{PLACEMENTS.find((p) => p.value === placement)?.label}
@@ -126,7 +120,7 @@
 				<Select.Root
 					type="single"
 					value={filter}
-					onValueChange={(v) => v && update({ killmail_filter: v })}
+					onValueChange={(v) => v && saveUserSettings(mapId, { killmail_filter: v })}
 				>
 					<Select.Trigger class="w-52" data-testid="killmail-filter-select">
 						{FILTERS.find((f) => f.value === filter)?.label}

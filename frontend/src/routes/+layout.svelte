@@ -23,7 +23,7 @@
 </svelte:head>
 
 <Toaster position="top-center" closeButton />
-<Nav me={data.me} pinned={data.pinned} status={data.status} />
+<Nav me={data.me} maps={data.maps} status={data.status} />
 <main class={flush ? "" : "p-6"}>
 	{@render children()}
 </main>

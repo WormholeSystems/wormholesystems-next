@@ -7,7 +7,7 @@ use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
-use super::extract::{check_map_id, require_actor};
+use super::extract::{acting_on, require_actor};
 use crate::auth::AppState;
 use crate::maps::MapEvent;
 use crate::maps::events_log::{GotoMapEvent, MapHistory, MapIdBody};
@@ -40,8 +40,7 @@ pub async fn undo_map_event(
     Path(map_id): Path<i64>,
     Json(cmd): Json<MapIdBody>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::events_log::undo(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
@@ -54,8 +53,7 @@ pub async fn redo_map_event(
     Path(map_id): Path<i64>,
     Json(cmd): Json<MapIdBody>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::events_log::redo(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
@@ -69,8 +67,7 @@ pub async fn goto_map_event(
     Path(map_id): Path<i64>,
     Json(cmd): Json<GotoMapEvent>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::events_log::goto(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))

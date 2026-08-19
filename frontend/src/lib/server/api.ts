@@ -1,5 +1,16 @@
 // Server-side API access for load functions: talks to the Axum backend directly (it is a
 // separate service, so relative paths don't work here) and forwards the session cookie.
+//
+// Where data comes from, so the two halves stay apart:
+//
+//   - Anything the first painted frame needs comes from a load, and is refreshed by
+//     invalidating its key. That is every page you navigate to.
+//   - Anything a socket changes lives in `MapState` and refetches itself. That is the map
+//     page, where the graph changes many times a minute without anybody navigating, and
+//     where the refetches are deliberately partial.
+//
+// The map page uses both: its load seeds `MapState` so the first frame has the chain, and
+// `MapState` takes over from there.
 
 import { env } from '$env/dynamic/private';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -24,16 +35,6 @@ async function get<T>(event: RequestEvent, path: string): Promise<T> {
 /** The signed-in character, or null. Used by the layout and the /maps auth gate. */
 export function currentCharacter(event: RequestEvent): Promise<CharacterSummary | null> {
 	return get<CharacterSummary | null>(event, '/api/me');
-}
-
-/** The maps this user keeps in the top bar. A failure is swallowed, they are a convenience. */
-export async function pinnedMaps(event: RequestEvent): Promise<MapEntry[]> {
-	try {
-		const maps = await get<MapEntry[]>(event, '/api/maps');
-		return maps.filter((m) => m.is_pinned && !m.is_archived);
-	} catch {
-		return [];
-	}
 }
 
 /**
@@ -75,4 +76,15 @@ export function accessList(event: RequestEvent, mapId: number): Promise<AccessEn
  */
 export function serverStatus(event: RequestEvent): Promise<ServerStatus | null> {
 	return get<ServerStatus>(event, '/api/server-status').catch(() => null);
+}
+
+/**
+ * The load every per-viewer settings page shares: its own dependency key, so saving a
+ * toggle refetches the settings and not the whole chain the section's layout holds.
+ */
+export async function userSettingsLoad(
+	event: RequestEvent & { depends: (...deps: string[]) => void }
+) {
+	event.depends('vector:user-settings');
+	return { settings: await mapUserSettings(event, Number(event.params.id)).catch(() => null) };
 }

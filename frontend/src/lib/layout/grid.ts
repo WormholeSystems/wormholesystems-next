@@ -135,3 +135,25 @@ function push(others: GridItem[], anchor: GridItem): GridItem[] {
 function clamp(v: number, lo: number, hi: number): number {
 	return Math.max(lo, Math.min(hi, v));
 }
+
+/** Where a resting tile sits, as CSS. */
+export interface TileBox {
+	left: string;
+	top: string;
+	width: string;
+	height: string;
+}
+
+/**
+ * A resting tile's box, from the item and the grid alone. Horizontal in percentages, so a
+ * tile is painted in the right place before anything has been measured; vertical in pixels,
+ * because a row is a fixed height rather than a fraction of one.
+ */
+export function tileBox(item: GridItem, cols: number, rowHeight: number): TileBox {
+	return {
+		left: `${(item.x / cols) * 100}%`,
+		top: `${item.y * rowHeight}px`,
+		width: `${(item.w / cols) * 100}%`,
+		height: `${item.h * rowHeight}px`
+	};
+}

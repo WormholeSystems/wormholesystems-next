@@ -80,16 +80,26 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
+				<!-- The hairline is what says "on" while the pointer is over it: ghost's hover
+				     repaints the icon, so colour alone cannot carry the state. -->
 				<Button
 					{...props}
 					variant="ghost"
 					size="icon"
-					class={cn('size-7', on ? 'text-foreground' : 'text-muted-foreground/50')}
+					class={cn(
+						'relative size-7',
+						on
+							? 'text-foreground hover:text-foreground'
+							: 'text-muted-foreground/50 hover:text-muted-foreground'
+					)}
 					aria-pressed={on}
 					data-testid={testid}
 					onclick={() => toggleSetting(key)}
 				>
 					<Icon />
+					{#if on}
+						<span class="absolute inset-x-1.5 bottom-0.5 h-px bg-current"></span>
+					{/if}
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>

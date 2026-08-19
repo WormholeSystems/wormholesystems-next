@@ -1,8 +1,8 @@
 <script lang="ts">
 	// How routes are chosen. The same settings the route planner's popover edits, in a form
 	// with room to say what each one costs you.
-	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { saveUserSettings } from '$lib/map/user-settings';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
@@ -16,12 +16,6 @@
 	const mapId = $derived(Number(page.params.id) || 0);
 	const settings = $derived(data.settings);
 
-	function update(patch: Record<string, unknown>) {
-		api
-			.updateMapUserSettings(mapId, patch)
-			.then(() => invalidate('vector:user-settings'))
-			.catch(() => {});
-	}
 
 	const PREFERENCES = [
 		{ value: 'shorter', label: 'Shortest', hint: 'Fewest jumps, whatever the security' },
@@ -51,7 +45,7 @@
 	key: string,
 	testid: string
 )}
-	<Select.Root type="single" value={current} onValueChange={(v) => v && update({ [key]: v })}>
+	<Select.Root type="single" value={current} onValueChange={(v) => v && saveUserSettings(mapId, { [key]: v })}>
 		<Select.Trigger class="w-56" data-testid={testid}>
 			{options.find((o) => o.value === current)?.label}
 		</Select.Trigger>
@@ -107,7 +101,7 @@
 						aria-label="Security penalty"
 						class="w-40"
 						data-testid="security-penalty"
-						onValueCommit={(v) => update({ security_penalty: v })}
+						onValueCommit={(v) => saveUserSettings(mapId, { security_penalty: v })}
 					/>
 					<span class="w-10 text-right font-mono text-xs tabular-nums">{penalty}%</span>
 				</span>
@@ -143,7 +137,7 @@
 				<Switch
 					checked={settings?.route_use_evescout ?? false}
 					aria-label="Use EVE Scout connections"
-					onCheckedChange={(v) => update({ route_use_evescout: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { route_use_evescout: v })}
 				/>
 			{/snippet}
 		</SettingRow>

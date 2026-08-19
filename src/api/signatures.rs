@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
-use super::extract::{ShareQuery, check_map_id, read_map_as, require_actor};
+use super::extract::{ShareQuery, acting_on, read_map_as};
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 use crate::maps::signatures::{
@@ -88,8 +88,7 @@ pub async fn add_signature(
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddSignature>,
 ) -> ApiResult<Signature> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::add_signature(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SignatureChanged {
         map_id: sig.map_id,
@@ -104,8 +103,7 @@ pub async fn paste_signatures(
     Path(map_id): Path<i64>,
     Json(cmd): Json<PasteSignatures>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let solar_system_id = cmd.solar_system_id;
     crate::maps::signatures::paste_signatures(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SignatureChanged {
@@ -121,8 +119,7 @@ pub async fn update_signature(
     Path(map_id): Path<i64>,
     Json(cmd): Json<UpdateSignature>,
 ) -> ApiResult<Signature> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::update_signature(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SignatureChanged {
         map_id: sig.map_id,
@@ -143,8 +140,7 @@ pub async fn link_signature(
     Path(map_id): Path<i64>,
     Json(cmd): Json<LinkSignature>,
 ) -> ApiResult<Signature> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let connection_id = cmd.connection_id;
     let sig = crate::maps::signatures::link_signature(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SignatureChanged {
@@ -164,8 +160,7 @@ pub async fn unlink_signature(
     Path(map_id): Path<i64>,
     Json(cmd): Json<UnlinkSignature>,
 ) -> ApiResult<Signature> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::unlink_signature(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SignatureChanged {
         map_id: sig.map_id,
@@ -180,8 +175,7 @@ pub async fn remove_signature(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSignature>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let outcome = crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SignatureChanged {
         map_id,
@@ -204,8 +198,7 @@ pub async fn remove_signatures_bulk(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSignatures>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let outcome = crate::maps::signatures::remove_signatures(&state.db, actor, cmd).await?;
     for solar_system_id in outcome.systems {
         state.hub.publish(MapEvent::SignatureChanged {

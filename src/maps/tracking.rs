@@ -16,7 +16,7 @@ use super::command::{CommandOutput, Effect, MapCommand, Sequence, Tx};
 use super::connection::{AddConnection, SetConnectionStatus, apply_add_connection};
 use super::error::{MapError, Result};
 use super::signatures::{LinkSignature, UnlinkSignature, UpdateSignature};
-use super::solar_system::{AddSystem, RemoveRestored, SetAlias, unexpected};
+use super::solar_system::{AddSystem, RemoveRestored, SetAlias};
 use super::{ConnectionType, MassStatus, SignatureGroup, TimeStatus, WormholeSize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -179,9 +179,7 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
                 },
             )
             .await?;
-            let CommandOutput::System(system) = effect.output else {
-                return Err(unexpected(effect.output));
-            };
+            let system = effect.output.system()?;
             (system.id, Some(system.id))
         }
     };
@@ -197,9 +195,7 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
         },
     )
     .await?;
-    let CommandOutput::Connection(connection) = effect.output else {
-        return Err(unexpected(effect.output));
-    };
+    let connection = effect.output.connection()?;
     let connection_id = connection.id;
 
     if cmd.mass_status.is_some() || cmd.time_status.is_some() {
@@ -242,7 +238,7 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
     Ok(Effect::new(
         "tracking.jumped",
         label,
-        CommandOutput::Connection(connection),
+        CommandOutput::Connection(Box::new(connection)),
     )
     .undo_with(inverse))
 }

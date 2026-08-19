@@ -123,12 +123,6 @@ export function railEndpoint(
 }
 
 
-/** The legacy free-layout bezier, easing horizontally between the two endpoints. */
-export function curvePath(x1: number, y1: number, x2: number, y2: number): string {
-	const cp1x = x1 + (x2 - x1) / 1.5;
-	const cp2x = x2 - (x2 - x1) / 1.5;
-	return `M ${x1} ${y1} C ${cp1x} ${y1}, ${cp2x} ${y2}, ${x2} ${y2}`;
-}
 
 export function gridBackground(): string {
 	return (

@@ -193,6 +193,21 @@ text_enum! {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::Role;
+
+    /// `Role` is compared with `>=` all over the access layer, and the frontend keeps its own
+    /// copy of this order in `lib/map/roles.ts`. Reordering the variants would quietly change
+    /// who can manage a map, and both sides would still compile.
+    #[test]
+    fn roles_run_least_to_most_privileged() {
+        assert!(Role::Viewer < Role::Member);
+        assert!(Role::Member < Role::Manager);
+        assert!(Role::Manager < Role::Owner);
+    }
+}
+
 /// A user acting as one of their characters. `user_id` drives authorization (effective
 /// role across all their characters); `character_id` attributes ownership on creation.
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]

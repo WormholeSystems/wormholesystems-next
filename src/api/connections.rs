@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
-use super::extract::{ShareQuery, check_map_id, read_map_as, require_actor};
+use super::extract::{ShareQuery, acting_on, read_map_as, require_actor};
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 use crate::maps::connection::{
@@ -75,8 +75,7 @@ pub async fn add_connection(
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddConnection>,
 ) -> ApiResult<MapConnection> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let ghost_endpoint = sqlx::query_scalar!(
         r#"select exists(
                select 1 from map_solar_systems
@@ -107,8 +106,7 @@ pub async fn set_connection_status(
     Path(map_id): Path<i64>,
     Json(cmd): Json<SetConnectionStatus>,
 ) -> ApiResult<MapConnection> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let connection_id = cmd.connection_id;
     let conn = crate::maps::connection::set_connection_status(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::ConnectionChanged {
@@ -124,8 +122,7 @@ pub async fn remove_connection(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveConnection>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let connection_id = cmd.connection_id;
     crate::maps::connection::remove_connection(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::ConnectionChanged {
@@ -153,8 +150,7 @@ pub async fn add_connection_jump(
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddConnectionJump>,
 ) -> ApiResult<ConnectionJump> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let jump = crate::maps::jumps::add_jump(&state.db, actor, cmd).await?;
     if let Some(connection_id) = jump.connection_id {
         state.hub.publish(MapEvent::ConnectionChanged {
@@ -171,8 +167,7 @@ pub async fn update_connection_jump(
     Path(map_id): Path<i64>,
     Json(cmd): Json<UpdateConnectionJump>,
 ) -> ApiResult<ConnectionJump> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let jump = crate::maps::jumps::update_jump(&state.db, actor, cmd).await?;
     if let Some(connection_id) = jump.connection_id {
         state.hub.publish(MapEvent::ConnectionChanged {
@@ -189,8 +184,7 @@ pub async fn remove_connection_jump(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveConnectionJump>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let connection_id = crate::maps::jumps::remove_jump(&state.db, actor, cmd).await?;
     if let Some(connection_id) = connection_id {
         state.hub.publish(MapEvent::ConnectionChanged {
@@ -220,8 +214,7 @@ pub async fn clean_stale_connections(
     Path(map_id): Path<i64>,
     Json(cmd): Json<CleanStaleConnections>,
 ) -> ApiResult<u64> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let removed = crate::maps::connection::clean_stale_connections(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(removed))

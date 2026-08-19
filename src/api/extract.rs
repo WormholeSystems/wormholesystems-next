@@ -34,12 +34,25 @@ pub(crate) async fn require_actor(db: &sqlx::PgPool, jar: &CookieJar) -> Result<
 
 /// Command bodies carry `map_id` (the action contracts authorize on it); it must agree
 /// with the path so a URL can't act on a different map than it names.
-pub(crate) fn check_map_id(path_id: i64, body_id: i64) -> Result<(), ApiError> {
+fn check_map_id(path_id: i64, body_id: i64) -> Result<(), ApiError> {
     if path_id == body_id {
         Ok(())
     } else {
         Err(ApiError::bad_request("map id in body does not match URL"))
     }
+}
+
+/// The caller, for a command that names its own map: the id in the body has to agree with
+/// the one in the URL before the session is resolved, so a URL can never act on a map it
+/// does not name. Every mutating handler starts here.
+pub(crate) async fn acting_on(
+    db: &sqlx::PgPool,
+    jar: &CookieJar,
+    path_id: i64,
+    body_id: i64,
+) -> Result<Actor, ApiError> {
+    check_map_id(path_id, body_id)?;
+    require_actor(db, jar).await
 }
 
 /// The share token, when the caller has one.

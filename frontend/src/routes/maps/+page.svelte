@@ -49,7 +49,7 @@
 	});
 
 	const matching = $derived.by(() => {
-		const rows = maps ?? [];
+		const rows = maps;
 		const q = query.trim().toLowerCase();
 		if (!q) return rows;
 		return rows.filter(
@@ -265,7 +265,7 @@
 		<p class="text-sm text-destructive" data-testid="maps-error">{error}</p>
 	{/if}
 
-	{#if maps !== null && maps.length > 0}
+	{#if maps.length > 0}
 		<div class="flex w-fit divide-x divide-border border border-border">
 			{#each [{ label: 'Maps', value: totals.maps }, { label: 'Systems', value: totals.systems }, { label: 'Pilots online', value: totals.pilots }] as stat (stat.label)}
 				<div class="min-w-28 px-4 py-2">

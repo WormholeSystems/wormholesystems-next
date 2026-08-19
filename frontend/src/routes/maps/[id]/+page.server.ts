@@ -1,10 +1,14 @@
-import { mapView } from '$lib/server/api';
+import { mapUserSettings, mapView } from '$lib/server/api';
 import type { PageServerLoad } from './$types';
 
-// The graph, fetched with the page rather than after it, so the map's name is on screen in
-// the first frame instead of appearing a moment later. `MapState` starts from this and takes
-// over from there; a failure is left to the client, which knows how to say why.
+// The graph and the viewer's arrangement, fetched with the page rather than after it, so
+// the first frame the page paints is the map rather than a placeholder. `MapState` starts
+// from both and takes over; a failure is left to the client, which knows how to say why.
 export const load: PageServerLoad = async (event) => {
-	const view = await mapView(event, Number(event.params.id)).catch(() => null);
-	return { view };
+	const id = Number(event.params.id);
+	const [view, settings] = await Promise.all([
+		mapView(event, id).catch(() => null),
+		mapUserSettings(event, id).catch(() => null)
+	]);
+	return { view, settings };
 };

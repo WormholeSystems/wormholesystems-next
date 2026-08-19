@@ -19,10 +19,12 @@
 
 	let {
 		me,
-		pinned = [],
+		maps = [],
 		status = null
-	}: { me: CharacterSummary | null; pinned?: MapEntry[]; status?: ServerState | null } =
-		$props();
+	}: { me: CharacterSummary | null; maps?: MapEntry[]; status?: ServerState | null } = $props();
+
+	// The shortcuts are a view of the list the layout already loads, not a second fetch.
+	const pinned = $derived(maps.filter((m) => m.is_pinned && !m.is_archived));
 
 	let characters = $state<CharacterRef[]>([]);
 

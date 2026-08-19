@@ -7,7 +7,7 @@
 
 	import XIcon from '@lucide/svelte/icons/x';
 
-	import { bottom, compact, moveItem, resizeItem, type GridItem } from '$lib/layout/grid';
+	import { bottom, compact, moveItem, resizeItem, tileBox, type GridItem } from '$lib/layout/grid';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
@@ -227,6 +227,7 @@
 {#snippet tile(item: GridItem)}
 	{@const meta = panelMeta(item.i as PanelId)}
 	{@const held = gesture?.id === item.i ? floating : null}
+	{@const box = tileBox(item, layout.cols, layout.row_height)}
 	<div
 		class={cn(
 			'absolute',
@@ -235,10 +236,10 @@
 			// re-enables the transition and it glides into the placeholder's slot.
 			held && 'z-30 shadow-2xl duration-0'
 		)}
-		style:width={held ? `${held.width}px` : `${(item.w / layout.cols) * 100}%`}
-		style:height="{held ? held.height : item.h * layout.row_height}px"
-		style:left={held ? `${held.left}px` : `${(item.x / layout.cols) * 100}%`}
-		style:top="{held ? held.top : item.y * layout.row_height}px"
+		style:width={held ? `${held.width}px` : box.width}
+		style:height={held ? `${held.height}px` : box.height}
+		style:left={held ? `${held.left}px` : box.left}
+		style:top={held ? `${held.top}px` : box.top}
 		data-testid="panel-tile"
 		data-panel={item.i}
 		data-x={item.x}
@@ -377,6 +378,7 @@
 	onpointercancel={onPointerUp}
 >
 	{#if placeholder}
+		{@const ghost = tileBox(placeholder, layout.cols, layout.row_height)}
 		<!-- Under the tiles so the held one stays readable. No transition: it shows which cell
 		     the tile has picked, and easing would lag behind that. -->
 		<div
@@ -387,10 +389,10 @@
 			data-y={placeholder.y}
 			data-w={placeholder.w}
 			data-h={placeholder.h}
-			style:width="{(placeholder.w / layout.cols) * 100}%"
-			style:height="{placeholder.h * layout.row_height}px"
-			style:left="{(placeholder.x / layout.cols) * 100}%"
-			style:top="{placeholder.y * layout.row_height}px"
+			style:width={ghost.width}
+			style:height={ghost.height}
+			style:left={ghost.left}
+			style:top={ghost.top}
 		></div>
 	{/if}
 	{#each shown as item (item.i)}

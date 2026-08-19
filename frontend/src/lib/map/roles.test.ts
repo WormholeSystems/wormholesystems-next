@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { atLeast, byRole, canManage, canWrite } from './roles';
+import { atLeast, byRole } from './roles';
 
 describe('roles', () => {
 	it('orders the way the backend does', () => {
@@ -11,12 +11,9 @@ describe('roles', () => {
 	});
 
 	it('treats no role as a viewer, which is what a shared map hands out', () => {
-		expect(canWrite(null)).toBe(false);
-		expect(canWrite(undefined)).toBe(false);
-		expect(canWrite('viewer')).toBe(false);
-		expect(canWrite('member')).toBe(true);
-		expect(canManage('member')).toBe(false);
-		expect(canManage('owner')).toBe(true);
+		expect(atLeast(null, 'member')).toBe(false);
+		expect(atLeast(undefined, 'member')).toBe(false);
+		expect(atLeast('viewer', 'viewer')).toBe(true);
 	});
 
 	it('sorts owners first', () => {

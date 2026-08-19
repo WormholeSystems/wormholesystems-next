@@ -5,6 +5,7 @@
 	// Non-managers still see the names read-only.
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { saveUserSettings } from '$lib/map/user-settings';
 	import { api } from '$lib/api/client';
 	import type { MapNaming } from '$lib/api/types/MapNaming';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
@@ -33,12 +34,6 @@
 		}
 	}
 
-	function update(patch: Record<string, unknown>) {
-		api
-			.updateMapUserSettings(mapId, patch)
-			.then(() => invalidate('vector:user-settings'))
-			.catch(() => {});
-	}
 </script>
 
 <div class="flex flex-col gap-6">
@@ -66,7 +61,7 @@
 						checked={(data.settings?.copy_bookmark ?? false) && tracking}
 						disabled={!tracking}
 						aria-label="Copy a bookmark when I map a hole"
-						onCheckedChange={(v) => update({ copy_bookmark: v })}
+						onCheckedChange={(v) => saveUserSettings(mapId, { copy_bookmark: v })}
 					/>
 				{/snippet}
 			</SettingRow>

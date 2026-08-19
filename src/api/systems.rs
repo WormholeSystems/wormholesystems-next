@@ -8,7 +8,7 @@ use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
-use super::extract::{check_map_id, require_actor};
+use super::extract::{acting_on, require_actor};
 use crate::auth::AppState;
 use crate::maps::solar_system::{
     AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
@@ -46,8 +46,7 @@ pub async fn resolve_ghost_system(
     Path(map_id): Path<i64>,
     Json(cmd): Json<crate::maps::ghost::ResolveGhostSystem>,
 ) -> ApiResult<MapSolarSystem> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let ghost_id = cmd.map_solar_system_id;
     let placed = crate::maps::ghost::resolve_ghost_system(&state.db, actor, cmd).await?;
     if placed.id != ghost_id {
@@ -69,8 +68,7 @@ pub async fn add_system(
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddSystem>,
 ) -> ApiResult<MapSolarSystem> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let placed = crate::maps::solar_system::add_system(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SystemAdded {
         map_id,
@@ -85,8 +83,7 @@ pub async fn move_system(
     Path(map_id): Path<i64>,
     Json(cmd): Json<MoveSystem>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let mss = cmd.map_solar_system_id;
     crate::maps::solar_system::move_system(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SystemMoved {
@@ -102,8 +99,7 @@ pub async fn move_systems(
     Path(map_id): Path<i64>,
     Json(cmd): Json<MoveSystems>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::solar_system::move_systems(&state.db, actor, cmd).await?;
     // Several systems moved at once → one coarse event rather than N SystemMoved events.
     state.hub.publish(MapEvent::MapUpdated { map_id });
@@ -116,8 +112,7 @@ pub async fn remove_system(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSystem>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let mss = cmd.map_solar_system_id;
     crate::maps::solar_system::remove_system(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::SystemRemoved {
@@ -133,8 +128,7 @@ pub async fn remove_systems(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSystems>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::solar_system::remove_systems(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(()))
@@ -146,8 +140,7 @@ pub async fn clear_map(
     Path(map_id): Path<i64>,
     Json(cmd): Json<ClearMap>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::solar_system::clear_map(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(()))
@@ -161,8 +154,7 @@ macro_rules! detail_handler {
             Path(map_id): Path<i64>,
             Json(cmd): Json<$cmd>,
         ) -> ApiResult<()> {
-            check_map_id(map_id, cmd.map_id)?;
-            let actor = require_actor(&state.db, &jar).await?;
+            let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
             let mss = cmd.map_solar_system_id;
             $action(&state.db, actor, cmd).await?;
             state.hub.publish(MapEvent::SystemDetailsChanged {

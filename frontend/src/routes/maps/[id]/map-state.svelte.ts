@@ -391,14 +391,31 @@ export class MapState {
 	 */
 	signedIn = $state(true);
 
-	constructor(mapId: number, signedIn = true, seed: MapView | null = null) {
+	/** True until the first refetch, so a seeded graph is not fetched twice on open. */
+	private seeded = false;
+
+	constructor(
+		mapId: number,
+		signedIn = true,
+		seed: { view: MapView | null; settings: MapUserSettings | null } = {
+			view: null,
+			settings: null
+		}
+	) {
 		this.mapId = mapId;
 		this.signedIn = signedIn;
-		// Seeded from the page's load, so the first frame already knows the chain. The
-		// refetch still runs: this is a starting point, not the last word.
-		if (seed) {
-			this.data = seed;
+		// Seeded from the page's load, so the first frame already has the chain and the
+		// arrangement. Both are starting points: the socket and the refetch take over.
+		if (seed.view) {
+			this.data = seed.view;
 			this.loaded = true;
+			this.seeded = true;
+		}
+		if (seed.settings) {
+			this.userSettings = seed.settings;
+			this.layoutSaved = seed.settings.layout_breakpoints ?? null;
+			this.layoutDraft = structuredClone(seed.settings.layout_breakpoints ?? null);
+			this.settingsLoaded = true;
 		}
 	}
 
@@ -517,6 +534,9 @@ export class MapState {
 	private settingsVersion = 0;
 
 	async loadUserSettings() {
+		// Already seeded by the page's load, or nobody to have settings: either way the page
+		// is not waiting on this. A watcher still has to be marked done, or nothing is ready.
+		if (this.settingsLoaded) return;
 		if (!this.signedIn) {
 			this.settingsLoaded = true;
 			return;
@@ -699,7 +719,9 @@ export class MapState {
 			// All five go out together, but the page only waits on the graph: the panels can
 			// fill in a moment later, and holding first paint for every list makes the map
 			// feel slow for no benefit.
-			const graph = api.fetchMap(this.mapId);
+			// A seeded graph is as fresh as the page: skip the request, once.
+			const graph = this.seeded ? Promise.resolve(this.data!) : api.fetchMap(this.mapId);
+			this.seeded = false;
 			const sigs = api.listSignatures(this.mapId);
 			const watchlist = api.listWatchlist(this.mapId);
 			const history = this.fetchHistory();

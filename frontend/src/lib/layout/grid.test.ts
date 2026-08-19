@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type GridItem, bottom, collides, compact, moveItem, resizeItem } from './grid';
+import { bottom, collides, compact, moveItem, resizeItem, tileBox, type GridItem } from './grid';
 
 /** Compact form for assertions: `id:x,y,w,h`. */
 const show = (items: GridItem[]) =>
@@ -148,5 +148,24 @@ describe('bottom', () => {
 
 	it('is zero for an empty layout', () => {
 		expect(bottom([])).toBe(0);
+	});
+});
+
+describe('tileBox', () => {
+	// The point of the percentages: a tile's resting box is known before anything has been
+	// measured, so the first painted frame is already the arrangement.
+	it('places a tile from the item and the grid alone', () => {
+		expect(tileBox({ i: 'map', x: 0, y: 0, w: 6, h: 4 }, 12, 100)).toEqual({
+			left: '0%',
+			top: '0px',
+			width: '50%',
+			height: '400px'
+		});
+		expect(tileBox({ i: 'notes', x: 9, y: 2, w: 3, h: 1 }, 12, 100)).toEqual({
+			left: '75%',
+			top: '200px',
+			width: '25%',
+			height: '100px'
+		});
 	});
 });

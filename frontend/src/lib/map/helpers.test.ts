@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NODE_GAP_CELLS, NODE_W, freePosition } from './helpers';
+import { NODE_GAP_CELLS, NODE_W, freePosition, sizeForJumpMass } from './helpers';
 import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 
@@ -82,5 +82,24 @@ describe('freePosition', () => {
 		const spot = freePosition([], { x: 99_999, y: 99_999 }, grid);
 		expect(spot.x).toBeLessThanOrEqual(grid.world_width - NODE_W);
 		expect(spot.y).toBeLessThanOrEqual(grid.world_height - NODE_H);
+	});
+});
+
+describe('sizeForJumpMass', () => {
+	// The bands are the game's, and both call sites fall through to "unset" on null rather
+	// than guessing, so the boundaries are the whole behaviour.
+	it('places each band by its upper bound', () => {
+		expect(sizeForJumpMass(5_000_000)).toBe('small');
+		expect(sizeForJumpMass(5_000_001)).toBe('medium');
+		expect(sizeForJumpMass(300_000_000)).toBe('medium');
+		expect(sizeForJumpMass(300_000_001)).toBe('large');
+		expect(sizeForJumpMass(1_000_000_000)).toBe('large');
+		expect(sizeForJumpMass(1_000_000_001)).toBe('xl');
+	});
+
+	it('has no answer without a mass', () => {
+		expect(sizeForJumpMass(null)).toBeNull();
+		expect(sizeForJumpMass(undefined)).toBeNull();
+		expect(sizeForJumpMass(0)).toBeNull();
 	});
 });

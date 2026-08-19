@@ -15,7 +15,7 @@ use sqlx::PgPool;
 use super::command::{CommandOutput, Effect, MapCommand, Sequence, Tx, execute};
 use super::connection::AddConnection;
 use super::error::{MapError, Result};
-use super::solar_system::{MapSolarSystem, unexpected};
+use super::solar_system::MapSolarSystem;
 use super::{Actor, ConnectionType, WormholeSize};
 
 /// Node width in world px, and the clear space kept between nodes, both mirroring
@@ -140,9 +140,7 @@ pub(super) async fn ghost_unmapped_holes(
             },
         )
         .await?;
-        let CommandOutput::System(ghost) = effect.output else {
-            return Err(unexpected(effect.output));
-        };
+        let ghost = effect.output.system()?;
         raised.push(ghost.id);
     }
     Ok(raised)
@@ -238,9 +236,7 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
         },
     )
     .await?;
-    let CommandOutput::Connection(connection) = effect.output else {
-        return Err(unexpected(effect.output));
-    };
+    let connection = effect.output.connection()?;
 
     if let Some(pk) = cmd.signature_pk {
         super::tracking::link(tx, cmd.map_id, pk, connection.id).await?;

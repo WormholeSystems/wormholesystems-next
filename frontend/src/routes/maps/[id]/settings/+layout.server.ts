@@ -1,22 +1,18 @@
 import { error, redirect } from '@sveltejs/kit';
 
-import { mapUserSettings, mapView } from '$lib/server/api';
+import { mapView } from '$lib/server/api';
 import type { LayoutServerLoad } from './$types';
 
 // Settings are for the people who run the map, never for a watcher following a link.
 //
-// The map and the viewer's own settings are loaded once here for the whole section. Both
-// carry a dependency key, so a page that changes one invalidates just that.
+// The map is loaded once for the whole section. The per-viewer settings are not: they hang
+// off their own key on the pages that use them, so a toggle does not refetch the chain.
 export const load: LayoutServerLoad = async (event) => {
 	const { me } = await event.parent();
 	if (!me) redirect(302, '/login');
 
-	const mapId = Number(event.params.id);
-	event.depends('vector:map', 'vector:user-settings');
-	const [view, settings] = await Promise.all([
-		mapView(event, mapId).catch(() => null),
-		mapUserSettings(event, mapId).catch(() => null)
-	]);
+	event.depends('vector:map');
+	const view = await mapView(event, Number(event.params.id)).catch(() => null);
 	if (!view) error(404, 'That map is not one you can open.');
-	return { view, settings };
+	return { view };
 };

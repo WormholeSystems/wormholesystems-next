@@ -6,6 +6,7 @@
 	// map is a node everyone sees.
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { saveUserSettings } from '$lib/map/user-settings';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
@@ -34,12 +35,6 @@
 	const canManage = $derived(atLeast(data.view.role, 'manager'));
 	const ghosting = $derived(data.view.map.ghost_unlinked_wormholes);
 
-	function update(patch: Record<string, unknown>) {
-		api
-			.updateMapUserSettings(mapId, patch)
-			.then(() => invalidate('vector:user-settings'))
-			.catch(() => {});
-	}
 
 	function updateMap(ghost: boolean) {
 		api
@@ -94,7 +89,7 @@
 					checked={tracking && hasLocation}
 					disabled={!hasLocation}
 					aria-label="Share my location on this map"
-					onCheckedChange={(v) => update({ tracking_allowed: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { tracking_allowed: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -111,7 +106,7 @@
 					checked={(data.settings?.prompt_for_signature ?? true) && tracking}
 					disabled={!tracking}
 					aria-label="Ask which signature I jumped"
-					onCheckedChange={(v) => update({ prompt_for_signature: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { prompt_for_signature: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -128,7 +123,7 @@
 					checked={(data.settings?.suggest_alias ?? true) && tracking}
 					disabled={!tracking}
 					aria-label="Name new systems for me"
-					onCheckedChange={(v) => update({ suggest_alias: v })}
+					onCheckedChange={(v) => saveUserSettings(mapId, { suggest_alias: v })}
 				/>
 			{/snippet}
 		</SettingRow>

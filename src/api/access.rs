@@ -9,7 +9,7 @@ use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::ApiResult;
-use super::extract::{check_map_id, require_actor};
+use super::extract::{acting_on, require_actor};
 use super::reference::SearchQuery;
 use crate::auth::AppState;
 use crate::maps::MapEvent;
@@ -103,8 +103,7 @@ pub async fn set_access(
     Path(map_id): Path<i64>,
     Json(cmd): Json<SetAccess>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::access::set_access(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
@@ -116,8 +115,7 @@ pub async fn revoke_access(
     Path(map_id): Path<i64>,
     Json(cmd): Json<RevokeAccess>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::access::revoke_access(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
@@ -130,8 +128,7 @@ pub async fn transfer_ownership(
     Path(map_id): Path<i64>,
     Json(cmd): Json<crate::maps::access::TransferOwnership>,
 ) -> ApiResult<()> {
-    check_map_id(map_id, cmd.map_id)?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::access::transfer_ownership(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
