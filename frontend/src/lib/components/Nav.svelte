@@ -10,13 +10,19 @@
 	import type { CharacterRef } from '$lib/api/types/CharacterRef';
 	import type { CharacterSummary } from '$lib/api/types/CharacterSummary';
 	import type { MapEntry } from '$lib/api/types/MapEntry';
+	import type { ServerStatus as ServerState } from '$lib/api/types/ServerStatus';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import ServerStatus from '$lib/components/ServerStatus.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
-	let { me, pinned = [] }: { me: CharacterSummary | null; pinned?: MapEntry[] } = $props();
+	let {
+		me,
+		pinned = [],
+		status = null
+	}: { me: CharacterSummary | null; pinned?: MapEntry[]; status?: ServerState | null } =
+		$props();
 
 	let characters = $state<CharacterRef[]>([]);
 
@@ -107,7 +113,7 @@
 		</div>
 
 		<span class="hidden justify-self-center md:block">
-			<ServerStatus signedIn={me !== null} />
+			<ServerStatus signedIn={me !== null} initial={status} />
 		</span>
 
 		<span class="flex items-center justify-end gap-3">

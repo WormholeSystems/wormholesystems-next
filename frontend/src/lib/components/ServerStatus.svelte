@@ -2,15 +2,22 @@
 	// Tranquility, in the header: whether the server is up and what time it is in EVE. The
 	// clock is there because the game runs on UTC (downtime, timers, other timezones) and the
 	// browser's clock does not. Everything past that lives in the tooltip.
+	import { untrack } from 'svelte';
+
 	import { api } from '$lib/api/client';
 	import type { ServerState } from '$lib/api/types/ServerState';
 	import type { ServerStatus } from '$lib/api/types/ServerStatus';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { openUserSocket } from '$lib/ws';
 
-	let { signedIn = false }: { signedIn?: boolean } = $props();
+	let {
+		signedIn = false,
+		initial = null
+	}: { signedIn?: boolean; initial?: ServerStatus | null } = $props();
 
-	let status = $state<ServerStatus | null>(null);
+	// Seeded by the layout's load, so the headcount is there in the first frame rather than
+	// arriving after it. The poll and the socket take it from there.
+	let status = $state<ServerStatus | null>(untrack(() => initial));
 	let now = $state(new Date());
 
 	const STATES: Record<ServerState, { dot: string; label: string; short: string | null }> = {

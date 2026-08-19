@@ -3,6 +3,7 @@
 	// absolutely positioned from their {x,y,w,h} against the breakpoint's column count;
 	// placement itself lives in `$lib/layout/grid`, this only turns pointers into calls.
 	import { untrack } from 'svelte';
+	import { browser } from '$app/environment';
 
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -36,8 +37,18 @@
 	const HYSTERESIS = 4;
 
 	let gridEl = $state<HTMLElement | null>(null);
+	// Only the drag maths needs pixels; tiles are placed in percentages, so a stale width
+	// here never moves anything on screen.
 	let gridWidth = $state(1200);
-	let windowWidth = $state(1536);
+	let windowWidth = $state(browser ? window.innerWidth : 1536);
+
+	// Tiles animate as they are dragged around each other, but not into place on load: the
+	// first paint is the arrangement, not something to glide towards.
+	let settled = $state(false);
+	$effect(() => {
+		const frame = requestAnimationFrame(() => (settled = true));
+		return () => cancelAnimationFrame(frame);
+	});
 
 	// While editing you pick a breakpoint; otherwise it follows the window.
 	const activeKey = $derived<BreakpointKey>(
@@ -218,14 +229,15 @@
 	{@const held = gesture?.id === item.i ? floating : null}
 	<div
 		class={cn(
-			'absolute transition-[left,top,width,height] duration-150',
+			'absolute',
+			settled && 'transition-[left,top,width,height] duration-150',
 			// The held tile follows the pointer directly, so it must not animate. Releasing
 			// re-enables the transition and it glides into the placeholder's slot.
 			held && 'z-30 shadow-2xl duration-0'
 		)}
-		style:width="{held ? held.width : item.w * colWidth}px"
+		style:width={held ? `${held.width}px` : `${(item.w / layout.cols) * 100}%`}
 		style:height="{held ? held.height : item.h * layout.row_height}px"
-		style:left="{held ? held.left : item.x * colWidth}px"
+		style:left={held ? `${held.left}px` : `${(item.x / layout.cols) * 100}%`}
 		style:top="{held ? held.top : item.y * layout.row_height}px"
 		data-testid="panel-tile"
 		data-panel={item.i}
@@ -370,9 +382,9 @@
 			data-y={placeholder.y}
 			data-w={placeholder.w}
 			data-h={placeholder.h}
-			style:width="{placeholder.w * colWidth}px"
+			style:width="{(placeholder.w / layout.cols) * 100}%"
 			style:height="{placeholder.h * layout.row_height}px"
-			style:left="{placeholder.x * colWidth}px"
+			style:left="{(placeholder.x / layout.cols) * 100}%"
 			style:top="{placeholder.y * layout.row_height}px"
 		></div>
 	{/if}

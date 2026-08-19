@@ -1,6 +1,7 @@
 <script lang="ts">
 	// What the map shows you, per viewer. Placement is the exception: the mode is the map's,
 	// and the row only appears when the map hands the choice to each viewer.
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
@@ -10,21 +11,11 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
 
-	const mapId = $derived(Number(page.params.id) || 0);
-	let settings = $state<MapUserSettings | null>(null);
-	let view = $state<MapView | null>(null);
+	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
 
-	$effect(() => {
-		if (!mapId) return;
-		api
-			.mapUserSettings(mapId)
-			.then((s) => (settings = s))
-			.catch(() => {});
-		api
-			.fetchMap(mapId)
-			.then((v) => (view = v))
-			.catch(() => {});
-	});
+	const mapId = $derived(Number(page.params.id) || 0);
+	const settings = $derived(data.settings);
+	const view = $derived(data.view);
 
 	const PLACEMENTS = [
 		{ value: 'map', label: 'Follow the map' },
@@ -36,7 +27,7 @@
 	function update(patch: Record<string, unknown>) {
 		api
 			.updateMapUserSettings(mapId, patch)
-			.then((s) => (settings = s))
+			.then(() => invalidate('vector:user-settings'))
 			.catch(() => {});
 	}
 

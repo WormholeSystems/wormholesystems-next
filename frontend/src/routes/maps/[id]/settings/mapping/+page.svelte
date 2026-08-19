@@ -4,6 +4,7 @@
 	//
 	// The scanning card is the map's setting, not this viewer's: an unmapped hole put on the
 	// map is a node everyone sees.
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
@@ -16,48 +17,34 @@
 
 	const LOCATION_SCOPE = 'esi-location.read_location.v1';
 
+	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
+
 	const mapId = $derived(Number(page.params.id) || 0);
-	let settings = $state<MapUserSettings | null>(null);
 	let scopes = $state<ScopeStatus[]>([]);
-	let view = $state<MapView | null>(null);
 
 	$effect(() => {
-		if (!mapId) return;
-		api
-			.mapUserSettings(mapId)
-			.then((s) => (settings = s))
-			.catch(() => {});
 		api
 			.myScopes()
 			.then((s) => (scopes = s))
 			.catch(() => {});
-		reload();
 	});
 
 	const hasLocation = $derived(scopes.some((s) => s.scope === LOCATION_SCOPE && s.granted));
-	const tracking = $derived(settings?.tracking_allowed ?? false);
-	const canManage = $derived(atLeast(view?.role, 'manager'));
-	const ghosting = $derived(view?.map.ghost_unlinked_wormholes ?? false);
-
-	async function reload() {
-		try {
-			view = await api.fetchMap(mapId);
-		} catch {
-			// The per-user settings below still work without it.
-		}
-	}
+	const tracking = $derived(data.settings?.tracking_allowed ?? false);
+	const canManage = $derived(atLeast(data.view.role, 'manager'));
+	const ghosting = $derived(data.view.map.ghost_unlinked_wormholes);
 
 	function update(patch: Record<string, unknown>) {
 		api
 			.updateMapUserSettings(mapId, patch)
-			.then((s) => (settings = s))
+			.then(() => invalidate('vector:user-settings'))
 			.catch(() => {});
 	}
 
 	function updateMap(ghost: boolean) {
 		api
 			.updateMap({ map_id: mapId, ghost_unlinked_wormholes: ghost })
-			.then(() => reload())
+			.then(() => invalidate('vector:map'))
 			.catch(() => {});
 	}
 </script>
@@ -121,7 +108,7 @@
 		>
 			{#snippet control()}
 				<Switch
-					checked={(settings?.prompt_for_signature ?? true) && tracking}
+					checked={(data.settings?.prompt_for_signature ?? true) && tracking}
 					disabled={!tracking}
 					aria-label="Ask which signature I jumped"
 					onCheckedChange={(v) => update({ prompt_for_signature: v })}
@@ -138,7 +125,7 @@
 		>
 			{#snippet control()}
 				<Switch
-					checked={(settings?.suggest_alias ?? true) && tracking}
+					checked={(data.settings?.suggest_alias ?? true) && tracking}
 					disabled={!tracking}
 					aria-label="Name new systems for me"
 					onCheckedChange={(v) => update({ suggest_alias: v })}

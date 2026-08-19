@@ -26,7 +26,9 @@
 	import { timeAgo } from '$lib/format';
 	import { cn } from '$lib/utils';
 
-	let maps = $state<MapEntry[] | null>(null);
+	let { data }: { data: { maps: MapEntry[] } } = $props();
+
+	const maps = $derived(data.maps);
 	let error = $state('');
 	let query = $state('');
 	let showArchived = $state(false);
@@ -40,15 +42,7 @@
 	// The whole entry, not just an id, so the dialog can name what it is about to destroy.
 	let deleting = $state<MapEntry | null>(null);
 
-	function reload() {
-		api
-			.myMaps()
-			.then((list) => (maps = list))
-			.catch((err) => (error = (err as Error).message));
-	}
-
 	$effect(() => {
-		reload();
 		// "4m ago" has to stay true while the page is open.
 		const clock = setInterval(() => (now = new Date()), 30_000);
 		return () => clearInterval(clock);
@@ -97,15 +91,11 @@
 		}
 	}
 
-	/**
-	 * The top bar is loaded with the page, so the shortcut only appears once the page has been
-	 * read again. `invalidateAll` does that without throwing away where you are.
-	 */
+	// The list and the top bar's shortcuts both come from loads, so one refresh does both.
 	async function setPinned(map: MapEntry, value: boolean) {
 		try {
 			await api.updateMapUserSettings(map.id, { is_pinned: value });
 			await invalidateAll();
-			reload();
 			toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`);
 		} catch (err) {
 			error = (err as Error).message;
@@ -115,7 +105,7 @@
 	async function setArchived(map: MapEntry, value: boolean) {
 		try {
 			await api.updateMapUserSettings(map.id, { is_archived: value });
-			reload();
+			await invalidateAll();
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -127,7 +117,7 @@
 		deleting = null;
 		try {
 			await api.deleteMap(map.id);
-			reload();
+			await invalidateAll();
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -311,9 +301,7 @@
 		</div>
 	{/if}
 
-	{#if maps === null}
-		<p class="text-sm text-muted-foreground">Loading…</p>
-	{:else if maps.length === 0}
+	{#if maps.length === 0}
 		<div class="flex flex-col items-start gap-3 border border-dashed border-border p-8">
 			<p class="text-sm text-muted-foreground" data-testid="maps-empty">
 				No maps yet. A map is one chain: create one and start scanning.

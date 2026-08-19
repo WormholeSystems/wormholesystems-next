@@ -14,26 +14,18 @@
 	import UsersIcon from '@lucide/svelte/icons/users';
 
 	import { page } from '$app/state';
-	import { api } from '$lib/api/client';
 	import type { MapView } from '$lib/api/types/MapView';
 	import SettingsShell from '$lib/components/settings/SettingsShell.svelte';
 	import type { Section } from '$lib/components/settings/SettingsShell.svelte';
 	import { atLeast } from '$lib/map/roles';
 
-	let { children }: { children: import('svelte').Snippet } = $props();
+	let {
+		children,
+		data
+	}: { children: import('svelte').Snippet; data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	let view = $state<MapView | null>(null);
-
-	$effect(() => {
-		if (!mapId) return;
-		api
-			.fetchMap(mapId)
-			.then((v) => (view = v))
-			.catch(() => {});
-	});
-
-	const canManage = $derived(atLeast(view?.role, 'manager'));
+	const canManage = $derived(atLeast(data.view.role, 'manager'));
 
 	const sections = $derived.by<Section[]>(() => {
 		const base = `/maps/${mapId}/settings`;
@@ -89,7 +81,7 @@
 </script>
 
 <SettingsShell
-	title={view ? `${view.map.name} settings` : 'Map settings'}
+	title={`${data.view.map.name} settings`}
 	subtitle="Some of these change the map for everyone on it; the rest are only yours."
 	back={{ href: `/maps/${mapId}`, label: 'Back to the map' }}
 	{sections}

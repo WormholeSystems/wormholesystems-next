@@ -4,6 +4,7 @@
 	// the map without an owner.
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
@@ -32,10 +33,11 @@
 	import * as Select from '$lib/components/ui/select';
 	import { atLeast, byRole } from '$lib/map/roles';
 
-	const mapId = $derived(Number(page.params.id) || 0);
+	let { data }: { data: { view: MapView; access: AccessEntry[] } } = $props();
 
-	let view = $state<MapView | null>(null);
-	let access = $state<AccessEntry[]>([]);
+	const mapId = $derived(Number(page.params.id) || 0);
+	const view = $derived(data.view);
+	const access = $derived(data.access);
 	let error = $state('');
 
 	let query = $state('');
@@ -44,7 +46,7 @@
 	let picking = $state(false);
 	let newRole = $state<Role>('member');
 
-	const canManage = $derived(atLeast(view?.role, 'manager'));
+	const canManage = $derived(atLeast(view.role, 'manager'));
 	// Ownership is not grantable here: it is handed on from the General section instead.
 	const ROLES: Role[] = ['viewer', 'member', 'manager'];
 	const ALL_ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
@@ -60,20 +62,6 @@
 		manager: 'Everything a member does, and runs the map: access, naming, alerts, settings.',
 		owner: 'Everything a manager does, and can delete the map.'
 	};
-
-	$effect(() => {
-		if (mapId) reload();
-	});
-
-	async function reload() {
-		try {
-			const [v, a] = await Promise.all([api.fetchMap(mapId), api.listAccess(mapId)]);
-			view = v;
-			access = a;
-		} catch (err) {
-			error = (err as Error).message;
-		}
-	}
 
 	$effect(() => {
 		const q = query.trim();
@@ -160,7 +148,7 @@
 	// Only a manager sees the link: the API withholds the token from anyone else.
 	let revoking = $state(false);
 	const shareUrl = $derived(
-		view?.map.share_token ? `${page.url.origin}/share/${view.map.share_token}` : ''
+		view.map.share_token ? `${page.url.origin}/share/${view.map.share_token}` : ''
 	);
 
 	function rotateShare() {
@@ -185,7 +173,7 @@
 		try {
 			await work;
 			error = '';
-			await reload();
+			await Promise.all([invalidate('vector:access'), invalidate('vector:map')]);
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -568,7 +556,7 @@
 			>
 				{#snippet control()}
 					<Switch
-						checked={view?.map.is_public ?? false}
+						checked={view.map.is_public}
 						aria-label="Public map"
 						data-testid="share-public"
 						onCheckedChange={(v) => act(api.updateMap({ map_id: mapId, is_public: v }))}

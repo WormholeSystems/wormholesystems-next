@@ -3,6 +3,7 @@
 	//
 	// Mixed ownership: the names are the map's and Manager+, the clipboard toggle is yours.
 	// Non-managers still see the names read-only.
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapNaming } from '$lib/api/types/MapNaming';
@@ -14,37 +15,19 @@
 	import NamingCard from './NamingCard.svelte';
 	import { atLeast } from '$lib/map/roles';
 
-	const mapId = $derived(Number(page.params.id) || 0);
+	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
 
-	let view = $state<MapView | null>(null);
-	let settings = $state<MapUserSettings | null>(null);
+	const mapId = $derived(Number(page.params.id) || 0);
 	let error = $state('');
 
-	$effect(() => {
-		if (!mapId) return;
-		reload();
-		api
-			.mapUserSettings(mapId)
-			.then((s) => (settings = s))
-			.catch(() => {});
-	});
-
-	const canManage = $derived(atLeast(view?.role, 'manager'));
-	const tracking = $derived(settings?.tracking_allowed ?? false);
-
-	async function reload() {
-		try {
-			view = await api.fetchMap(mapId);
-		} catch (err) {
-			error = (err as Error).message;
-		}
-	}
+	const canManage = $derived(atLeast(data.view.role, 'manager'));
+	const tracking = $derived(data.settings?.tracking_allowed ?? false);
 
 	async function saveNaming(naming: MapNaming) {
 		try {
 			await api.updateMap({ map_id: mapId, naming });
 			error = '';
-			await reload();
+			await invalidate('vector:map');
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -53,7 +36,7 @@
 	function update(patch: Record<string, unknown>) {
 		api
 			.updateMapUserSettings(mapId, patch)
-			.then((s) => (settings = s))
+			.then(() => invalidate('vector:user-settings'))
 			.catch(() => {});
 	}
 </script>
@@ -63,9 +46,7 @@
 		<p class="text-sm text-destructive" data-testid="settings-error">{error}</p>
 	{/if}
 
-	{#if view}
-		<NamingCard naming={view.map.naming} disabled={!canManage} onsave={saveNaming} />
-	{/if}
+	<NamingCard naming={data.view.map.naming} disabled={!canManage} onsave={saveNaming} />
 
 	<Card.Root>
 		<Card.Header>
@@ -82,7 +63,7 @@
 			>
 				{#snippet control()}
 					<Switch
-						checked={(settings?.copy_bookmark ?? false) && tracking}
+						checked={(data.settings?.copy_bookmark ?? false) && tracking}
 						disabled={!tracking}
 						aria-label="Copy a bookmark when I map a hole"
 						onCheckedChange={(v) => update({ copy_bookmark: v })}

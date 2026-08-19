@@ -431,3 +431,33 @@ test('the canvas still pans after the map tile is resized', async ({ page, api }
 	const moved = await node.boundingBox();
 	expect(moved!.x).toBeLessThan(start.x);
 });
+
+// Tiles are placed in percentages of the grid rather than in pixels worked out after the
+// container has been measured, so the first painted frame is the arrangement. Sampling every
+// animation frame is the only way to see this: by the time an element can be queried, a
+// correction has already finished.
+test('tiles are painted in place rather than gliding there', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E FirstPaint');
+	await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null }
+	});
+
+	await page.addInitScript(() => {
+		const seen: number[] = [];
+		(window as unknown as { __tileX: number[] }).__tileX = seen;
+		const sample = () => {
+			const el = document.querySelector('[data-testid="panel-tile"][data-panel="signatures"]');
+			if (el) {
+				const x = Math.round(el.getBoundingClientRect().x);
+				if (seen[seen.length - 1] !== x) seen.push(x);
+			}
+			requestAnimationFrame(sample);
+		};
+		requestAnimationFrame(sample);
+	});
+
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.waitForTimeout(1000);
+	const positions = await page.evaluate(() => (window as unknown as { __tileX: number[] }).__tileX);
+	expect(positions).toHaveLength(1);
+});

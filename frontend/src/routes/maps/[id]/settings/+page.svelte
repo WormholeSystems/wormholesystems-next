@@ -2,9 +2,11 @@
 	// General: what the map is called and how to get rid of it. Everything here changes the
 	// map for everyone on it, which is why it is Manager+ and why deletion sits at the
 	// bottom behind its own confirmation.
+	import { untrack } from 'svelte';
+
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
@@ -20,40 +22,32 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { atLeast } from '$lib/map/roles';
 
+	let { data }: { data: { view: MapView } } = $props();
+
 	const mapId = $derived(Number(page.params.id) || 0);
+	const view = $derived(data.view);
 
-	let view = $state<MapView | null>(null);
-	let name = $state('');
-	let description = $state('');
+	// Seeded from the map and re-seeded whenever it changes underneath, so a save landing
+	// or somebody else's rename does not leave a stale draft in the fields.
+	let name = $state(untrack(() => data.view.map.name));
+	let description = $state(untrack(() => data.view.map.description ?? ''));
 	let error = $state('');
-
-	const canManage = $derived(atLeast(view?.role, 'manager'));
-	const isOwner = $derived(view?.role === 'owner');
-	const dirty = $derived(
-		!!view &&
-			(name.trim() !== view.map.name || description.trim() !== (view.map.description ?? ''))
-	);
-
 	$effect(() => {
-		if (mapId) reload();
+		name = data.view.map.name;
+		description = data.view.map.description ?? '';
 	});
 
-	async function reload() {
-		try {
-			const v = await api.fetchMap(mapId);
-			view = v;
-			name = v.map.name;
-			description = v.map.description ?? '';
-		} catch (err) {
-			error = (err as Error).message;
-		}
-	}
+	const canManage = $derived(atLeast(view.role, 'manager'));
+	const isOwner = $derived(view.role === 'owner');
+	const dirty = $derived(
+		name.trim() !== view.map.name || description.trim() !== (view.map.description ?? '')
+	);
 
 	async function act(work: Promise<unknown>) {
 		try {
 			await work;
 			error = '';
-			await reload();
+			await invalidate('vector:map');
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -63,8 +57,8 @@
 		{ value: 'manual', label: 'Custom placement', hint: 'Everyone drags the chain into shape' },
 		{ value: 'tree', label: 'Automatic placement', hint: 'Drawn as a tree from the connections' }
 	];
-	const placement = $derived(view?.map.layout ?? 'manual');
-	const allowOverride = $derived(view?.map.allow_layout_override ?? false);
+	const placement = $derived(view.map.layout);
+	const allowOverride = $derived(view.map.allow_layout_override);
 
 	function save() {
 		if (!name.trim() || !dirty) return;
@@ -95,14 +89,14 @@
 	async function transfer() {
 		const subject = Number(heir);
 		const name = candidates.find((c) => c.subject_id === subject)?.name ?? 'them';
-		if (!subject || !confirm(`Hand "${view?.map.name}" to ${name}? You stay on as a manager.`)) {
+		if (!subject || !confirm(`Hand "${view.map.name}" to ${name}? You stay on as a manager.`)) {
 			return;
 		}
 		try {
 			await api.transferOwnership({ map_id: mapId, subject_id: subject });
 			heir = '';
 			toast.success(`${name} owns this map now`);
-			await reload();
+			await invalidate('vector:map');
 		} catch (err) {
 			error = (err as Error).message;
 		}

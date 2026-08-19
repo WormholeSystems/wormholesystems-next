@@ -5,8 +5,11 @@ import { env } from '$env/dynamic/private';
 import type { RequestEvent } from '@sveltejs/kit';
 
 import type { CharacterSummary } from '$lib/api/types/CharacterSummary';
+import type { ServerStatus } from '$lib/api/types/ServerStatus';
 import type { MapEntry } from '$lib/api/types/MapEntry';
+import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
+import type { AccessEntry } from '$lib/api/types/AccessEntry';
 
 const base = () => env.API_BASE ?? 'http://127.0.0.1:3000';
 
@@ -44,4 +47,32 @@ export async function sharedMapId(event: RequestEvent, token: string): Promise<n
 	} catch {
 		return null;
 	}
+}
+
+/** A map's graph and the caller's role on it, for the settings pages. */
+export function mapView(event: RequestEvent, mapId: number): Promise<MapView> {
+	return get<MapView>(event, `/api/maps/${mapId}`);
+}
+
+/** Every map the caller can see. */
+export function myMaps(event: RequestEvent): Promise<MapEntry[]> {
+	return get<MapEntry[]>(event, '/api/maps');
+}
+
+/** The caller's own settings for one map. */
+export function mapUserSettings(event: RequestEvent, mapId: number): Promise<MapUserSettings> {
+	return get<MapUserSettings>(event, `/api/maps/${mapId}/settings/user`);
+}
+
+/** Who has been granted access to a map. */
+export function accessList(event: RequestEvent, mapId: number): Promise<AccessEntry[]> {
+	return get<AccessEntry[]>(event, `/api/maps/${mapId}/access`);
+}
+
+/**
+ * Tranquility's state for the top bar. A failure here is not worth a broken page: the
+ * component polls anyway, and an unknown state is one it already knows how to draw.
+ */
+export function serverStatus(event: RequestEvent): Promise<ServerStatus | null> {
+	return get<ServerStatus>(event, '/api/server-status').catch(() => null);
 }

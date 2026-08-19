@@ -391,9 +391,15 @@ export class MapState {
 	 */
 	signedIn = $state(true);
 
-	constructor(mapId: number, signedIn = true) {
+	constructor(mapId: number, signedIn = true, seed: MapView | null = null) {
 		this.mapId = mapId;
 		this.signedIn = signedIn;
+		// Seeded from the page's load, so the first frame already knows the chain. The
+		// refetch still runs: this is a starting point, not the last word.
+		if (seed) {
+			this.data = seed;
+			this.loaded = true;
+		}
 	}
 
 	/** Panels there is nobody to fill in: both of these are about the account, not the map. */

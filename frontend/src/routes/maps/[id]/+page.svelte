@@ -4,20 +4,22 @@
 	// and selection live outside the fetched data and nodes are keyed by id, so a refetch
 	// keeps interaction state.
 	import ClockIcon from '@lucide/svelte/icons/clock';
-	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import OrbitIcon from '@lucide/svelte/icons/orbit';
 	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 	import WorkflowIcon from '@lucide/svelte/icons/workflow';
 
 	import { setContext } from 'svelte';
+	import { fade } from 'svelte/transition';
 
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 
 	import { api } from '$lib/api/client';
+	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import type { MapView } from '$lib/api/types/MapView';
 	import {
 		NODE_W,
 		curvePath,
@@ -49,7 +51,9 @@
 	import { atLeast } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	const map = $derived(new MapState(mapId, page.data.me != null));
+	let { data }: { data: { view: MapView | null } } = $props();
+
+	const map = $derived(new MapState(mapId, page.data.me != null, data.view));
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
 	const tracker = $derived(new JumpTracker(map));
@@ -57,6 +61,34 @@
 	setContext('map-state', () => map);
 
 	let viewportEl = $state<HTMLElement | null>(null);
+
+	// A cover that appears and vanishes inside a few frames reads as a flicker, so it stays
+	// for a moment even when the map was quick. It is only ever a floor, never a delay: a
+	// slow map keeps it until the data is in.
+	// The cover starts where the map's own chrome does, leaving the app's nav above it.
+	// Measured rather than assumed, since the nav can wrap.
+	let chromeEl = $state<HTMLElement | null>(null);
+	let coverTop = $state(0);
+	$effect(() => {
+		const el = chromeEl;
+		if (!el) return;
+		const measure = () => (coverTop = el.getBoundingClientRect().top);
+		measure();
+		window.addEventListener('resize', measure);
+		return () => window.removeEventListener('resize', measure);
+	});
+
+	const COVER_MS = 1000;
+	let covered = $state(true);
+	$effect(() => {
+		// Re-covers when the map changes: switching maps rebuilds all of this, and the gap
+		// before the new one is ready should look like loading rather than like nothing.
+		void mapId;
+		covered = true;
+		const timer = setTimeout(() => (covered = false), COVER_MS);
+		return () => clearTimeout(timer);
+	});
+	const revealed = $derived(map.ready && !covered);
 
 	// Gestures commit only after 4px of travel; until then a release counts as a tap.
 	const HYSTERESIS = 4;
@@ -438,7 +470,9 @@
 	}}
 />
 
-<StatusBar {map} />
+<div bind:this={chromeEl}>
+	<StatusBar {map} />
+</div>
 
 <CommandPalette {map} bind:open={map.paletteOpen} />
 <CleanMapDialog {map} bind:open={map.cleanPrompt} />
@@ -459,22 +493,50 @@
 			{map.loadError}
 		</p>
 	{/if}
-{:else if !map.ready}
-	<!-- Held until the arrangement is known, so tiles are never painted in the built-in
-	     positions and then moved. -->
-	<div
-		class="flex h-96 flex-col items-center justify-center gap-3 text-muted-foreground"
-		data-testid="map-loading"
-	>
-		<LoaderIcon class="size-5 animate-spin" />
-		<p class="font-mono text-[10px] tracking-wider uppercase">Loading map</p>
-	</div>
 {:else}
-	<PanelGrid {map} {canvas} />
-	{#if map.editingLayout}
-		<LayoutToolbar {map} />
+	<!-- Mounted as soon as the data is in, behind the cover: the arrangement is painted
+	     while nobody is looking at it, so nothing is ever seen moving into place. -->
+	{#if map.ready}
+		<PanelGrid {map} {canvas} />
+		{#if map.editingLayout}
+			<LayoutToolbar {map} />
+		{/if}
+	{/if}
+	{#if !revealed}
+		<!-- Click-through once the map is really ready: what is left is the fade, and a
+		     cover that swallows the first click of the session would be worse than no cover. -->
+		<div
+			class={cn(
+				// Above the dialog layer: the introduction belongs to the map, so it waits for it.
+				'fixed inset-x-0 bottom-0 z-60 overflow-hidden bg-card',
+				'flex items-center justify-center',
+				map.ready && 'pointer-events-none'
+			)}
+			style:top="{coverTop}px"
+			data-testid="map-loading"
+			out:fade={{ duration: 350 }}
+		>
+			<div class="flex flex-col items-center gap-5">
+				<svg class="size-9 animate-spin text-muted-foreground" viewBox="0 0 36 36" fill="none">
+					<circle cx="18" cy="18" r="16" stroke="currentColor" stroke-opacity="0.15" stroke-width="1.5" />
+					<path
+						d="M34 18A16 16 0 0 0 18 2"
+						stroke="currentColor"
+						stroke-width="1.5"
+						stroke-linecap="round"
+					/>
+				</svg>
+				<div class="flex flex-col items-center gap-1.5">
+					<p class="font-mono text-[10px] tracking-[0.35em] text-muted-foreground uppercase">
+						Loading
+					</p>
+					<p class="text-sm font-medium">{map.data?.map.name ?? ''}</p>
+				</div>
+			</div>
+		</div>
 	{/if}
 {/if}
+
 
 {#snippet canvas()}
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
@@ -745,3 +807,4 @@
 	<ConnectionPopover {map} />
 </div>
 {/snippet}
+

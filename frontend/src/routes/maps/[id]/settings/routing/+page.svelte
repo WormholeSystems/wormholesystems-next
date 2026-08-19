@@ -1,6 +1,7 @@
 <script lang="ts">
 	// How routes are chosen. The same settings the route planner's popover edits, in a form
 	// with room to say what each one costs you.
+	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
@@ -10,21 +11,15 @@
 	import { Slider } from '$lib/components/ui/slider';
 	import { Switch } from '$lib/components/ui/switch';
 
-	const mapId = $derived(Number(page.params.id) || 0);
-	let settings = $state<MapUserSettings | null>(null);
+	let { data }: { data: { settings: MapUserSettings | null } } = $props();
 
-	$effect(() => {
-		if (!mapId) return;
-		api
-			.mapUserSettings(mapId)
-			.then((s) => (settings = s))
-			.catch(() => {});
-	});
+	const mapId = $derived(Number(page.params.id) || 0);
+	const settings = $derived(data.settings);
 
 	function update(patch: Record<string, unknown>) {
 		api
 			.updateMapUserSettings(mapId, patch)
-			.then((s) => (settings = s))
+			.then(() => invalidate('vector:user-settings'))
 			.catch(() => {});
 	}
 
