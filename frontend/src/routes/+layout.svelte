@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 
 	import Nav from '$lib/components/Nav.svelte';
+	import { Toaster } from '$lib/components/ui/sonner';
 
 	let { children, data } = $props();
 
@@ -22,6 +23,7 @@
 	<title>Vector</title>
 </svelte:head>
 
+<Toaster position="bottom-center" richColors closeButton />
 <Nav me={data.me} />
 <main class={flush ? "" : "p-6"}>
 	{@render children()}

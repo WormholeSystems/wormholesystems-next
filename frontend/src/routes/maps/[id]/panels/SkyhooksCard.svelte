@@ -7,6 +7,8 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { PlanetKind } from '$lib/api/types/PlanetKind';
 	import type { Skyhook } from '$lib/api/types/Skyhook';
@@ -198,7 +200,9 @@
 			if (row.jumps === null || row.jumps > NEARBY_JUMPS) continue;
 			if (announced.has(row.skyhook.planet_id)) continue;
 			announced.add(row.skyhook.planet_id);
-			map.statusLine = `${row.skyhook.planet_name} is raidable, ${row.jumps} jumps out`;
+			toast.info(`${row.skyhook.planet_name} is raidable`, {
+				description: `${row.jumps} jumps out`
+			});
 		}
 		// Forget a skyhook once its window is over, so the next one is announced again.
 		for (const row of rows) {

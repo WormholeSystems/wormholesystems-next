@@ -11,6 +11,8 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
 	import { browser } from '$app/environment';
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { PastedSignature } from '$lib/api/types/PastedSignature';
@@ -155,7 +157,7 @@
 		if (!canWrite) return;
 		const rows = parseScan(text, await loadCatalog());
 		if (rows.length === 0) {
-			map.statusLine = 'no signatures parsed';
+			toast.error('Nothing in that paste looked like a signature');
 			return;
 		}
 		const active = map.myCharacters.find((c) => c.is_active);
@@ -200,13 +202,13 @@
 
 	async function pasteFromClipboard() {
 		if (!navigator.clipboard?.readText) {
-			map.statusLine = 'clipboard access is not available in this browser';
+			toast.error('This browser does not give the page clipboard access');
 			return;
 		}
 		try {
 			handlePasteText(await navigator.clipboard.readText());
 		} catch {
-			map.statusLine = 'clipboard access denied';
+			toast.error('Clipboard access denied');
 		}
 	}
 

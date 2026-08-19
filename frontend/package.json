@@ -25,10 +25,12 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/pg": "^8.21.0",
     "clsx": "^2.1.1",
+    "mode-watcher": "^1.1.0",
     "pg": "^8.23.0",
     "shadcn-svelte": "^1.5.0",
     "svelte": "^5.56.1",
     "svelte-check": "^4.6.0",
+    "svelte-sonner": "^1.2.1",
     "tailwind-merge": "^3.6.0",
     "tailwind-variants": "^3.3.1",
     "tailwindcss": "^4.3.3",
@@ -38,7 +40,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@lucide/svelte": "^1.31.0",
+    "@lucide/svelte": "^1.33.0",
     "bits-ui": "^2.18.1",
     "marked": "^18.0.9"
   }

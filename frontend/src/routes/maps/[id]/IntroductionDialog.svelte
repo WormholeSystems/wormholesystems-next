@@ -24,6 +24,8 @@
 	import ZapIcon from '@lucide/svelte/icons/zap';
 
 	import { page } from '$app/state';
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
 	import { Button } from '$lib/components/ui/button';
@@ -119,7 +121,7 @@
 				map.userSettings = s;
 				if ('tracking_allowed' in patch) map.fetchCharacters();
 			})
-			.catch((err) => (map.statusLine = `setup: ${(err as Error).message}`));
+			.catch((err) => toast.error(`setup: ${(err as Error).message}`));
 	}
 
 	function finish() {

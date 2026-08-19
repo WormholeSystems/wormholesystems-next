@@ -6,6 +6,8 @@
 	// likely signature starts selected so Enter alone confirms the common case.
 	import SearchIcon from '@lucide/svelte/icons/search';
 
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
@@ -183,7 +185,7 @@
 			prompt.origin.alias
 		);
 		navigator.clipboard?.writeText(text).catch(() => {});
-		map.statusLine = `Copied bookmark: ${text}`;
+		toast.success('Bookmark copied', { description: text });
 	}
 
 	/** Stop asking, and map the rest of this session's jumps unlinked. */

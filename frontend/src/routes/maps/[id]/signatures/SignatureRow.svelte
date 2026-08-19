@@ -6,6 +6,8 @@
 	import MoreVerticalIcon from '@lucide/svelte/icons/more-vertical';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import { formatBookmark } from '$lib/bookmark';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
@@ -127,7 +129,7 @@
 			system.alias
 		);
 		navigator.clipboard?.writeText(text);
-		map.statusLine = `copied: ${text}`;
+		toast.success('Bookmark copied', { description: text });
 	}
 
 	function remove() {

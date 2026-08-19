@@ -1,6 +1,8 @@
 <script lang="ts">
 	// The floating bar shown while arranging panels. Everything that acts on the layout as
 	// a whole lives here; per-tile controls (move, resize, hide) live on the tiles.
+	import { toast } from 'svelte-sonner';
+
 	import ClipboardCopyIcon from '@lucide/svelte/icons/clipboard-copy';
 	import ClipboardPasteIcon from '@lucide/svelte/icons/clipboard-paste';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
@@ -45,8 +47,14 @@
 			breakpoints: resolveLayouts(map.layoutDraft),
 			hidden: map.userSettings?.hidden_panels ?? []
 		};
-		await navigator.clipboard.writeText(btoa(JSON.stringify(payload)));
-		map.statusLine = 'layout: copied';
+		// The clipboard is the whole result here, so a refused write has to say so rather
+		// than look like nothing happened.
+		try {
+			await navigator.clipboard.writeText(btoa(JSON.stringify(payload)));
+			toast.success('Layout copied');
+		} catch {
+			toast.error('Clipboard access denied');
+		}
 	}
 
 	async function paste() {

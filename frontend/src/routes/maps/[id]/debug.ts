@@ -4,6 +4,8 @@
 // module is imported dynamically, so none of it ships. Everything here goes through the
 // ordinary API, so what it builds is a map like any other and can be cleared like one.
 
+import { toast } from 'svelte-sonner';
+
 import { api } from '$lib/api/client';
 import type { MapState } from './map-state.svelte';
 
@@ -79,7 +81,7 @@ export async function seedStressChain(map: MapState): Promise<void> {
 	const nodes = shape();
 	const systems = await systemPool(nodes.length);
 	if (systems.length < nodes.length) {
-		map.statusLine = 'debug: not enough systems to build the chain';
+		toast.error('debug: not enough systems to build the chain');
 		return;
 	}
 

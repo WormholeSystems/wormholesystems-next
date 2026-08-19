@@ -147,19 +147,6 @@
 			</Tooltip.Root>
 		{/if}
 
-		{#if map.statusLine}
-			<!-- Actions report failures here; success is visible on the map itself. -->
-			<button
-				type="button"
-				class="max-w-96 truncate text-xs text-destructive"
-				data-testid="status-line"
-				title="{map.statusLine} (click to dismiss)"
-				onclick={() => (map.statusLine = '')}
-			>
-				{map.statusLine}
-			</button>
-		{/if}
-
 		{#if map.stale.length > 0}
 			<Popover.Root>
 				<Popover.Trigger>

@@ -32,6 +32,7 @@ import { NODE_W, clamp } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
 import { browser } from '$app/environment';
+import { toast } from 'svelte-sonner';
 
 /**
  * Zoom range and step, matching the legacy map: half size is where node text stops being
@@ -97,7 +98,7 @@ export class MapState {
 	characters = $state<MapCharacter[]>([]);
 	myCharacters = $state<CharacterRef[]>([]);
 	userSettings = $state<MapUserSettings | null>(null);
-	statusLine = $state('');
+
 
 	pan = $state({ x: 0, y: 0 });
 	zoom = $state(1);
@@ -570,7 +571,7 @@ export class MapState {
 				this.hiddenDirty = false;
 				this.editingLayout = false;
 			})
-			.catch((err) => (this.statusLine = `layout: ${(err as Error).message}`));
+			.catch((err) => toast.error(`layout: ${(err as Error).message}`));
 	}
 
 	/**
@@ -694,7 +695,7 @@ export class MapState {
 			await stale;
 		} catch (err) {
 			const message = (err as Error).message;
-			this.statusLine = `load: ${message}`;
+			toast.error(`load: ${message}`);
 			// Only the first load can leave the page with nothing to show; a later failure
 			// just means the view is briefly stale.
 			if (!this.loaded) this.loadError = message;
@@ -704,18 +705,13 @@ export class MapState {
 	/**
 	 * Run an API call and refetch (the WS event also arrives — both are idempotent).
 	 *
-	 * Success clears the status line rather than announcing itself: the change is visible on
-	 * the map, so an "ok" per action would be noise that buries the failures worth reading.
+	 * Only failures say anything: a successful change is visible on the map, so an "ok" per
+	 * action would be noise that buries the ones worth reading.
 	 */
 	run(label: string, promise: Promise<unknown>) {
 		promise
-			.then(() => {
-				this.statusLine = '';
-				this.refetch();
-			})
-			.catch((err) => {
-				this.statusLine = `${label}: ${(err as Error).message}`;
-			});
+			.then(() => this.refetch())
+			.catch((err) => toast.error(`${label}: ${(err as Error).message}`));
 	}
 
 	/**
@@ -786,7 +782,7 @@ export class MapState {
 		api
 			.updateMapUserSettings(this.mapId, { layout_override: own })
 			.then((s) => (this.userSettings = s))
-			.catch((err) => (this.statusLine = `placement: ${(err as Error).message}`));
+			.catch((err) => toast.error(`placement: ${(err as Error).message}`));
 	}
 
 	/** Shift the view by a screen-pixel delta (wheel, scrollbar, drag). */

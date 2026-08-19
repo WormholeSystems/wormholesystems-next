@@ -25,6 +25,8 @@
 	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { ConnectionType } from '$lib/api/types/ConnectionType';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
@@ -81,11 +83,14 @@
 
 	function stressChain() {
 		close();
-		map.statusLine = 'debug: building a stress-test chain…';
-		import('./debug')
-			.then((debug) => debug.seedStressChain(map))
-			.then(() => (map.statusLine = ''))
-			.catch((err) => (map.statusLine = `debug: ${(err as Error).message}`));
+		toast.promise(
+			import('./debug').then((debug) => debug.seedStressChain(map)),
+			{
+				loading: 'Building a stress-test chain…',
+				success: 'Stress-test chain built',
+				error: (err) => `debug: ${(err as Error).message}`
+			}
+		);
 	}
 
 	function clearMap() {
