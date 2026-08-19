@@ -68,6 +68,12 @@
 		map.viewportEl = viewportEl;
 	});
 
+	// Reading it back is a write, so it happens here rather than in the constructor: the
+	// map state is built inside a `$derived`, where mutating state is not allowed.
+	$effect(() => {
+		map.restoreZoom();
+	});
+
 	// The canvas is sized by its container rather than by a fixed height, so its size has
 	// to be observed: `getBoundingClientRect` is not reactive, and the virtual scrollbars
 	// are derived from it.
@@ -153,14 +159,25 @@
 		replaceState(url, {});
 	});
 
-	// Block the page from scrolling when the wheel is used over the canvas (we don't zoom on
-	// wheel — buttons do that). Needs a non-passive listener.
+	// Wheel over the canvas, by modifier (legacy's rules):
+	//   plain      the page scrolls, so a map inside a long page still gets out of the way
+	//   ctrl/meta  swallowed, so the pinch gesture does not zoom the whole app
+	//   shift      pans the map, which is the only way to scroll it without a drag
+	// Needs a non-passive listener to be allowed to preventDefault.
 	$effect(() => {
 		const el = viewportEl;
 		if (!el) return;
-		const guard = (ev: WheelEvent) => ev.preventDefault();
-		el.addEventListener('wheel', guard, { passive: false });
-		return () => el.removeEventListener('wheel', guard);
+		const onWheel = (ev: WheelEvent) => {
+			if (ev.ctrlKey || ev.metaKey) {
+				ev.preventDefault();
+				return;
+			}
+			if (!ev.shiftKey) return;
+			ev.preventDefault();
+			map.panBy(-ev.deltaX, -ev.deltaY);
+		};
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => el.removeEventListener('wheel', onWheel);
 	});
 
 	// --- pointer plumbing ---
@@ -217,6 +234,7 @@
 		} else if (map.panDrag) {
 			const p = map.panDrag;
 			map.pan = { x: p.px + ev.clientX - p.cx, y: p.py + ev.clientY - p.cy };
+			map.wakeScrollbars();
 		}
 	}
 
@@ -457,6 +475,7 @@
 	tabindex="0"
 	class="group relative h-full w-full overflow-hidden bg-zinc-950 ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
 	onpointerdown={onBackgroundDown}
+	onpointerenter={() => map.wakeScrollbars()}
 	onpointermove={onPointerMove}
 	onpointerup={onPointerUp}
 	onkeydown={onKey}
@@ -652,19 +671,35 @@
 	<!-- Virtual scrollbars (proportional thumbs reflecting viewport over the world). -->
 	<Scrollbars {map} />
 
-	<!-- Zoom controls. -->
-	<div class="absolute bottom-3 right-3 flex flex-col overflow-hidden border border-border bg-card">
+	<!-- Zoom: one step per click, with the level spelled out between them.
+	     The press is stopped here like the scrollbars do: the canvas captures the pointer on
+	     background press, which retargets the click onto the canvas and never reaches the
+	     button. -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="absolute right-3 bottom-3 flex items-center overflow-hidden border border-border bg-card"
+		data-testid="zoom-controls"
+		onpointerdown={(ev) => ev.stopPropagation()}
+	>
 		<button
 			class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-			onclick={() => map.zoomBy(1.2)}
-		>
-			+
-		</button>
-		<button
-			class="border-t border-border px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-			onclick={() => map.zoomBy(1 / 1.2)}
+			aria-label="Zoom out"
+			onclick={() => map.zoomBy(-1)}
 		>
 			−
+		</button>
+		<span
+			class="border-x border-border px-2 py-1 text-xs tabular-nums text-muted-foreground"
+			data-testid="zoom-level"
+		>
+			{Math.round(map.zoom * 100)}%
+		</span>
+		<button
+			class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+			aria-label="Zoom in"
+			onclick={() => map.zoomBy(1)}
+		>
+			+
 		</button>
 	</div>
 

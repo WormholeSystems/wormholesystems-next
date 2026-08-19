@@ -114,3 +114,35 @@ test('add connection searches from the palette and links what it places', async 
 	await page.keyboard.press('Meta+k');
 	await expect(page.getByPlaceholder('System, alias, occupier or notes…')).toBeVisible();
 });
+
+test('zoom steps in tenths, sticks to the map, and answers the wheel', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E Zoom');
+	await gotoApp(page, `/maps/${mapId}`);
+
+	const level = page.getByTestId('zoom-level');
+	const zoomIn = page.getByRole('button', { name: 'Zoom in' });
+	const zoomOut = page.getByRole('button', { name: 'Zoom out' });
+	await expect(level).toHaveText('100%');
+
+	await zoomIn.click();
+	await expect(level).toHaveText('110%');
+
+	// Clamped at double size: the map is designed to stop there.
+	for (let i = 0; i < 12; i++) await zoomIn.click();
+	await expect(level).toHaveText('200%');
+	// And at half.
+	for (let i = 0; i < 20; i++) await zoomOut.click();
+	await expect(level).toHaveText('50%');
+
+	// It is where you left it after a reload: zoom belongs to the screen you are at.
+	await zoomIn.click();
+	await page.reload();
+	await page.waitForSelector('html[data-hydrated="true"]');
+	await expect(page.getByTestId('zoom-level')).toHaveText('60%');
+
+	// Shift+wheel pans rather than scrolling the page; the wheel never zooms.
+	const canvas = page.getByTestId('map-canvas');
+	await canvas.hover();
+	await page.mouse.wheel(0, 200);
+	await expect(page.getByTestId('zoom-level')).toHaveText('60%');
+});

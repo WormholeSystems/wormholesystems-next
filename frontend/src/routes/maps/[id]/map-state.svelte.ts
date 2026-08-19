@@ -29,6 +29,18 @@ import { buildDynamicAdjacency } from '$lib/routing/algorithm';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import { NODE_W, clamp } from '$lib/map/helpers';
+import { browser } from '$app/environment';
+
+/**
+ * Zoom range and step, matching the legacy map: half size is where node text stops being
+ * readable, double is where a chain of any size stops fitting on screen.
+ */
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.1;
+
+/** How long the scrollbars stay up after the last thing that moved the view. */
+const SCROLLBAR_LINGER_MS = 1500;
 
 /**
  * A live drag. `primary` is the grabbed node; `x`/`y` is its current (snapped) top-left and
@@ -87,6 +99,8 @@ export class MapState {
 
 	pan = $state({ x: 0, y: 0 });
 	zoom = $state(1);
+	/** Shown while the scrollbars are awake; they fade out once nothing has moved. */
+	scrollbarsVisible = $state(false);
 	selected = $state<Set<number>>(new Set());
 	drag = $state<Drag | null>(null);
 	// Optimistic positions held from drop until the server confirms them, so a moved node
@@ -675,10 +689,40 @@ export class MapState {
 		};
 	}
 
-	zoomBy(factor: number) {
+	/** Shift the view by a screen-pixel delta (wheel, scrollbar, drag). */
+	panBy(dx: number, dy: number) {
+		this.pan = { x: this.pan.x + dx, y: this.pan.y + dy };
+		this.wakeScrollbars();
+	}
+
+	/**
+	 * The scrollbars are shown while the view is moving or the cursor is over the canvas,
+	 * and fade out shortly after: they say where you are, which is only a question while
+	 * you are navigating.
+	 */
+	wakeScrollbars() {
+		this.scrollbarsVisible = true;
+		if (this.hideScrollbars) clearTimeout(this.hideScrollbars);
+		this.hideScrollbars = setTimeout(() => {
+			this.scrollbarsVisible = false;
+			this.hideScrollbars = null;
+		}, SCROLLBAR_LINGER_MS);
+	}
+
+	private hideScrollbars: ReturnType<typeof setTimeout> | null = null;
+
+	/**
+	 * Zoom by whole steps, keeping the middle of the viewport where it is.
+	 *
+	 * Legacy's range and step, because they are what the map was designed at: below half
+	 * size the node text stops being readable, and above double a chain of any size no
+	 * longer fits on screen.
+	 */
+	zoomBy(steps: number) {
+		const next = Math.round((this.zoom + steps * ZOOM_STEP) * 10) / 10;
+		const nz = clamp(next, ZOOM_MIN, ZOOM_MAX);
+		if (nz === this.zoom) return;
 		const z = this.zoom;
-		const nz = clamp(z * factor, 0.25, 3);
-		// Keep the viewport center fixed while zooming.
 		const r = this.viewportRect();
 		const cx = r.width / 2;
 		const cy = r.height / 2;
@@ -686,6 +730,22 @@ export class MapState {
 		const wy = (cy - this.pan.y) / z;
 		this.pan = { x: cx - wx * nz, y: cy - wy * nz };
 		this.zoom = nz;
+		this.rememberZoom();
+		this.wakeScrollbars();
+	}
+
+	/**
+	 * Zoom is per map and per browser, not per account: how far out you want to be
+	 * depends on the screen you are sitting at, which does not travel with the login.
+	 */
+	restoreZoom() {
+		if (!browser) return;
+		const saved = Number(localStorage.getItem(`map-zoom-${this.mapId}`));
+		if (saved >= ZOOM_MIN && saved <= ZOOM_MAX) this.zoom = saved;
+	}
+
+	private rememberZoom() {
+		if (browser) localStorage.setItem(`map-zoom-${this.mapId}`, String(this.zoom));
 	}
 
 	snap(v: number): number {

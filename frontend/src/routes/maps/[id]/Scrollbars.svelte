@@ -1,7 +1,11 @@
 <script lang="ts">
 	// Custom proportional scrollbars: thumb size/position is the viewport-over-world ratio at
 	// the current zoom. Click the track to jump, or drag to scroll (the thumb follows the
-	// cursor). Subtle by default, brighter on hover (`group-hover` from the viewport).
+	// cursor).
+	//
+	// They fade in while the view is moving or the cursor is on the canvas and fade out
+	// again once it settles: on a map they answer "where am I in the chain", which is only
+	// a question while you are navigating.
 	import { clamp } from '$lib/map/helpers';
 	import type { MapState } from './map-state.svelte';
 
@@ -33,6 +37,7 @@
 		const frac = hThumb.size / 100;
 		const start = clamp(cf - frac / 2, 0, 1 - frac);
 		map.pan = { ...map.pan, x: -start * map.zoom * map.grid.world_width };
+		map.wakeScrollbars();
 	}
 
 	function vSet(clientY: number) {
@@ -43,16 +48,20 @@
 		const frac = vThumb.size / 100;
 		const start = clamp(cf - frac / 2, 0, 1 - frac);
 		map.pan = { ...map.pan, y: -start * map.zoom * map.grid.world_height };
+		map.wakeScrollbars();
 	}
 
-	const thumb =
-		'absolute rounded-full bg-muted-foreground/40 transition-colors group-hover:bg-muted-foreground/60';
+	const thumb = 'absolute rounded-full bg-muted-foreground/50';
+	// The track keeps its hit area while hidden would be misleading, so it goes with it.
+	const track = $derived(
+		map.scrollbarsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+	);
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	bind:this={hTrack}
-	class="absolute inset-x-1 bottom-1 h-2 cursor-pointer"
+	class="absolute inset-x-1 bottom-1 h-2 cursor-pointer transition-opacity duration-300 {track}"
 	onpointerdown={(ev) => {
 		ev.stopPropagation();
 		hDragging = true;
@@ -72,7 +81,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	bind:this={vTrack}
-	class="absolute inset-y-1 right-1 w-2 cursor-pointer"
+	class="absolute inset-y-1 right-1 w-2 cursor-pointer transition-opacity duration-300 {track}"
 	onpointerdown={(ev) => {
 		ev.stopPropagation();
 		vDragging = true;

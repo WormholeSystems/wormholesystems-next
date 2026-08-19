@@ -150,15 +150,19 @@ render a map outside the live canvas (a share view, an alert preview, a print).
 | Area | Legacy | Vector (`frontend/src/routes/maps/[id]/`) |
 |------|--------|-------------------------------------------|
 | Scroll model | native scroll container, `scrollLeft/Top` | one `translate(pan) scale(zoom)` world div |
-| Zoom | 0.5–2, 0.1 steps, cookie-persisted, % readout | 0.25–3, ×1.2 buttons, **not persisted**, no readout |
-| Wheel | plain → page, `ctrl` → swallowed, `shift` → scroll | all wheel swallowed over the canvas |
-| Grid | `--grid` token per theme, manual layout only | hardcoded `rgba(255,255,255,0.04)`, **invisible in light theme** |
+| Zoom | 0.5–2, 0.1 steps, cookie-persisted, % readout | *ported*: same range and step, `localStorage` per map, % readout |
+| Wheel | plain → page, `ctrl` → swallowed, `shift` → scroll | *ported*: same three rules |
+| Grid | `--grid` token per theme, manual layout only | *ported*: `--color-grid` / `--color-canvas` per theme |
 | Background image | per user, 2 modes, upload + drag-drop | **missing** |
-| Scrollbars | auto-hide, min thumb, track click, drag | always-on-hover, click + drag, no auto-hide |
+| Scrollbars | auto-hide, min thumb, track click, drag | *ported*: auto-hide after 1.5s, min thumb, click + drag |
 | Layout modes | manual + tree, per-map default, per-user override | **manual only** |
 | Tree edge routing | orthogonal with parallel fan-out | **missing** (curves only) |
 | Layout lock | drag/marquee off, left-drag pans | n/a |
 | Readonly renderer | `MapReadonly.vue` | **missing** |
+
+The zoom row's persistence differs on purpose: legacy keeps one scale for every map in a
+cookie, Vector keeps one per map in `localStorage`. Both are per browser rather than per
+account, because how far out you want to be depends on the screen you are sitting at.
 
 Two Vector-side details that matter for the port:
 

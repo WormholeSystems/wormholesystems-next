@@ -154,8 +154,8 @@ export function curvePath(x1: number, y1: number, x2: number, y2: number): strin
 
 export function gridBackground(): string {
 	return (
-		'linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px), ' +
-		'linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px)'
+		'linear-gradient(to right, var(--color-grid) 1px, transparent 1px), ' +
+		'linear-gradient(to bottom, var(--color-grid) 1px, transparent 1px)'
 	);
 }
 
