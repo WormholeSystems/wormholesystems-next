@@ -14,7 +14,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
-	import { Input } from '$lib/components/ui/input';
+	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 
 	const mapId = $derived(Number(page.params.id) || 0);
@@ -27,6 +28,7 @@
 	let query = $state('');
 	let matches = $state<AccessSubject[]>([]);
 	let picked = $state<AccessSubject | null>(null);
+	let picking = $state(false);
 	let newRole = $state<Role>('member');
 
 	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
@@ -65,6 +67,11 @@
 			.catch(() => {});
 		return () => (cancelled = true);
 	});
+
+	function choose(subject: AccessSubject) {
+		picked = subject;
+		picking = false;
+	}
 
 	async function act(work: Promise<unknown>) {
 		try {
@@ -120,12 +127,7 @@
 	<p class="mb-4 text-sm text-destructive" data-testid="settings-error">{error}</p>
 {/if}
 
-<!--
-	`overflow-visible` because the grant search drops its results below the field: shadcn's
-	card clips its content so a full-bleed image is cut to the rounded corners, and that
-	same clip takes the result list with it.
--->
-<Card.Root class="overflow-visible">
+<Card.Root>
 	<Card.Header>
 		<Card.Title>Access</Card.Title>
 		<Card.Description>Granting a corporation or alliance covers every pilot in it.</Card.Description>
@@ -137,48 +139,53 @@
 					Add a character, corp or alliance
 				</label>
 				<div class="flex gap-2">
-						<div class="relative flex-1">
-							<Input
-								id="grant-search"
-								bind:value={query}
-								placeholder="Name, ticker, or an EVE id"
+						<Popover.Root bind:open={picking}>
+							<Popover.Trigger
+								class="min-w-0 flex-1 border border-input bg-input/20 px-3 py-1.5 text-left text-sm {picked
+									? ''
+									: 'text-muted-foreground'}"
 								data-testid="grant-search"
-								oninput={() => (picked = null)}
-							/>
-							{#if matches.length > 0 && !picked}
-								<ul
-									class="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md"
-									data-testid="grant-matches"
-								>
-									{#each matches as m (m.subject_type + m.subject_id)}
-										<li>
-											<button
-												type="button"
-												class="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent"
-												onclick={() => {
-													picked = m;
-													query = m.name;
-													matches = [];
-												}}
-											>
-												<EveImage
-									kind={m.subject_type}
-									id={m.subject_id}
-									size={64}
-									title={m.name}
-									class="size-6 rounded-sm"
-								/>
-												<span class="flex-1 truncate">{m.name}</span>
-												{#if m.ticker}
-													<span class="text-xs text-muted-foreground">[{m.ticker}]</span>
-												{/if}
-												<span class="text-xs text-muted-foreground">{m.subject_type}</span>
-											</button>
-										</li>
-									{/each}
-								</ul>
-							{/if}
-						</div>
+							>
+								<span class="block truncate">
+									{picked ? picked.name : 'Name, ticker, or an EVE id'}
+								</span>
+							</Popover.Trigger>
+							<Popover.Content class="w-96 p-0" align="start">
+								<!-- Matching happens server-side, so Command's own filter stays out of it. -->
+								<Command.Root shouldFilter={false}>
+									<Command.Input placeholder="Name, ticker, or an EVE id…" bind:value={query} />
+									<Command.List data-testid="grant-matches">
+										<Command.Empty>
+											{query.trim().length < 2
+												? 'Type at least two characters.'
+												: 'Nothing found. An EVE id works too.'}
+										</Command.Empty>
+										<Command.Group>
+											{#each matches as m (m.subject_type + m.subject_id)}
+												<Command.Item
+													value={`${m.subject_type}-${m.subject_id}`}
+													onSelect={() => choose(m)}
+													data-testid="grant-match"
+												>
+													<EveImage
+														kind={m.subject_type}
+														id={m.subject_id}
+														size={64}
+														title={m.name}
+														class="size-6 rounded-sm"
+													/>
+													<span class="flex-1 truncate">{m.name}</span>
+													{#if m.ticker}
+														<span class="text-xs text-muted-foreground">[{m.ticker}]</span>
+													{/if}
+													<span class="text-xs text-muted-foreground">{m.subject_type}</span>
+												</Command.Item>
+											{/each}
+										</Command.Group>
+									</Command.List>
+								</Command.Root>
+							</Popover.Content>
+						</Popover.Root>
 						<Select.Root type="single" bind:value={newRole}>
 							<Select.Trigger class="w-32" data-testid="grant-role">
 								{newRole}

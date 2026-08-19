@@ -36,7 +36,13 @@ test('the owner is listed, and granting adds a second entry', async ({ page, api
 	await expect(list.getByText('E2E Pilot')).toBeVisible();
 
 	// The grant search only knows entities Vector has cached, so a known character resolves.
-	await page.getByTestId('grant-search').fill(String(mate.characterId));
+	// Driven by keyboard alone, which is what a combobox is for.
+	await page.getByTestId('grant-search').click();
+	await page.getByPlaceholder('Name, ticker, or an EVE id…').fill('E2E Extra 2');
+	await expect(page.getByTestId('grant-match').first()).toBeVisible();
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await expect(page.getByTestId('grant-search')).toContainText('E2E Extra 2');
 	await page.getByTestId('grant-button').click();
 	await expect(list.getByRole('listitem')).toHaveCount(2);
 });
@@ -46,7 +52,8 @@ test('a grant can be given an end date, and taken back to permanent', async ({ p
 	const mate = await createIdentity(4);
 	await gotoApp(page, `/maps/${mapId}/settings/access`);
 
-	await page.getByTestId('grant-search').fill(String(mate.characterId));
+	await page.getByTestId('grant-search').click();
+	await page.getByPlaceholder('Name, ticker, or an EVE id…').fill(String(mate.characterId));
 	await page.getByTestId('grant-duration').click();
 	await page.getByRole('option', { name: 'For a day' }).click();
 	await page.getByTestId('grant-button').click();
