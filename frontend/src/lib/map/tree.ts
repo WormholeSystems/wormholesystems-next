@@ -120,13 +120,20 @@ export function computeTreeLayout(
 		queue.push(id);
 	};
 
+	// Pinned first, and stranded systems after them, so the left column reads top to
+	// bottom as "the systems you decided matter, then everything nothing reaches".
+	const chosen = new Set<number>();
 	const candidates = input.rootIds.filter((id) => adjacency.has(id));
 	if (candidates.length === 0 && input.fallbackRootId != null && adjacency.has(input.fallbackRootId)) {
 		candidates.push(input.fallbackRootId);
 	}
 	// Every root is seeded before the walk starts, so they share one front and each
 	// system attaches to the root nearest it rather than to whichever went first.
-	for (const root of candidates) if (!visited.has(root)) addRoot(root);
+	for (const root of candidates) {
+		if (visited.has(root)) continue;
+		chosen.add(root);
+		addRoot(root);
+	}
 	drain();
 
 	// Whatever the roots could not reach becomes a tree of its own, densest first, parked
@@ -140,11 +147,16 @@ export function computeTreeLayout(
 		drain();
 	}
 
-	if (input.compareNodes) {
-		const compare = input.compareNodes;
+	const compare = input.compareNodes;
+	if (compare) {
 		for (const [, children] of childrenOf) children.sort(compare);
-		roots.sort(compare);
 	}
+	// The comparator orders each kind of root among itself, never across the two: a
+	// stranded system with an early alias must not climb above a pinned one.
+	roots.sort(
+		(a, b) =>
+			Number(!chosen.has(a)) - Number(!chosen.has(b)) || (compare ? compare(a, b) : 0)
+	);
 
 	// --- The forest as linked records the walks can chew on. ---
 	const nodes = new Map<number, LayoutNode>();

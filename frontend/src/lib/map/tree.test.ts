@@ -112,6 +112,35 @@ describe('computeTreeLayout', () => {
 		expect(positions.get(3)!.y).toBeLessThan(positions.get(2)!.y);
 	});
 
+	it('keeps the pinned systems at the top of the first column', () => {
+		// The stranded system sorts first by the comparator, and still goes below: the
+		// column reads as the systems you pinned, then everything nothing reaches.
+		const positions = layout({
+			nodeIds: [1, 2, 9],
+			edges: [{ from: 1, to: 2 }],
+			rootIds: [1],
+			compareNodes: (a, b) => (a === 9 ? -1 : b === 9 ? 1 : a - b)
+		});
+
+		expect(positions.get(1)!.x).toBe(60);
+		expect(positions.get(9)!.x).toBe(60);
+		expect(positions.get(1)!.y).toBeLessThan(positions.get(9)!.y);
+	});
+
+	it('sinks the systems nothing connects to below the whole chain', () => {
+		const positions = layout({
+			nodeIds: [1, 2, 3, 9],
+			edges: [
+				{ from: 1, to: 2 },
+				{ from: 1, to: 3 }
+			],
+			rootIds: [1]
+		});
+
+		const chain = [1, 2, 3].map((id) => positions.get(id)!.y);
+		expect(positions.get(9)!.y).toBeGreaterThan(Math.max(...chain));
+	});
+
 	it('parks a system nothing connects to as its own tree', () => {
 		const positions = layout({
 			nodeIds: [1, 2, 10],
