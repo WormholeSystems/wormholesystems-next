@@ -14,7 +14,16 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import CalendarIcon from '@lucide/svelte/icons/calendar';
+	import { getLocalTimeZone, today, type DateValue } from '@internationalized/date';
+
+	import { Calendar } from '$lib/components/ui/calendar';
+	import ArrowIcon from '@lucide/svelte/icons/arrow-up';
+
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Command from '$lib/components/ui/command';
+	import { Input } from '$lib/components/ui/input';
+	import * as Table from '$lib/components/ui/table';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 
@@ -84,6 +93,72 @@
 		picking = false;
 	}
 
+	// Filtering and sorting are per column, because "who can see this" and "what runs out
+	// when" are different questions asked of the same list.
+	let filter = $state('');
+	let sort = $state<{ key: 'name' | 'subject_type' | 'role' | 'expires_at'; descending: boolean }>({
+		key: 'role',
+		descending: false
+	});
+	const COLUMNS = [
+		{ key: 'name' as const, label: 'Who' },
+		{ key: 'subject_type' as const, label: 'Kind' },
+		{ key: 'role' as const, label: 'Role' },
+		{ key: 'expires_at' as const, label: 'Ends' }
+	];
+	const RANK: Record<Role, number> = { owner: 0, manager: 1, member: 2, viewer: 3 };
+
+	function sortBy(key: (typeof COLUMNS)[number]['key']) {
+		sort = sort.key === key ? { key, descending: !sort.descending } : { key, descending: false };
+	}
+
+	const shown = $derived.by(() => {
+		const needle = filter.trim().toLowerCase();
+		const rows = access.filter(
+			(e) =>
+				!needle ||
+				(e.name ?? '').toLowerCase().includes(needle) ||
+				String(e.subject_id).includes(needle)
+		);
+		const compare = (a: AccessEntry, b: AccessEntry) => {
+			switch (sort.key) {
+				case 'role':
+					return RANK[a.role] - RANK[b.role];
+				case 'subject_type':
+					return a.subject_type.localeCompare(b.subject_type);
+				case 'expires_at':
+					// The ones that end come first; the permanent ones have no answer to give.
+					return (
+						(a.expires_at ? Date.parse(a.expires_at) : Infinity) -
+						(b.expires_at ? Date.parse(b.expires_at) : Infinity)
+					);
+				default:
+					return (a.name ?? '').localeCompare(b.name ?? '');
+			}
+		};
+		return [...rows].sort(
+			(a, b) => (sort.descending ? -1 : 1) * (compare(a, b) || (a.name ?? '').localeCompare(b.name ?? ''))
+		);
+	});
+
+	/** The grant whose end date is being dropped, once it has been confirmed. */
+	let clearing = $state<AccessEntry | null>(null);
+
+	function keepForever() {
+		const entry = clearing;
+		clearing = null;
+		if (!entry) return;
+		act(
+			api.setAccess({
+				map_id: mapId,
+				subject_type: entry.subject_type,
+				subject_id: entry.subject_id,
+				role: entry.role,
+				expires_at: null
+			})
+		);
+	}
+
 	async function act(work: Promise<unknown>) {
 		try {
 			await work;
@@ -95,19 +170,38 @@
 	}
 
 	// How long a grant lasts. Access for one operation is the common case people forget to
-	// tidy up afterwards, so the form can hand it an end from the start.
+	// tidy up afterwards, so the form can hand it an end from the start: the usual spans as
+	// one click, and a date for everything else.
 	const DURATIONS = [
-		{ value: 'forever', label: 'No end date', hours: null },
-		{ value: '12h', label: 'For 12 hours', hours: 12 },
-		{ value: '24h', label: 'For a day', hours: 24 },
-		{ value: '7d', label: 'For a week', hours: 24 * 7 },
-		{ value: '30d', label: 'For a month', hours: 24 * 30 }
+		{ hours: 12, label: 'For 12 hours' },
+		{ hours: 24, label: 'For a day' },
+		{ hours: 24 * 7, label: 'For a week' },
+		{ hours: 24 * 30, label: 'For a month' }
 	];
-	let newDuration = $state('forever');
+	/** `null` is the permanent grant; a date ends at the close of that day. */
+	let ends = $state<Date | null>(null);
+	let picking_date = $state(false);
+	let customDate = $state<DateValue | undefined>(undefined);
 
-	function endsAt(duration: string): string | null {
-		const hours = DURATIONS.find((d) => d.value === duration)?.hours ?? null;
-		return hours === null ? null : new Date(Date.now() + hours * 3600_000).toISOString();
+	const endsLabel = $derived(
+		ends === null
+			? 'No end date'
+			: ends.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+	);
+
+	function endsIn(hours: number) {
+		ends = new Date(Date.now() + hours * 3600_000);
+		customDate = undefined;
+		picking_date = false;
+	}
+
+	function endsOn(date: DateValue | undefined) {
+		if (!date) return;
+		// The close of the chosen day, so "until the 24th" includes the 24th.
+		const day = date.toDate(getLocalTimeZone());
+		day.setHours(23, 59, 59, 0);
+		ends = day;
+		picking_date = false;
 	}
 
 	function grant() {
@@ -123,13 +217,14 @@
 				subject_type: subject.subject_type,
 				subject_id: subject.subject_id,
 				role: newRole,
-				expires_at: endsAt(newDuration)
+				expires_at: ends?.toISOString() ?? null
 			})
 		).then(() => {
 			query = '';
 			picked = null;
 			matches = [];
-			newDuration = 'forever';
+			ends = null;
+			customDate = undefined;
 		});
 	}
 </script>
@@ -209,20 +304,49 @@
 								</Select.Group>
 							</Select.Content>
 						</Select.Root>
-						<Select.Root type="single" value={newDuration} onValueChange={(v) => v && (newDuration = v)}>
-							<Select.Trigger class="w-36" data-testid="grant-duration">
-								{DURATIONS.find((d) => d.value === newDuration)?.label}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Group>
-									{#each DURATIONS as option (option.value)}
-										<Select.Item value={option.value} label={option.label}>
+						<Popover.Root bind:open={picking_date}>
+							<Popover.Trigger
+								class="flex h-7 w-40 items-center justify-between gap-1.5 rounded-md border border-input bg-input/20 px-2 text-xs/relaxed {ends
+									? ''
+									: 'text-muted-foreground'}"
+								data-testid="grant-duration"
+							>
+								{endsLabel}
+								<CalendarIcon class="size-3.5 shrink-0 text-muted-foreground" />
+							</Popover.Trigger>
+							<Popover.Content class="w-auto p-0" align="end">
+								<!-- The spans people actually use, and a date for the ones they do not. -->
+								<div class="flex flex-col border-b border-border/50 p-1">
+									<button
+										class="px-2 py-1 text-left text-xs hover:bg-accent"
+										data-testid="duration-forever"
+										onclick={() => {
+											ends = null;
+											customDate = undefined;
+											picking_date = false;
+										}}
+									>
+										No end date
+									</button>
+									{#each DURATIONS as option (option.hours)}
+										<button
+											class="px-2 py-1 text-left text-xs hover:bg-accent"
+											data-testid="duration-{option.hours}"
+											onclick={() => endsIn(option.hours)}
+										>
 											{option.label}
-										</Select.Item>
+										</button>
 									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
+								</div>
+								<Calendar
+									type="single"
+									bind:value={customDate}
+									minValue={today(getLocalTimeZone())}
+									onValueChange={endsOn}
+									data-testid="duration-calendar"
+								/>
+							</Popover.Content>
+						</Popover.Root>
 						<Button
 							onclick={grant}
 							disabled={!picked && !Number(query.trim())}
@@ -251,82 +375,145 @@
 			</div>
 		{/if}
 
-		<ul class="flex flex-col divide-y divide-border/50" data-testid="access-list">
-			{#each access as entry (entry.subject_id)}
-				<li class="flex items-center gap-3 py-2">
-					<EveImage
-						kind={entry.subject_type}
-						id={entry.subject_id}
-						size={64}
-						title={entry.name ?? String(entry.subject_id)}
-						class="size-8 rounded-sm"
-					/>
-					<span class="flex min-w-0 flex-1 flex-col">
-						<span class="truncate text-sm">
-							{entry.name ?? `Unknown (${entry.subject_id})`}
-							<span class="ml-1 text-xs text-muted-foreground">{entry.subject_type}</span>
-						</span>
-						{#if entry.expires_at}
+		<!-- A table because the questions people ask of this list are per column: who has
+		     access, at what level, and which of them run out. -->
+		<div class="flex items-center gap-2">
+			<Input
+				bind:value={filter}
+				placeholder="Filter by name…"
+				class="h-7 w-56 text-xs"
+				data-testid="access-filter"
+			/>
+			<span class="text-xs text-muted-foreground">
+				{shown.length} of {access.length}
+			</span>
+		</div>
+
+		<Table.Root data-testid="access-list">
+			<Table.Header>
+				<Table.Row>
+					{#each COLUMNS as column (column.key)}
+						<Table.Head>
 							<button
-								type="button"
-								class="w-fit text-xs text-amber-500 hover:underline"
-								data-testid="access-expiry"
-								title={canManage ? 'Click to make it permanent' : undefined}
-								disabled={!canManage}
-								onclick={() =>
-									act(
-										api.setAccess({
-											map_id: mapId,
-											subject_type: entry.subject_type,
-											subject_id: entry.subject_id,
-											role: entry.role,
-											expires_at: null
-										})
-									)}
+								class="flex items-center gap-1 hover:text-foreground"
+								data-testid="sort-{column.key}"
+								onclick={() => sortBy(column.key)}
 							>
-								Until {new Date(entry.expires_at).toLocaleString()}
+								{column.label}
+								{#if sort.key === column.key}
+									<ArrowIcon
+										class="size-3 {sort.descending ? 'rotate-180' : ''} transition-transform"
+									/>
+								{/if}
 							</button>
-						{/if}
-					</span>
-					{#if entry.role === 'owner'}
-						<Badge variant="outline">{ROLE_LABEL.owner}</Badge>
-					{:else if canManage}
-						<Select.Root
-							type="single"
-							value={entry.role}
-							onValueChange={(role) =>
-								act(
-									api.setAccess({
-										map_id: mapId,
-										subject_type: entry.subject_type,
-										subject_id: entry.subject_id,
-										role: role as Role
-									})
-								)}
-						>
-							<Select.Trigger class="w-28">{ROLE_LABEL[entry.role]}</Select.Trigger>
-							<Select.Content>
-								<Select.Group>
-									{#each ROLES as r (r)}
-										<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
-									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
-						<Button
-							variant="ghost"
-							size="icon"
-							class="size-8 text-muted-foreground hover:text-destructive"
-							onclick={() =>
-								act(api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id }))}
-						>
-							<TrashIcon />
-						</Button>
-					{:else}
-						<Badge variant="outline">{ROLE_LABEL[entry.role]}</Badge>
-					{/if}
-				</li>
-			{/each}
-		</ul>
+						</Table.Head>
+					{/each}
+					<Table.Head class="w-24"></Table.Head>
+				</Table.Row>
+			</Table.Header>
+			<Table.Body>
+				{#each shown as entry (entry.subject_id)}
+					<Table.Row data-testid="access-row">
+						<Table.Cell>
+							<span class="flex min-w-0 items-center gap-2">
+								<EveImage
+									kind={entry.subject_type}
+									id={entry.subject_id}
+									size={64}
+									title={entry.name ?? String(entry.subject_id)}
+									class="size-7 shrink-0 rounded-sm"
+								/>
+								<span class="truncate">{entry.name ?? `Unknown (${entry.subject_id})`}</span>
+							</span>
+						</Table.Cell>
+						<Table.Cell class="text-muted-foreground">{entry.subject_type}</Table.Cell>
+						<Table.Cell>
+							{#if entry.role === 'owner'}
+								<Badge variant="outline">{ROLE_LABEL.owner}</Badge>
+							{:else if canManage}
+								<Select.Root
+									type="single"
+									value={entry.role}
+									onValueChange={(role) =>
+										act(
+											api.setAccess({
+												map_id: mapId,
+												subject_type: entry.subject_type,
+												subject_id: entry.subject_id,
+												role: role as Role
+											})
+										)}
+								>
+									<Select.Trigger class="w-28">{ROLE_LABEL[entry.role]}</Select.Trigger>
+									<Select.Content>
+										<Select.Group>
+											{#each ROLES as r (r)}
+												<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
+											{/each}
+										</Select.Group>
+									</Select.Content>
+								</Select.Root>
+							{:else}
+								<Badge variant="outline">{ROLE_LABEL[entry.role]}</Badge>
+							{/if}
+						</Table.Cell>
+						<Table.Cell>
+							{#if entry.expires_at}
+								<button
+									type="button"
+									class="text-xs text-amber-500 hover:underline disabled:no-underline"
+									data-testid="access-expiry"
+									title={canManage ? 'Remove the end date' : undefined}
+									disabled={!canManage}
+									onclick={() => (clearing = entry)}
+								>
+									{new Date(entry.expires_at).toLocaleDateString(undefined, {
+										day: 'numeric',
+										month: 'short',
+										year: 'numeric'
+									})}
+								</button>
+							{:else}
+								<span class="text-xs text-muted-foreground">—</span>
+							{/if}
+						</Table.Cell>
+						<Table.Cell class="text-right">
+							{#if canManage && entry.role !== 'owner'}
+								<Button
+									variant="ghost"
+									size="icon"
+									class="size-7 text-muted-foreground hover:text-destructive"
+									aria-label="Revoke access for {entry.name ?? entry.subject_id}"
+									onclick={() =>
+										act(api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id }))}
+								>
+									<TrashIcon />
+								</Button>
+							{/if}
+						</Table.Cell>
+					</Table.Row>
+				{/each}
+			</Table.Body>
+		</Table.Root>
+
 	</Card.Content>
 </Card.Root>
+
+<AlertDialog.Root open={clearing !== null} onOpenChange={(o) => !o && (clearing = null)}>
+	<AlertDialog.Content data-testid="clear-expiry-dialog">
+		<AlertDialog.Header>
+			<AlertDialog.Title>Drop the end date?</AlertDialog.Title>
+			<AlertDialog.Description>
+				{clearing?.name ?? 'They'} keeps {ROLE_LABEL[clearing?.role ?? 'viewer'].toLowerCase()} access
+				until somebody takes it away, instead of until
+				{clearing?.expires_at ? new Date(clearing.expires_at).toLocaleString() : 'the date set'}.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Keep the date</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={keepForever} data-testid="clear-expiry-confirm">
+				Drop it
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

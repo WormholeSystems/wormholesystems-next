@@ -48,7 +48,7 @@ test('the owner is listed, and granting adds a second entry', async ({ page, api
 	await page.keyboard.press('Enter');
 	await expect(page.getByTestId('grant-search')).toContainText('E2E Extra 2');
 	await page.getByTestId('grant-button').click();
-	await expect(list.getByRole('listitem')).toHaveCount(2);
+	await expect(page.getByTestId('access-row')).toHaveCount(2);
 });
 
 test('a grant can be given an end date, and taken back to permanent', async ({ page, api }) => {
@@ -59,20 +59,22 @@ test('a grant can be given an end date, and taken back to permanent', async ({ p
 	await page.getByTestId('grant-search').click();
 	await page.getByPlaceholder('Name, ticker, or an EVE id…').fill(String(mate.characterId));
 	await page.getByTestId('grant-duration').click();
-	await page.getByRole('option', { name: 'For a day' }).click();
+	await page.getByTestId('duration-24').click();
 	await page.getByTestId('grant-button').click();
 
 	const list = page.getByTestId('access-list');
-	await expect(list.getByRole('listitem')).toHaveCount(2);
+	await expect(page.getByTestId('access-row')).toHaveCount(2);
 	// The row says when it runs out, rather than looking like any other grant.
-	await expect(list.getByTestId('access-expiry')).toHaveCount(1);
+	await expect(page.getByTestId('access-expiry')).toHaveCount(1);
 	const stored = await (await api.get(`/api/maps/${mapId}/access`)).json();
 	expect(stored.find((e: { subject_id: number }) => e.subject_id === mate.characterId).expires_at)
 		.not.toBeNull();
 
-	// Clicking it drops the end date.
-	await list.getByTestId('access-expiry').click();
-	await expect(list.getByTestId('access-expiry')).toHaveCount(0);
+	// Dropping the end date is confirmed first: it is a permission that stops expiring.
+	await page.getByTestId('access-expiry').click();
+	await expect(page.getByTestId('clear-expiry-dialog')).toContainText('until somebody takes it away');
+	await page.getByTestId('clear-expiry-confirm').click();
+	await expect(page.getByTestId('access-expiry')).toHaveCount(0);
 });
 
 test('ownership is handed on from the danger zone, not granted from the list', async ({
@@ -109,6 +111,51 @@ test('ownership is handed on from the danger zone, not granted from the list', a
 		.toEqual([mate.characterId]);
 	// And the danger zone is theirs now, not ours.
 	await expect(page.getByTestId('danger-zone')).toHaveCount(0);
+});
+
+test('the access list filters and sorts, and takes a date of its own', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E AccessTable');
+	for (const slot of [8, 9]) {
+		const mate = await createIdentity(slot);
+		await grantAccess(mapId, mate.characterId, slot === 8 ? 'viewer' : 'manager');
+	}
+	await gotoApp(page, `/maps/${mapId}/settings/access`);
+	await expect(page.getByTestId('access-row')).toHaveCount(3);
+
+	// Filtering narrows to what was typed.
+	await page.getByTestId('access-filter').fill('Extra 8');
+	await expect(page.getByTestId('access-row')).toHaveCount(1);
+	await page.getByTestId('access-filter').fill('');
+
+	// Sorting by name, then again for the other direction.
+	await page.getByTestId('sort-name').click();
+	const first = () => page.getByTestId('access-row').first().textContent();
+	const ascending = await first();
+	await page.getByTestId('sort-name').click();
+	expect(await first()).not.toBe(ascending);
+
+	// A grant can end on a date picked from the calendar rather than a fixed span.
+	const mate = await createIdentity(6);
+	await page.getByTestId('grant-search').click();
+	await page.getByPlaceholder('Name, ticker, or an EVE id…').fill('E2E Extra 6');
+	await page.getByTestId('grant-match').first().click();
+	await page.getByTestId('grant-duration').click();
+	// The last day of the shown month that is still selectable, so the pick never lands on
+	// a greyed-out day from the month either side.
+	await page
+		.locator('[data-calendar-day]:not([data-outside-month]):not([aria-disabled="true"])')
+		.last()
+		.click();
+	await expect(page.getByTestId('grant-duration')).not.toContainText('No end date');
+	await page.getByTestId('grant-button').click();
+
+	await expect
+		.poll(async () => {
+			const rows = await (await api.get(`/api/maps/${mapId}/access`)).json();
+			return rows.find((e: { subject_id: number }) => e.subject_id === mate.characterId)
+				?.expires_at;
+		})
+		.toBeTruthy();
 });
 
 test('a viewer sees the roles but cannot change them', async ({ page, api }) => {
