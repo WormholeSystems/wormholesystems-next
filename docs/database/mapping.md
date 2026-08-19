@@ -15,6 +15,8 @@ The top-level artifact. A user creates a map and everything else hangs off it.
 | `description` | text, null  | free-text, user-set                                         |
 | `image_url`   | text, null  | reference to an uploaded icon/logo, **not** the image bytes |
 | `ghost_unlinked_wormholes` | bool | a wormhole signature with no connection puts a ghost placement on the map |
+| `layout` | text | `manual` (dragged into shape) or `tree` (drawn from the connections) |
+| `allow_layout_override` | bool | whether a viewer may pick their own placement instead |
 | `created_at`  | timestamptz |                                                             |
 
 **Invariants & expected behaviour**
@@ -24,6 +26,13 @@ The top-level artifact. A user creates a map and everything else hangs off it.
 - On creation, the map gets an `owner` access grant for its creator's character.
 - The icon/logo is **uploaded to object storage** (S3-style or a static asset dir);
   `image_url` holds only the reference. We do not store image bytes in Postgres.
+- **Automatic placement derives positions, it does not store them.** A map on `tree`
+  keeps every `position_x` / `position_y` exactly as it was left, so switching back finds
+  the chain as people dragged it. The tree is computed on the client from the connections,
+  rooted at the pinned systems (see
+  [map-canvas.md](../legacy/map-canvas.md#8-layout-modes-the-second-rendering-mode)).
+- A viewer's own choice lives in `map_user_settings.layout_override` and only counts while
+  the map sets `allow_layout_override`; `null` follows the map.
 - Deleting a map cascades to its solar systems, connections, signatures, details,
   and access entries (nothing dangles). Removing the map should also clean up its
   uploaded image from object storage (app-level, outside the DB transaction).

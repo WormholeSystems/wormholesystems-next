@@ -12,6 +12,9 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
+	import SettingRow from '$lib/components/settings/SettingRow.svelte';
+	import * as Select from '$lib/components/ui/select';
+	import { Switch } from '$lib/components/ui/switch';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 
@@ -51,6 +54,13 @@
 			error = (err as Error).message;
 		}
 	}
+
+	const PLACEMENTS = [
+		{ value: 'manual', label: 'Custom placement', hint: 'Everyone drags the chain into shape' },
+		{ value: 'tree', label: 'Automatic placement', hint: 'Drawn as a tree from the connections' }
+	];
+	const placement = $derived(view?.map.layout ?? 'manual');
+	const allowOverride = $derived(view?.map.allow_layout_override ?? false);
 
 	function save() {
 		if (!name.trim() || !dirty) return;
@@ -115,6 +125,67 @@
 				data-testid="rename-button">Save</Button
 			>
 		</Card.Footer>
+	</Card.Root>
+
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Placement</Card.Title>
+			<Card.Description>
+				How the chain is laid out for everyone on this map.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col py-0">
+			<SettingRow
+				id="map-layout"
+				label="Placement"
+				description="Custom placement keeps the positions people dragged the systems to. Automatic ignores them and draws the chain as a tree from the connections, rooted at the pinned systems."
+				disabled={!canManage}
+				blocked={canManage ? undefined : 'Only a manager can change this.'}
+			>
+				{#snippet control()}
+					<Select.Root
+						type="single"
+						value={placement}
+						disabled={!canManage}
+						onValueChange={(v) => v && act(api.updateMap({ map_id: mapId, layout: v }))}
+					>
+						<Select.Trigger class="w-56" data-testid="map-layout-select">
+							{PLACEMENTS.find((p) => p.value === placement)?.label}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each PLACEMENTS as option (option.value)}
+									<Select.Item value={option.value} label={option.label}>
+										<span class="flex flex-col">
+											<span>{option.label}</span>
+											<span class="text-xs text-muted-foreground">{option.hint}</span>
+										</span>
+									</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
+				id="allow-layout-override"
+				label="Let people choose their own"
+				description="Anyone on the map can switch their own view between the two, from the map itself. The map's own setting stays what everyone else sees."
+				disabled={!canManage}
+				blocked={canManage ? undefined : 'Only a manager can change this.'}
+			>
+				{#snippet control()}
+					<Switch
+						checked={allowOverride}
+						disabled={!canManage}
+						aria-label="Let people choose their own placement"
+						onCheckedChange={(v) =>
+							act(api.updateMap({ map_id: mapId, allow_layout_override: v }))}
+					/>
+				{/snippet}
+			</SettingRow>
+		</Card.Content>
 	</Card.Root>
 
 	{#if isOwner}

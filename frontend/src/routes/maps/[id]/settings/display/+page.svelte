@@ -1,9 +1,13 @@
 <script lang="ts">
 	// What the map shows you. Yours alone: two people on the same chain can disagree about
 	// how dense the signature list should be without arguing about it.
+	//
+	// Placement is the exception on this page: the mode is the map's, and this row only
+	// appears when the map hands the choice to each viewer.
 	import { page } from '$app/state';
 	import { api } from '$lib/api/client';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+	import type { MapView } from '$lib/api/types/MapView';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
@@ -11,6 +15,7 @@
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	let settings = $state<MapUserSettings | null>(null);
+	let view = $state<MapView | null>(null);
 
 	$effect(() => {
 		if (!mapId) return;
@@ -18,7 +23,18 @@
 			.mapUserSettings(mapId)
 			.then((s) => (settings = s))
 			.catch(() => {});
+		api
+			.fetchMap(mapId)
+			.then((v) => (view = v))
+			.catch(() => {});
 	});
+
+	const PLACEMENTS = [
+		{ value: 'map', label: 'Follow the map' },
+		{ value: 'manual', label: 'Custom placement' },
+		{ value: 'tree', label: 'Automatic placement' }
+	];
+	const placement = $derived(settings?.layout_override ?? 'map');
 
 	function update(patch: Record<string, unknown>) {
 		api
@@ -82,6 +98,36 @@
 				/>
 			{/snippet}
 		</SettingRow>
+
+		{#if view?.map.allow_layout_override}
+			<SettingRow
+				id="layout-override"
+				label="How this chain is placed"
+				description="Custom placement is the map as people dragged it. Automatic draws it as a tree from the connections, which nobody can move. Following the map takes whichever it is set to."
+			>
+				{#snippet control()}
+					<Select.Root
+						type="single"
+						value={placement}
+						onValueChange={(v) =>
+							v && update({ layout_override: v === 'map' ? null : v })}
+					>
+						<Select.Trigger class="w-52" data-testid="layout-override-select">
+							{PLACEMENTS.find((p) => p.value === placement)?.label}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each PLACEMENTS as option (option.value)}
+									<Select.Item value={option.value} label={option.label}>
+										{option.label}
+									</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				{/snippet}
+			</SettingRow>
+		{/if}
 
 		<SettingRow
 			id="killmail-filter"

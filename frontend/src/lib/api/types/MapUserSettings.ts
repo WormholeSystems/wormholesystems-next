@@ -47,6 +47,11 @@ introduction_confirmed: boolean,
  */
 hidden_panels: Array<string>, 
 /**
+ * This viewer's placement choice, when the map hands it to them. `None` follows the
+ * map's own mode.
+ */
+layout_override?: string, 
+/**
  * Per-breakpoint tile positions. `None` = the built-in arrangement.
  */
 layout_breakpoints?: { [key in string]: BreakpointLayout }, };

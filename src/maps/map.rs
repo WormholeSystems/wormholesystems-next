@@ -30,6 +30,11 @@ pub struct Map {
     /// Whether pasting a wormhole signature puts its far side on the map as a ghost.
     /// Map-wide: a ghost is a node everyone on the chain sees.
     pub ghost_unlinked_wormholes: bool,
+    /// How the chain is placed: `manual` (dragged into shape) or `tree` (drawn from the
+    /// connections). Map-wide, so everyone on a chain reads the same picture.
+    pub layout: String,
+    /// Whether a viewer may pick their own placement instead of the map's.
+    pub allow_layout_override: bool,
 }
 
 /// How a map names its chain. Map-wide rather than per-user, because an alias is written
@@ -85,6 +90,8 @@ macro_rules! map_from_row {
             image_url: row.image_url,
             created_at: row.created_at,
             ghost_unlinked_wormholes: row.ghost_unlinked_wormholes,
+            layout: row.layout,
+            allow_layout_override: row.allow_layout_override,
             naming: MapNaming {
                 alias_scheme: row.alias_scheme,
                 ignored_alias: row.ignored_alias,
@@ -125,7 +132,7 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
         sqlx::query!(
             "insert into maps (name, description) values ($1, $2)
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 ghost_unlinked_wormholes,
+                 ghost_unlinked_wormholes, layout, allow_layout_override,
                  bookmark_wormhole, bookmark_kspace, bookmark_return",
             cmd.name.trim(),
             cmd.description.as_deref(),
@@ -185,6 +192,12 @@ pub struct UpdateMap {
     #[serde(default)]
     #[ts(optional)]
     pub ghost_unlinked_wormholes: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub layout: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_layout_override: Option<bool>,
 }
 
 impl UpdateMap {
@@ -196,6 +209,14 @@ impl UpdateMap {
         }
         if let Some(naming) = &self.naming {
             naming.validate()?;
+        }
+        if let Some(layout) = &self.layout
+            && layout != "manual"
+            && layout != "tree"
+        {
+            return Err(MapError::Validation(
+                "placement must be manual or tree".into(),
+            ));
         }
         Ok(())
     }
@@ -210,7 +231,8 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let current = map_from_row!(
         sqlx::query!(
             "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
+                 layout, allow_layout_override
              from maps where id = $1",
             cmd.map_id,
         )
@@ -229,15 +251,21 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let ghost_unlinked_wormholes = cmd
         .ghost_unlinked_wormholes
         .unwrap_or(current.ghost_unlinked_wormholes);
+    let layout = cmd.layout.unwrap_or(current.layout);
+    let allow_layout_override = cmd
+        .allow_layout_override
+        .unwrap_or(current.allow_layout_override);
 
     let map = map_from_row!(
         sqlx::query!(
             "update maps set name = $1, description = $2, image_url = $3,
                     alias_scheme = $5, ignored_alias = $6, bookmark_wormhole = $7,
-                    bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10
+                    bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10,
+                    layout = $11, allow_layout_override = $12
              where id = $4
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes",
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
+                 layout, allow_layout_override",
             name,
             description,
             image_url,
@@ -248,6 +276,8 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
             naming.bookmark_kspace,
             naming.bookmark_return,
             ghost_unlinked_wormholes,
+            layout,
+            allow_layout_override,
         )
         .fetch_one(&mut *tx)
         .await?
@@ -277,7 +307,8 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
     let rows = sqlx::query!(
         r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,
                   m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
-                  m.ghost_unlinked_wormholes, ma.role as "role!: Role"
+                  m.ghost_unlinked_wormholes, m.layout, m.allow_layout_override,
+                  ma.role as "role!: Role"
            from maps m
            join map_access ma on ma.map_id = m.id
            where ma.subject_id in (
@@ -321,7 +352,8 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     let map = map_from_row!(
         sqlx::query!(
             "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
+                 layout, allow_layout_override
              from maps where id = $1",
             cmd.map_id,
         )

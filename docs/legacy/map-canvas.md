@@ -155,9 +155,9 @@ render a map outside the live canvas (a share view, an alert preview, a print).
 | Grid | `--grid` token per theme, manual layout only | *ported*: `--color-grid` / `--color-canvas` per theme |
 | Background image | per user, 2 modes, upload + drag-drop | **missing** |
 | Scrollbars | auto-hide, min thumb, track click, drag | *ported*: auto-hide after 1.5s, min thumb, click + drag |
-| Layout modes | manual + tree, per-map default, per-user override | **manual only** |
-| Tree edge routing | orthogonal with parallel fan-out | **missing** (curves only) |
-| Layout lock | drag/marquee off, left-drag pans | n/a |
+| Layout modes | manual + tree, per-map default, per-user override | *ported*: same three fields, switcher on the canvas |
+| Tree edge routing | orthogonal with parallel fan-out | *ported*: `$lib/map/edges.ts` |
+| Layout lock | drag/marquee off, left-drag pans | *ported* |
 | Readonly renderer | `MapReadonly.vue` | **missing** |
 
 The zoom row's persistence differs on purpose: legacy keeps one scale for every map in a

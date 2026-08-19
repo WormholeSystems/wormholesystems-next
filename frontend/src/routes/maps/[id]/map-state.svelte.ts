@@ -29,6 +29,8 @@ import { buildDynamicAdjacency } from '$lib/routing/algorithm';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import { NODE_W, clamp } from '$lib/map/helpers';
+import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
+import { compareForTree, computeTreeLayout } from '$lib/map/tree';
 import { browser } from '$app/environment';
 
 /**
@@ -298,8 +300,55 @@ export class MapState {
 		return out;
 	});
 
-	// Position lookup: live drag wins; then an optimistic override; then the server position.
+	/**
+	 * How this map is placed for this viewer: the map's own mode, unless it hands the
+	 * choice over and this viewer has made one.
+	 */
+	layout = $derived.by<'manual' | 'tree'>(() => {
+		const map = this.data?.map;
+		if (!map) return 'manual';
+		const own = this.userSettings?.layout_override;
+		if (map.allow_layout_override && (own === 'manual' || own === 'tree')) return own;
+		return map.layout === 'tree' ? 'tree' : 'manual';
+	});
+
+	/**
+	 * Automatic placement puts the nodes where it wants them, so dragging one or
+	 * rubber-banding a selection would fight the layout rather than change anything.
+	 */
+	layoutLocked = $derived(this.layout === 'tree');
+
+	/**
+	 * Tree positions, worked out from the shape of the chain rather than read from the
+	 * server. Recomputed only when that shape changes, not while anything is dragged.
+	 */
+	treePositions = $derived.by(() => {
+		if (this.layout !== 'tree') return null;
+		const systems = new Map(this.systems.map((s) => [s.id, s]));
+		return computeTreeLayout(
+			{
+				nodeIds: this.systems.map((s) => s.id),
+				edges: this.connections.map((c) => ({ from: c.from_system, to: c.to_system })),
+				rootIds: this.systems.filter((s) => s.is_pinned).map((s) => s.id),
+				fallbackRootId: this.systems.find((s) => s.is_home)?.id ?? null,
+				compareNodes: compareForTree(systems)
+			},
+			{ gridSize: this.grid.cell_size }
+		);
+	});
+
+	/** Every connection's line and badge anchor, routed the way this layout draws them. */
+	edgeGeometry = $derived.by<Map<number, EdgeGeometry>>(() =>
+		this.layout === 'tree'
+			? treeEdges(this.connections, this.positions, this.nodeH)
+			: freeEdges(this.connections, this.positions, this.nodeH)
+	);
+
+	// Position lookup: the automatic layout when one is active; else live drag, then an
+	// optimistic override, then the server position.
 	positions = $derived.by(() => {
+		const tree = this.treePositions;
+		if (tree) return tree;
 		const out = new Map<number, { x: number; y: number }>();
 		const dragged = new Map<number, { x: number; y: number }>();
 		if (this.drag) {
@@ -687,6 +736,21 @@ export class MapState {
 			x: (clientX - r.left - this.pan.x) / this.zoom,
 			y: (clientY - r.top - this.pan.y) / this.zoom
 		};
+	}
+
+	/**
+	 * Pick a placement for yourself. Choosing the map's own mode clears the override
+	 * rather than pinning the same value, so a later change to the map still reaches you.
+	 */
+	setLayoutOverride(mode: 'manual' | 'tree') {
+		const own = mode === this.data?.map.layout ? null : mode;
+		if (this.userSettings) {
+			this.userSettings = { ...this.userSettings, layout_override: own ?? undefined };
+		}
+		api
+			.updateMapUserSettings(this.mapId, { layout_override: own })
+			.then((s) => (this.userSettings = s))
+			.catch((err) => (this.statusLine = `placement: ${(err as Error).message}`));
 	}
 
 	/** Shift the view by a screen-pixel delta (wheel, scrollbar, drag). */

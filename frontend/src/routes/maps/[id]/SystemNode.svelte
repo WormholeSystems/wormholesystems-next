@@ -50,7 +50,8 @@
 		ondown,
 		onlink,
 		onmenu,
-		onsavealias
+		onsavealias,
+		draggable = true
 	}: {
 		node: MapSystemView;
 		nodeH: number;
@@ -66,6 +67,8 @@
 		onselect: (ev: PointerEvent) => void;
 		ondown: (ev: PointerEvent) => void;
 		onlink: (ev: PointerEvent) => void;
+		/** An automatic layout owns the positions, so the drag handle goes away. */
+		draggable?: boolean;
 		onmenu: (ev: MouseEvent) => void;
 		onsavealias: (alias: string | null, occupier: string | null) => void;
 	} = $props();
@@ -137,8 +140,8 @@
 		oncontextmenu={onmenu}
 		ondblclick={openEditor}
 	>
-		<!-- Drag handle (top), hover-only, hidden when pinned. -->
-		{#if !node.is_pinned}
+		<!-- Drag handle (top), hover-only, hidden when pinned or placed for you. -->
+		{#if !node.is_pinned && draggable}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="absolute top-[1px] left-1/2 hidden h-2 w-12 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border border-neutral-300 bg-white group-hover/node:z-50 group-hover/node:block dark:border-neutral-600 dark:bg-neutral-700"

@@ -9,7 +9,9 @@
 	import ClockIcon from '@lucide/svelte/icons/clock';
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import OrbitIcon from '@lucide/svelte/icons/orbit';
+	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 	import WeightIcon from '@lucide/svelte/icons/weight';
+	import WorkflowIcon from '@lucide/svelte/icons/workflow';
 
 	import { setContext } from 'svelte';
 
@@ -300,7 +302,11 @@
 			map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
 		} else if (ev.button === 0) {
 			viewportEl?.setPointerCapture(ev.pointerId);
-			pendingBand = { cx: ev.clientX, cy: ev.clientY };
+			if (map.layoutLocked) {
+				map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
+			} else {
+				pendingBand = { cx: ev.clientX, cy: ev.clientY };
+			}
 		}
 	}
 
@@ -326,7 +332,7 @@
 	 * the data.
 	 */
 	function handleNodeDown(ev: PointerEvent, s: MapSystemView) {
-		if (ev.button !== 0) return;
+		if (ev.button !== 0 || map.layoutLocked) return;
 		ev.stopPropagation();
 		map.closeMenu();
 
@@ -491,7 +497,7 @@
 		class="absolute top-0 left-0 origin-top-left"
 		style:width="{map.grid.world_width}px"
 		style:height="{map.grid.world_height}px"
-		style:background-image={gridBackground()}
+		style:background-image={map.layoutLocked ? undefined : gridBackground()}
 		style:background-size="{map.grid.cell_size}px {map.grid.cell_size}px"
 		style:transform="translate({map.pan.x}px, {map.pan.y}px) scale({map.zoom})"
 	>
@@ -502,11 +508,11 @@
 		>
 			<!-- Edges. -->
 			{#each map.connections as c (c.id)}
-				{@const a = map.positions.get(c.from_system)}
-				{@const b = map.positions.get(c.to_system)}
-				{#if a && b}
-					{@const [sx, sy, ex, ey] = railAnchors(a.x, a.y, b.x, b.y, map.nodeH)}
-					{@const d = curvePath(sx, sy, ex, ey)}
+				{@const geometry = map.edgeGeometry.get(c.id)}
+				{#if geometry}
+					{@const { x: sx, y: sy } = geometry.from}
+					{@const { x: ex, y: ey } = geometry.to}
+					{@const d = geometry.d}
 					{@const onRoute = map.routeConnectionIds.has(c.id)}
 					{@const stroke = edgeColor(c.kind, c.mass_status, c.time_status, onRoute)}
 					{@const dashed =
@@ -549,8 +555,8 @@
 						<!-- Midpoint badge cluster (legacy EdgeBadges): pill with glyph indicators. -->
 						{#if badgeCount > 0}
 							<foreignObject
-								x={(sx + ex) / 2 - badgeWidth / 2}
-								y={(sy + ey) / 2 - 10}
+								x={geometry.center.x - badgeWidth / 2}
+								y={geometry.center.y - 10}
 								width={badgeWidth}
 								height="20"
 								class="pointer-events-none"
@@ -654,6 +660,7 @@
 				connectionCount={connCountByPlacement.get(s.id) ?? 0}
 				pilots={pilotsBySystem.get(s.solar_system_id ?? -1) ?? []}
 				showThreat={map.userSettings?.show_threat_level ?? true}
+				draggable={!map.layoutLocked}
 				onsavealias={(alias, occupier) => saveAlias(s, alias, occupier)}
 				active={map.activeId === s.id}
 				onselect={(ev) => handleNodeSelect(ev, s)}
@@ -670,6 +677,33 @@
 
 	<!-- Virtual scrollbars (proportional thumbs reflecting viewport over the world). -->
 	<Scrollbars {map} />
+
+	<!-- Placement, when the map lets each viewer choose. Picking the map's own mode clears
+	     the override, so a later change to the map still reaches you. -->
+	{#if map.data?.map.allow_layout_override}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="absolute bottom-3 left-3 flex items-center overflow-hidden border border-border bg-card"
+			data-testid="placement-controls"
+			onpointerdown={(ev) => ev.stopPropagation()}
+		>
+			{#each [{ mode: 'manual', label: 'Custom placement', icon: WaypointsIcon }, { mode: 'tree', label: 'Automatic placement', icon: WorkflowIcon }] as option (option.mode)}
+				{@const Icon = option.icon}
+				<button
+					class="px-2 py-1 {map.layout === option.mode
+						? 'bg-accent text-foreground'
+						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
+					aria-label={option.label}
+					title={option.label}
+					aria-pressed={map.layout === option.mode}
+					data-testid="placement-{option.mode}"
+					onclick={() => map.setLayoutOverride(option.mode as 'manual' | 'tree')}
+				>
+					<Icon class="size-4" />
+				</button>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- Zoom: one step per click, with the level spelled out between them.
 	     The press is stopped here like the scrollbars do: the canvas captures the pointer on

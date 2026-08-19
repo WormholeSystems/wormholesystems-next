@@ -146,6 +146,8 @@ fn map_view_round_trips() {
                 bookmark_return: "*{alias} {sig} {class}".into(),
             },
             ghost_unlinked_wormholes: false,
+            layout: "manual".into(),
+            allow_layout_override: false,
         },
         role: vector::maps::Role::Member,
         character_has_access: true,

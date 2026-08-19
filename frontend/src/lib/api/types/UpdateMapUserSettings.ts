@@ -4,7 +4,11 @@ import type { BreakpointLayout } from "./BreakpointLayout";
 /**
  * Partial update of [`MapUserSettings`]; absent fields stay unchanged.
  */
-export type UpdateMapUserSettings = { tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, route_preference?: string, security_penalty?: number, route_allow_time_status?: string, route_allow_mass_status?: string, route_use_evescout?: boolean, prompt_for_signature?: boolean, suggest_alias?: boolean, copy_bookmark?: boolean, killmail_filter?: string, is_archived?: boolean, 
+export type UpdateMapUserSettings = { 
+/**
+ * Absent leaves it; `null` goes back to following the map.
+ */
+layout_override?: string | null, tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, route_preference?: string, security_penalty?: number, route_allow_time_status?: string, route_allow_mass_status?: string, route_use_evescout?: boolean, prompt_for_signature?: boolean, suggest_alias?: boolean, copy_bookmark?: boolean, killmail_filter?: string, is_archived?: boolean, 
 /**
  * Stamped server-side, so "when" is the server's clock rather than the browser's.
  */

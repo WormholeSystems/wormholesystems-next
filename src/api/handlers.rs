@@ -967,7 +967,7 @@ pub async fn map_user_settings(
                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                   is_archived,
                   (introduction_confirmed_at is not null) as "introduction_confirmed!",
-                  hidden_panels, layout_breakpoints
+                  hidden_panels, layout_breakpoints, layout_override
            from map_user_settings where map_id = $1 and user_id = $2"#,
         map_id,
         actor.user_id,
@@ -992,6 +992,7 @@ pub async fn map_user_settings(
             is_archived: r.is_archived,
             introduction_confirmed: r.introduction_confirmed,
             hidden_panels: r.hidden_panels,
+            layout_override: r.layout_override,
             layout_breakpoints: r
                 .layout_breakpoints
                 .map(serde_json::from_value)
@@ -999,6 +1000,7 @@ pub async fn map_user_settings(
                 .unwrap_or(None),
         },
         None => MapUserSettings {
+            layout_override: None,
             tracking_allowed: false,
             show_threat_level: true,
             compact_signature_list: false,
@@ -1075,7 +1077,7 @@ pub async fn update_map_user_settings(
               route_preference, security_penalty, route_allow_time_status,
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
               suggest_alias, copy_bookmark, killmail_filter, is_archived,
-              introduction_confirmed_at, hidden_panels, layout_breakpoints)
+              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),
@@ -1083,7 +1085,7 @@ pub async fn update_map_user_settings(
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
                  coalesce($15, 'all'), coalesce($16, false),
                  case when $17 then now() end,
-                 coalesce($18, '{}'::text[]), $19)
+                 coalesce($18, '{}'::text[]), $19, $20)
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -1106,6 +1108,12 @@ pub async fn update_map_user_settings(
              end,
              hidden_panels = coalesce($18, map_user_settings.hidden_panels),
              layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),
+             -- Absent leaves it; null is a real value here (follow the map again), so it
+             -- cannot go through coalesce.
+             layout_override = case
+                 when $21 then $20
+                 else map_user_settings.layout_override
+             end,
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first, route_preference, security_penalty,
@@ -1113,7 +1121,7 @@ pub async fn update_map_user_settings(
                    prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
                    is_archived,
                    (introduction_confirmed_at is not null) as introduction_confirmed,
-                   hidden_panels, layout_breakpoints",
+                   hidden_panels, layout_breakpoints, layout_override",
         map_id,
         actor.user_id,
         body.tracking_allowed,
@@ -1133,10 +1141,13 @@ pub async fn update_map_user_settings(
         body.introduction_confirmed,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
+        body.layout_override.clone().flatten(),
+        body.layout_override.is_some(),
     )
     .fetch_one(&state.db)
     .await?;
     Ok(Json(MapUserSettings {
+        layout_override: row.layout_override,
         tracking_allowed: row.tracking_allowed,
         show_threat_level: row.show_threat_level,
         compact_signature_list: row.compact_signature_list,

@@ -6,4 +6,13 @@ export type Map = { id: number, name: string, description: string | null, image_
  * Whether pasting a wormhole signature puts its far side on the map as a ghost.
  * Map-wide: a ghost is a node everyone on the chain sees.
  */
-ghost_unlinked_wormholes: boolean, };
+ghost_unlinked_wormholes: boolean, 
+/**
+ * How the chain is placed: `manual` (dragged into shape) or `tree` (drawn from the
+ * connections). Map-wide, so everyone on a chain reads the same picture.
+ */
+layout: string, 
+/**
+ * Whether a viewer may pick their own placement instead of the map's.
+ */
+allow_layout_override: boolean, };

@@ -132,6 +132,10 @@ pub struct MapUserSettings {
     /// Panels this user hides on this map. Empty = the built-in set. A hidden panel keeps
     /// its saved position, so unhiding puts it back where it was.
     pub hidden_panels: Vec<String>,
+    /// This viewer's placement choice, when the map hands it to them. `None` follows the
+    /// map's own mode.
+    #[ts(optional)]
+    pub layout_override: Option<String>,
     /// Per-breakpoint tile positions. `None` = the built-in arrangement.
     #[ts(optional)]
     pub layout_breakpoints: Option<PanelLayouts>,
@@ -228,6 +232,10 @@ pub fn validate_layouts(layouts: &PanelLayouts) -> Result<(), ApiError> {
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct UpdateMapUserSettings {
+    /// Absent leaves it; `null` goes back to following the map.
+    #[serde(default, deserialize_with = "crate::maps::double_option")]
+    #[ts(optional)]
+    pub layout_override: Option<Option<String>>,
     #[serde(default)]
     #[ts(optional)]
     pub tracking_allowed: Option<bool>,
