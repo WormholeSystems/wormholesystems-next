@@ -266,7 +266,10 @@
 			map.linking = null;
 			const w = map.toWorld(ev.clientX, ev.clientY);
 			const target = nodeAt(map.systems, w.x, w.y, map.grid);
-			if (target !== null && target !== l.from) {
+			// Dropping onto an unmapped hole is the same claim from the other end, so it is
+			// no more allowed than starting from one.
+			const ghost = map.systems.some((s) => s.id === target && s.solar_system_id === null);
+			if (target !== null && target !== l.from && !ghost) {
 				map.run(
 					'connect',
 					api.addConnection({
@@ -661,6 +664,7 @@
 				pilots={pilotsBySystem.get(s.solar_system_id ?? -1) ?? []}
 				showThreat={map.userSettings?.show_threat_level ?? true}
 				draggable={!map.layoutLocked}
+				signatureId={map.ghostSignatures.get(s.id) ?? null}
 				onsavealias={(alias, occupier) => saveAlias(s, alias, occupier)}
 				active={map.activeId === s.id}
 				onselect={(ev) => handleNodeSelect(ev, s)}

@@ -77,6 +77,10 @@ kind of node anywhere. What a ghost cannot have is anything keyed by *system*:
 - A system always has an `(x, y)` position while placed.
 - A ghost is never **home** or **rally** — both mean a place you can go, and a ghost is
   not one yet.
+- Nothing may be **connected** to a ghost by hand, from either end: an edge out of it
+  would claim the unknown system on its far side leads somewhere, which is the one thing
+  nobody knows yet. The hole's own connection, made when it is raised, is the only one it
+  has.
 - **Resolving** a ghost sets its `solar_system_id`. If that system is *already* on the
   map (the hole led back into the chain), the ghost is **merged** instead: its
   connections move to the existing placement and the ghost row is deleted. The same

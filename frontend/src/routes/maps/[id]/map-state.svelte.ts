@@ -337,6 +337,31 @@ export class MapState {
 		);
 	});
 
+	/**
+	 * The scanner id an unmapped hole is known by, per placement.
+	 *
+	 * A ghost has no name of its own, so the signature its connection is linked to is the
+	 * only thing that identifies it: it is what you read off the scanner and what you go
+	 * and warp to.
+	 */
+	ghostSignatures = $derived.by(() => {
+		const out = new Map<number, string>();
+		const ghosts = new Set(
+			this.systems.filter((s) => s.solar_system_id === null).map((s) => s.id)
+		);
+		if (ghosts.size === 0) return out;
+		const byConnection = new Map(
+			this.sigs.filter((s) => s.connection_id !== null).map((s) => [s.connection_id!, s])
+		);
+		for (const c of this.connections) {
+			const sig = byConnection.get(c.id);
+			if (!sig) continue;
+			if (ghosts.has(c.to_system)) out.set(c.to_system, sig.signature_id);
+			if (ghosts.has(c.from_system)) out.set(c.from_system, sig.signature_id);
+		}
+		return out;
+	});
+
 	/** Every connection's line and badge anchor, routed the way this layout draws them. */
 	edgeGeometry = $derived.by<Map<number, EdgeGeometry>>(() =>
 		this.layout === 'tree'

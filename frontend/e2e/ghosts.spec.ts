@@ -55,10 +55,28 @@ test('a pasted wormhole becomes a node, and assigning a system names it', async 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
 	await pasteViaEvent(page, 'WHX-301\tCosmic Signature\tWormhole\tUnstable Wormhole\t100%\t1 AU');
 
-	// The scan alone puts the far side on the map, with nothing behind it yet.
+	// The scan alone puts the far side on the map, named after the signature it came from,
+	// which is the only thing that identifies it until someone flies it.
 	const ghost = page.locator('[data-testid="system-node"][data-ghost="true"]');
 	await expect(ghost).toHaveCount(1);
-	await expect(ghost).toContainText('Unmapped');
+	await expect(ghost.getByTestId('ghost-signature')).toHaveText('WHX-301');
+
+	// Nothing to draw a connection from: what it leads to is the open question.
+	await ghost.hover();
+	await expect(ghost.getByTestId('connection-handle')).toHaveCount(0);
+
+	// And the API says the same, whichever end the connection is asked for.
+	const view = await (await api.get(`/api/maps/${mapId}`)).json();
+	const ghostId = view.systems.find(
+		(s: { solar_system_id: number | null }) => s.solar_system_id === null
+	).id;
+	const scanned = view.systems.find(
+		(s: { solar_system_id: number | null }) => s.solar_system_id === J122515
+	).id;
+	const refused = await api.post(`/api/maps/${mapId}/connections/add`, {
+		data: { map_id: mapId, from_system: scanned, to_system: ghostId, kind: 'wormhole' }
+	});
+	expect(refused.status()).toBe(400);
 
 	// It is a node like any other: it can be named before anyone flies it.
 	await ghost.dblclick();
@@ -125,5 +143,5 @@ test('a signature typed in and called a wormhole gets a node too', async ({ page
 
 	const ghost = page.locator('[data-testid="system-node"][data-ghost="true"]');
 	await expect(ghost).toHaveCount(1);
-	await expect(ghost).toContainText('Unmapped');
+	await expect(ghost.getByTestId('ghost-signature')).toHaveText('WHX-303');
 });

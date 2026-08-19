@@ -51,7 +51,8 @@
 		onlink,
 		onmenu,
 		onsavealias,
-		draggable = true
+		draggable = true,
+		signatureId = null
 	}: {
 		node: MapSystemView;
 		nodeH: number;
@@ -69,6 +70,8 @@
 		onlink: (ev: PointerEvent) => void;
 		/** An automatic layout owns the positions, so the drag handle goes away. */
 		draggable?: boolean;
+		/** The scanner id an unmapped hole is known by, until it has a system. */
+		signatureId?: string | null;
 		onmenu: (ev: MouseEvent) => void;
 		onsavealias: (alias: string | null, occupier: string | null) => void;
 	} = $props();
@@ -152,13 +155,17 @@
 				}}
 			></div>
 		{/if}
-		<!-- Connection handle (right edge), hover-only. -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="absolute top-1/2 left-full hidden h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border border-neutral-300 bg-white group-hover/node:block hover:block dark:border-neutral-600 dark:bg-neutral-700"
-			data-testid="connection-handle"
-			onpointerdown={onlink}
-		></div>
+		<!-- Connection handle (right edge), hover-only. Not on an unmapped hole: a
+		     connection out of it would claim the unknown system on its far side leads
+		     somewhere, which is exactly what nobody knows yet. -->
+		{#if !ghost}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="absolute top-1/2 left-full hidden h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border border-neutral-300 bg-white group-hover/node:block hover:block dark:border-neutral-600 dark:bg-neutral-700"
+				data-testid="connection-handle"
+				onpointerdown={onlink}
+			></div>
+		{/if}
 
 		<!-- Row 1: class, alias/name/occupier, icon cluster. -->
 		<div class="flex min-w-0 items-center gap-1">
@@ -169,9 +176,15 @@
 			/>
 			{#if node.alias}
 				<span class="shrink-0 font-medium text-foreground">{node.alias}</span>
-				<span class="truncate text-muted-foreground">{node.name ?? 'Unmapped'}</span>
+				<span class="truncate text-muted-foreground">
+					{node.name ?? signatureId ?? 'Unmapped'}
+				</span>
 			{:else if node.name}
 				<span class="truncate font-medium text-foreground">{node.name}</span>
+			{:else if signatureId}
+				<span class="truncate font-medium text-muted-foreground" data-testid="ghost-signature">
+					{signatureId}
+				</span>
 			{:else}
 				<span class="truncate font-medium text-muted-foreground italic">Unmapped</span>
 			{/if}

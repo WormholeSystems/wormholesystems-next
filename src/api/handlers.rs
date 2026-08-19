@@ -1414,6 +1414,11 @@ pub async fn system_details(
 
 // --- Connections ---
 
+/// `POST /api/maps/{id}/connections/add`
+///
+/// The ghost guard sits here rather than in the command, because it is a rule about what a
+/// person may draw: raising a ghost creates the one connection an unmapped hole is allowed
+/// to have, and that goes through the same command from the inside.
 pub async fn add_connection(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -1422,6 +1427,22 @@ pub async fn add_connection(
 ) -> ApiResult<MapConnection> {
     check_map_id(map_id, cmd.map_id)?;
     let actor = require_actor(&state.db, &jar).await?;
+    let ghost_endpoint = sqlx::query_scalar!(
+        r#"select exists(
+               select 1 from map_solar_systems
+               where map_id = $1 and id in ($2, $3) and solar_system_id is null
+           ) as "ghost!""#,
+        map_id,
+        cmd.from_system,
+        cmd.to_system,
+    )
+    .fetch_one(&state.db)
+    .await?;
+    if ghost_endpoint {
+        return Err(ApiError::bad_request(
+            "assign a system to that hole before connecting anything to it",
+        ));
+    }
     let conn = crate::maps::connection::add_connection(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::ConnectionChanged {
         map_id,
