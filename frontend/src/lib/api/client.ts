@@ -178,7 +178,12 @@ export const api = {
 		post<Map>('/api/maps', { name, description }),
 	deleteMap: (mapId: number) => del<null>(`/api/maps/${mapId}`),
 	fetchMap: (mapId: number) => get<MapView>(`/api/maps/${mapId}`),
-	listSignatures: (mapId: number) => get<Signature[]>(`/api/maps/${mapId}/signatures`),
+	// `share` is the token a watcher holds instead of a session.
+	listSignatures: (mapId: number, share?: string) =>
+		get<Signature[]>(
+			`/api/maps/${mapId}/signatures${share ? `?share=${encodeURIComponent(share)}` : ''}`
+		),
+	sharedMap: (token: string) => get<MapView>(`/api/share/${encodeURIComponent(token)}`),
 	mapCharacters: (mapId: number) => get<MapCharacter[]>(`/api/maps/${mapId}/characters`),
 	mapUserSettings: (mapId: number) => get<MapUserSettings>(`/api/maps/${mapId}/settings/user`),
 	updateMapUserSettings: (mapId: number, update: UpdateMapUserSettings) =>
@@ -268,6 +273,8 @@ export const api = {
 	searchAccessSubjects: (query: string) =>
 		get<AccessSubject[]>(`/api/access-subjects/search?q=${encodeURIComponent(query)}`),
 	setAccess: (cmd: SetAccess) => post<null>(`/api/maps/${cmd.map_id}/access/set`, cmd),
+	shareMap: (mapId: number) => post<string>(`/api/maps/${mapId}/share`, {}),
+	unshareMap: (mapId: number) => del<null>(`/api/maps/${mapId}/share`),
 	transferOwnership: (cmd: TransferOwnership) =>
 		post<null>(`/api/maps/${cmd.map_id}/access/transfer`, cmd),
 	revokeAccess: (cmd: RevokeAccess) => post<null>(`/api/maps/${cmd.map_id}/access/revoke`, cmd),

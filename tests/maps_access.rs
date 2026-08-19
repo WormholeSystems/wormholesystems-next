@@ -6,11 +6,14 @@ mod common;
 use chrono::{Duration, Utc};
 use common::{add_character, member_with_role, new_user, world};
 use sqlx::PgPool;
+use vector::maps::access::reader_for;
 use vector::maps::access::{
     RevokeAccess, SetAccess, TransferOwnership, effective_role, list_access, revoke_access,
     set_access, transfer_ownership,
 };
-use vector::maps::map::{GetMap, get_map};
+use vector::maps::map::{
+    GetMap, UpdateMap, get_map, read_map, revoke_share_token, rotate_share_token, update_map,
+};
 use vector::maps::{Actor, MapError, Role, SubjectType};
 
 #[sqlx::test]
@@ -225,7 +228,10 @@ async fn access_via_corporation_grant(pool: PgPool) {
 #[sqlx::test]
 async fn map_view_flags_an_active_character_without_its_own_grant(pool: PgPool) {
     use vector::maps::Actor;
-    use vector::maps::map::{GetMap, get_map};
+    use vector::maps::access::reader_for;
+    use vector::maps::map::{
+        GetMap, UpdateMap, get_map, read_map, revoke_share_token, rotate_share_token, update_map,
+    };
 
     let w = world(&pool).await;
     let user = new_user(&pool).await;
@@ -406,4 +412,78 @@ async fn ownership_is_handed_on_rather_than_granted(pool: PgPool) {
             .map(|e| e.role),
         Some(Role::Manager)
     );
+}
+
+#[sqlx::test]
+async fn a_shared_map_can_be_read_by_somebody_with_no_account(pool: PgPool) {
+    let w = world(&pool).await;
+    let stranger = new_user(&pool).await;
+    add_character(&pool, stranger, 1600, 2001, None).await;
+    let outsider = Actor {
+        user_id: stranger,
+        character_id: 1600,
+    };
+
+    // Private by default: no grant, no map, not even the knowledge that it exists.
+    assert!(matches!(
+        reader_for(&pool, w.map_id, Some(outsider), None).await,
+        Err(MapError::NotFound),
+    ));
+    assert!(matches!(
+        reader_for(&pool, w.map_id, None, None).await,
+        Err(MapError::NotFound),
+    ));
+
+    // A link lets whoever holds it watch, signed in or not, and no further than viewer.
+    let token = rotate_share_token(&pool, w.owner, w.map_id).await.unwrap();
+    let guest = reader_for(&pool, w.map_id, None, Some(&token))
+        .await
+        .unwrap();
+    assert_eq!(guest.role, Role::Viewer);
+    assert!(guest.actor.is_none());
+    // A wrong token is no token.
+    assert!(matches!(
+        reader_for(&pool, w.map_id, None, Some("nonsense")).await,
+        Err(MapError::NotFound),
+    ));
+
+    // The map itself reads, and hides the key to itself from the guest.
+    let view = read_map(&pool, guest, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.role, Role::Viewer);
+    assert_eq!(view.map.share_token, None);
+    // The owner still sees it, because they are the one who hands it out.
+    let owned = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(owned.map.share_token.as_deref(), Some(token.as_str()));
+
+    // Withdrawing it locks the holder out again.
+    revoke_share_token(&pool, w.owner, w.map_id).await.unwrap();
+    assert!(matches!(
+        reader_for(&pool, w.map_id, None, Some(&token)).await,
+        Err(MapError::NotFound),
+    ));
+
+    // A public map needs no token at all.
+    update_map(
+        &pool,
+        w.owner,
+        UpdateMap {
+            map_id: w.map_id,
+            is_public: Some(true),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let passer_by = reader_for(&pool, w.map_id, None, None).await.unwrap();
+    assert_eq!(passer_by.role, Role::Viewer);
+
+    // Reading is all it is: the grant list stays shut to them.
+    assert!(matches!(
+        list_access(&pool, outsider, w.map_id).await,
+        Err(MapError::NotFound),
+    ));
 }

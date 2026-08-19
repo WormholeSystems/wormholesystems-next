@@ -569,6 +569,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/systems/resolve", get(h::resolve_systems))
         .route("/api/maps", get(h::my_maps).post(h::create_map))
         .route("/api/maps/{id}", get(h::fetch_map).delete(h::delete_map))
+        // Resolving a share link: the holder has a token and nothing else, not even the
+        // map's id.
+        .route("/api/share/{token}", get(h::fetch_shared_map))
         .route("/api/maps/{id}/signatures", get(h::list_signatures))
         .route("/api/maps/{id}/characters", get(h::map_characters))
         .route(
@@ -633,6 +636,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/maps/{id}/access/transfer",
             post(h::transfer_ownership),
+        )
+        .route(
+            "/api/maps/{id}/share",
+            post(h::rotate_share_token).delete(h::revoke_share_token),
         )
         .route(
             "/api/maps/{id}/alerts",

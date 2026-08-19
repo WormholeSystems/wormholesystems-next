@@ -6,6 +6,8 @@ import type { RequestEvent } from '@sveltejs/kit';
 
 import type { CharacterSummary } from '$lib/api/types/CharacterSummary';
 import type { MapEntry } from '$lib/api/types/MapEntry';
+import type { MapView } from '$lib/api/types/MapView';
+import type { Signature } from '$lib/api/types/Signature';
 
 const base = () => env.API_BASE ?? 'http://127.0.0.1:3000';
 
@@ -32,5 +34,26 @@ export async function pinnedMaps(event: RequestEvent): Promise<MapEntry[]> {
 		return maps.filter((m) => m.is_pinned && !m.is_archived);
 	} catch {
 		return [];
+	}
+}
+
+/**
+ * A map behind a share link, with its scan. The token is resolved against every map, so a
+ * withdrawn or mistyped one is simply not found — the same answer either way, which is the
+ * point of a secret in a URL.
+ */
+export async function sharedMap(
+	event: RequestEvent,
+	token: string
+): Promise<{ view: MapView; signatures: Signature[]; token: string } | null> {
+	try {
+		const view = await get<MapView>(event, `/api/share/${encodeURIComponent(token)}`);
+		const signatures = await get<Signature[]>(
+			event,
+			`/api/maps/${view.map.id}/signatures?share=${encodeURIComponent(token)}`
+		);
+		return { view, signatures, token };
+	} catch {
+		return null;
 	}
 }

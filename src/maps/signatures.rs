@@ -900,6 +900,11 @@ async fn type_category(tx: &mut Tx<'_>, type_id: i64) -> Result<Option<i64>> {
 /// Every signature on a map. Viewer+.
 pub async fn list_signatures(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec<Signature>> {
     require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
+    read_signatures(pool, map_id).await
+}
+
+/// The scan, for a caller whose right to read the map has already been settled.
+pub async fn read_signatures(pool: &PgPool, map_id: i64) -> Result<Vec<Signature>> {
     let sigs = sqlx::query_as!(
         Signature,
         r#"select id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",

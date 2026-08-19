@@ -5,6 +5,8 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { page } from '$app/state';
+	import { toast } from 'svelte-sonner';
+
 	import { api } from '$lib/api/client';
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { AccessSubject } from '$lib/api/types/AccessSubject';
@@ -24,6 +26,8 @@
 	import * as Command from '$lib/components/ui/command';
 	import { Input } from '$lib/components/ui/input';
 	import * as Table from '$lib/components/ui/table';
+	import { Switch } from '$lib/components/ui/switch';
+	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 
@@ -157,6 +161,31 @@
 				expires_at: null
 			})
 		);
+	}
+
+	// The link is only ever shown to a manager: the API withholds the token from anyone
+	// who could not mint one anyway.
+	let revoking = $state(false);
+	const shareUrl = $derived(
+		view?.map.share_token ? `${page.url.origin}/share/${view.map.share_token}` : ''
+	);
+
+	function rotateShare() {
+		act(api.shareMap(mapId)).then(() => toast.success('Share link ready'));
+	}
+
+	function revokeShare() {
+		revoking = false;
+		act(api.unshareMap(mapId)).then(() => toast.success('Share link withdrawn'));
+	}
+
+	async function copyShare() {
+		try {
+			await navigator.clipboard.writeText(shareUrl);
+			toast.success('Share link copied');
+		} catch {
+			toast.error('Clipboard access denied');
+		}
 	}
 
 	async function act(work: Promise<unknown>) {
@@ -498,6 +527,89 @@
 
 	</Card.Content>
 </Card.Root>
+
+<!--
+	Sharing is on this page because it is the same question the grants answer — who can see
+	the chain — asked of people without an account.
+-->
+{#if canManage}
+	<Card.Root class="mt-6" data-testid="sharing-card">
+		<Card.Header>
+			<Card.Title>Sharing</Card.Title>
+			<Card.Description>
+				Both of these are read-only: no editing, and pilots stay hidden.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col py-0">
+			<SettingRow
+				id="share-link"
+				label="Share link"
+				description="Anyone holding this address can watch the map without an account. Making a new one locks out whoever had the old."
+			>
+				{#snippet control()}
+					<span class="flex items-center gap-2">
+						{#if shareUrl}
+							<Input
+								readonly
+								value={shareUrl}
+								class="h-7 w-64 font-mono text-[11px]"
+								data-testid="share-url"
+								onfocus={(e) => e.currentTarget.select()}
+							/>
+							<Button variant="outline" onclick={copyShare} data-testid="share-copy">Copy</Button>
+							<Button variant="ghost" onclick={rotateShare} title="Replace the link">New</Button>
+							<Button
+								variant="ghost"
+								class="text-destructive hover:text-destructive"
+								onclick={() => (revoking = true)}
+								data-testid="share-revoke"
+							>
+								Revoke
+							</Button>
+						{:else}
+							<Button variant="outline" onclick={rotateShare} data-testid="share-create">
+								Create a link
+							</Button>
+						{/if}
+					</span>
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
+				id="map-public"
+				label="Public map"
+				description="Anyone at all can watch it, with no link needed and nothing to guess. Turn this on for a map you would put on a forum post."
+			>
+				{#snippet control()}
+					<Switch
+						checked={view?.map.is_public ?? false}
+						aria-label="Public map"
+						data-testid="share-public"
+						onCheckedChange={(v) => act(api.updateMap({ map_id: mapId, is_public: v }))}
+					/>
+				{/snippet}
+			</SettingRow>
+		</Card.Content>
+	</Card.Root>
+{/if}
+
+<AlertDialog.Root open={revoking} onOpenChange={(o) => (revoking = o)}>
+	<AlertDialog.Content data-testid="revoke-share-dialog">
+		<AlertDialog.Header>
+			<AlertDialog.Title>Withdraw the share link?</AlertDialog.Title>
+			<AlertDialog.Description>
+				Everyone watching through it loses the map at once. People with a grant are not
+				affected, and you can always make a new link.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Keep it</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={revokeShare} data-testid="revoke-share-confirm">
+				Withdraw it
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <AlertDialog.Root open={clearing !== null} onOpenChange={(o) => !o && (clearing = null)}>
 	<AlertDialog.Content data-testid="clear-expiry-dialog">

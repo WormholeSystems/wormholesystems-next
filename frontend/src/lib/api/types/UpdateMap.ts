@@ -10,4 +10,4 @@ export type UpdateMap = { map_id: number, name?: string, description?: string | 
  * All-or-nothing: the naming block is edited as one form, so a partial payload here
  * would only ever mean a half-saved form.
  */
-naming?: MapNaming, ghost_unlinked_wormholes?: boolean, layout?: string, allow_layout_override?: boolean, };
+naming?: MapNaming, ghost_unlinked_wormholes?: boolean, layout?: string, allow_layout_override?: boolean, is_public?: boolean, };

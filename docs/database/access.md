@@ -21,6 +21,12 @@ a role. The **owner** is just a `role = owner` row here; there is no `owner_id`.
 
 **Invariants & expected behaviour**
 
+- **Shared maps are read-only.** `maps.is_public` opens a map to anyone at all;
+  `maps.share_token` opens it to whoever holds the token in the URL. Either way the
+  visitor resolves to `viewer` and may have no account, so nothing that writes and nothing
+  Member+ (pilots, history) is reachable. The token is never sent to anyone below manager,
+  since it is a key to the map. Minting a new token replaces the old one, which is how a
+  link is withdrawn.
 - **A map has exactly one owner.** `owner` cannot be granted through `set_access`; it
   moves with `transfer_ownership`, which demotes the previous owner to `manager` and
   requires the new one to be a character already granted access. Creating a map makes its

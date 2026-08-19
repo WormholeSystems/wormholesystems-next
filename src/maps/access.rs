@@ -50,6 +50,69 @@ pub(super) async fn require_role(
     }
 }
 
+/// Who is looking at a map, for the read paths.
+///
+/// A map can be read by someone with a grant, and — when it has been shared — by anyone
+/// at all. The two are told apart because a guest is a viewer and nothing more: no pilots,
+/// no history, no settings of their own, and no writes.
+#[derive(Debug, Clone, Copy)]
+pub struct Reader {
+    /// The signed-in user, when there is one. `None` is a guest with a link.
+    pub actor: Option<Actor>,
+    pub role: Role,
+}
+
+/// How a map was opened to the world, if it was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sharing {
+    Private,
+    /// Anyone with the address; no token needed.
+    Public,
+    /// Anyone holding the token in the query string.
+    Token,
+}
+
+/// Resolve who may read this map: a grant first, then whatever the map has been opened up
+/// to. `NotFound` rather than `Forbidden` when nothing lets them in, so a private map does
+/// not confirm its own existence to a stranger.
+pub async fn reader_for(
+    pool: &PgPool,
+    map_id: i64,
+    actor: Option<Actor>,
+    share_token: Option<&str>,
+) -> Result<Reader> {
+    if let Some(actor) = actor
+        && let Some(role) = effective_role(pool, map_id, actor.user_id).await?
+    {
+        return Ok(Reader {
+            actor: Some(actor),
+            role,
+        });
+    }
+
+    let map = sqlx::query!(
+        "select is_public, share_token from maps where id = $1",
+        map_id,
+    )
+    .fetch_optional(pool)
+    .await?
+    .ok_or(MapError::NotFound)?;
+
+    let shared = map.is_public
+        || match (map.share_token.as_deref(), share_token) {
+            // A blank token in the URL must never match a map that has none.
+            (Some(theirs), Some(given)) => !theirs.is_empty() && theirs == given,
+            _ => false,
+        };
+    if !shared {
+        return Err(MapError::NotFound);
+    }
+    Ok(Reader {
+        actor,
+        role: Role::Viewer,
+    })
+}
+
 /// As [`require_role`], but inside an open transaction so the check and the write it
 /// guards commit (or roll back) together. Used by the command dispatcher.
 pub(super) async fn require_role_tx(

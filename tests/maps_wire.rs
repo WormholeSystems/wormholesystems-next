@@ -148,6 +148,8 @@ fn map_view_round_trips() {
             ghost_unlinked_wormholes: false,
             layout: "manual".into(),
             allow_layout_override: false,
+            is_public: false,
+            share_token: None,
         },
         role: vector::maps::Role::Member,
         character_has_access: true,

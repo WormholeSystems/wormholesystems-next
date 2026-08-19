@@ -15,4 +15,13 @@ layout: string,
 /**
  * Whether a viewer may pick their own placement instead of the map's.
  */
-allow_layout_override: boolean, };
+allow_layout_override: boolean, 
+/**
+ * Whether anyone with the address may watch it, account or no account.
+ */
+is_public: boolean, 
+/**
+ * The secret that lets somebody watch a private map. Only ever sent to a manager:
+ * handing it to a viewer would be handing them the map to pass on.
+ */
+share_token?: string, };

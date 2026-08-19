@@ -35,6 +35,12 @@ pub struct Map {
     pub layout: String,
     /// Whether a viewer may pick their own placement instead of the map's.
     pub allow_layout_override: bool,
+    /// Whether anyone with the address may watch it, account or no account.
+    pub is_public: bool,
+    /// The secret that lets somebody watch a private map. Only ever sent to a manager:
+    /// handing it to a viewer would be handing them the map to pass on.
+    #[ts(optional)]
+    pub share_token: Option<String>,
 }
 
 /// How a map names its chain. Map-wide rather than per-user, because an alias is written
@@ -92,6 +98,8 @@ macro_rules! map_from_row {
             ghost_unlinked_wormholes: row.ghost_unlinked_wormholes,
             layout: row.layout,
             allow_layout_override: row.allow_layout_override,
+            is_public: row.is_public,
+            share_token: row.share_token,
             naming: MapNaming {
                 alias_scheme: row.alias_scheme,
                 ignored_alias: row.ignored_alias,
@@ -132,7 +140,7 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
         sqlx::query!(
             "insert into maps (name, description) values ($1, $2)
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 ghost_unlinked_wormholes, layout, allow_layout_override,
+                 ghost_unlinked_wormholes, layout, allow_layout_override, is_public, share_token,
                  bookmark_wormhole, bookmark_kspace, bookmark_return",
             cmd.name.trim(),
             cmd.description.as_deref(),
@@ -198,6 +206,9 @@ pub struct UpdateMap {
     #[serde(default)]
     #[ts(optional)]
     pub allow_layout_override: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub is_public: Option<bool>,
 }
 
 impl UpdateMap {
@@ -232,7 +243,7 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
         sqlx::query!(
             "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout, allow_layout_override
+                 layout, allow_layout_override, is_public, share_token
              from maps where id = $1",
             cmd.map_id,
         )
@@ -255,17 +266,18 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let allow_layout_override = cmd
         .allow_layout_override
         .unwrap_or(current.allow_layout_override);
+    let is_public = cmd.is_public.unwrap_or(current.is_public);
 
     let map = map_from_row!(
         sqlx::query!(
             "update maps set name = $1, description = $2, image_url = $3,
                     alias_scheme = $5, ignored_alias = $6, bookmark_wormhole = $7,
                     bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10,
-                    layout = $11, allow_layout_override = $12
+                    layout = $11, allow_layout_override = $12, is_public = $13
              where id = $4
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout, allow_layout_override",
+                 layout, allow_layout_override, is_public, share_token",
             name,
             description,
             image_url,
@@ -278,6 +290,7 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
             ghost_unlinked_wormholes,
             layout,
             allow_layout_override,
+            is_public,
         )
         .fetch_one(&mut *tx)
         .await?
@@ -308,6 +321,7 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
         r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,
                   m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
                   m.ghost_unlinked_wormholes, m.layout, m.allow_layout_override,
+                  m.is_public, m.share_token,
                   ma.role as "role!: Role"
            from maps m
            join map_access ma on ma.map_id = m.id
@@ -348,12 +362,34 @@ pub struct GetMap {
 /// Live pilot locations are not included (that's the member-gated tracking path).
 pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView> {
     let role = require_role(pool, cmd.map_id, actor.user_id, Role::Viewer).await?;
+    read_map(
+        pool,
+        super::access::Reader {
+            actor: Some(actor),
+            role,
+        },
+        cmd,
+    )
+    .await
+}
+
+/// The map as a resolved reader sees it. Shared with the guest paths, where there is no
+/// user behind the request at all.
+pub async fn read_map(
+    pool: &PgPool,
+    reader: super::access::Reader,
+    cmd: GetMap,
+) -> Result<MapView> {
+    let role = reader.role;
+    // The share token is a key to the map. Only the people who can mint one ever see it;
+    // to everybody else the field is simply absent.
+    let hide_token = role < Role::Manager;
 
     let map = map_from_row!(
         sqlx::query!(
             "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout, allow_layout_override
+                 layout, allow_layout_override, is_public, share_token
              from maps where id = $1",
             cmd.map_id,
         )
@@ -498,18 +534,35 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
     .fetch_all(pool)
     .await?;
 
-    let character_has_access = sqlx::query_scalar!(
-        r#"select exists(
-               select 1 from map_access a
-               join characters c on c.id = $2
-               where a.map_id = $1
-                 and a.subject_id in (c.id, c.corporation_id, c.alliance_id)
-           ) as "has!""#,
-        cmd.map_id,
-        actor.character_id,
-    )
-    .fetch_one(pool)
-    .await?;
+    // Whether the *acting character* is covered, which is a different question from
+    // whether the user is: someone can hold a map through one character and be flying
+    // another. A guest has no character, and nothing to warn about.
+    let character_has_access = match reader.actor {
+        Some(actor) => {
+            sqlx::query_scalar!(
+                r#"select exists(
+                   select 1 from map_access a
+                   join characters c on c.id = $2
+                   where a.map_id = $1
+                     and a.subject_id in (c.id, c.corporation_id, c.alliance_id)
+               ) as "has!""#,
+                cmd.map_id,
+                actor.character_id,
+            )
+            .fetch_one(pool)
+            .await?
+        }
+        None => true,
+    };
+
+    let map = if hide_token {
+        Map {
+            share_token: None,
+            ..map
+        }
+    } else {
+        map
+    };
 
     Ok(MapView {
         map,
@@ -518,4 +571,30 @@ pub async fn get_map(pool: &PgPool, actor: Actor, cmd: GetMap) -> Result<MapView
         systems,
         connections,
     })
+}
+
+/// Mint a share link for the map, replacing any link already out there. Manager+.
+///
+/// Replacing rather than adding is the revocation story: one link at a time means
+/// "regenerate" is how you lock out whoever you gave the old one to.
+pub async fn rotate_share_token(pool: &PgPool, actor: Actor, map_id: i64) -> Result<String> {
+    require_role(pool, map_id, actor.user_id, Role::Manager).await?;
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    sqlx::query!(
+        "update maps set share_token = $2 where id = $1",
+        map_id,
+        token,
+    )
+    .execute(pool)
+    .await?;
+    Ok(token)
+}
+
+/// Withdraw the share link. Whoever has it is out; the map itself is untouched. Manager+.
+pub async fn revoke_share_token(pool: &PgPool, actor: Actor, map_id: i64) -> Result<()> {
+    require_role(pool, map_id, actor.user_id, Role::Manager).await?;
+    sqlx::query!("update maps set share_token = null where id = $1", map_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }

@@ -932,11 +932,58 @@ pub async fn fetch_map(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(map_id): Path<i64>,
+    Query(share): Query<ShareQuery>,
 ) -> ApiResult<MapView> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let reader = read_map_as(&state, &jar, map_id, &share).await?;
     let view =
-        crate::maps::map::get_map(&state.db, actor, crate::maps::map::GetMap { map_id }).await?;
+        crate::maps::map::read_map(&state.db, reader, crate::maps::map::GetMap { map_id }).await?;
     Ok(Json(view))
+}
+
+/// `GET /api/share/{token}` — the map a share link leads to, for whoever holds it.
+///
+/// Answers `NotFound` for a token that matches nothing, a withdrawn one, and a map that
+/// was never shared alike: a link either works or it does not, and saying which is which
+/// would turn the token into something to guess at.
+pub async fn fetch_shared_map(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(token): Path<String>,
+) -> ApiResult<MapView> {
+    if token.is_empty() {
+        return Err(crate::maps::MapError::NotFound.into());
+    }
+    let map_id = sqlx::query_scalar!("select id from maps where share_token = $1", token)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(crate::maps::MapError::NotFound)?;
+
+    let actor = crate::api::session_actor(&state.db, &jar).await?;
+    let reader =
+        crate::maps::access::reader_for(&state.db, map_id, actor, Some(token.as_str())).await?;
+    let view =
+        crate::maps::map::read_map(&state.db, reader, crate::maps::map::GetMap { map_id }).await?;
+    Ok(Json(view))
+}
+
+/// The share token, when the caller has one. Absent for everybody who is signed in with a
+/// grant, which is the ordinary case.
+#[derive(Deserialize)]
+pub struct ShareQuery {
+    #[serde(default)]
+    pub share: Option<String>,
+}
+
+/// Who is reading: a grant if the session has one, otherwise whatever the map has been
+/// opened up to. Guests never get further than viewer.
+async fn read_map_as(
+    state: &AppState,
+    jar: &CookieJar,
+    map_id: i64,
+    share: &ShareQuery,
+) -> Result<crate::maps::access::Reader, ApiError> {
+    let actor = crate::api::session_actor(&state.db, jar).await?;
+    Ok(crate::maps::access::reader_for(&state.db, map_id, actor, share.share.as_deref()).await?)
 }
 
 /// `GET /api/maps/{id}/signatures` — all signatures on the map.
@@ -944,9 +991,10 @@ pub async fn list_signatures(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(map_id): Path<i64>,
+    Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<Signature>> {
-    let actor = require_actor(&state.db, &jar).await?;
-    let sigs = crate::maps::signatures::list_signatures(&state.db, actor, map_id).await?;
+    read_map_as(&state, &jar, map_id, &share).await?;
+    let sigs = crate::maps::signatures::read_signatures(&state.db, map_id).await?;
     Ok(Json(sigs))
 }
 
@@ -2276,6 +2324,30 @@ pub async fn transfer_ownership(
     let actor = require_actor(&state.db, &jar).await?;
     crate::maps::access::transfer_ownership(&state.db, actor, cmd).await?;
     state.hub.publish(MapEvent::AccessChanged { map_id });
+    Ok(Json(()))
+}
+
+/// `POST /api/maps/{id}/share` — mint a share link, replacing any earlier one.
+pub async fn rotate_share_token(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<String> {
+    let actor = require_actor(&state.db, &jar).await?;
+    let token = crate::maps::map::rotate_share_token(&state.db, actor, map_id).await?;
+    state.hub.publish(MapEvent::MapUpdated { map_id });
+    Ok(Json(token))
+}
+
+/// `DELETE /api/maps/{id}/share` — withdraw the share link.
+pub async fn revoke_share_token(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(map_id): Path<i64>,
+) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &jar).await?;
+    crate::maps::map::revoke_share_token(&state.db, actor, map_id).await?;
+    state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(()))
 }
 
