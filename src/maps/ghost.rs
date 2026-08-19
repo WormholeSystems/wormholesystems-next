@@ -23,7 +23,7 @@ use super::{Actor, ConnectionType, WormholeSize};
 /// `frontend/src/lib/map/helpers.ts`. The client owns layout for everything it anchors on
 /// a viewport; these exist so a node the *server* places lands on the same lattice.
 const NODE_WIDTH: f64 = 180.0;
-const NODE_GAP_CELLS: f64 = 4.0;
+const NODE_GAP_CELLS: f64 = 1.0;
 
 /// The first free slot beside `base`, then down that column — the client's `freePosition`,
 /// for placements made inside a command. Siblings stack under the first one rather than

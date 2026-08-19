@@ -70,7 +70,9 @@ describe('freePosition', () => {
 
 	it('moves to the next column once the column is full', () => {
 		const origin = { x: 0, y: 0 };
-		const column = Array.from({ length: 20 }, (_, i) => at(NODE_W + GAP, i * (NODE_H + GAP)));
+		// Filled from the top of the world to the bottom, so there is nowhere left to drop to.
+		const rows = Math.ceil(grid.world_height / (NODE_H + GAP));
+		const column = Array.from({ length: rows }, (_, i) => at(NODE_W + GAP, i * (NODE_H + GAP)));
 		const spot = freePosition([at(origin.x, origin.y), ...column], origin, grid);
 		expect(spot.x).toBe(2 * (NODE_W + GAP));
 		expect(spot.y).toBe(0);

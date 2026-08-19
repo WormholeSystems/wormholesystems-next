@@ -41,12 +41,11 @@ export function centerWorld(
 /**
  * Clear space kept between placed nodes, in grid cells.
  *
- * Nodes used to be laid out exactly a node-width apart, which put them flush against each
- * other: legible enough on a fresh map, but a chain built by flying it reads as one solid
- * bar. Four cells is the smallest gap that still looks deliberate at the zoom levels the
- * map is actually used at.
+ * One cell: enough that nodes never sit flush against each other, and no more. Wider gaps
+ * spread a chain of any size across the canvas, which costs more in panning than it buys
+ * in legibility.
  */
-export const NODE_GAP_CELLS = 4;
+export const NODE_GAP_CELLS = 1;
 
 /**
  * The first free, grid-snapped slot at/after `base`: beside it, then down that column.
