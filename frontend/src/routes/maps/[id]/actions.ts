@@ -26,7 +26,6 @@ export const MAP_ACTIONS = {
 	cleanMap: { failed: 'Could not clean the map', done: 'Map cleaned' },
 	setAlias: { failed: 'Could not rename the system' },
 	setStatus: { failed: 'Could not set the status' },
-	setOccupier: { failed: 'Could not set the occupier' },
 	setPinned: { failed: 'Could not pin the system' },
 	setHome: { failed: 'Could not set the home system' },
 	setRally: { failed: 'Could not set the rally point' },

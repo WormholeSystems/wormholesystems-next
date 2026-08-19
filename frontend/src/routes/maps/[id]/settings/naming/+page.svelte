@@ -14,6 +14,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
 	import NamingCard from './NamingCard.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 
@@ -30,7 +31,7 @@
 			.catch(() => {});
 	});
 
-	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
+	const canManage = $derived(atLeast(view?.role, 'manager'));
 	const tracking = $derived(settings?.tracking_allowed ?? false);
 
 	async function reload() {

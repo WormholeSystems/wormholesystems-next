@@ -13,8 +13,9 @@
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { isWormholeClass } from '$lib/map/classes';
+	import { timeAgo } from '$lib/format';
 
-	let { system, layoutActions }: { system: MapSystemView; layoutActions?: import('svelte').Snippet } =
+	let { system }: { system: MapSystemView } =
 		$props();
 
 	let analysis = $state<ThreatAnalysis | null>(null);
@@ -40,20 +41,12 @@
 		}
 	});
 
-	function ago(iso: string): string {
-		const minutes = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
-		if (minutes < 60) return `${minutes} min ago`;
-		const hours = Math.round(minutes / 60);
-		if (hours < 48) return `${hours} h ago`;
-		return `${Math.round(hours / 24)} d ago`;
-	}
 </script>
 
 <MapPanel testid="threat-card">
 	<MapPanelHeader>
 		Threat Analysis
 		{#snippet actions()}
-			{@render layoutActions?.()}
 			{#if analysis}
 				<Badge variant="secondary" class={badgeClass} data-testid="threat-badge">
 					{analysis.threat_level[0].toUpperCase() + analysis.threat_level.slice(1)}
@@ -107,7 +100,7 @@
 			{/if}
 			{#if analysis?.threat_analyzed_at}
 				<p class="text-[10px] text-muted-foreground">
-					Analyzed {ago(analysis.threat_analyzed_at)}
+					Analyzed {timeAgo(analysis.threat_analyzed_at)}
 				</p>
 			{/if}
 			<a

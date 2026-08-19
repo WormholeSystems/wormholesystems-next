@@ -11,7 +11,7 @@ import type { Signature } from '$lib/api/types/Signature';
 import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
 import { aliasTargetKind, suggestAlias, type AliasScheme } from '$lib/alias';
-import { freePosition } from '$lib/map/helpers';
+import { freePosition, sizeForJumpMass } from '$lib/map/helpers';
 import { classMeta, isWormholeClass } from '$lib/map/classes';
 import { loadCatalog, typeById } from '$lib/map/signatures';
 import { groupSignatures, type SignatureGroups } from '$lib/signatures/compatibility';
@@ -33,19 +33,6 @@ export interface JumpPrompt {
 	at: { x: number; y: number };
 }
 
-let gatesPromise: Promise<Map<number, number[]>> | null = null;
-
-/** Stargate adjacency, fetched once per session (the response is cached for a day). */
-function loadGates(): Promise<Map<number, number[]>> {
-	gatesPromise ??= api
-		.routingGraph()
-		.then(
-			(g) => new Map(Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]]))
-		)
-		.catch(() => new Map<number, number[]>());
-	return gatesPromise;
-}
-
 /** The mass and lifetime a hole starts at, taken from the signature if it was scanned. */
 function statusFromSignature(signature: Signature | null) {
 	return {
@@ -56,15 +43,6 @@ function statusFromSignature(signature: Signature | null) {
 }
 
 /** The size a wormhole type promises, which beats whatever was typed on the signature. */
-function sizeFromType(type: SignatureTypeInfo | null): Signature['size'] {
-	const jump = type?.max_jump_mass;
-	if (!jump) return null;
-	if (jump <= 5_000_000) return 'small';
-	if (jump <= 300_000_000) return 'medium';
-	if (jump <= 1_000_000_000) return 'large';
-	return 'xl';
-}
-
 export class JumpTracker {
 	private map: MapState;
 
@@ -161,8 +139,10 @@ export class JumpTracker {
 		const origin = map.systems.find((s) => s.solar_system_id === fromSystemId) ?? null;
 		if (!origin) return;
 
-		const gates = await loadGates();
-		if (gates.get(fromSystemId)?.includes(toSystemId)) return;
+		// A gate jump is not a new hole. The page loads this table on open, so a jump taken
+		// before it arrives is left alone rather than mapped as a wormhole.
+		const gates = map.stargates;
+		if (!gates || gates.get(fromSystemId)?.includes(toSystemId)) return;
 
 		const existing = map.systems.find((s) => s.solar_system_id === toSystemId) ?? null;
 		const linked = existing ? this.existingConnection(origin, existing) : null;
@@ -331,7 +311,7 @@ export class JumpTracker {
 				// known", which is what an unscanned hole actually is.
 				signature_pk: choice.signaturePk ?? undefined,
 				alias: choice.alias?.trim() || undefined,
-				size: choice.size ?? sizeFromType(type) ?? fromSignature.size ?? undefined,
+				size: choice.size ?? sizeForJumpMass(type?.max_jump_mass) ?? fromSignature.size ?? undefined,
 				mass_status: choice.massStatus ?? fromSignature.mass_status ?? undefined,
 				time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined
 			})

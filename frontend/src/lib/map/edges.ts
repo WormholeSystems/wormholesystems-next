@@ -1,10 +1,5 @@
-// Edge geometry: where a connection's line starts, ends, bends, and where its badges sit.
-//
-// One geometry per connection, built for the whole map at once, because the tree router
-// needs to see every edge to fan out the ones that share a node edge. Both layouts return
-// the same shape, so the canvas draws them the same way.
-//
-// Everything here is in world units; the canvas transform does the scaling.
+// Edge geometry for the whole map at once: the tree router has to see every edge to fan
+// out the ones sharing a node edge. All world units; the canvas transform does the scaling.
 
 import type { MapConnection } from '$lib/api/types/MapConnection';
 import { NODE_W, railEndpoint } from './helpers';
@@ -16,17 +11,12 @@ export interface Vec2 {
 
 export interface EdgeGeometry {
 	id: number;
-	/**
-	 * `curve` is the manual layout's line; `elbow` the tree layout's right angles. The
-	 * canvas draws an elbow slimmer and without endpoint dots: it meets the node's edge
-	 * square-on, where a curve stops short of it on the rail and needs the dot to land on.
-	 */
+	/** A curve stops short of the node on its rail and needs an endpoint dot; an elbow does not. */
 	kind: 'curve' | 'elbow';
 	from: Vec2;
 	to: Vec2;
 	/** Where the badge cluster hangs. */
 	center: Vec2;
-	/** The SVG path. */
 	d: string;
 }
 
@@ -39,13 +29,10 @@ interface Rect {
 	centerY: number;
 }
 
-/** Spacing between connections leaving the same node edge, in world units. */
+// World units.
 const PARALLEL_SPACING = 14;
-/** Spacing between the perpendicular runs of those connections, in world units. */
 const BEND_SPACING = 16;
-/** Corner radius of an elbow. */
 const CORNER_RADIUS = 10;
-/** How far into the lane beside a column a detouring run sits, in world units. */
 const LANE_MARGIN = 40;
 
 function rectAt(position: Vec2, nodeH: number): Rect {
@@ -64,17 +51,13 @@ const midpoint = (from: Vec2, to: Vec2): Vec2 => ({
 	y: (from.y + to.y) / 2
 });
 
-/** The manual layout's bezier, easing horizontally between the two endpoints. */
 export function curveBetween(from: Vec2, to: Vec2): string {
 	const cp1x = from.x + (to.x - from.x) / 1.5;
 	const cp2x = to.x - (to.x - from.x) / 1.5;
 	return `M ${from.x} ${from.y} C ${cp1x} ${from.y}, ${cp2x} ${to.y}, ${to.x} ${to.y}`;
 }
 
-/**
- * Manual-layout geometry: endpoints slide along a rail through each node's centre line,
- * pulled toward the other node, joined by a curve.
- */
+/** Endpoints slide along a rail through each node's centre line, pulled toward the other. */
 export function freeEdges(
 	connections: MapConnection[],
 	positions: ReadonlyMap<number, Vec2>,
@@ -116,16 +99,10 @@ interface Routed {
 }
 
 /**
- * Connects the centre of each box's facing edge, leaving perpendicular to it.
- *
- * Left and right edges are preferred whenever the boxes are separated horizontally: the
- * long run then drops through the clear lane between the two columns instead of cutting
- * down through the column of stacked siblings.
- *
- * `detour` is for two nodes in the same column with something between them, which is what
- * a connection between two pinned roots looks like. Both ends leave the *same* side, so
- * the run happens out in the lane rather than straight down the column and through every
- * node in the way.
+ * Left and right edges win whenever the boxes are separated horizontally, so the long run
+ * drops through the lane between columns rather than through the stacked siblings.
+ * `detour` sends both ends out the same side, for two nodes in one column with something
+ * between them.
  */
 function facingEnds(source: Rect, target: Rect, detour: boolean) {
 	if (detour) {
@@ -163,11 +140,7 @@ function facingEndsDirect(source: Rect, target: Rect) {
 	};
 }
 
-/**
- * Whether a node sits between these two in their shared column. A run straight down the
- * column would cross it, and an edge that disappears behind a node says nothing about
- * what it connects.
- */
+/** Whether a node sits between these two in their shared column, which a run would cross. */
 function blockedInColumn(source: Rect, target: Rect, column: Rect[]): boolean {
 	const top = Math.min(source.centerY, target.centerY);
 	const bottom = Math.max(source.centerY, target.centerY);
@@ -178,9 +151,8 @@ function blockedInColumn(source: Rect, target: Rect, column: Rect[]): boolean {
 }
 
 /**
- * A vertical run may sit in the lanes between columns, never inside one: crossing another
- * edge is readable, disappearing behind a node is not. Pushes a bend into the lane on the
- * right of whichever column it landed in.
+ * A vertical run belongs in the lanes between columns, never inside one: crossing another
+ * edge is readable, disappearing behind a node is not.
  */
 function intoLane(x: number, columns: number[]): number {
 	for (const left of columns) {
@@ -198,10 +170,7 @@ interface Port {
 	sortKey: number;
 }
 
-/**
- * Spread the endpoints that share a node edge along it, ordered by where the other end
- * sits, so parallel lines neither overlap nor cross.
- */
+/** Spread shared endpoints along the node edge, ordered by the far end so lines never cross. */
 function spreadSharedEdge(ports: Port[]): void {
 	if (ports.length < 2) return;
 	const alongY = ports[0].normal.x !== 0;
@@ -216,7 +185,6 @@ function spreadSharedEdge(ports: Port[]): void {
 	});
 }
 
-/** The two turn points of an elbow: the perpendicular run sits at `bend`. */
 function elbowCorners(edge: Routed): [Vec2, Vec2] {
 	if (edge.fromNormal.x !== 0) {
 		const midX = edge.bend ?? (edge.from.x + edge.to.x) / 2;
@@ -232,7 +200,6 @@ function elbowCorners(edge: Routed): [Vec2, Vec2] {
 	];
 }
 
-/** A polyline through `points` with every interior corner rounded. */
 function roundedPath(points: Vec2[], radius: number): string {
 	const pts = points.filter(
 		(p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y) > 0.01
@@ -261,20 +228,15 @@ function roundedPath(points: Vec2[], radius: number): string {
 }
 
 /**
- * Tree-layout geometry: rounded right angles between the facing edges of the two nodes.
- *
- * A global pass rather than one edge at a time, because both corrections need the whole
- * picture: endpoints sharing a node edge are fanned out along it, and the perpendicular
- * runs of the edges leaving one node are staggered so they nest instead of stacking on
- * top of each other.
+ * A global pass rather than one edge at a time: both fanning shared endpoints and
+ * staggering the runs that leave one node need the whole picture.
  */
 export function treeEdges(
 	connections: MapConnection[],
 	positions: ReadonlyMap<number, Vec2>,
 	nodeH: number
 ): Map<number, EdgeGeometry> {
-	// One rect per node, shared by everything below: the column index holds the same
-	// objects the edges do, so "is this the node I am joining" stays an identity check.
+	// One rect per node, shared below so the column index can be compared by identity.
 	const rects = new Map<number, Rect>();
 	const byColumn = new Map<number, Rect[]>();
 	for (const [id, position] of positions) {
@@ -329,10 +291,7 @@ export function treeEdges(
 	}
 	for (const ports of shared.values()) spreadSharedEdge(ports);
 
-	// Stagger the perpendicular runs of the edges that fan out from one node. Grouped by
-	// the node the fan leaves on its primary axis (the left one for horizontal links, the
-	// top one for vertical), whichever end the connection was stored from, and ordered by
-	// how far the far end sits so the runs do not cross.
+	// Stagger the runs fanning out of one node, ordered by far-end distance so they nest.
 	const fans = new Map<string, Routed[]>();
 	for (const edge of routed) {
 		if (edge.detour) continue;
@@ -353,13 +312,11 @@ export function treeEdges(
 	for (const group of fans.values()) {
 		if (group.length < 2) continue;
 		const horizontal = group[0].fromNormal.x !== 0;
-		// Keep the fan inside the lane between the two columns: with more connections than
-		// the spacing fits, tighten it so the outermost run still clears the neighbours.
+		// More connections than the spacing fits: tighten so the outermost run still clears.
 		const gap = Math.min(
 			...group.map((e) => Math.abs(horizontal ? e.to.x - e.from.x : e.to.y - e.from.y))
 		);
 		const spacing = Math.min(BEND_SPACING, (gap * 0.8) / (group.length - 1));
-		// The farthest target bends closest to the node; ties split by side.
 		group.sort((a, b) => b.distance - a.distance || a.signed - b.signed);
 		group.forEach((edge, i) => {
 			const base = horizontal ? (edge.from.x + edge.to.x) / 2 : (edge.from.y + edge.to.y) / 2;
@@ -367,8 +324,7 @@ export function treeEdges(
 		});
 	}
 
-	// Detours run in the lane beside their own column, stacked outwards so several
-	// between the same roots stay apart.
+	// Detours stack outwards so several between the same roots stay apart.
 	const detours = new Map<number, Routed[]>();
 	for (const edge of routed.filter((e) => e.detour)) {
 		const group = detours.get(edge.source.minX);
@@ -382,8 +338,7 @@ export function treeEdges(
 		});
 	}
 
-	// Everything else keeps its computed bend, nudged out of any column it landed in: the
-	// midpoint between two columns two apart is exactly the column between them.
+	// The midpoint between two columns two apart lands exactly on the column between them.
 	for (const edge of routed) {
 		if (edge.detour || edge.fromNormal.x === 0) continue;
 		edge.bend = intoLane(edge.bend ?? (edge.from.x + edge.to.x) / 2, columns);

@@ -1,4 +1,4 @@
-// Pure helpers for the map canvas, ported 1:1 from the old Leptos implementation.
+// Pure helpers for the map canvas.
 
 import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
@@ -26,6 +26,15 @@ export function shipSizeLetter(kg: number | null): string {
 	return 'S';
 }
 
+/** The wormhole size a hole of this jump mass admits; an identified hole dictates its own. */
+export function sizeForJumpMass(kg: number | null | undefined): WormholeSize | null {
+	if (!kg) return null;
+	if (kg <= 5_000_000) return 'small';
+	if (kg <= 300_000_000) return 'medium';
+	if (kg <= 1_000_000_000) return 'large';
+	return 'xl';
+}
+
 /** World coords of the viewport center (where a freshly-added system lands). */
 export function centerWorld(
 	pan: { x: number; y: number },
@@ -38,26 +47,13 @@ export function centerWorld(
 	};
 }
 
-/**
- * Clear space kept between placed nodes, in grid cells.
- *
- * One cell: enough that nodes never sit flush against each other, and no more. Wider gaps
- * spread a chain of any size across the canvas, which costs more in panning than it buys
- * in legibility.
- */
+/** Clear space kept between placed nodes, in grid cells. */
 export const NODE_GAP_CELLS = 1;
 
 /**
  * The first free, grid-snapped slot at/after `base`: beside it, then down that column.
- *
- * "Free" means far enough from every placed node to leave [`NODE_GAP_CELLS`] of clear
- * space, not merely non-overlapping — so passing a node's own position returns the spot
- * beside it rather than on top of it, and callers do not each invent their own offset.
- *
- * The column is what makes a chain readable. Scanning the row first sent a system's second
- * hole one column further right, its third one further still, marching across the map and
- * through whatever else was already out there. Holes off one system are siblings, so they
- * stack under the first one instead, and only move right when the column is full.
+ * Free means [`NODE_GAP_CELLS`] of clear space, not merely non-overlapping. Holes off one
+ * system are siblings, so they stack down the column and only move right when it is full.
  */
 export function freePosition(
 	systems: { position_x: number; position_y: number }[],
@@ -78,7 +74,6 @@ export function freePosition(
 	const bx = snap(clamp(base.x, 0, maxX));
 	const by = snap(clamp(base.y, 0, maxY));
 
-	// Somewhere empty was asked for and is empty: nothing to step around.
 	if (!crowded(bx, by)) return { x: bx, y: by };
 
 	for (let column = 1; ; column++) {
@@ -99,10 +94,7 @@ export function nodeAt(
 	wx: number,
 	wy: number,
 	g: GridConfig,
-	/**
-	 * Where the nodes actually are. An automatic layout places them somewhere other than
-	 * their stored position, and a hit test has to agree with what is on the screen.
-	 */
+	/** Where the nodes actually are: an automatic layout overrides the stored position. */
 	positions?: ReadonlyMap<number, { x: number; y: number }>
 ): number | null {
 	const h = 2 * g.cell_size;
@@ -117,9 +109,7 @@ export function nodeAt(
 export const RAIL_PADDING = 40;
 
 /**
- * A connection endpoint that slides along a horizontal rail through the node's centre:
- * the rail runs at the vertical centre, inset RAIL_PADDING from each side, and the
- * endpoint sits at the point on it nearest the other node, so it is pulled toward the
+ * An endpoint sliding along a horizontal rail through the node's centre, pulled toward the
  * far node but never closer than RAIL_PADDING to the edge.
  */
 export function railEndpoint(
@@ -132,24 +122,6 @@ export function railEndpoint(
 	return { x: clamp(towardX, minX + padding, maxX - padding), y: centerY };
 }
 
-/**
- * Rail endpoints for an edge between two node top-left corners (legacy free-layout
- * routing): each end sits on its node's centre rail, pulled toward the other node's
- * centre.
- */
-export function railAnchors(
-	ax: number,
-	ay: number,
-	bx: number,
-	by: number,
-	nodeH: number
-): [number, number, number, number] {
-	const aCenterX = ax + NODE_W / 2;
-	const bCenterX = bx + NODE_W / 2;
-	const from = railEndpoint(ax, ax + NODE_W, ay + nodeH / 2, bCenterX);
-	const to = railEndpoint(bx, bx + NODE_W, by + nodeH / 2, aCenterX);
-	return [from.x, from.y, to.x, to.y];
-}
 
 /** The legacy free-layout bezier, easing horizontally between the two endpoints. */
 export function curvePath(x1: number, y1: number, x2: number, y2: number): string {
@@ -184,11 +156,7 @@ export function sizeLetter(s: WormholeSize): string {
 	}
 }
 
-/**
- * The connection stroke color (legacy model): on-route amber wins, stargates are sky,
- * any critical state red, reduced mass orange, EOL purple, else the neutral edge token
- * (neutral-300 light / neutral-700 dark).
- */
+/** Stroke colour by precedence: on-route, stargate, critical, reduced, EOL, else neutral. */
 export function edgeColor(
 	kind: 'wormhole' | 'stargate',
 	mass: MassStatus | null,
@@ -208,10 +176,8 @@ export function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
- * Legacy's default ship size for a new connection between two placements.
- *
- * A guess, not a measurement: the pair of classes rules some sizes out (a frigate hole is
- * never large), and the rest is left unset for whoever scans it to fill in.
+ * A guess, not a measurement: the pair of classes rules some sizes out, and the rest is
+ * left unset for whoever scans it.
  */
 export function heuristicSize(
 	systems: MapSystemView[],

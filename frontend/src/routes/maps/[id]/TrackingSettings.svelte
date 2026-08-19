@@ -3,7 +3,6 @@
 	// Stored per user per map, like the route settings popover.
 	import SettingsIcon from '@lucide/svelte/icons/settings-2';
 
-	import { api } from '$lib/api/client';
 	import { Button } from '$lib/components/ui/button';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Switch } from '$lib/components/ui/switch';
@@ -35,10 +34,7 @@
 	];
 
 	function update(key: string, value: boolean) {
-		api
-			.updateMapUserSettings(map.mapId, { [key]: value })
-			.then((s) => (map.userSettings = s))
-			.catch(() => {});
+		map.patchUserSettings({ [key]: value }).catch(() => {});
 	}
 </script>
 

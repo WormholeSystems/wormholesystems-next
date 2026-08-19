@@ -12,6 +12,7 @@
 	import SignatureSection from './connection/SignatureSection.svelte';
 	import WormholeProperties from './connection/WormholeProperties.svelte';
 	import type { MapState } from './map-state.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	let { map }: { map: MapState } = $props();
 
@@ -56,7 +57,7 @@
 		return out ?? k162;
 	});
 
-	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
+	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 
 	const open = $derived(popover !== null && connection !== null);
 </script>

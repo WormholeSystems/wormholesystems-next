@@ -13,8 +13,6 @@
 
 use serde::{Deserialize, Serialize};
 
-// MapEvent is shared with the wasm client (it deserializes WS frames); the MapHub itself
-// (tokio channels) is server-only.
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

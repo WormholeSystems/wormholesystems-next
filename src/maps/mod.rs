@@ -1,12 +1,9 @@
 //! Map business logic: the authorized, validated actions a user takes on a map.
 //!
-//! This is the application layer over the [database spec](../../docs/database/), built
-//! to the behaviour spec in [`docs/features/maps.md`](../../docs/features/maps.md).
-//! Actions are plain async functions over a `PgPool` — no HTTP/UI here — so they're
-//! driven directly from tests and later from server handlers.
+//! The application layer over the [database spec](../../docs/database/), built to the
+//! behaviour spec in [`docs/features/maps.md`](../../docs/features/maps.md). Plain async
+//! functions over a `PgPool`, so the tests drive them directly.
 
-// Cross-target modules: each holds shared data types (compiled for ssr + wasm) plus
-// `ssr`-gated DB actions. `access` and `error` are server-only.
 pub mod access;
 pub mod command;
 pub mod connection;
@@ -62,9 +59,8 @@ macro_rules! text_enum {
             }
         }
 
-        // Only `Type` + `Decode` are generated: queries bind these enums as `&str` via
-        // `as_str()`, but read them back through `as "col: Enum"` casts. Server-only — the
-        // sqlx glue isn't compiled for the wasm client.
+        // Only `Type` + `Decode`: queries bind via `as_str()` and read back through
+        // `as "col: Enum"` casts.
         impl sqlx::Type<sqlx::Postgres> for $name {
             fn type_info() -> sqlx::postgres::PgTypeInfo {
                 <str as sqlx::Type<sqlx::Postgres>>::type_info()

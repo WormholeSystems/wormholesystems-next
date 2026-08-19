@@ -1,9 +1,5 @@
-// Automatic placement: the chain laid out as a tree instead of dragged into shape.
-//
-// Ported from the legacy map (`map/core/layout/treeLayout.ts`, see
-// docs/legacy/map-canvas.md). Positions are derived on the client and never stored: the
-// map keeps whatever manual positions it has, and switching back to manual placement
-// finds them untouched.
+// The chain laid out as a tree instead of dragged into shape. Positions are derived on the
+// client and never stored, so manual placement finds its own untouched.
 
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 
@@ -17,10 +13,7 @@ export interface TreeInput {
 	edges: TreeEdge[];
 	/** Pinned systems, which become the roots the branches grow out of. */
 	rootIds: number[];
-	/**
-	 * The home system: a root like the pinned ones, and the one the column starts with.
-	 * Home is where the chain is flown from, so it reads first or it reads wrong.
-	 */
+	/** A root like the pinned ones, and the one the column starts with. */
 	homeId?: number | null;
 	/** Used as the root when nothing is pinned and there is no home system. */
 	fallbackRootId?: number | null;
@@ -39,9 +32,7 @@ export interface TreeOptions {
 	marginY?: number;
 }
 
-/**
- * A node in the spanning forest, plus the scratch fields the layout walks mutate.
- */
+/** A node in the spanning forest, plus the scratch fields the walks mutate. */
 interface LayoutNode {
 	id: number;
 	depth: number;
@@ -61,13 +52,9 @@ interface LayoutNode {
 }
 
 /**
- * Lay the systems out as a left-to-right spanning forest rooted at the pinned ones.
- *
- * Every pinned system starts its own tree and everything else attaches to whichever root
- * reaches it first, so a chain reads as branches off the systems you decided matter. The
- * cross-axis packing is Reingold–Tilford in Buchheim's linear form: each subtree is laid
- * out against its siblings' contours, so a tall branch pushes the next one clear of its
- * whole extent rather than of one row.
+ * A left-to-right spanning forest rooted at the pinned systems, everything else attaching
+ * to whichever root reaches it first. Cross-axis packing is Reingold–Tilford in Buchheim's
+ * linear form, so a tall branch pushes the next clear of its whole extent.
  *
  * Returns a node top-left per system id, in world units, snapped to the grid.
  */
@@ -76,18 +63,13 @@ export function computeTreeLayout(
 	options: TreeOptions = {}
 ): Map<number, { x: number; y: number }> {
 	const gridSize = options.gridSize ?? 20;
-	// Spacings are snapped too: a gap that is not a whole number of cells makes the
-	// per-node snapping alternate between one and two cells, and the rows look ragged.
+	// Snapped too: a gap of fractional cells makes the per-node snapping alternate.
 	const snap = (value: number) => Math.round(value / gridSize) * gridSize;
-	// Wide enough that an edge's badge cluster, which sits at its midpoint, clears the
-	// nodes on either side.
+	// Wide enough for an edge's badge cluster at its midpoint to clear both nodes.
 	const levelGap = snap(options.levelGap ?? 320);
-	// Tight enough to read as one branch, loose enough that a row of pilots underneath a
-	// node does not touch the next one.
+	// Loose enough that a row of pilots under a node does not touch the next.
 	const siblingGap = snap(options.siblingGap ?? 60);
-	// Where the first node's top-left sits. Legacy's margins are 60/40, but its positions
-	// are anchors offset (40, 20) into the node, so its first node lands here too — a node
-	// height and change off both edges, close enough to read as "the chain starts here".
+	// Where the first node's top-left sits.
 	const marginX = snap(options.marginX ?? 20);
 	const marginY = snap(options.marginY ?? 20);
 
@@ -128,8 +110,7 @@ export function computeTreeLayout(
 		queue.push(id);
 	};
 
-	// Pinned first, and stranded systems after them, so the left column reads top to
-	// bottom as "the systems you decided matter, then everything nothing reaches".
+	// Pinned first, stranded after, so the left column reads in order of what matters.
 	const chosen = new Set<number>();
 	const home = input.homeId != null && adjacency.has(input.homeId) ? input.homeId : null;
 	const candidates = [
@@ -139,8 +120,7 @@ export function computeTreeLayout(
 	if (candidates.length === 0 && input.fallbackRootId != null && adjacency.has(input.fallbackRootId)) {
 		candidates.push(input.fallbackRootId);
 	}
-	// Every root is seeded before the walk starts, so they share one front and each
-	// system attaches to the root nearest it rather than to whichever went first.
+	// All roots seeded before the walk, so each system attaches to the nearest one.
 	for (const root of candidates) {
 		if (visited.has(root)) continue;
 		chosen.add(root);
@@ -148,8 +128,7 @@ export function computeTreeLayout(
 	}
 	drain();
 
-	// Whatever the roots could not reach becomes a tree of its own, densest first, parked
-	// beside the rest.
+	// Whatever the roots could not reach becomes a tree of its own, densest first.
 	const stranded = input.nodeIds
 		.filter((id) => !visited.has(id))
 		.sort((a, b) => adjacency.get(b)!.length - adjacency.get(a)!.length || a - b);
@@ -163,9 +142,7 @@ export function computeTreeLayout(
 	if (compare) {
 		for (const [, children] of childrenOf) children.sort(compare);
 	}
-	// Home first, then the pinned systems, then whatever nothing reaches. The comparator
-	// only orders within each of those, so a stranded system with an early alias cannot
-	// climb above a pinned one, and nothing climbs above home.
+	// Home, then pinned, then unreached; the comparator only orders within each rank.
 	const rank = (id: number) => (id === home ? 0 : chosen.has(id) ? 1 : 2);
 	roots.sort((a, b) => rank(a) - rank(b) || (compare ? compare(a, b) : 0));
 
@@ -304,9 +281,8 @@ export function computeTreeLayout(
 		for (const child of node.children) secondWalk(child, modSum + node.mod);
 	};
 
-	// Every root hangs off one virtual super-root, so the trees are contour-packed like
-	// any other siblings: a shallow tree rises into a deeper neighbour's empty rows
-	// instead of being parked below its lowest node. It is never rendered.
+	// A virtual super-root contour-packs the trees like any other siblings, so a shallow
+	// tree rises into a deeper neighbour's empty rows. Never rendered.
 	const superRoot: LayoutNode = {
 		id: -1,
 		depth: -1,
@@ -344,10 +320,7 @@ export function computeTreeLayout(
 	return positions;
 }
 
-/**
- * The order siblings are laid out in: named systems first and alphabetically, then the
- * rest by name, so a branch reads the same way every time it is drawn.
- */
+/** Named systems first and alphabetically, so a branch reads the same way every time. */
 export function compareForTree(systems: Map<number, MapSystemView>) {
 	return (a: number, b: number): number => {
 		const left = systems.get(a);

@@ -20,7 +20,6 @@ use super::Role;
 use super::access::require_role;
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::solar_system::unexpected;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -80,10 +79,9 @@ pub async fn add_connection(
     actor: Actor,
     cmd: AddConnection,
 ) -> Result<MapConnection> {
-    match execute(pool, actor, MapCommand::AddConnection(cmd)).await? {
-        CommandOutput::Connection(c) => Ok(*c),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::AddConnection(cmd))
+        .await?
+        .connection()
 }
 
 pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) -> Result<Effect> {
@@ -190,10 +188,9 @@ pub async fn set_connection_status(
     actor: Actor,
     cmd: SetConnectionStatus,
 ) -> Result<MapConnection> {
-    match execute(pool, actor, MapCommand::SetConnectionStatus(cmd)).await? {
-        CommandOutput::Connection(c) => Ok(*c),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::SetConnectionStatus(cmd))
+        .await?
+        .connection()
 }
 
 pub(super) async fn apply_set_connection_status(
@@ -380,10 +377,9 @@ pub async fn clean_stale_connections(
     actor: Actor,
     cmd: CleanStaleConnections,
 ) -> Result<u64> {
-    match execute(pool, actor, MapCommand::CleanStaleConnections(cmd)).await? {
-        CommandOutput::Count(n) => Ok(n),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::CleanStaleConnections(cmd))
+        .await?
+        .count()
 }
 
 pub(super) async fn apply_clean_stale(

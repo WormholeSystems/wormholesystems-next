@@ -4,10 +4,11 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
+use vector::maps::events_log::{MapIdBody, undo};
 use vector::maps::solar_system::{
     AddSystem, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetPinned,
-    SystemMove, add_system, move_system, move_systems, remove_system, remove_systems, set_alias,
-    set_home, set_pinned,
+    SetRally, SystemMove, add_system, move_system, move_systems, remove_system, remove_systems,
+    set_alias, set_home, set_pinned, set_rally,
 };
 use vector::maps::{MapError, Role};
 
@@ -478,4 +479,70 @@ async fn placed_ids(pool: &PgPool, actor: vector::maps::Actor, map_id: i64) -> V
         .iter()
         .map(|s| s.id)
         .collect()
+}
+
+/// Home and rally are one-per-map, and undo puts the previous holder back rather than
+/// leaving the map with none. Both flags run through the same code, so both are checked.
+#[sqlx::test]
+async fn a_map_has_one_home_and_one_rally_and_undo_returns_the_last_one(pool: PgPool) {
+    let w = world(&pool).await;
+    let first = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
+    let second = place(&pool, w.owner, w.map_id, SYS_B, 200.0).await;
+
+    mark_home(&pool, w.owner, w.map_id, first).await;
+    mark_home(&pool, w.owner, w.map_id, second).await;
+    assert_eq!(home_of(&pool, w.map_id).await, Some(second));
+
+    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(home_of(&pool, w.map_id).await, Some(first));
+
+    set_rally(
+        &pool,
+        w.owner,
+        SetRally {
+            map_id: w.map_id,
+            map_solar_system_id: second,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(rally_of(&pool, w.map_id).await, Some(second));
+    // The rally is its own flag: claiming it leaves the home system alone.
+    assert_eq!(home_of(&pool, w.map_id).await, Some(first));
+
+    set_rally(
+        &pool,
+        w.owner,
+        SetRally {
+            map_id: w.map_id,
+            map_solar_system_id: second,
+            value: false,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(rally_of(&pool, w.map_id).await, None);
+}
+
+async fn home_of(pool: &PgPool, map_id: i64) -> Option<i64> {
+    sqlx::query_scalar!(
+        "select id from map_solar_systems where map_id = $1 and is_home",
+        map_id
+    )
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+async fn rally_of(pool: &PgPool, map_id: i64) -> Option<i64> {
+    sqlx::query_scalar!(
+        "select id from map_solar_systems where map_id = $1 and is_rally",
+        map_id
+    )
+    .fetch_optional(pool)
+    .await
+    .unwrap()
 }

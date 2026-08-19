@@ -23,7 +23,7 @@
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
-	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } =
+	let { map }: { map: MapState } =
 		$props();
 
 	const pilots = $derived(map.characters);
@@ -85,9 +85,6 @@
 				Pilots
 				<span class="font-mono text-amber-400">{pilots.length}</span>
 			</span>
-			{#snippet actions()}
-				{@render layoutActions?.()}
-			{/snippet}
 		</MapPanelHeader>
 		<MapPanelContent>
 			{#if pilots.length === 0}

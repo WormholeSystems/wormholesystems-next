@@ -151,10 +151,9 @@ pub struct AddSystem {
 /// Place a solar system on a map. The system must exist in the SDE and not already be on
 /// the map. Adding a system does not touch its persisted details.
 pub async fn add_system(pool: &PgPool, actor: Actor, cmd: AddSystem) -> Result<MapSolarSystem> {
-    match execute(pool, actor, MapCommand::AddSystem(cmd)).await? {
-        CommandOutput::System(placed) => Ok(*placed),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::AddSystem(cmd))
+        .await?
+        .system()
 }
 
 pub(super) async fn apply_add_system(tx: &mut Tx<'_>, cmd: AddSystem) -> Result<Effect> {
@@ -277,10 +276,9 @@ pub struct RemoveSystems {
 /// Remove several placed systems at once (multi-select delete). Same cascade as
 /// [`remove_system`]. Returns the number actually removed; an empty id list is a no-op.
 pub async fn remove_systems(pool: &PgPool, actor: Actor, cmd: RemoveSystems) -> Result<u64> {
-    match execute(pool, actor, MapCommand::RemoveSystems(cmd)).await? {
-        CommandOutput::Count(n) => Ok(n),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::RemoveSystems(cmd))
+        .await?
+        .count()
 }
 
 pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) -> Result<Effect> {
@@ -346,10 +344,9 @@ pub struct ClearMap {
 /// Remove every placed system on a map except the home system and any pinned systems.
 /// Connections to removed systems cascade. Returns the number removed.
 pub async fn clear_map(pool: &PgPool, actor: Actor, cmd: ClearMap) -> Result<u64> {
-    match execute(pool, actor, MapCommand::ClearMap(cmd)).await? {
-        CommandOutput::Count(n) => Ok(n),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::ClearMap(cmd))
+        .await?
+        .count()
 }
 
 pub(super) async fn apply_clear_map(tx: &mut Tx<'_>, cmd: ClearMap) -> Result<Effect> {
@@ -747,53 +744,58 @@ pub async fn set_home(pool: &PgPool, actor: Actor, cmd: SetHome) -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn apply_set_home(tx: &mut Tx<'_>, cmd: SetHome) -> Result<Effect> {
-    let previous: Option<i64> = sqlx::query_scalar!(
-        "select id from map_solar_systems where map_id = $1 and is_home",
-        cmd.map_id,
-    )
-    .fetch_optional(&mut **tx)
-    .await?;
-    if cmd.value {
-        sqlx::query!(
-            "update map_solar_systems set is_home = false where map_id = $1 and is_home",
-            cmd.map_id,
-        )
-        .execute(&mut **tx)
-        .await?;
-    }
-    let updated = sqlx::query!(
-        "update map_solar_systems set is_home = $1 where id = $2 and map_id = $3",
-        cmd.value,
-        cmd.map_solar_system_id,
-        cmd.map_id,
-    )
-    .execute(&mut **tx)
-    .await?
-    .rows_affected();
-    if updated == 0 {
-        return Err(MapError::NotFound);
-    }
-    // Undo restores whichever placement held it before (or clears it again).
-    let inverse = match previous {
-        Some(id) => MapCommand::SetHome(SetHome {
-            map_id: cmd.map_id,
-            map_solar_system_id: id,
-            value: true,
-        }),
-        None => MapCommand::SetHome(SetHome {
-            map_id: cmd.map_id,
-            map_solar_system_id: cmd.map_solar_system_id,
-            value: false,
-        }),
+/// The apply half of a one-per-map flag (home, rally): clear whoever holds it, set the new
+/// holder, and undo by restoring the previous one. The three statements are passed in as
+/// literals so sqlx still checks them against the schema at compile time.
+macro_rules! exclusive_flag {
+    ($apply:ident, $cmd:ident, $holder:literal, $clear:literal, $set:literal,
+     $event:literal, $set_label:literal, $cleared_label:literal) => {
+        pub(super) async fn $apply(tx: &mut Tx<'_>, cmd: $cmd) -> Result<Effect> {
+            let previous: Option<i64> = sqlx::query_scalar!($holder, cmd.map_id)
+                .fetch_optional(&mut **tx)
+                .await?;
+            if cmd.value {
+                sqlx::query!($clear, cmd.map_id).execute(&mut **tx).await?;
+            }
+            let updated = sqlx::query!($set, cmd.value, cmd.map_solar_system_id, cmd.map_id)
+                .execute(&mut **tx)
+                .await?
+                .rows_affected();
+            if updated == 0 {
+                return Err(MapError::NotFound);
+            }
+            let inverse = MapCommand::$cmd(match previous {
+                Some(id) => $cmd {
+                    map_id: cmd.map_id,
+                    map_solar_system_id: id,
+                    value: true,
+                },
+                None => $cmd {
+                    map_id: cmd.map_id,
+                    map_solar_system_id: cmd.map_solar_system_id,
+                    value: false,
+                },
+            });
+            let label = if cmd.value {
+                $set_label
+            } else {
+                $cleared_label
+            };
+            Ok(Effect::new($event, label, CommandOutput::None).undo_with(inverse))
+        }
     };
-    let label = if cmd.value {
-        "set the home system"
-    } else {
-        "cleared the home system"
-    };
-    Ok(Effect::new("systems.home", label, CommandOutput::None).undo_with(inverse))
 }
+
+exclusive_flag!(
+    apply_set_home,
+    SetHome,
+    "select id from map_solar_systems where map_id = $1 and is_home",
+    "update map_solar_systems set is_home = false where map_id = $1 and is_home",
+    "update map_solar_systems set is_home = $1 where id = $2 and map_id = $3",
+    "systems.home",
+    "set the home system",
+    "cleared the home system"
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -810,52 +812,16 @@ pub async fn set_rally(pool: &PgPool, actor: Actor, cmd: SetRally) -> Result<()>
     Ok(())
 }
 
-pub(super) async fn apply_set_rally(tx: &mut Tx<'_>, cmd: SetRally) -> Result<Effect> {
-    let previous: Option<i64> = sqlx::query_scalar!(
-        "select id from map_solar_systems where map_id = $1 and is_rally",
-        cmd.map_id,
-    )
-    .fetch_optional(&mut **tx)
-    .await?;
-    if cmd.value {
-        sqlx::query!(
-            "update map_solar_systems set is_rally = false where map_id = $1 and is_rally",
-            cmd.map_id,
-        )
-        .execute(&mut **tx)
-        .await?;
-    }
-    let updated = sqlx::query!(
-        "update map_solar_systems set is_rally = $1 where id = $2 and map_id = $3",
-        cmd.value,
-        cmd.map_solar_system_id,
-        cmd.map_id,
-    )
-    .execute(&mut **tx)
-    .await?
-    .rows_affected();
-    if updated == 0 {
-        return Err(MapError::NotFound);
-    }
-    let inverse = match previous {
-        Some(id) => MapCommand::SetRally(SetRally {
-            map_id: cmd.map_id,
-            map_solar_system_id: id,
-            value: true,
-        }),
-        None => MapCommand::SetRally(SetRally {
-            map_id: cmd.map_id,
-            map_solar_system_id: cmd.map_solar_system_id,
-            value: false,
-        }),
-    };
-    let label = if cmd.value {
-        "set the rally point"
-    } else {
-        "cleared the rally point"
-    };
-    Ok(Effect::new("systems.rally", label, CommandOutput::None).undo_with(inverse))
-}
+exclusive_flag!(
+    apply_set_rally,
+    SetRally,
+    "select id from map_solar_systems where map_id = $1 and is_rally",
+    "update map_solar_systems set is_rally = false where map_id = $1 and is_rally",
+    "update map_solar_systems set is_rally = $1 where id = $2 and map_id = $3",
+    "systems.rally",
+    "set the rally point",
+    "cleared the rally point"
+);
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]

@@ -30,6 +30,7 @@
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
+	import { atLeast, byRole } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 
@@ -44,7 +45,7 @@
 	let picking = $state(false);
 	let newRole = $state<Role>('member');
 
-	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
+	const canManage = $derived(atLeast(view?.role, 'manager'));
 	// Ownership is not on this list: it moves through the danger zone on the General
 	// section, one owner at a time, rather than being handed out like a permission.
 	const ROLES: Role[] = ['viewer', 'member', 'manager'];
@@ -110,7 +111,6 @@
 		{ key: 'role' as const, label: 'Role' },
 		{ key: 'expires_at' as const, label: 'Ends' }
 	];
-	const RANK: Record<Role, number> = { owner: 0, manager: 1, member: 2, viewer: 3 };
 
 	function sortBy(key: (typeof COLUMNS)[number]['key']) {
 		sort = sort.key === key ? { key, descending: !sort.descending } : { key, descending: false };
@@ -127,7 +127,7 @@
 		const compare = (a: AccessEntry, b: AccessEntry) => {
 			switch (sort.key) {
 				case 'role':
-					return RANK[a.role] - RANK[b.role];
+					return byRole(a.role, b.role);
 				case 'subject_type':
 					return a.subject_type.localeCompare(b.subject_type);
 				case 'expires_at':

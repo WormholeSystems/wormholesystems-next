@@ -35,7 +35,7 @@
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
-	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } =
+	let { map }: { map: MapState } =
 		$props();
 
 	type Column = 'jumps' | 'planet' | 'region' | 'timer';
@@ -215,7 +215,6 @@
 				<span class="font-mono text-amber-400">{live.length}</span>
 			</span>
 			{#snippet actions()}
-				{@render layoutActions?.()}
 				<!-- Tabs rather than a toggle group: the choice is exclusive, and a toggle's
 				     "on" background is the same colour as its hover, so the selected one was
 				     only distinguishable by accident. The line variant marks it with an

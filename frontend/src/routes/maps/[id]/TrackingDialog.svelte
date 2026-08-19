@@ -8,7 +8,6 @@
 
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
@@ -27,6 +26,7 @@
 	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
 	import type { JumpTracker } from './tracking.svelte';
+	import { sizeForJumpMass } from '$lib/map/helpers';
 
 	let { map, tracker }: { map: MapState; tracker: JumpTracker } = $props();
 
@@ -65,14 +65,7 @@
 	}
 
 	/** An identified hole dictates its own size, so the select is locked while one is picked. */
-	const lockedSize = $derived.by<WormholeSize | null>(() => {
-		const jump = typeOf(chosen)?.max_jump_mass;
-		if (!jump) return null;
-		if (jump <= 5_000_000) return 'small';
-		if (jump <= 300_000_000) return 'medium';
-		if (jump <= 1_000_000_000) return 'large';
-		return 'xl';
-	});
+	const lockedSize = $derived(sizeForJumpMass(typeOf(chosen)?.max_jump_mass));
 
 	// Adopt what the signature already says, but only where it says something: a scanned
 	// "stable" should not overwrite a lifetime the user just picked by hand.
@@ -190,10 +183,7 @@
 
 	/** Stop asking, and map the rest of this session's jumps unlinked. */
 	function disablePrompt() {
-		api
-			.updateMapUserSettings(map.mapId, { prompt_for_signature: false })
-			.then((s) => (map.userSettings = s))
-			.catch(() => {});
+		map.patchUserSettings({ prompt_for_signature: false }).catch(() => {});
 		tracker.dismiss();
 	}
 

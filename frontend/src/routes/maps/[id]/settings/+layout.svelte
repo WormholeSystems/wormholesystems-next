@@ -22,6 +22,7 @@
 	import type { MapView } from '$lib/api/types/MapView';
 	import SettingsShell from '$lib/components/settings/SettingsShell.svelte';
 	import type { Section } from '$lib/components/settings/SettingsShell.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 
@@ -36,7 +37,7 @@
 			.catch(() => {});
 	});
 
-	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
+	const canManage = $derived(atLeast(view?.role, 'manager'));
 
 	const sections = $derived.by<Section[]>(() => {
 		const base = `/maps/${mapId}/settings`;

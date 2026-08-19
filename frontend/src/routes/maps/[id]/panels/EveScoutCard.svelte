@@ -33,7 +33,7 @@
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
-	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } =
+	let { map }: { map: MapState } =
 		$props();
 
 	type Column = 'jumps' | 'system' | 'region' | 'signature' | 'type' | 'ttl';
@@ -234,7 +234,6 @@
 				{/if}
 			</span>
 			{#snippet actions()}
-				{@render layoutActions?.()}
 				<Tabs.Root
 					value={hub}
 					onValueChange={(v) => v && (hub = v as Hub)}

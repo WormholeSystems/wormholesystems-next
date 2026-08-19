@@ -2,20 +2,16 @@
 //! connection. All mutations are Member+; reads are Viewer+ (see
 //! [access.md](../../docs/database/access.md)).
 //!
-//! A signature may reference a catalog type (`signature_types`, the seeded legacy
-//! catalog); `name` holds the raw scanner type name when nothing matched. A wormhole
-//! signature carries the hole's `mass_status` / `time_status` / `size` straight from the
-//! scanner — before it's ever linked to a connection. Linking (`link_signature`) sets
-//! `connection_id`, which fires the `map_*_sync` DB triggers (migration 0009): the
-//! connection and its signatures reconcile to the worst state per field, then stay in
-//! lock-step. Only `wormhole`-group signatures may carry a connection or wormhole state.
+//! A signature may reference a catalog type (`signature_types`); `name` holds the raw
+//! scanner type name when nothing matched. Only `wormhole`-group signatures carry
+//! `mass_status` / `time_status` / `size` or a connection. Linking sets `connection_id`,
+//! which fires the `map_*_sync` triggers (migration 0009): the connection and its
+//! signatures reconcile to the worst state per field, then stay in lock-step.
 //!
-//! Paste ([`paste_signatures`]) is upsert-only, mirroring the legacy rules: it never
-//! deletes, never touches life-cycle state, and preserves an existing wormhole type.
-//! Rows that vanished from a scan are removed explicitly via [`remove_signatures`],
-//! which also cascades: a linked signature's connection dies with its last same-side
-//! signature, and connection endpoints left unpinned, unmarked, and connection-less are
-//! removed from the map.
+//! Paste ([`paste_signatures`]) is upsert-only: it never deletes, never touches life-cycle
+//! state, and preserves an existing wormhole type. Rows that vanished from a scan go
+//! through [`remove_signatures`], which cascades: a connection dies with its last same-side
+//! signature, and endpoints left unpinned, unmarked and connection-less leave the map.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -28,7 +24,6 @@ use sqlx::PgPool;
 use super::access::require_role;
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::solar_system::unexpected;
 use super::{Actor, MapEvent, MapHub, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -148,10 +143,9 @@ impl AddSignature {
 /// duplicate `signature_id` in the same system → `Conflict`. Linking to a connection is a
 /// separate step ([`link_signature`]).
 pub async fn add_signature(pool: &PgPool, actor: Actor, cmd: AddSignature) -> Result<Signature> {
-    match execute(pool, actor, MapCommand::AddSignature(cmd)).await? {
-        CommandOutput::Signature(sig) => Ok(*sig),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::AddSignature(cmd))
+        .await?
+        .signature()
 }
 
 pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> Result<Effect> {
@@ -253,10 +247,9 @@ pub async fn update_signature(
     actor: Actor,
     cmd: UpdateSignature,
 ) -> Result<Signature> {
-    match execute(pool, actor, MapCommand::UpdateSignature(cmd)).await? {
-        CommandOutput::Signature(sig) => Ok(*sig),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::UpdateSignature(cmd))
+        .await?
+        .signature()
 }
 
 pub(super) async fn apply_update_signature(
@@ -399,10 +392,9 @@ pub async fn remove_signature(
     actor: Actor,
     cmd: RemoveSignature,
 ) -> Result<RemovedSignature> {
-    match execute(pool, actor, MapCommand::RemoveSignature(cmd)).await? {
-        CommandOutput::Removal(r) => Ok(*r),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::RemoveSignature(cmd))
+        .await?
+        .removal()
 }
 
 pub(super) async fn apply_remove_signature(
@@ -466,10 +458,9 @@ pub async fn remove_signatures(
     actor: Actor,
     cmd: RemoveSignatures,
 ) -> Result<BulkRemoveOutcome> {
-    match execute(pool, actor, MapCommand::RemoveSignatures(cmd)).await? {
-        CommandOutput::BulkRemoval(o) => Ok(*o),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::RemoveSignatures(cmd))
+        .await?
+        .bulk_removal()
 }
 
 pub(super) async fn apply_remove_signatures(
@@ -594,10 +585,9 @@ pub struct LinkSignature {
 /// `wormhole`, and the connection must be on this map and have an endpoint in the
 /// signature's system.
 pub async fn link_signature(pool: &PgPool, actor: Actor, cmd: LinkSignature) -> Result<Signature> {
-    match execute(pool, actor, MapCommand::LinkSignature(cmd)).await? {
-        CommandOutput::Signature(sig) => Ok(*sig),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::LinkSignature(cmd))
+        .await?
+        .signature()
 }
 
 pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) -> Result<Effect> {
@@ -675,10 +665,9 @@ pub async fn unlink_signature(
     actor: Actor,
     cmd: UnlinkSignature,
 ) -> Result<Signature> {
-    match execute(pool, actor, MapCommand::UnlinkSignature(cmd)).await? {
-        CommandOutput::Signature(sig) => Ok(*sig),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::UnlinkSignature(cmd))
+        .await?
+        .signature()
 }
 
 pub(super) async fn apply_unlink_signature(

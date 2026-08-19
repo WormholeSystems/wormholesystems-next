@@ -18,6 +18,7 @@
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
+	import { atLeast } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 
@@ -26,7 +27,7 @@
 	let description = $state('');
 	let error = $state('');
 
-	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
+	const canManage = $derived(atLeast(view?.role, 'manager'));
 	const isOwner = $derived(view?.role === 'owner');
 	const dirty = $derived(
 		!!view &&

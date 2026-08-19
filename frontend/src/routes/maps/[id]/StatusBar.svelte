@@ -17,7 +17,6 @@
 
 	import { page } from '$app/state';
 
-	import { api } from '$lib/api/client';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
@@ -26,12 +25,14 @@
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { historyRows } from './history-tree';
 	import { cn } from '$lib/utils';
+	import { timeAgo } from '$lib/format';
 	import type { MapState } from './map-state.svelte';
 	import TrackingSettings from './TrackingSettings.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	let { map }: { map: MapState } = $props();
 
-	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
+	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 	// Somebody following a share link: they have the map and nothing else, so the warnings
 	// about the acting pilot have nobody to be about.
 	const watching = $derived(page.data.me == null);
@@ -61,22 +62,14 @@
 	function toggleSetting(key: 'tracking_allowed' | 'show_threat_level' | 'show_statics_first') {
 		const current = map.userSettings;
 		if (!current) return;
-		api
-			.updateMapUserSettings(map.mapId, { [key]: !current[key] })
-			.then((s) => {
-				map.userSettings = s;
+		map
+			.patchUserSettings({ [key]: !current[key] })
+			.then(() => {
 				if (key === 'tracking_allowed') map.fetchCharacters();
 			})
 			.catch(() => {});
 	}
 
-	function relative(iso: string): string {
-		const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-		if (secs < 60) return 'just now';
-		if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-		if (secs < 86_400) return `${Math.floor(secs / 3600)}h ago`;
-		return `${Math.floor(secs / 86_400)}d ago`;
-	}
 </script>
 
 {#snippet toggle(
@@ -464,7 +457,7 @@
 												here
 											</span>
 										{:else}
-											<span class="shrink-0 text-muted-foreground">{relative(entry.created_at)}</span>
+											<span class="shrink-0 text-muted-foreground">{timeAgo(entry.created_at)}</span>
 										{/if}
 									</span>
 								</button>

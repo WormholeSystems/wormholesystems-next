@@ -1,12 +1,7 @@
-// The panel grid's placement engine: the subset of react-grid-layout's algorithm the
-// layout editor needs, as pure functions over plain items.
+// The panel grid's placement engine: the subset of react-grid-layout's algorithm the layout
+// editor needs. Hand-rolled because the Svelte grid libraries all peer on Svelte 4.
 //
-// There is no library to lean on here. `svelte-grid-extended` peers on Svelte 4 and
-// `svelte-grid` is Svelte 3/4 era, while this project is on Svelte 5 runes.
-//
-// Everything is pure and order-stable: the same input always yields the same output, and
-// applying a result again is a no-op. That is what makes the interactive behaviour
-// testable without a browser.
+// Pure and order-stable: same input, same output, and applying a result again is a no-op.
 
 export interface GridItem {
 	/** Panel id. Named `i` to match the stored layout shape. */
@@ -39,11 +34,8 @@ function sorted(items: GridItem[]): GridItem[] {
 }
 
 /**
- * Float every item up until it rests on another item or the top, so the layout never
- * keeps a gap that a drag left behind.
- *
- * Items are settled in reading order, which is what makes the result independent of the
- * order they happen to be stored in.
+ * Float every item up until it rests on another or the top. Settled in reading order, so
+ * the result does not depend on how the items happen to be stored.
  */
 export function compact(items: GridItem[], cols: number): GridItem[] {
 	const settled: GridItem[] = [];
@@ -61,9 +53,7 @@ export function compact(items: GridItem[], cols: number): GridItem[] {
 	return items.map((item) => settled.find((s) => s.i === item.i)!);
 }
 
-/**
- * Put `item` at `(x, y)`, settling whatever it lands on out of the way, then compact.
- */
+/** Put `item` at `(x, y)`, settling whatever it lands on out of the way, then compact. */
 export function moveItem(
 	items: GridItem[],
 	id: string,
@@ -104,20 +94,15 @@ export function resizeItem(
 }
 
 /**
- * Settle `anchor` among `others`, moving anything it overlaps out of the way.
- *
- * A displaced item is lifted *above* the anchor when the space it just vacated is clear,
- * and only pushed below when it is not. That distinction is what makes dragging a tile
- * down onto its neighbour swap the two: pushing unconditionally would send the neighbour
- * down, compaction would float the dragged tile straight back up, and the drag would
- * appear to do nothing.
+ * Settle `anchor` among `others`. A displaced item is lifted *above* the anchor when the
+ * space it vacated is clear, which is what makes dragging a tile onto its neighbour swap
+ * the two rather than appear to do nothing.
  */
 function push(others: GridItem[], anchor: GridItem): GridItem[] {
 	const result = others.map((item) => ({ ...item }));
 	const settled: GridItem[] = [anchor];
 
-	// Each pass fixes one item in place; a pushed item can collide with the next, which
-	// the following pass picks up. Bounded because every pass settles one more item.
+	// A pushed item can collide with the next; bounded because each pass settles one more.
 	for (let pass = 0; pass < result.length; pass++) {
 		const hit = sorted(result).find(
 			(item) => !settled.includes(item) && settled.some((s) => collides(item, s))
@@ -133,8 +118,7 @@ function push(others: GridItem[], anchor: GridItem): GridItem[] {
 		if (clear) {
 			hit.y = lifted.y;
 		} else {
-			// Drop until it clears *everything* settled, not just the first blocker found:
-			// landing below one can put it straight on top of another.
+			// Clear everything settled, not just the first blocker: one drop can land on another.
 			let y = hit.y;
 			for (;;) {
 				const under = settled.filter((s) => collides({ ...hit, y }, s));

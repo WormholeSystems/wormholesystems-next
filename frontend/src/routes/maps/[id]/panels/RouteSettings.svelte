@@ -5,7 +5,6 @@
 	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import { Slider } from '$lib/components/ui/slider';
 
-	import { api } from '$lib/api/client';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
@@ -33,10 +32,7 @@
 	];
 
 	function update(patch: Record<string, unknown>) {
-		api
-			.updateMapUserSettings(map.mapId, patch)
-			.then((s) => (map.userSettings = s))
-			.catch(() => {});
+		map.patchUserSettings(patch).catch(() => {});
 	}
 </script>
 

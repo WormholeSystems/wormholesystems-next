@@ -22,7 +22,7 @@
 	import { cn } from '$lib/utils';
 	import type { MapState } from '../map-state.svelte';
 
-	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } =
+	let { map }: { map: MapState } =
 		$props();
 
 	let kills = $state<MapKillmail[]>([]);
@@ -140,7 +140,6 @@
 				{/if}
 			</span>
 			{#snippet actions()}
-				{@render layoutActions?.()}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}

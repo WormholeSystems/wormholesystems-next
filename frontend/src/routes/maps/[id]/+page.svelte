@@ -24,7 +24,6 @@
 	import {
 		NODE_W,
 		curvePath,
-		railAnchors,
 		railEndpoint,
 		centerWorld,
 		edgeColor,
@@ -50,12 +49,13 @@
 	import StatusBar from './StatusBar.svelte';
 	import TrackingDialog from './TrackingDialog.svelte';
 	import { JumpTracker } from './tracking.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const map = $derived(new MapState(mapId, page.data.me != null));
 	// A viewer, including somebody watching a shared map, moves nothing: the canvas reads
 	// the same, but the handles that would start a write are not there to grab.
-	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
+	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 	// Rebuilt with the map, so navigating between maps never carries a half-seen jump over.
 	const tracker = $derived(new JumpTracker(map));
 	// Held so the status bar can bring the guide back after it has been waved away.
@@ -124,12 +124,12 @@
 		tracker.refresh();
 		s.fetchCharacters();
 		const observe = () => tracker.refresh();
-		// Presence has no realtime push yet; poll while the page is open. Own characters
-		// ride along, so a missed push still gets the jump noticed within the interval.
+		// A pilot moving publishes `characters_changed`, and their own status rides the user
+		// socket, so this is only the net under a socket that dropped a frame.
 		const presence = setInterval(() => {
 			s.fetchCharacters();
 			observe();
-		}, 15_000);
+		}, 120_000);
 		// The user socket fires when the character's status changes, which is how a jump is
 		// normally noticed within seconds. Server-status news rides the same channel and
 		// says nothing about where anyone is.

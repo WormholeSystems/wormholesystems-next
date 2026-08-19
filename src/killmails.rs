@@ -1,20 +1,15 @@
-//! Killmail ingest + threat analysis — the legacy rules, ported.
+//! Killmail ingest and threat analysis.
 //!
-//! Ingest: poll zKillboard's R2Z2 sequence stream and persist a **minimal** row per
-//! killmail (id, hash, system, time, participating orgs). The full ESI payload is not
-//! kept; threat analysis only needs who was involved where and when.
+//! Ingest polls zKillboard's R2Z2 stream for a minimal row per killmail; the full ESI
+//! payload is not kept. Backfill imports EVE Ref's daily archives for the same 90-day
+//! window the analysis looks over, since the live stream starts blind.
 //!
-//! Analysis (daily): per wormhole system over the last 90 days, count kills per
-//! organisation (victim + attackers, alliance preferred over corporation, each org at
-//! most once per killmail), keep orgs active on >= 5 distinct days, take the top 10 by
-//! kills; the summed kills decide the threat level: >= 50 critical, >= 15 high, else
-//! unknown.
+//! Analysis, daily, per wormhole system over 90 days: count kills per organisation (victim
+//! and attackers, alliance over corporation, each org once per killmail), keep those active
+//! on >= 5 distinct days, take the top 10. Summed kills set the level: >= 50 critical,
+//! >= 15 high, else unknown.
 //!
-//! Backfill: the live stream only carries kills from now on, so a fresh instance starts
-//! blind. On boot the last 90 days of EVE Ref's daily archives are imported for whatever is
-//! missing, which is the same window the analysis looks over.
-//!
-//! These loops only run when `ZKB_LISTEN=1` (dev machines shouldn't hammer zKillboard).
+//! All three loops only run when `ZKB_LISTEN=1`.
 
 use std::time::Duration;
 
@@ -61,13 +56,9 @@ struct R2Z2Killmail {
 
 /// A killmail's ESI body, narrowed to the fields anything here reads.
 ///
-/// Deliberately typed rather than a `serde_json::Value`. The full body carries every item
-/// the victim was carrying, so building a `Value` allocates a map and a string for hundreds
-/// of entries nobody looks at; against a year of archives that dominates the import. Serde
-/// walks past the fields it is not asked for without allocating.
-///
-/// Every field is optional because these payloads arrive from two sources and a malformed
-/// one should cost a single killmail rather than a whole batch.
+/// Typed rather than `serde_json::Value`: the full body lists every item the victim
+/// carried, and against a year of archives those allocations dominate the import. Every
+/// field is optional so a malformed payload costs one killmail rather than a batch.
 #[derive(Default, Deserialize)]
 struct EsiKillmail {
     killmail_id: Option<i64>,
@@ -80,8 +71,7 @@ struct EsiKillmail {
     attackers: Vec<Participant>,
 }
 
-/// One side of a killmail. The victim never carries `final_blow`, so it defaults false and
-/// both roles share a shape.
+/// One side of a killmail; the victim never carries `final_blow`, so both share a shape.
 #[derive(Default, Deserialize)]
 struct Participant {
     character_id: Option<i64>,
@@ -145,9 +135,7 @@ fn http_client() -> reqwest::Client {
 }
 
 /// Spawn the ingest, backfill and analysis loops (gated by `ZKB_LISTEN=1`).
-///
-/// `KILLMAIL_BACKFILL_DAYS` overrides how much history a boot fills in; 0 turns it off, which
-/// is what the e2e harness does — the tests want a database they seeded, not a real quarter.
+/// `KILLMAIL_BACKFILL_DAYS` overrides how much history a boot fills in; 0 turns it off.
 pub fn start(
     pool: PgPool,
     esi: EsiClient,
@@ -211,11 +199,7 @@ pub struct KillParty {
     pub ship_name: Option<String>,
 }
 
-/// A killmail as the card shows it.
-///
-/// Only what a row renders, rather than the raw payload: the ESI body carries every
-/// attacker and every destroyed item, which for fifty kills is orders of magnitude more
-/// than the handful of fields on screen.
+/// A killmail as the card shows it: what a row renders, not the raw payload.
 #[derive(Debug, Clone, serde::Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct MapKillmail {
@@ -254,10 +238,8 @@ impl KillmailFilter {
     }
 }
 
-/// Recent kills in the systems currently on a map, newest first.
-///
-/// Bounded by time as well as by count, which legacy is not: with only a row cap, a quiet
-/// chain shows kills from a year ago as though they were news.
+/// Recent kills in the systems currently on a map, newest first. Bounded by time as well
+/// as count: a row cap alone shows a quiet chain kills from a year ago as though new.
 pub async fn list_for_map(
     pool: &PgPool,
     map_id: i64,
@@ -351,10 +333,8 @@ pub async fn list_for_map(
 
 /// Put names to the ids on recent killmails.
 ///
-/// Deliberately a separate loop rather than part of the ingest: a killmail must be
-/// recorded whether or not ESI is answering, and the names are only needed by the time
-/// someone looks at the card. Runs often enough that a fresh kill is named within a
-/// minute or two of arriving.
+/// A separate loop from the ingest: a killmail must be recorded whether or not ESI is
+/// answering, and the names are only wanted by the time someone opens the card.
 async fn resolve_loop(pool: PgPool, esi: EsiClient) {
     loop {
         resolve_recent(&pool, &esi).await;
@@ -363,8 +343,7 @@ async fn resolve_loop(pool: PgPool, esi: EsiClient) {
 }
 
 async fn resolve_recent(pool: &PgPool, esi: &EsiClient) {
-    // The window matches what the card can show, so we never fetch a name nobody will
-    // read. `distinct` because a busy system is the same few corps over and over.
+    // Windowed to what the card can show; `distinct` because a busy system repeats orgs.
     let Ok(rows) = sqlx::query!(
         r#"select distinct victim_character_id, victim_corporation_id, victim_alliance_id,
                   final_blow_character_id, final_blow_corporation_id, final_blow_alliance_id
@@ -389,8 +368,7 @@ async fn resolve_recent(pool: &PgPool, esi: &EsiClient) {
         alliances.extend(row.victim_alliance_id);
         alliances.extend(row.final_blow_alliance_id);
     }
-    // Organisations first: they name the most rows per fetch, so if the run is cut short
-    // by a rate limit the card still reads better than it did.
+    // Organisations first: most rows named per fetch if a rate limit cuts the run short.
     crate::entities::ensure(pool, esi, EntityKind::Alliance, &alliances).await;
     crate::entities::ensure(pool, esi, EntityKind::Corporation, &corporations).await;
     crate::entities::ensure(pool, esi, EntityKind::Character, &characters).await;
@@ -488,11 +466,8 @@ async fn ingest_next(
     Ok(true)
 }
 
-/// Offer the kill to the Discord alerts watching for one.
-///
-/// Names are resolved from what is already stored rather than fetched: a message that says
-/// "Someone lost a Loki" the moment it happens beats a complete one a minute later, and the
-/// resolver fills those names in for the next kill anyway.
+/// Offer the kill to the Discord alerts watching for one. Names come from what is already
+/// stored: "Someone lost a Loki" now beats a complete message a minute later.
 async fn alert_on(
     pool: &PgPool,
     alerts: &crate::alerts::Runtime,

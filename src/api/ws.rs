@@ -12,13 +12,9 @@ use crate::auth::AppState;
 use crate::maps::MapHub;
 use crate::user_channel::UserHub;
 
-/// `GET /ws/map/{map_id}` — upgrade to a WebSocket and stream the map's events as JSON.
-/// Gated at the same bar as reading the map: a grant, or the share the map has been opened
-/// with. The stream will eventually carry member-gated data like pilot movement, so
-/// subscription must be authorized, not open.
-///
-/// A watcher following a share link gets the stream too. The frames say only that something
-/// changed, and leaving them out would mean showing a stale chain or polling for one.
+/// `GET /ws/map/{map_id}` — the map's events as JSON, gated at the same bar as reading it:
+/// a grant, or the share it has been opened with. A watcher following a link gets the
+/// stream too; the frames say only that something changed.
 pub async fn map_ws(
     Path(map_id): Path<i64>,
     State(state): State<AppState>,

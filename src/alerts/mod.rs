@@ -299,6 +299,30 @@ pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> 
         .collect())
 }
 
+/// Deliver one alert, once: claim the dedup key, send, and mark it sent — or hand the key
+/// back so a later run can retry, disabling the alert only when the destination is gone.
+///
+/// Every alert kind goes through here, so the protocol is decided in one place rather than
+/// re-derived per kind.
+pub async fn fire(
+    pool: &PgPool,
+    http: &reqwest::Client,
+    bot_token: Option<&str>,
+    alert: &Alert,
+    dedup_key: &str,
+    embed: delivery::Embed,
+) {
+    match deliver(pool, http, bot_token, alert, embed).await {
+        Ok(()) => sent(pool, alert.id, dedup_key).await,
+        Err(fatal) => {
+            unclaim(pool, alert.id, dedup_key).await;
+            if fatal {
+                disable(pool, alert, DisabledReason::DestinationGone, None).await;
+            }
+        }
+    }
+}
+
 /// Send one alert's message, wherever it is meant to go.
 ///
 /// `Err(true)` means the destination is gone and the alert should stop; `Err(false)` means

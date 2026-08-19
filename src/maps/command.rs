@@ -16,7 +16,7 @@ use super::access::require_role_tx;
 use super::connection::{
     AddConnection, CleanStaleConnections, RemoveConnection, SetConnectionStatus,
 };
-use super::error::Result;
+use super::error::{MapError, Result};
 use super::events_log;
 use super::ghost::{AddGhostSystem, ResolveGhostSystem, RestoreGhostSystem};
 use super::jumps::{AddConnectionJump, RemoveConnectionJump, UpdateConnectionJump};
@@ -122,6 +122,70 @@ pub enum CommandOutput {
     Watchlist(Box<super::watchlist::WatchlistEntry>),
     Removal(Box<super::signatures::RemovedSignature>),
     BulkRemoval(Box<super::signatures::BulkRemoveOutcome>),
+}
+
+impl CommandOutput {
+    /// Take the value a command promised. A mismatch is a wiring mistake between the
+    /// command and its `apply`, not something a caller can act on, so it is one error.
+    fn wrong(self) -> MapError {
+        MapError::Validation(format!("unexpected command output: {self:?}"))
+    }
+
+    pub(super) fn system(self) -> Result<MapSolarSystem> {
+        match self {
+            CommandOutput::System(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn connection(self) -> Result<MapConnection> {
+        match self {
+            CommandOutput::Connection(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn signature(self) -> Result<Signature> {
+        match self {
+            CommandOutput::Signature(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn jump(self) -> Result<super::jumps::ConnectionJump> {
+        match self {
+            CommandOutput::Jump(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn watchlist(self) -> Result<super::watchlist::WatchlistEntry> {
+        match self {
+            CommandOutput::Watchlist(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn removal(self) -> Result<super::signatures::RemovedSignature> {
+        match self {
+            CommandOutput::Removal(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn bulk_removal(self) -> Result<super::signatures::BulkRemoveOutcome> {
+        match self {
+            CommandOutput::BulkRemoval(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn count(self) -> Result<u64> {
+        match self {
+            CommandOutput::Count(n) => Ok(n),
+            other => Err(other.wrong()),
+        }
+    }
 }
 
 /// The audit record a command produces, plus its return value.

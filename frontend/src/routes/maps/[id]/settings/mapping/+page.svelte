@@ -15,6 +15,7 @@
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
+	import { atLeast } from '$lib/map/roles';
 
 	const LOCATION_SCOPE = 'esi-location.read_location.v1';
 
@@ -38,7 +39,7 @@
 
 	const hasLocation = $derived(scopes.some((s) => s.scope === LOCATION_SCOPE && s.granted));
 	const tracking = $derived(settings?.tracking_allowed ?? false);
-	const canManage = $derived(view?.role === 'manager' || view?.role === 'owner');
+	const canManage = $derived(atLeast(view?.role, 'manager'));
 	const ghosting = $derived(view?.map.ghost_unlinked_wormholes ?? false);
 
 	async function reload() {

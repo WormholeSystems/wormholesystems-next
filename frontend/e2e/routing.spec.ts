@@ -48,7 +48,8 @@ test('gate route between adjacent systems via the context menu', async ({ page, 
 		.click();
 
 	await expect(page.getByTestId('route-jumps')).toHaveText('1 jumps');
-	await expect(page.getByTestId('route-jumps')).toHaveClass(/text-green-500/);
+	// The same tone every other jump badge uses; they share one function.
+	await expect(page.getByTestId('route-jumps')).toHaveClass(/text-green-400/);
 	const list = page.getByTestId('route-list');
 	await expect(list.getByText('Jita')).toBeVisible();
 	await expect(list.getByText('Perimeter')).toBeVisible();

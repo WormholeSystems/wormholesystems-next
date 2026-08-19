@@ -70,9 +70,6 @@
 			jumps = [];
 		}
 	}
-	$effect(() => {
-		if (logOpen) refreshLog();
-	});
 	// New transits arrive via the map refetch; keep the open log in sync.
 	$effect(() => {
 		void connection.jumps_count;
@@ -166,7 +163,7 @@
 		};
 		if (editing) {
 			map.run(
-				'addJump',
+				'updateJump',
 				api
 					.updateConnectionJump({
 						map_id: map.mapId,

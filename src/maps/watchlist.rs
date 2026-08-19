@@ -8,7 +8,6 @@ use sqlx::PgPool;
 use super::access::require_role;
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::solar_system::unexpected;
 use super::{Actor, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -57,10 +56,9 @@ pub async fn add_watchlist_entry(
     actor: Actor,
     cmd: AddWatchlistEntry,
 ) -> Result<WatchlistEntry> {
-    match execute(pool, actor, MapCommand::AddWatchlistEntry(cmd)).await? {
-        CommandOutput::Watchlist(e) => Ok(*e),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::AddWatchlistEntry(cmd))
+        .await?
+        .watchlist()
 }
 
 pub(super) async fn apply_add_entry(tx: &mut Tx<'_>, cmd: AddWatchlistEntry) -> Result<Effect> {
@@ -101,10 +99,9 @@ pub async fn set_watchlist_pinned(
     actor: Actor,
     cmd: SetWatchlistPinned,
 ) -> Result<WatchlistEntry> {
-    match execute(pool, actor, MapCommand::SetWatchlistPinned(cmd)).await? {
-        CommandOutput::Watchlist(e) => Ok(*e),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::SetWatchlistPinned(cmd))
+        .await?
+        .watchlist()
 }
 
 pub(super) async fn apply_set_pinned(tx: &mut Tx<'_>, cmd: SetWatchlistPinned) -> Result<Effect> {

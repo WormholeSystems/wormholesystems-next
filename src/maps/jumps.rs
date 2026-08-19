@@ -17,7 +17,6 @@ use sqlx::PgPool;
 use super::access::{effective_role, require_role};
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::solar_system::unexpected;
 use super::{Actor, MapEvent, MapHub, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -112,10 +111,9 @@ pub async fn add_jump(
     actor: Actor,
     cmd: AddConnectionJump,
 ) -> Result<ConnectionJump> {
-    match execute(pool, actor, MapCommand::AddConnectionJump(cmd)).await? {
-        CommandOutput::Jump(j) => Ok(*j),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::AddConnectionJump(cmd))
+        .await?
+        .jump()
 }
 
 pub(super) async fn apply_add_jump(tx: &mut Tx<'_>, cmd: AddConnectionJump) -> Result<Effect> {
@@ -189,10 +187,9 @@ pub async fn update_jump(
     actor: Actor,
     cmd: UpdateConnectionJump,
 ) -> Result<ConnectionJump> {
-    match execute(pool, actor, MapCommand::UpdateConnectionJump(cmd)).await? {
-        CommandOutput::Jump(j) => Ok(*j),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::UpdateConnectionJump(cmd))
+        .await?
+        .jump()
 }
 
 pub(super) async fn apply_update_jump(
@@ -278,10 +275,10 @@ pub async fn remove_jump(
     actor: Actor,
     cmd: RemoveConnectionJump,
 ) -> Result<Option<i64>> {
-    match execute(pool, actor, MapCommand::RemoveConnectionJump(cmd)).await? {
-        CommandOutput::Count(n) => Ok((n != 0).then_some(n as i64)),
-        other => Err(unexpected(other)),
-    }
+    let removed = execute(pool, actor, MapCommand::RemoveConnectionJump(cmd))
+        .await?
+        .count()?;
+    Ok((removed != 0).then_some(removed as i64))
 }
 
 pub(super) async fn apply_remove_jump(

@@ -9,7 +9,7 @@ use sqlx::PgPool;
 
 use super::delivery::{Embed, Field, security_color};
 use super::ships::{self, JumpShip};
-use super::{Alert, AlertKind, DisabledReason};
+use super::{Alert, AlertKind};
 
 /// A system with the coordinates jump range is measured from.
 struct Located {
@@ -91,15 +91,7 @@ pub async fn evaluate(
             continue;
         }
         let embed = build(&exit, &target, ship, jdc, distance);
-        match super::deliver(pool, http, bot_token, alert, embed).await {
-            Ok(()) => super::sent(pool, alert.id, &key).await,
-            Err(fatal) => {
-                super::unclaim(pool, alert.id, &key).await;
-                if fatal {
-                    super::disable(pool, alert, DisabledReason::DestinationGone, None).await;
-                }
-            }
-        }
+        super::fire(pool, http, bot_token, alert, &key, embed).await;
     }
 }
 

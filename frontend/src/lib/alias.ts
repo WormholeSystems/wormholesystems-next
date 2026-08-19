@@ -1,24 +1,14 @@
-// Chain aliases: the short names a mapped chain is navigated by.
-//
-// An alias extends its parent's, so the alias itself carries the path: `1` → `11` → `112`
-// numerically, or `A` → `AB` → `ABC` alphabetically. That is what lets a bookmark tell you
-// which way is home without looking at the map, and it is why `guessNextAlias` only has to
-// know the parent's alias and every alias already taken.
+// An alias extends its parent's, so it carries the path: `1` → `11` → `112`, or `A` → `AB`
+// → `ABC`. A bookmark therefore says which way home is without reading the map.
 
 export type AliasScheme = 'numeric' | 'alphabetical';
 
-/**
- * What an alphabetical suggestion is being generated for. K-space exits take a reserved
- * letter so a chain of wormholes is never confused with the way out of it.
- */
+/** K-space exits take a reserved letter, so a wormhole chain never reads as the way out. */
 export type AliasTargetKind = 'wormhole' | 'h' | 'l' | 'n' | 'p';
 
 const KSPACE_KINDS: readonly string[] = ['h', 'l', 'n', 'p'];
 
-/**
- * A-Z with H, L, N and P removed: those are reserved for the k-space exits, so a wormhole
- * child never takes a letter that would read as "this is the way to highsec".
- */
+/** A-Z less H, L, N and P: those are reserved for k-space exits. */
 const WORMHOLE_LETTERS = 'ABCDEFGIJKMOQRSTUVWXYZ';
 
 /** Whether `alias` is the map's ignored alias (e.g. HOME). An empty setting matches nothing. */
@@ -49,9 +39,8 @@ function lowestFree(used: Set<number>): number {
 }
 
 /**
- * The lowest unused letter extending `prefix`. Only aliases exactly one character longer
- * than the prefix count, so k-space exits (`AH1`) and grandchildren (`ABA`) are not
- * mistaken for direct children.
+ * The lowest unused letter extending `prefix`. Only aliases one character longer count, so
+ * k-space exits (`AH1`) and grandchildren (`ABA`) are not mistaken for direct children.
  */
 function nextWormholeLetter(prefix: string, aliases: string[]): string {
 	const used = new Set<number>();
@@ -62,8 +51,7 @@ function nextWormholeLetter(prefix: string, aliases: string[]): string {
 	}
 	let index = 0;
 	while (used.has(index)) index++;
-	// Past 22 direct children the sequence repeats rather than throwing, which mirrors
-	// numeric's own ambiguity rather than blocking the jump on a naming edge case.
+	// Past 22 direct children the sequence repeats rather than blocking the jump.
 	return WORMHOLE_LETTERS[Math.min(index, WORMHOLE_LETTERS.length - 1)];
 }
 
@@ -81,13 +69,10 @@ function nextKspaceIndex(prefix: string, letter: string, aliases: string[]): num
 }
 
 /**
- * The next child alias for a system, given its parent's alias and every alias in use.
- *
- * Numeric: children of `1` are `11`, `12`; children of `12` are `121`. Alphabetical:
- * children extend with a letter, and k-space exits take their reserved letter plus an
- * index. Gaps are filled before the sequence grows, so deleting a system frees its alias.
- * Matching is case-insensitive and suggestions are upper-cased, so a hand-typed lowercase
- * alias still counts as taken.
+ * The next child alias, given the parent's and every alias in use. Numeric children of `1`
+ * are `11`, `12`; alphabetical ones extend with a letter, k-space exits with their reserved
+ * letter plus an index. Gaps are filled before the sequence grows, and matching is
+ * case-insensitive.
  */
 export function guessNextAlias(
 	parentAlias: string | null | undefined,

@@ -50,15 +50,16 @@
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 	import RouteSettings from './RouteSettings.svelte';
+	import { atLeast } from '$lib/map/roles';
 
-	let { map, layoutActions }: { map: MapState; layoutActions?: import('svelte').Snippet } = $props();
+	let { map }: { map: MapState } = $props();
 
 	const PREF_LABELS: Record<string, string> = {
 		shorter: 'Shortest',
 		safer: 'Safer',
 		less_secure: 'Less Secure'
 	};
-	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
+	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 
 	// The routing tables and the assembled graph live on the map state, shared with the
 	// pilots card so both measure distance the same way from one fetch.
@@ -101,12 +102,6 @@
 	// A hovered row anywhere on the page temporarily overrides the pinned A→B highlight.
 	$effect(() => {
 		map.routePath = map.hoverPath ?? abPath;
-	});
-	const jumpTone = $derived.by(() => {
-		const j = abResult?.jumps ?? 0;
-		if (j < 8) return 'text-green-500';
-		if (j < 15) return 'text-amber-500';
-		return 'text-red-500';
 	});
 
 	// --- picker suggestions ---
@@ -305,7 +300,6 @@
 			{PREF_LABELS[map.userSettings?.route_preference ?? 'shorter']}
 		</span>
 		{#snippet actions()}
-			{@render layoutActions?.()}
 			<RouteSettings {map} />
 			{#if canWrite}
 				<Popover.Root bind:open={addOpen}>
@@ -377,7 +371,7 @@
 				<p class="text-muted-foreground" data-testid="no-route">No route found</p>
 			{:else if abResult}
 				<div class="flex items-center justify-between font-medium">
-					<span class={jumpTone} data-testid="route-jumps">{abResult.jumps} jumps</span>
+					<span class={badgeTone(abResult.jumps)} data-testid="route-jumps">{abResult.jumps} jumps</span>
 					<span class="flex items-center gap-2">
 						{#if map.ignoredSystems.size > 0}
 							<button

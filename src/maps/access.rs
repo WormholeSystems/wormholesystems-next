@@ -11,7 +11,14 @@ use super::{Actor, Role, SubjectType};
 /// The user's effective role on a map: the highest role they match across *all* their
 /// characters (a character's own id, its corporation, or its alliance). `None` means no
 /// access at all.
-pub async fn effective_role(pool: &PgPool, map_id: i64, user_id: i64) -> Result<Option<Role>> {
+///
+/// Generic over the executor so the same predicate serves both a pool and an open
+/// transaction; it is the authorization rule, and a second copy of it is a second thing to
+/// get right.
+pub async fn effective_role<'e, E>(executor: E, map_id: i64, user_id: i64) -> Result<Option<Role>>
+where
+    E: sqlx::PgExecutor<'e>,
+{
     let roles = sqlx::query_scalar!(
         r#"select role as "role!: Role"
            from map_access
@@ -27,27 +34,31 @@ pub async fn effective_role(pool: &PgPool, map_id: i64, user_id: i64) -> Result<
         map_id,
         user_id,
     )
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await?;
 
     Ok(roles.into_iter().max())
 }
 
-/// Require at least `min` on the map. Maps the role gap to the canonical errors: no
-/// access at all → `NotFound` (don't reveal the map); access but too low → `Forbidden`.
-/// Returns the actor's actual effective role on success (callers use it for the grant
-/// privilege ceiling).
+/// The role gap as the canonical errors: no access at all is `NotFound` so a map is not
+/// revealed by refusing it; access but too low is `Forbidden`.
+fn require(role: Option<Role>, min: Role) -> Result<Role> {
+    match role {
+        None => Err(MapError::NotFound),
+        Some(role) if role >= min => Ok(role),
+        Some(_) => Err(MapError::Forbidden),
+    }
+}
+
+/// Require at least `min` on the map, returning the actor's actual role (callers use it as
+/// the ceiling on what they may grant).
 pub(super) async fn require_role(
     pool: &PgPool,
     map_id: i64,
     user_id: i64,
     min: Role,
 ) -> Result<Role> {
-    match effective_role(pool, map_id, user_id).await? {
-        None => Err(MapError::NotFound),
-        Some(role) if role >= min => Ok(role),
-        Some(_) => Err(MapError::Forbidden),
-    }
+    require(effective_role(pool, map_id, user_id).await?, min)
 }
 
 /// Who is looking at a map, for the read paths.
@@ -121,28 +132,7 @@ pub(super) async fn require_role_tx(
     user_id: i64,
     min: Role,
 ) -> Result<Role> {
-    let roles = sqlx::query_scalar!(
-        r#"select role as "role!: Role"
-           from map_access
-           where map_id = $1
-             and (expires_at is null or expires_at > now())
-             and subject_id in (
-                 select id from characters where user_id = $2
-                 union all
-                 select corporation_id from characters where user_id = $2
-                 union all
-                 select alliance_id from characters where user_id = $2 and alliance_id is not null
-             )"#,
-        map_id,
-        user_id,
-    )
-    .fetch_all(&mut **tx)
-    .await?;
-    match roles.into_iter().max() {
-        None => Err(MapError::NotFound),
-        Some(role) if role >= min => Ok(role),
-        Some(_) => Err(MapError::Forbidden),
-    }
+    require(effective_role(&mut **tx, map_id, user_id).await?, min)
 }
 
 /// Whether `character_id` belongs to `user_id`.

@@ -11,7 +11,8 @@
 	// already consented to as well, because SSO reissues the token wholesale and legacy's
 	// per-scope link silently dropped the rest. And the settings step disables what the
 	// missing scopes cannot support, rather than offering switches that quietly do nothing.
-	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+import { api } from '$lib/api/client';
+		import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -28,13 +29,13 @@
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
 	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Switch } from '$lib/components/ui/switch';
 	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	let { map }: { map: MapState } = $props();
 
@@ -121,7 +122,7 @@
 	// Placement is the map's, not this viewer's, so it is only offered to someone who can
 	// set it — and only here, where a new map is being set up, rather than in the create
 	// dialog where there is nothing yet to picture.
-	const canManage = $derived(map.data?.role === 'manager' || map.data?.role === 'owner');
+	const canManage = $derived(atLeast(map.data?.role, 'manager'));
 	const placement = $derived(map.data?.map.layout === 'tree' ? 'tree' : 'manual');
 	const PLACEMENTS = [
 		{
@@ -139,17 +140,13 @@
 	];
 
 	function setPlacement(layout: 'manual' | 'tree') {
-		api
-			.updateMap({ map_id: map.mapId, layout })
-			.then(() => map.refetch())
-			.catch((err) => toast.error(`setup: ${(err as Error).message}`));
+		map.run('setPlacement', api.updateMap({ map_id: map.mapId, layout }));
 	}
 
 	function update(patch: Record<string, boolean>) {
-		api
-			.updateMapUserSettings(map.mapId, patch)
-			.then((s) => {
-				map.userSettings = s;
+		map
+			.patchUserSettings(patch)
+			.then(() => {
 				if ('tracking_allowed' in patch) map.fetchCharacters();
 			})
 			.catch((err) => toast.error(`setup: ${(err as Error).message}`));

@@ -29,11 +29,11 @@
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
+	import { atLeast } from '$lib/map/roles';
 
-	let { map, system, layoutActions }: {
+	let { map, system }: {
 		map: MapState;
 		system: MapSystemView;
-		layoutActions?: import('svelte').Snippet;
 	} = $props();
 
 	let catalog = $state<SignatureCatalog | null>(null);
@@ -44,7 +44,7 @@
 	// A ghost has no system to scan against, so the panel says so instead of offering a
 	// paste box that the server would refuse.
 	const systemId = $derived(system.solar_system_id);
-	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer' && systemId !== null);
+	const canWrite = $derived(atLeast(map.data?.role, 'member') && systemId !== null);
 	const compact = $derived(map.userSettings?.compact_signature_list ?? false);
 	const showStaticsFirst = $derived(map.userSettings?.show_statics_first ?? false);
 
@@ -258,7 +258,7 @@
 	}
 
 	async function setSetting(patch: Record<string, boolean>) {
-		map.userSettings = await api.updateMapUserSettings(map.mapId, patch);
+		await map.patchUserSettings(patch);
 	}
 </script>
 
@@ -274,7 +274,6 @@
 			<span class="ml-1 text-muted-foreground/70">{hiddenCount} hidden</span>
 		{/if}
 		{#snippet actions()}
-			{@render layoutActions?.()}
 			<Button
 				variant="ghost"
 				size="icon"

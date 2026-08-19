@@ -12,7 +12,7 @@ use sqlx::PgPool;
 use super::delivery::{Embed, Field, security_color};
 use super::killmail::chain_of;
 use super::proximity::{self, Universe};
-use super::{Alert, AlertKind, DisabledReason};
+use super::{Alert, AlertKind};
 
 /// Evaluate every proximity alert on a map after a system landed on it.
 pub async fn evaluate(
@@ -73,15 +73,7 @@ pub async fn evaluate(
             added.as_ref().map(|row| row.name.as_str()),
             map_id,
         );
-        match super::deliver(pool, http, bot_token, alert, embed).await {
-            Ok(()) => super::sent(pool, alert.id, &key).await,
-            Err(fatal) => {
-                super::unclaim(pool, alert.id, &key).await;
-                if fatal {
-                    super::disable(pool, alert, DisabledReason::DestinationGone, None).await;
-                }
-            }
-        }
+        super::fire(pool, http, bot_token, alert, &key, embed).await;
     }
 }
 

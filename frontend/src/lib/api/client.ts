@@ -128,8 +128,6 @@ function del<T>(path: string): Promise<T> {
 
 export const api = {
 	// Auth / identity
-	me: () => get<CharacterSummary | null>('/api/me'),
-	meStatus: () => get<CharacterStatus | null>('/api/me/status'),
 	myCharacters: () => get<CharacterRef[]>('/api/me/characters'),
 	myScopes: () => get<ScopeStatus[]>('/api/me/scopes'),
 	myDiscord: () => get<DiscordAccount | null>('/api/me/discord'),

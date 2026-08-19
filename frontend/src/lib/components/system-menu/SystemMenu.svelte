@@ -25,6 +25,7 @@
 	import { isWormholeClass } from '$lib/map/classes';
 	import { centerWorld, freePosition } from '$lib/map/helpers';
 	import type { MapState } from '../../../routes/maps/[id]/map-state.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	let {
 		system,
@@ -45,7 +46,7 @@
 	const isWormhole = $derived(isWormholeClass(system.wormhole_class_id));
 	const underscore = (s: string) => s.replaceAll(' ', '_');
 
-	const canWrite = $derived(map !== undefined && (map.data?.role ?? 'viewer') !== 'viewer');
+	const canWrite = $derived(map !== undefined && atLeast(map.data?.role, 'member'));
 	const placement = $derived(
 		map?.systems.find((s) => s.solar_system_id === system.id) ?? null
 	);

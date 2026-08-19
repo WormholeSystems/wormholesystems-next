@@ -12,7 +12,7 @@ use sqlx::PgPool;
 
 use super::delivery::{Embed, Field, Footer, Image, security_color};
 use super::proximity::{self, Universe};
-use super::{Alert, AlertKind, DisabledReason, filters};
+use super::{Alert, AlertKind, filters};
 
 /// Everything a message needs to say about one kill.
 pub struct Kill {
@@ -79,15 +79,7 @@ pub async fn evaluate(
             .map(|s| s.name)
             .unwrap_or_default();
         let embed = build(kill, &system, &from, found.jumps);
-        match super::deliver(pool, http, bot_token, alert, embed).await {
-            Ok(()) => super::sent(pool, alert.id, &key).await,
-            Err(fatal) => {
-                super::unclaim(pool, alert.id, &key).await;
-                if fatal {
-                    super::disable(pool, alert, DisabledReason::DestinationGone, None).await;
-                }
-            }
-        }
+        super::fire(pool, http, bot_token, alert, &key, embed).await;
     }
 }
 

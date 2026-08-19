@@ -8,6 +8,7 @@ import type { CharacterRef } from '$lib/api/types/CharacterRef';
 import type { MapCharacter } from '$lib/api/types/MapCharacter';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+import type { UpdateMapUserSettings } from '$lib/api/types/UpdateMapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
 import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
 import type { Signature } from '$lib/api/types/Signature';
@@ -31,6 +32,7 @@ import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import { NODE_W, clamp } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
+import { orphanedSystems } from '$lib/map/orphans';
 import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
 import { MAP_ACTIONS, type MapAction } from './actions';
@@ -585,19 +587,18 @@ export class MapState {
 
 	saveLayout() {
 		const layouts = resolveLayouts(this.layoutDraft);
-		api
-			.updateMapUserSettings(this.mapId, {
+		this.run(
+			'saveLayout',
+			this.patchUserSettings({
 				layout_breakpoints: layouts,
 				hidden_panels: this.userSettings?.hidden_panels ?? []
-			})
-			.then((s) => {
-				this.userSettings = s;
-				this.layoutSaved = s.layout_breakpoints ?? null;
+			}).then((saved) => {
+				this.layoutSaved = saved.layout_breakpoints ?? null;
 				this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
 				this.hiddenDirty = false;
 				this.editingLayout = false;
 			})
-			.catch((err) => toast.error(`layout: ${(err as Error).message}`));
+		);
 	}
 
 	/**
@@ -824,44 +825,26 @@ export class MapState {
 	 */
 	setLayoutOverride(mode: 'manual' | 'tree') {
 		const own = mode === this.data?.map.layout ? null : mode;
-		this.settingsVersion++;
 		if (this.userSettings) {
 			this.userSettings = { ...this.userSettings, layout_override: own ?? undefined };
 		}
-		api
-			.updateMapUserSettings(this.mapId, { layout_override: own })
-			.then((s) => (this.userSettings = s))
-			.catch((err) => toast.error(`placement: ${(err as Error).message}`));
+		this.patchUserSettings({ layout_override: own }).catch((err) =>
+			toast.error(`placement: ${(err as Error).message}`)
+		);
 	}
 
 	/**
-	 * The dead branches: systems no anchor still reaches through the connections, where an
-	 * anchor is a pinned system or the home system — the places you said the chain hangs
-	 * from. What is left over when a hole collapses and takes its branch with it.
-	 *
-	 * A map with no anchors at all has nothing orphaned rather than everything: without a
-	 * place to measure from, "unreachable" would mean the whole map.
+	 * Write one or more of the viewer's own settings. Everything goes through here so the
+	 * version guard covers every write, not just the one that happened to have it.
 	 */
-	orphaned = $derived.by<MapSystemView[]>(() => {
-		const anchors = this.systems.filter((s) => s.is_pinned || s.is_home).map((s) => s.id);
-		if (anchors.length === 0) return [];
+	async patchUserSettings(patch: UpdateMapUserSettings): Promise<MapUserSettings> {
+		this.settingsVersion++;
+		const saved = await api.updateMapUserSettings(this.mapId, patch);
+		this.userSettings = saved;
+		return saved;
+	}
 
-		const neighbours = new Map<number, number[]>();
-		for (const c of this.connections) {
-			neighbours.set(c.from_system, [...(neighbours.get(c.from_system) ?? []), c.to_system]);
-			neighbours.set(c.to_system, [...(neighbours.get(c.to_system) ?? []), c.from_system]);
-		}
-		const reachable = new Set(anchors);
-		const queue = [...anchors];
-		while (queue.length > 0) {
-			for (const next of neighbours.get(queue.pop()!) ?? []) {
-				if (reachable.has(next)) continue;
-				reachable.add(next);
-				queue.push(next);
-			}
-		}
-		return this.systems.filter((s) => !reachable.has(s.id));
-	});
+	orphaned = $derived(orphanedSystems(this.systems, this.connections));
 
 	/** Take the dead branches off the map. */
 	cleanMap() {

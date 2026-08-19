@@ -356,11 +356,10 @@ pub async fn list_history(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Ma
 
     // Everything on the path from a root to the head is in effect; everything else is an
     // undone branch.
-    let applied: Vec<i64> = match head {
-        None => Vec::new(),
-        Some(h) => {
-            sqlx::query_scalar!(
-                r#"with recursive chain as (
+    let applied: std::collections::HashSet<i64> = match head {
+        None => std::collections::HashSet::new(),
+        Some(h) => sqlx::query_scalar!(
+            r#"with recursive chain as (
                    select id, parent_id from map_events
                    where id = $1 and map_id = $2 and is_step
                    union all
@@ -369,12 +368,13 @@ pub async fn list_history(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Ma
                    where e.map_id = $2 and e.is_step
                )
                select id as "id!" from chain"#,
-                h,
-                map_id,
-            )
-            .fetch_all(pool)
-            .await?
-        }
+            h,
+            map_id,
+        )
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .collect(),
     };
 
     let rows = sqlx::query!(

@@ -21,6 +21,7 @@
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { NODE_W, centerWorld, freePosition, heuristicSize } from '$lib/map/helpers';
 	import type { MapState } from './map-state.svelte';
+	import { atLeast } from '$lib/map/roles';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
 
@@ -29,7 +30,7 @@
 	// Monotonic request id: drop responses that arrive out of order while typing.
 	let generation = 0;
 
-	const canWrite = $derived((map.data?.role ?? 'viewer') !== 'viewer');
+	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 	// Threat hits are systems too, but they answer a different question — where does this
 	// corp operate — so they get their own section rather than being mixed into results
 	// that matched by name.

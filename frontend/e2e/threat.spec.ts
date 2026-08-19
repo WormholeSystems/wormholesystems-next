@@ -61,7 +61,8 @@ test('threat ring, setting toggle, and threat card', async ({ page, api }) => {
 		'href',
 		`https://zkillboard.com/alliance/99000001/system/${J122515}/`
 	);
-	await expect(card.getByText(/Analyzed .* ago/)).toBeVisible();
+	// A fresh analysis reads "just now" rather than "0 min ago".
+	await expect(card.getByText(/Analyzed (just now|.* ago)/)).toBeVisible();
 });
 
 test('unknown threat shows no ring and an empty card', async ({ page, api }) => {

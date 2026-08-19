@@ -176,10 +176,9 @@ pub async fn add_ghost_system(
     actor: Actor,
     cmd: AddGhostSystem,
 ) -> Result<MapSolarSystem> {
-    match execute(pool, actor, MapCommand::AddGhostSystem(cmd)).await? {
-        CommandOutput::System(placed) => Ok(*placed),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::AddGhostSystem(cmd))
+        .await?
+        .system()
 }
 
 pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem) -> Result<Effect> {
@@ -290,10 +289,9 @@ pub async fn resolve_ghost_system(
     actor: Actor,
     cmd: ResolveGhostSystem,
 ) -> Result<MapSolarSystem> {
-    match execute(pool, actor, MapCommand::ResolveGhostSystem(cmd)).await? {
-        CommandOutput::System(placed) => Ok(*placed),
-        other => Err(unexpected(other)),
-    }
+    execute(pool, actor, MapCommand::ResolveGhostSystem(cmd))
+        .await?
+        .system()
 }
 
 pub(super) async fn apply_resolve_ghost_system(
