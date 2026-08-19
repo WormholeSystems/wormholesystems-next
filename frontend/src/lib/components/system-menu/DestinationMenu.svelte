@@ -29,7 +29,7 @@
 
 	function waypoint(characterId: number, clearOthers: boolean) {
 		map?.run(
-			'waypoint',
+			'setWaypoint',
 			api.setWaypoint({
 				character_id: characterId,
 				destination_id: destinationId,
@@ -40,7 +40,7 @@
 
 	function waypointAll(clearOthers: boolean) {
 		map?.run(
-			'waypoint',
+			'setWaypoint',
 			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers })
 		);
 	}

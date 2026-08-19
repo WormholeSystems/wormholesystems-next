@@ -74,7 +74,7 @@
 	function deleteSelection() {
 		const ids = [...map.selected];
 		map.selected = new Set();
-		map.run('remove', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
+		map.run('removeSystems', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
 		close();
 	}
 
@@ -95,7 +95,7 @@
 
 	function clearMap() {
 		if (confirm('Clear the map? This removes all systems except home and pinned ones.')) {
-			map.run('clear map', api.clearMap({ map_id: map.mapId }));
+			map.run('clearMap', api.clearMap({ map_id: map.mapId }));
 		}
 		close();
 	}
@@ -122,22 +122,22 @@
 	}
 
 	function setStatus(id: number, status: SystemStatus) {
-		map.run('status', api.setStatus({ map_id: map.mapId, map_solar_system_id: id, status }));
+		map.run('setStatus', api.setStatus({ map_id: map.mapId, map_solar_system_id: id, status }));
 		close();
 	}
 
 	function togglePin(id: number, value: boolean) {
-		map.run('pin', api.setPinned({ map_id: map.mapId, map_solar_system_id: id, value }));
+		map.run('setPinned', api.setPinned({ map_id: map.mapId, map_solar_system_id: id, value }));
 		close();
 	}
 
 	function toggleHome(id: number, value: boolean) {
-		map.run('home', api.setHome({ map_id: map.mapId, map_solar_system_id: id, value }));
+		map.run('setHome', api.setHome({ map_id: map.mapId, map_solar_system_id: id, value }));
 		close();
 	}
 
 	function toggleRally(id: number, value: boolean) {
-		map.run('rally', api.setRally({ map_id: map.mapId, map_solar_system_id: id, value }));
+		map.run('setRally', api.setRally({ map_id: map.mapId, map_solar_system_id: id, value }));
 		close();
 	}
 
@@ -145,7 +145,7 @@
 	function removeSystem(id: number) {
 		const ids = map.selected.size > 0 ? [...map.selected] : [id];
 		map.selected = new Set();
-		map.run('remove', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
+		map.run('removeSystems', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
 		close();
 	}
 
@@ -155,7 +155,7 @@
 
 	function waypoint(characterId: number, destinationId: number, clearOthers: boolean) {
 		map.run(
-			'waypoint',
+			'setWaypoint',
 			api.setWaypoint({
 				character_id: characterId,
 				destination_id: destinationId,
@@ -167,7 +167,7 @@
 
 	function waypointAll(destinationId: number, clearOthers: boolean) {
 		map.run(
-			'waypoint',
+			'setWaypoint',
 			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers })
 		);
 		close();
@@ -182,13 +182,13 @@
 	);
 
 	function setKind(cid: number, kind: ConnectionType) {
-		map.run('conn type', api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, kind }));
+		map.run('setConnectionType', api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, kind }));
 		close();
 	}
 
 	function setMass(cid: number, mass: MassStatus) {
 		map.run(
-			'conn mass',
+			'setConnectionMass',
 			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, mass_status: mass })
 		);
 		close();
@@ -196,7 +196,7 @@
 
 	function setLifetime(cid: number, time: TimeStatus) {
 		map.run(
-			'conn lifetime',
+			'setConnectionLifetime',
 			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, time_status: time })
 		);
 		close();
@@ -204,14 +204,14 @@
 
 	function setSize(cid: number, size: WormholeSize) {
 		map.run(
-			'conn size',
+			'setConnectionSize',
 			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, size })
 		);
 		close();
 	}
 
 	function removeConnection(cid: number) {
-		map.run('del conn', api.removeConnection({ map_id: map.mapId, connection_id: cid }));
+		map.run('removeConnection', api.removeConnection({ map_id: map.mapId, connection_id: cid }));
 		close();
 	}
 

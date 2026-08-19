@@ -258,7 +258,7 @@
 			const pending = { ...map.pending };
 			for (const m of moves) pending[m.map_solar_system_id] = { x: m.x, y: m.y };
 			map.pending = pending;
-			map.run('move', api.moveSystems({ map_id: map.mapId, moves }));
+			map.run('moveSystems', api.moveSystems({ map_id: map.mapId, moves }));
 		}
 		// Finish a connection drag → connect if released over a node.
 		if (map.linking) {
@@ -271,7 +271,7 @@
 			const ghost = map.systems.some((s) => s.id === target && s.solar_system_id === null);
 			if (target !== null && target !== l.from && !ghost) {
 				map.run(
-					'connect',
+					'addConnection',
 					api.addConnection({
 						map_id: map.mapId,
 						from_system: l.from,
@@ -321,7 +321,7 @@
 				ev.preventDefault();
 				map.selected = new Set();
 				map.run(
-					'remove',
+					'removeSystems',
 					api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids })
 				);
 			}
@@ -432,7 +432,7 @@
 		if (s.solar_system_id !== null) {
 			writes.push(api.setOccupier({ map_id: map.mapId, map_solar_system_id: s.id, occupier }));
 		}
-		map.run('alias', Promise.all(writes));
+		map.run('setAlias', Promise.all(writes));
 	}
 
 </script>

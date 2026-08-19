@@ -53,7 +53,7 @@
 	function save() {
 		const value = draft.trim() || null;
 		map.run(
-			'notes',
+			'setNotes',
 			api.setNotes({ map_id: map.mapId, map_solar_system_id: system.id, notes: value })
 		);
 		notes = value;

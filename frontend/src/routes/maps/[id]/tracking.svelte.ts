@@ -320,7 +320,7 @@ export class JumpTracker {
 			signature && catalog ? typeById(catalog, signature.signature_type_id) : null;
 
 		this.map.run(
-			'track jump',
+			'trackJump',
 			api.trackJump({
 				map_id: this.map.mapId,
 				from_map_solar_system_id: choice.origin.id,
@@ -341,7 +341,7 @@ export class JumpTracker {
 	/** The ghost turned out to be a real system: name it where it already sits. */
 	private resolve(ghostPlacementId: number, solarSystemId: number) {
 		this.map.run(
-			'assign system',
+			'assignSystem',
 			api.resolveGhostSystem({
 				map_id: this.map.mapId,
 				map_solar_system_id: ghostPlacementId,

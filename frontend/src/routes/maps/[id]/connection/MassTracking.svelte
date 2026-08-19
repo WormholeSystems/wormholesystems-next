@@ -166,7 +166,7 @@
 		};
 		if (editing) {
 			map.run(
-				'jump',
+				'addJump',
 				api
 					.updateConnectionJump({
 						map_id: map.mapId,
@@ -179,7 +179,7 @@
 			);
 		} else {
 			map.run(
-				'jump',
+				'addJump',
 				api
 					.addConnectionJump({
 						map_id: map.mapId,
@@ -195,7 +195,7 @@
 
 	function deleteJump(jump: ConnectionJump) {
 		map.run(
-			'rm jump',
+			'removeJump',
 			api.removeConnectionJump({ map_id: map.mapId, jump_pk: jump.id }).then(refreshLog)
 		);
 	}

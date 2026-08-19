@@ -247,7 +247,9 @@ inside the same transaction.
 
 - **Auth:** `Member`.
 - **Effect:** delete the `map_solar_systems` row. The DB cascades the system's
-  **signatures** and any **connections** it is an endpoint of. Its **details persist**.
+  **signatures** and any **connections** it is an endpoint of, and the command takes the
+  signatures on the *other* side of those connections too: a signature is the record of a
+  hole, so removing where the hole led removes the hole. Its **details persist**.
 - **Invariants:**
   - The placement, its signatures, and its connections are gone.
   - Its `map_solar_system_details` row (if any) still exists — round-trips on re-add.

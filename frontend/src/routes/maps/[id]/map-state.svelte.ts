@@ -33,6 +33,9 @@ import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
 import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
+import { MAP_ACTIONS, type MapAction } from './actions';
+import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
+import { timeAgo } from '$lib/format';
 
 /**
  * Zoom range and step, matching the legacy map: half size is where node text stops being
@@ -639,7 +642,7 @@ export class MapState {
 	}
 
 	cleanStale() {
-		this.run('clean', api.cleanStaleConnections({ map_id: this.mapId }));
+		this.run('cleanStale', api.cleanStaleConnections({ map_id: this.mapId }));
 	}
 
 	async fetchHistory() {
@@ -650,17 +653,25 @@ export class MapState {
 		}
 	}
 
+	// Undo and redo are read before they run: the step being walked past is the head now,
+	// and after the call it is somewhere else. "Undone" alone leaves you to work out what
+	// went, which on a map somebody else is also editing is not obvious.
 	undo() {
-		this.run('undo', api.undoMapEvent(this.mapId));
+		this.run('undo', api.undoMapEvent(this.mapId), this.stepDetail(this.headEntry));
 	}
 
 	redo() {
-		this.run('redo', api.redoMapEvent(this.mapId));
+		this.run('redo', api.redoMapEvent(this.mapId), this.stepDetail(this.redoEntry));
 	}
 
 	/** Jump the map to any step, which is how a branch left behind by an undo is re-entered. */
 	gotoEvent(eventId: number | null) {
-		this.run('history', api.gotoMapEvent({ map_id: this.mapId, event_id: eventId }));
+		const target = this.entries.find((e) => e.id === eventId) ?? null;
+		this.run(
+			'goToEvent',
+			api.gotoMapEvent({ map_id: this.mapId, event_id: eventId }),
+			eventId === null ? 'Back to the empty map' : this.stepDetail(target)
+		);
 	}
 
 	async refetch() {
@@ -703,15 +714,28 @@ export class MapState {
 	}
 
 	/**
-	 * Run an API call and refetch (the WS event also arrives — both are idempotent).
+	 * Run an action and refetch (the WS event also arrives — both are idempotent).
 	 *
-	 * Only failures say anything: a successful change is visible on the map, so an "ok" per
-	 * action would be noise that buries the ones worth reading.
+	 * What it says on the way out lives in [`MAP_ACTIONS`], not here and not at the call
+	 * site: every action fails in words, and the few whose result you cannot see also say
+	 * when they land.
 	 */
-	run(label: string, promise: Promise<unknown>) {
+	run(action: MapAction, promise: Promise<unknown>, detail?: string) {
+		const copy = MAP_ACTIONS[action];
 		promise
-			.then(() => this.refetch())
-			.catch((err) => toast.error(`${label}: ${(err as Error).message}`));
+			.then(() => {
+				if ('done' in copy && copy.done) {
+					toast.success(copy.done, { description: detail });
+				}
+				return this.refetch();
+			})
+			.catch((err) => toast.error(copy.failed, { description: (err as Error).message }));
+	}
+
+	/** What a history step was, for saying which one was just walked past. */
+	private stepDetail(entry: MapEventEntry | null): string | undefined {
+		if (!entry) return undefined;
+		return `${entry.label} · ${timeAgo(entry.created_at)}`;
 	}
 
 	/**

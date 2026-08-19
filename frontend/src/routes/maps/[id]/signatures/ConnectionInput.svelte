@@ -77,14 +77,14 @@
 	function pick(value: string) {
 		if (value === 'unlink') {
 			if (sig.connection_id !== null) {
-				map.run('unlink', api.unlinkSignature({ map_id: map.mapId, signature_pk: sig.id }));
+				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk: sig.id }));
 			}
 			return;
 		}
 		const connectionId = Number(value);
 		if (!Number.isFinite(connectionId) || connectionId === sig.connection_id) return;
 		map.run(
-			'link',
+			'linkSignature',
 			api.linkSignature({ map_id: map.mapId, signature_pk: sig.id, connection_id: connectionId })
 		);
 	}

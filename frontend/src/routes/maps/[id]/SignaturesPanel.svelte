@@ -181,7 +181,7 @@
 		preIds = new Set(mySigs.map((s) => s.signature_id));
 		pasted = rows;
 		map.run(
-			'paste sigs',
+			'pasteSignatures',
 			api.pasteSignatures({
 				map_id: map.mapId,
 				solar_system_id: systemId,
@@ -214,7 +214,7 @@
 
 	function deleteMissing() {
 		map.run(
-			'delete missing sigs',
+			'removeMissingSignatures',
 			api.removeSignaturesBulk({
 				map_id: map.mapId,
 				signature_pks: deletedSigs.map((s) => s.id)
@@ -245,7 +245,7 @@
 		newId = '';
 		if (value.length === 7 && systemId !== null) {
 			map.run(
-				'add sig',
+				'addSignature',
 				api.addSignature({
 					map_id: map.mapId,
 					solar_system_id: systemId,

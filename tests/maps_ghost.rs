@@ -726,3 +726,57 @@ async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
     .await
     .unwrap();
 }
+
+#[sqlx::test]
+async fn removing_a_system_takes_the_signature_that_led_to_it(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = add_ghost_system(
+        &pool,
+        w.owner,
+        AddGhostSystem {
+            map_id: w.map_id,
+            from_system: home,
+            signature_pk: Some(sig),
+            x: 10.0,
+            y: 20.0,
+            alias: None,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Taking the far side off the map takes the hole with it: the signature it was
+    // scanned as is the same fact, and leaving it behind puts the node back on the next
+    // paste.
+    remove_system(
+        &pool,
+        w.owner,
+        RemoveSystem {
+            map_id: w.map_id,
+            map_solar_system_id: ghost.id,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(
+        list_signatures(&pool, w.owner, w.map_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    // And one undo brings the node, its edge and the signature back, still linked.
+    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
+        .await
+        .unwrap();
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert_eq!(sigs.len(), 1);
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.connections.len(), 1);
+    assert_eq!(sigs[0].connection_id, Some(view.connections[0].id));
+}

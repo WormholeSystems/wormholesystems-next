@@ -90,7 +90,7 @@
 
 	function update(patch: Record<string, unknown>) {
 		map.run(
-			'sig update',
+			'updateSignature',
 			api.updateSignature({ map_id: map.mapId, signature_pk: sig.id, ...patch })
 		);
 	}
@@ -133,13 +133,13 @@
 	}
 
 	function remove() {
-		map.run('rm sig', api.removeSignature({ map_id: map.mapId, signature_pk: sig.id }));
+		map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk: sig.id }));
 	}
 
 	function togglePreserveMass() {
 		if (!connection) return;
 		map.run(
-			'preserve mass',
+			'setPreserveMass',
 			api.setConnectionStatus({
 				map_id: map.mapId,
 				connection_id: connection.id,

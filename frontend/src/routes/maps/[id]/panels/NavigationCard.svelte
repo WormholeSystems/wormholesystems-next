@@ -491,7 +491,7 @@
 								aria-label="Pin {r?.name ?? entry.solar_system_id}"
 								onclick={() =>
 									map.run(
-										'pin',
+										'setPinned',
 										api.setWatchlistPinned({
 											map_id: map.mapId,
 											entry_id: entry.id,

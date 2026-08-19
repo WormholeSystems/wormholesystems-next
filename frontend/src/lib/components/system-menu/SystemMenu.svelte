@@ -61,7 +61,7 @@
 		const base = centerWorld(map.pan, map.zoom, map.viewportRect());
 		const spot = freePosition(map.systems, base, map.grid);
 		map.run(
-			'add',
+			'addSystem',
 			api.addSystem({
 				map_id: map.mapId,
 				solar_system_id: system.id,
@@ -81,7 +81,7 @@
 
 	function waypoint(characterId: number, clearOthers: boolean) {
 		map?.run(
-			'waypoint',
+			'setWaypoint',
 			api.setWaypoint({
 				character_id: characterId,
 				destination_id: system.id,
@@ -92,7 +92,7 @@
 
 	function waypointAll(clearOthers: boolean) {
 		map?.run(
-			'waypoint',
+			'setWaypoint',
 			api.setWaypointAll({ destination_id: system.id, clear_other_waypoints: clearOthers })
 		);
 	}
@@ -100,7 +100,7 @@
 	function toggleRally() {
 		if (!map || !placement) return;
 		map.run(
-			'rally',
+			'setRally',
 			api.setRally({
 				map_id: map.mapId,
 				map_solar_system_id: placement.id,

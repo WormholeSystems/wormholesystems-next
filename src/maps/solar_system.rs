@@ -247,6 +247,7 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
     ids.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &ids, &[]).await?);
 
     let snapshot = capture_systems(tx, cmd.map_id, &ids).await?;
+    remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
     // The predicate lives on the delete, not only in the check above: a guard a caller has
     // to remember is a guard that eventually gets forgotten.
     let deleted = sqlx::query!(
@@ -310,6 +311,7 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     removable.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &removable, &[]).await?);
 
     let snapshot = capture_systems(tx, cmd.map_id, &removable).await?;
+    remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
     // Repeating the predicate on the delete is deliberate: the query that removes rows
     // carries the rule, so it holds even if the selection above is ever changed or a new
     // caller arrives that does not know about it. `clear_map` has always worked this way.
@@ -981,6 +983,28 @@ impl RestoreSystems {
     }
 }
 
+/// Take the signatures the snapshot claimed which the database will not cascade: the ones
+/// in the systems *staying* on the map, linked to a connection that is about to die with
+/// its endpoint. Run before the placements go, while their connections still name them.
+async fn remove_captured_signatures(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    snapshot: &RestoreSystems,
+) -> Result<()> {
+    let ids: Vec<i64> = snapshot.signatures.iter().map(|s| s.id).collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    sqlx::query!(
+        "delete from signatures where map_id = $1 and id = any($2)",
+        map_id,
+        &ids,
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 /// Snapshot placements and their cascade so a removal can be undone.
 pub(super) async fn capture_systems(
     tx: &mut Tx<'_>,
@@ -1013,15 +1037,22 @@ pub(super) async fn capture_systems(
     .fetch_all(&mut **tx)
     .await?;
 
+    // Both sides of the hole: this system's own scan, and the signature in the system
+    // across each dying connection. A signature is the record of a hole, and taking the
+    // system it led to away takes the hole with it.
+    let connection_ids: Vec<i64> = connections.iter().map(|c| c.id).collect();
     let signatures = sqlx::query_as!(
         RestoredSignature,
         r#"select id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
                   signature_type_id, name, size as "size: WormholeSize",
                   mass_status as "mass_status: MassStatus",
                   time_status as "time_status: TimeStatus", connection_id
-           from signatures where map_id = $1 and solar_system_id = any($2)"#,
+           from signatures
+           where map_id = $1
+             and (solar_system_id = any($2) or connection_id = any($3))"#,
         map_id,
         &system_ids,
+        &connection_ids,
     )
     .fetch_all(&mut **tx)
     .await?;

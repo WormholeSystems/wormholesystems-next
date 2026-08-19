@@ -60,7 +60,7 @@
 								class="text-xs"
 								onclick={() =>
 									map.run(
-										'waypoint',
+										'setWaypoint',
 										api.setWaypoint({
 											character_id: c.character_id,
 											destination_id: destinationId,
@@ -78,7 +78,7 @@
 								class="text-xs"
 								onclick={() =>
 									map.run(
-										'waypoint',
+										'setWaypoint',
 										api.setWaypointAll({
 											destination_id: destinationId,
 											clear_other_waypoints: true

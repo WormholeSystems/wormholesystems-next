@@ -132,7 +132,7 @@
 		open = false;
 		if (from === null || from === target) return;
 		map.run(
-			'connect',
+			'addConnection',
 			api.addConnection({
 				map_id: map.mapId,
 				from_system: from,
@@ -150,7 +150,7 @@
 		open = false;
 		if (ghost === null) return;
 		map.run(
-			'assign system',
+			'assignSystem',
 			api.resolveGhostSystem({
 				map_id: map.mapId,
 				map_solar_system_id: ghost,
@@ -183,7 +183,7 @@
 		open = false;
 		const at = freePosition(map.systems, base, map.grid);
 		map.run(
-			'add',
+			'addSystem',
 			(async () => {
 				const placed = await api.addSystem({
 					map_id: map.mapId,

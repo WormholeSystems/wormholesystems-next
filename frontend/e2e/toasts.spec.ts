@@ -32,3 +32,27 @@ test('a failed action says why, and a silent one confirms itself', async ({ page
 
 	await api.delete(`/api/maps/${mapId}`);
 });
+
+test('undo says what it undid, not just that it undid something', async ({ page, api }) => {
+	const res = await api.post('/api/maps', { data: { name: 'E2E UndoToast' } });
+	const mapId = (await res.json()).id as number;
+	await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 300, alias: null }
+	});
+	await gotoApp(page, `/maps/${mapId}`);
+	await expect(page.getByTestId('system-node')).toHaveCount(1);
+
+	await page.getByTestId('undo-button').click();
+
+	// Read it in one go: toasts clear themselves, so three waits in a row outlive it.
+	const toast = page.locator('[data-sonner-toast]');
+	await expect(toast).toContainText('Undone');
+	const said = (await toast.textContent()) ?? '';
+	// What it undid, and when that happened.
+	expect(said).toContain('added J122515');
+	// And when, which for a step you just took reads as "just now".
+	expect(said).toMatch(/just now|ago/);
+	await expect(page.getByTestId('system-node')).toHaveCount(0);
+
+	await api.delete(`/api/maps/${mapId}`);
+});
