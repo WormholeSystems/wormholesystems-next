@@ -15,7 +15,9 @@ use vector::maps::signatures::{
     AddSignature, PasteSignatures, PastedSignature, UpdateSignature, add_signature,
     list_signatures, paste_signatures, update_signature,
 };
-use vector::maps::solar_system::{AddSystem, RemoveSystem, add_system, remove_system};
+use vector::maps::solar_system::{
+    AddSystem, RemoveSystem, SetPinned, add_system, remove_system, set_pinned,
+};
 use vector::maps::{Actor, MapError, Role, SignatureGroup};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
@@ -662,4 +664,65 @@ async fn a_real_system_left_without_connections_stays(pool: PgPool) {
         .unwrap();
     assert_eq!(view.systems.len(), 1);
     assert_eq!(view.systems[0].id, far);
+}
+
+#[sqlx::test]
+async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let ghost = add_ghost_system(
+        &pool,
+        w.owner,
+        AddGhostSystem {
+            map_id: w.map_id,
+            from_system: home,
+            signature_pk: None,
+            x: 10.0,
+            y: 20.0,
+            alias: None,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Pinning holds a node still, roots the tree layout and is passed over by every
+    // sweep, which would leave this one behind when its connection goes.
+    assert!(matches!(
+        set_pinned(
+            &pool,
+            w.owner,
+            SetPinned {
+                map_id: w.map_id,
+                map_solar_system_id: ghost.id,
+                value: true,
+            }
+        )
+        .await,
+        Err(MapError::Validation(_)),
+    ));
+
+    // Once it is a system, it pins like any other.
+    resolve_ghost_system(
+        &pool,
+        w.owner,
+        ResolveGhostSystem {
+            map_id: w.map_id,
+            map_solar_system_id: ghost.id,
+            solar_system_id: Some(SYS_B),
+        },
+    )
+    .await
+    .unwrap();
+    set_pinned(
+        &pool,
+        w.owner,
+        SetPinned {
+            map_id: w.map_id,
+            map_solar_system_id: ghost.id,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
 }

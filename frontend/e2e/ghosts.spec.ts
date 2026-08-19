@@ -69,6 +69,7 @@ test('a pasted wormhole becomes a node, and assigning a system names it', async 
 	await ghost.click({ button: 'right' });
 	await expect(page.getByRole('button', { name: 'Assign a system' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Add connection' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Pin', exact: true })).toHaveCount(0);
 	await page.keyboard.press('Escape');
 
 	// And the API says the same, whichever end the connection is asked for.

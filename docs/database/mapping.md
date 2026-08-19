@@ -75,8 +75,10 @@ kind of node anywhere. What a ghost cannot have is anything keyed by *system*:
 - Unique `(map_id, solar_system_id)` — a system appears at most once per map. Nulls are
   distinct in Postgres, so this caps real systems without capping ghosts.
 - A system always has an `(x, y)` position while placed.
-- A ghost is never **home** or **rally** — both mean a place you can go, and a ghost is
-  not one yet.
+- A ghost is never **home**, **rally** or **pinned** (a check constraint). The first two
+  mean a place you can go; pinning means a place you have decided matters, which holds the
+  node still, roots the tree layout and is passed over by every sweep — that last one
+  would let a ghost outlive the connection it is the far side of.
 - Nothing may be **connected** to a ghost by hand, from either end: an edge out of it
   would claim the unknown system on its far side leads somewhere, which is the one thing
   nobody knows yet. The hole's own connection, made when it is raised, is the only one it

@@ -276,11 +276,11 @@ which would unmount these buttons before their click can fire. -->
 			</button>
 			<div class="my-0.5 border-t border-border"></div>
 		{/if}
-		<button class={item} onclick={() => togglePin(s.id, !s.is_pinned)}>
-			<PinIcon class="size-4" />
-			{s.is_pinned ? 'Unpin' : 'Pin'}
-		</button>
 		{#if s.solar_system_id !== null}
+			<button class={item} onclick={() => togglePin(s.id, !s.is_pinned)}>
+				<PinIcon class="size-4" />
+				{s.is_pinned ? 'Unpin' : 'Pin'}
+			</button>
 			<button class={item} onclick={() => connectFrom(s.id)}>
 				<WaypointsIcon class="size-4" />
 				Add connection

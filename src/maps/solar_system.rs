@@ -871,6 +871,24 @@ pub async fn set_pinned(pool: &PgPool, actor: Actor, cmd: SetPinned) -> Result<(
 }
 
 pub(super) async fn apply_set_pinned(tx: &mut Tx<'_>, cmd: SetPinned) -> Result<Effect> {
+    // Pinning marks a place you have decided matters: it holds the node still, roots the
+    // tree layout, and is passed over by every sweep. A hole nobody has been through is
+    // none of those things yet.
+    if cmd.value {
+        let system = sqlx::query_scalar!(
+            "select solar_system_id from map_solar_systems where id = $1 and map_id = $2",
+            cmd.map_solar_system_id,
+            cmd.map_id,
+        )
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(MapError::NotFound)?;
+        if system.is_none() {
+            return Err(MapError::Validation(
+                "assign a system to that hole before pinning it".into(),
+            ));
+        }
+    }
     let updated = sqlx::query!(
         "update map_solar_systems set is_pinned = $1 where id = $2 and map_id = $3",
         cmd.value,
