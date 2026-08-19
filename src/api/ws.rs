@@ -32,7 +32,7 @@ pub async fn map_ws(
             .flatten(),
         None => None,
     };
-    let token = crate::api::handlers::share_cookie(&jar, map_id);
+    let token = crate::api::extract::share_cookie(&jar, map_id);
 
     match crate::maps::access::reader_for(&state.db, map_id, actor, token.as_deref()).await {
         Ok(_) => ws.on_upgrade(move |socket| stream_map_events(socket, state.hub, map_id)),

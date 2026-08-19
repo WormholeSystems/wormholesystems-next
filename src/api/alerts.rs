@@ -4,7 +4,9 @@
 //! somebody's Discord server; the people who can hand out map access are the people who
 //! should be able to point the map at a channel.
 
+use axum::Router;
 use axum::extract::{Path, State};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, extract::Query};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
@@ -16,6 +18,31 @@ use crate::auth::AppState;
 use crate::maps::{MapError, Role};
 
 use super::{ApiError, ApiResult, require_actor};
+
+/// The routes this module owns, merged into the API router.
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/maps/{id}/alerts", get(list_alerts).post(create_alert))
+        .route("/api/maps/{id}/alerts/events", get(list_alert_events))
+        .route(
+            "/api/maps/{id}/alerts/{alert_id}",
+            put(update_alert).delete(delete_alert),
+        )
+        .route(
+            "/api/maps/{id}/alerts/{alert_id}/active",
+            post(set_alert_active),
+        )
+        .route(
+            "/api/maps/{id}/webhooks",
+            get(list_webhooks).post(create_webhook),
+        )
+        .route(
+            "/api/maps/{id}/webhooks/{webhook_id}",
+            delete(delete_webhook),
+        )
+        .route("/api/maps/{id}/roles", get(list_roles).post(create_role))
+        .route("/api/maps/{id}/roles/{role_id}", delete(delete_role))
+}
 
 /// One alert as the settings page shows it.
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]

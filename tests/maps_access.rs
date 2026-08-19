@@ -228,10 +228,6 @@ async fn access_via_corporation_grant(pool: PgPool) {
 #[sqlx::test]
 async fn map_view_flags_an_active_character_without_its_own_grant(pool: PgPool) {
     use vector::maps::Actor;
-    use vector::maps::access::reader_for;
-    use vector::maps::map::{
-        GetMap, UpdateMap, get_map, read_map, revoke_share_token, rotate_share_token, update_map,
-    };
 
     let w = world(&pool).await;
     let user = new_user(&pool).await;

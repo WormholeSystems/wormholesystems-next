@@ -26,3 +26,16 @@ with layered access control and Discord alerting.
   refresh) and the data it touches.
 - [`ui-style-guide.md`](./ui-style-guide.md) — the interface design language: slim,
   minimal, monochrome, theme tokens, and which component libraries to use.
+
+## Code layout
+
+- `src/api/` — the HTTP boundary, one module per area of the API (`maps`, `systems`,
+  `connections`, `signatures`, `watchlist`, `search`, `access`, `history`, `identity`,
+  `reference`, …). Each owns its handlers, the routes that reach them, and the wire types
+  it serves; `extract.rs` holds the request plumbing they share, and `router()` is the
+  merge of their routers. Adding an endpoint means touching one file.
+- `src/maps/` — the actions themselves: the authorized, validated, undoable commands the
+  API calls into. This is where the rules live; the API layer only decodes and dispatches.
+- `src/esi/`, `src/sde/`, `src/seed/` — talking to EVE: the live API, the static data
+  export, and loading the latter into the database.
+- `src/alerts/`, `src/discord/` — what a map watches for, and where the notices go.
