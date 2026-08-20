@@ -13,10 +13,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use super::command::{CommandOutput, Effect, MapCommand, Sequence, Tx, execute};
-use super::connection::AddConnection;
+use super::connection::{AddConnection, SetConnectionStatus};
 use super::error::{MapError, Result};
-use super::solar_system::MapSolarSystem;
-use super::{Actor, ConnectionType, WormholeSize};
+use super::solar_system::{MapSolarSystem, SetAlias};
+use super::{Actor, ConnectionType, MassStatus, TimeStatus, WormholeSize};
 
 /// Node width in world px, and the clear space kept between nodes, both mirroring
 /// `frontend/src/lib/map/helpers.ts` so a server-placed node lands on the same lattice.
@@ -264,7 +264,11 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
 
 /// Say which system a ghost turned out to be. `solar_system_id: None` takes it back to a
 /// ghost, and exists as the inverse of the first form rather than as an action of its own.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+///
+/// The rest is what flying the hole taught us about it, carried here rather than sent as
+/// follow-up writes so that one jump stays one undo. All of it is ignored when taking a
+/// node back to a ghost.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct ResolveGhostSystem {
     pub map_id: i64,
@@ -272,6 +276,29 @@ pub struct ResolveGhostSystem {
     #[serde(default)]
     #[ts(optional)]
     pub solar_system_id: Option<i64>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub alias: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub size: Option<WormholeSize>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub mass_status: Option<MassStatus>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub time_status: Option<TimeStatus>,
+}
+
+impl ResolveGhostSystem {
+    /// The inverse form: take this node back to being a ghost.
+    fn unresolve(map_id: i64, map_solar_system_id: i64) -> Self {
+        ResolveGhostSystem {
+            map_id,
+            map_solar_system_id,
+            ..Default::default()
+        }
+    }
 }
 
 /// Assign a system to a ghost, merging into the existing placement if the map already has
@@ -330,7 +357,51 @@ pub(super) async fn apply_resolve_ghost_system(
     .fetch_optional(&mut **tx)
     .await?;
 
-    match existing {
+    // Whatever survives the merge is what carries the alias; the ghost row may not.
+    let surviving = existing.unwrap_or(cmd.map_solar_system_id);
+    let mut undo = Vec::new();
+    if let Some(alias) = cmd.alias.clone() {
+        let effect = super::solar_system::apply_set_alias(
+            tx,
+            SetAlias {
+                map_id: cmd.map_id,
+                map_solar_system_id: surviving,
+                alias: Some(alias),
+            },
+        )
+        .await?;
+        undo.extend(effect.inverse);
+    }
+    if cmd.size.is_some() || cmd.mass_status.is_some() || cmd.time_status.is_some() {
+        // Connections keep their id through a merge, so this holds either way.
+        let connection_id = sqlx::query_scalar!(
+            "select id from map_connections
+             where map_id = $1 and (from_system = $2 or to_system = $2)
+             order by id limit 1",
+            cmd.map_id,
+            cmd.map_solar_system_id,
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+        if let Some(connection_id) = connection_id {
+            let effect = super::connection::apply_set_connection_status(
+                tx,
+                SetConnectionStatus {
+                    map_id: cmd.map_id,
+                    connection_id,
+                    kind: None,
+                    mass_status: cmd.mass_status.map(Some),
+                    time_status: cmd.time_status.map(Some),
+                    size: cmd.size.map(Some),
+                    preserve_mass: None,
+                },
+            )
+            .await?;
+            undo.extend(effect.inverse);
+        }
+    }
+
+    let effect = match existing {
         Some(target) => merge(tx, cmd.map_id, cmd.map_solar_system_id, target, &name).await,
         None => {
             let placed = sqlx::query_as!(
@@ -349,13 +420,26 @@ pub(super) async fn apply_resolve_ghost_system(
                 format!("scanned that hole as {name}"),
                 CommandOutput::System(Box::new(placed)),
             )
-            .undo_with(MapCommand::ResolveGhostSystem(ResolveGhostSystem {
-                map_id: cmd.map_id,
-                map_solar_system_id: cmd.map_solar_system_id,
-                solar_system_id: None,
-            })))
+            .undo_with(MapCommand::ResolveGhostSystem(
+                ResolveGhostSystem::unresolve(cmd.map_id, cmd.map_solar_system_id),
+            )))
         }
+    }?;
+
+    Ok(with_undo_steps(cmd.map_id, undo, effect))
+}
+
+/// Put the alias and status back before the node itself goes, so one jump is one undo.
+/// A change that was not undoable in the first place stays that way.
+fn with_undo_steps(map_id: i64, mut steps: Vec<MapCommand>, mut effect: Effect) -> Effect {
+    if steps.is_empty() {
+        return effect;
     }
+    let Some(inverse) = effect.inverse.take() else {
+        return effect;
+    };
+    steps.push(inverse);
+    effect.undo_with(MapCommand::Sequence(Sequence { map_id, steps }))
 }
 
 /// Back to a ghost. Refuses once the system holds a scan, because those rows hang off the
@@ -401,9 +485,8 @@ async fn unresolve(
         CommandOutput::System(Box::new(placed)),
     )
     .undo_with(MapCommand::ResolveGhostSystem(ResolveGhostSystem {
-        map_id,
-        map_solar_system_id,
         solar_system_id: Some(current),
+        ..ResolveGhostSystem::unresolve(map_id, map_solar_system_id)
     })))
 }
 
@@ -545,11 +628,7 @@ pub(super) async fn apply_restore_ghost_system(
     .fetch_one(&mut **tx)
     .await?;
 
-    let inverse = MapCommand::ResolveGhostSystem(ResolveGhostSystem {
-        map_id: cmd.map_id,
-        map_solar_system_id: cmd.id,
-        solar_system_id: None,
-    });
+    let inverse = MapCommand::ResolveGhostSystem(ResolveGhostSystem::unresolve(cmd.map_id, cmd.id));
     Ok(Effect::new(
         "systems.added",
         "put the unscanned hole back",

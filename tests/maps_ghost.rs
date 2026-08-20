@@ -12,13 +12,13 @@ use vector::maps::ghost::{
 };
 use vector::maps::map::{GetMap, get_map};
 use vector::maps::signatures::{
-    AddSignature, PasteSignatures, PastedSignature, UpdateSignature, add_signature,
-    list_signatures, paste_signatures, update_signature,
+    AddSignature, PasteSignatures, PastedSignature, RemoveSignature, UpdateSignature,
+    add_signature, list_signatures, paste_signatures, remove_signature, update_signature,
 };
 use vector::maps::solar_system::{
     AddSystem, RemoveSystem, SetPinned, add_system, remove_system, set_pinned,
 };
-use vector::maps::{Actor, MapError, Role, SignatureGroup};
+use vector::maps::{Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus, WormholeSize};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     add_system(
@@ -161,6 +161,7 @@ async fn resolving_names_the_ghost_and_keeps_where_it_sits(pool: PgPool) {
             map_id: w.map_id,
             map_solar_system_id: ghost.id,
             solar_system_id: Some(SYS_B),
+            ..Default::default()
         },
     )
     .await
@@ -180,6 +181,7 @@ async fn resolving_names_the_ghost_and_keeps_where_it_sits(pool: PgPool) {
                 map_id: w.map_id,
                 map_solar_system_id: ghost.id,
                 solar_system_id: Some(SYS_C),
+                ..Default::default()
             }
         )
         .await,
@@ -216,6 +218,7 @@ async fn a_ghost_that_leads_back_into_the_chain_is_merged(pool: PgPool) {
             map_id: w.map_id,
             map_solar_system_id: ghost.id,
             solar_system_id: Some(SYS_C),
+            ..Default::default()
         },
     )
     .await
@@ -267,6 +270,7 @@ async fn a_ghost_cannot_lead_to_the_system_it_hangs_off(pool: PgPool) {
                 map_id: w.map_id,
                 map_solar_system_id: ghost.id,
                 solar_system_id: Some(SYS_A),
+                ..Default::default()
             }
         )
         .await,
@@ -301,6 +305,7 @@ async fn undoing_a_merge_puts_the_ghost_back_with_its_edge(pool: PgPool) {
             map_id: w.map_id,
             map_solar_system_id: ghost.id,
             solar_system_id: Some(SYS_C),
+            ..Default::default()
         },
     )
     .await
@@ -353,6 +358,7 @@ async fn undoing_a_resolve_makes_it_a_ghost_again(pool: PgPool) {
             map_id: w.map_id,
             map_solar_system_id: ghost.id,
             solar_system_id: Some(SYS_B),
+            ..Default::default()
         },
     )
     .await
@@ -710,6 +716,7 @@ async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
             map_id: w.map_id,
             map_solar_system_id: ghost.id,
             solar_system_id: Some(SYS_B),
+            ..Default::default()
         },
     )
     .await
@@ -779,4 +786,164 @@ async fn removing_a_system_takes_the_signature_that_led_to_it(pool: PgPool) {
         .unwrap();
     assert_eq!(view.connections.len(), 1);
     assert_eq!(sigs[0].connection_id, Some(view.connections[0].id));
+}
+
+/// The jump dialog collects an alias and the hole's size and lifetime. When the signature
+/// it names is already drawn as a ghost, resolving is the write that happens, so it has to
+/// carry them: they used to be dropped and nothing the dialog was told took effect.
+#[sqlx::test]
+async fn resolving_applies_what_the_jump_learned(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let ghost = add_ghost_system(
+        &pool,
+        w.owner,
+        AddGhostSystem {
+            map_id: w.map_id,
+            from_system: home,
+            signature_pk: None,
+            x: 10.0,
+            y: 20.0,
+            alias: None,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let resolved = resolve_ghost_system(
+        &pool,
+        w.owner,
+        ResolveGhostSystem {
+            map_id: w.map_id,
+            map_solar_system_id: ghost.id,
+            solar_system_id: Some(SYS_B),
+            alias: Some("2b".into()),
+            size: Some(WormholeSize::Medium),
+            mass_status: Some(MassStatus::Critical),
+            time_status: Some(TimeStatus::Critical),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(resolved.alias.as_deref(), Some("2b"));
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    let edge = &view.connections[0];
+    assert_eq!(edge.size, Some(WormholeSize::Medium));
+    assert_eq!(edge.mass_status, Some(MassStatus::Critical));
+    assert_eq!(edge.time_status, Some(TimeStatus::Critical));
+
+    // One jump, one undo: the node goes back to a ghost and takes the rest with it.
+    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
+        .await
+        .unwrap();
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    let node = view.systems.iter().find(|s| s.id == ghost.id).unwrap();
+    assert_eq!(node.solar_system_id, None, "back to a ghost");
+    assert_eq!(node.alias, None);
+    // Back to unset, which is what an unflown hole is: not "stable", just unknown.
+    assert_eq!(view.connections[0].mass_status, None);
+    assert_eq!(view.connections[0].time_status, None);
+}
+
+/// A ghost is the far side of one hole. Delete the signature that described it and the
+/// node has nothing left to mean, so it goes with the connection rather than sitting
+/// there unreachable.
+#[sqlx::test]
+async fn deleting_the_signature_takes_its_ghost(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = add_ghost_system(
+        &pool,
+        w.owner,
+        AddGhostSystem {
+            map_id: w.map_id,
+            from_system: home,
+            signature_pk: Some(sig),
+            x: 10.0,
+            y: 20.0,
+            alias: None,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let outcome = remove_signature(
+        &pool,
+        w.owner,
+        RemoveSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(outcome.removed_placement_ids, vec![ghost.id]);
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert!(view.connections.is_empty());
+    assert_eq!(
+        view.systems.iter().map(|s| s.id).collect::<Vec<_>>(),
+        vec![home],
+        "only the system someone actually placed is left"
+    );
+}
+
+/// The same delete against a real system leaves it alone: someone put it there.
+#[sqlx::test]
+async fn deleting_the_signature_leaves_a_real_system(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let far = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let edge = vector::maps::connection::add_connection(
+        &pool,
+        w.owner,
+        vector::maps::connection::AddConnection {
+            map_id: w.map_id,
+            from_system: home,
+            to_system: far,
+            kind: vector::maps::ConnectionType::Wormhole,
+            size: None,
+        },
+    )
+    .await
+    .unwrap();
+    vector::maps::signatures::link_signature(
+        &pool,
+        w.owner,
+        vector::maps::signatures::LinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+            connection_id: edge.id,
+        },
+    )
+    .await
+    .unwrap();
+
+    let outcome = remove_signature(
+        &pool,
+        w.owner,
+        RemoveSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert!(outcome.removed_placement_ids.is_empty());
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 2);
 }

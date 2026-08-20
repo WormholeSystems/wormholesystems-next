@@ -331,6 +331,16 @@ pub async fn update_map_user_settings(
     )
     .fetch_one(&state.db)
     .await?;
+
+    // Whether this user shares their position decides whether they appear on everyone
+    // else's pilot list, and the poller only announces maps that are already shared: with
+    // nothing published here, switching it off never reaches the other viewers at all.
+    if body.tracking_allowed.is_some() {
+        state
+            .hub
+            .publish(crate::maps::MapEvent::CharactersChanged { map_id });
+    }
+
     Ok(Json(MapUserSettings {
         layout_override: row.layout_override,
         is_pinned: row.is_pinned,

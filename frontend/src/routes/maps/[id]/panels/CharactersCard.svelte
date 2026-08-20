@@ -17,6 +17,7 @@
 	import { cn } from '$lib/utils';
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
+	import RouteOriginBadge from './RouteOriginBadge.svelte';
 
 	let { map }: { map: MapState } =
 		$props();
@@ -79,6 +80,9 @@
 				Pilots
 				<span class="font-mono text-amber-400">{pilots.length}</span>
 			</span>
+			{#snippet actions()}
+				<RouteOriginBadge {map} />
+			{/snippet}
 		</MapPanelHeader>
 		<MapPanelContent>
 			{#if pilots.length === 0}

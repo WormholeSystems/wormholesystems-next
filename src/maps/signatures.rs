@@ -378,12 +378,15 @@ pub struct RemoveSignature {
 pub struct RemovedSignature {
     pub solar_system_id: i64,
     pub removed_connection_id: Option<i64>,
+    /// Ghosts the removed connection stranded. A real system is left where it is.
+    pub removed_placement_ids: Vec<i64>,
 }
 
 /// Delete a signature. Legacy cascade: if it was the last signature on its side of a
 /// linked connection, the connection goes too (the other end's signature, if any, is
-/// unlinked by the FK). Endpoint systems are left in place; that cleanup belongs to the
-/// bulk path ([`remove_signatures`]).
+/// unlinked by the FK). Real endpoint systems are left in place; that cleanup belongs to
+/// the bulk path ([`remove_signatures`]). A ghost is not one of those: it exists only as
+/// the far side of the hole this signature described, so it goes with the connection.
 pub async fn remove_signature(
     pool: &PgPool,
     actor: Actor,
@@ -410,12 +413,17 @@ pub(super) async fn apply_remove_signature(
     .ok_or(MapError::NotFound)?;
 
     let mut removed_connection_id = None;
-    if let Some(conn_id) = sig.connection_id
-        && delete_connection_if_side_empty(tx, cmd.map_id, conn_id, sig.solar_system_id)
+    let mut removed_placement_ids = Vec::new();
+    if let Some(conn_id) = sig.connection_id {
+        // Asked before the delete, while the edge is still there to be counted.
+        let stranded = super::ghost::stranded_ghosts(tx, cmd.map_id, &[], &[conn_id]).await?;
+        if delete_connection_if_side_empty(tx, cmd.map_id, conn_id, sig.solar_system_id)
             .await?
             .is_some()
-    {
-        removed_connection_id = Some(conn_id);
+        {
+            removed_connection_id = Some(conn_id);
+            removed_placement_ids = drop_placements(tx, cmd.map_id, &stranded).await?;
+        }
     }
 
     Ok(Effect::new(
@@ -424,6 +432,7 @@ pub(super) async fn apply_remove_signature(
         CommandOutput::Removal(Box::new(RemovedSignature {
             solar_system_id: sig.solar_system_id,
             removed_connection_id,
+            removed_placement_ids,
         })),
     )
     .undo_with(MapCommand::RestoreSignatures(restore)))
@@ -534,6 +543,19 @@ pub(super) async fn apply_remove_signatures(
     )
     .entries(count)
     .undo_with(MapCommand::RestoreSignatures(restore)))
+}
+
+async fn drop_placements(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<Vec<i64>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(sqlx::query_scalar!(
+        "delete from map_solar_systems where map_id = $1 and id = any($2) returning id",
+        map_id,
+        ids,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
 }
 
 /// Delete `conn_id` if no signature in `side_system` still references it (the legacy

@@ -187,6 +187,12 @@ pub async fn remove_signature(
             connection_id,
         });
     }
+    for map_solar_system_id in outcome.removed_placement_ids {
+        state.hub.publish(MapEvent::SystemRemoved {
+            map_id,
+            map_solar_system_id,
+        });
+    }
     Ok(Json(()))
 }
 

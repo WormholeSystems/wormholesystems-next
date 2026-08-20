@@ -319,13 +319,15 @@ test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 	await gotoApp(page, `/maps/${mapId}`);
 	await setRoute(page, 'J122515', 'Jita');
 
-	// Unscanned, the hop can only say that it is a wormhole.
+	// The marker stays the same width whatever it knows; hovering is what tells you.
 	const marker = page.getByTestId('route-wormhole').first();
 	await expect(marker).toHaveText('WH');
-	await expect(marker).toHaveAttribute('title', /not scanned/);
+	await marker.hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('not scanned');
 
-	// Once a signature on the departure side is linked, the hop names it: that is what you
-	// actually look for in the scanner.
+	// Move off, so the next hover opens a fresh tooltip rather than reading the open one.
+	await page.mouse.move(0, 0);
+
 	const sig = await api.post(`/api/maps/${mapId}/signatures/add`, {
 		data: { map_id: mapId, solar_system_id: J122515, signature_id: 'QRS-481', group: 'wormhole' }
 	});
@@ -334,8 +336,10 @@ test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 		data: { map_id: mapId, signature_pk: sigId, connection_id: connId }
 	});
 
-	await expect(marker).toHaveText('QRS-481');
-	await expect(marker).toHaveAttribute('title', 'Take wormhole QRS-481');
+	// Linked, the tooltip names the signature: that is what you look for in the scanner.
+	await expect(marker).toHaveText('WH');
+	await marker.hover();
+	await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Take wormhole QRS-481');
 });
 
 test('viewers see the watchlist read-only', async ({ page, api, browser }) => {

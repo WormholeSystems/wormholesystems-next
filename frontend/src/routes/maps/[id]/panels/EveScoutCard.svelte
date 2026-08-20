@@ -16,6 +16,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -220,6 +221,7 @@
 				{/if}
 			</span>
 			{#snippet actions()}
+				<RouteOriginBadge {map} />
 				<Tabs.Root
 					value={hub}
 					onValueChange={(v) => v && (hub = v as Hub)}

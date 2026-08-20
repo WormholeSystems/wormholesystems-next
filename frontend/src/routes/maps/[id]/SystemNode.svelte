@@ -130,7 +130,7 @@
 		data-threat={threatRing}
 		data-ghost={ghost ? 'true' : undefined}
 		class="group/node absolute flex flex-col justify-center rounded border bg-card px-2 py-0.5 text-[11px] leading-tight shadow-sm transition-colors duration-200
-			{ghost ? 'border-dashed bg-card/60' : ''}
+			{ghost ? 'border-dashed' : ''}
 			{selected ? 'bg-amber-100 dark:bg-amber-900' : ''}
 			{active ? 'z-10 ring-2 ring-amber-500 ring-offset-2 ring-offset-background' : ''}
 			{highlighted ? 'z-20 outline-2 outline-yellow-500' : ''}

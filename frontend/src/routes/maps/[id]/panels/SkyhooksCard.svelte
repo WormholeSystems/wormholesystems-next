@@ -14,6 +14,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -205,6 +206,7 @@
 				<span class="font-mono text-amber-400">{live.length}</span>
 			</span>
 			{#snippet actions()}
+				<RouteOriginBadge {map} />
 				<!-- Tabs rather than a toggle group: a toggle's "on" background is the same colour
 				     as its hover, so the selected one was only distinguishable by accident. -->
 				<Tabs.Root

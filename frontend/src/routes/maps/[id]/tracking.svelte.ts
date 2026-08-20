@@ -5,6 +5,7 @@
 
 import { api } from '$lib/api/client';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import type { ResolveGhostSystem } from '$lib/api/types/ResolveGhostSystem';
 import type { Signature } from '$lib/api/types/Signature';
 import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
@@ -271,19 +272,27 @@ export class JumpTracker {
 				? null
 				: (this.map.sigs.find((s) => s.id === choice.signaturePk) ?? null);
 
-		// That signature is already drawn as an unflown hole: this jump says where it goes.
-		if (signature?.connection_id != null) {
-			const ghost = this.ghostsFrom(choice.origin).get(signature.connection_id);
-			if (ghost !== undefined) {
-				this.resolve(ghost, choice.targetSolarSystemId);
-				return;
-			}
-		}
-
 		const fromSignature = statusFromSignature(signature);
 		const catalog = this.prompt?.catalog ?? null;
 		const type =
 			signature && catalog ? typeById(catalog, signature.signature_type_id) : null;
+		const size =
+			choice.size ?? sizeForJumpMass(type?.max_jump_mass) ?? fromSignature.size ?? undefined;
+
+		// That signature is already drawn as an unflown hole: this jump says where it goes,
+		// and carries everything the dialog was told about it.
+		if (signature?.connection_id != null) {
+			const ghost = this.ghostsFrom(choice.origin).get(signature.connection_id);
+			if (ghost !== undefined) {
+				this.resolve(ghost, choice.targetSolarSystemId, {
+					alias: choice.alias?.trim() || undefined,
+					size,
+					mass_status: choice.massStatus ?? fromSignature.mass_status ?? undefined,
+					time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined
+				});
+				return;
+			}
+		}
 
 		this.map.run(
 			'trackJump',
@@ -297,7 +306,7 @@ export class JumpTracker {
 				// known", which is what an unscanned hole actually is.
 				signature_pk: choice.signaturePk ?? undefined,
 				alias: choice.alias?.trim() || undefined,
-				size: choice.size ?? sizeForJumpMass(type?.max_jump_mass) ?? fromSignature.size ?? undefined,
+				size,
 				mass_status: choice.massStatus ?? fromSignature.mass_status ?? undefined,
 				time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined
 			})
@@ -305,10 +314,15 @@ export class JumpTracker {
 	}
 
 	/** The ghost turned out to be a real system: name it where it already sits. */
-	private resolve(ghostPlacementId: number, solarSystemId: number) {
+	private resolve(
+		ghostPlacementId: number,
+		solarSystemId: number,
+		details: Partial<ResolveGhostSystem> = {}
+	) {
 		this.map.run(
 			'assignSystem',
 			api.resolveGhostSystem({
+				...details,
 				map_id: this.map.mapId,
 				map_solar_system_id: ghostPlacementId,
 				solar_system_id: solarSystemId
