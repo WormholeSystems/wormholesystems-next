@@ -36,7 +36,8 @@ The EVE application's callback URL has to match exactly what the CLI prints:
 `https://your-domain/auth/callback`. Register it at
 <https://developers.eveonline.com/applications>.
 
-The first boot seeds the static data, which takes a few minutes. Watch it with:
+The first boot downloads CCP's static data export (~550MB) and seeds from it, which takes
+a few minutes. It lands in a volume, so later restarts and rebuilds reuse it. Watch it with:
 
 ```sh
 docker compose --profile full logs -f api
@@ -49,7 +50,14 @@ docker compose --profile full logs -f api
 ```
 
 Fast-forwards the checkout, rebuilds, restarts. Migrations run on boot, so there is no
-separate step; the same is true of a new SDE build, which the API notices and re-seeds.
+separate step.
+
+CCP's static data is deliberately not part of that. `status` says when a newer build is
+out; taking it is another ~550MB download and a re-seed of a few minutes:
+
+```sh
+./vectorctl sde-update
+```
 
 ## Checking on it
 
