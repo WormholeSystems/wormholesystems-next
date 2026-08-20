@@ -45,7 +45,7 @@ pub struct EsiClient {
 
 impl EsiClient {
     pub fn new() -> Self {
-        Self::with_config(reqwest::Client::new(), BASE_URL, COMPATIBILITY_DATE)
+        Self::with_config(crate::user_agent::client(), BASE_URL, COMPATIBILITY_DATE)
     }
 
     pub fn with_config(

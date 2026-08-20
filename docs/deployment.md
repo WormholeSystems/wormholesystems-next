@@ -79,6 +79,7 @@ Cloudflare's own certificate and put Caddy behind it.
 |---|---|
 | `VECTOR_DOMAIN` | Caddy's site address. Blank serves plain http, which is only useful locally. |
 | `HTTP_PORT`, `HTTPS_PORT` | What Caddy publishes. 80 and 443 in production. |
+| `VECTOR_CONTACT_NAME`, `VECTOR_CONTACT_EMAIL` | Who runs this install. Every request to ESI, zKillboard and EVE Ref carries them, which is how those services tell operators apart and reach you. The server refuses to start without them. |
 | `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` | The SSO application. |
 | `EVE_REDIRECT_URI` | Derived from the domain; must match the application exactly. |
 | `POSTGRES_PASSWORD` | Generated once. Changing it means changing it in Postgres too. |

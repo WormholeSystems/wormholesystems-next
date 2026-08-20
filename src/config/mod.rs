@@ -12,6 +12,10 @@ pub enum ConfigError {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
+    /// Who is running this install, for the user agent every outbound request carries.
+    /// Required: see [`crate::user_agent`].
+    pub contact_name: String,
+    pub contact_email: String,
     pub sso: SsoConfig,
     pub grid: GridConfig,
     /// Where ESI lives. Overridable so the e2e suite can point the whole stack at a stub
@@ -44,6 +48,8 @@ impl Config {
 
         Ok(Config {
             database_url: required("DATABASE_URL")?,
+            contact_name: required(crate::user_agent::NAME_VAR)?,
+            contact_email: required(crate::user_agent::EMAIL_VAR)?,
             sso: SsoConfig {
                 client_id: required("EVE_CLIENT_ID")?,
                 client_secret: required("EVE_CLIENT_SECRET")?,

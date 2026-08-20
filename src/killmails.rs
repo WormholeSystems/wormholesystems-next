@@ -124,14 +124,7 @@ fn extract_detail(esi: &EsiKillmail, zkb: &serde_json::Value) -> Detail {
 
 /// zKillboard and EVE Ref reject anonymous clients (403), so identify ourselves.
 fn http_client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .user_agent(concat!(
-            "vector-wormhole-mapper/",
-            env!("CARGO_PKG_VERSION"),
-            " (tim.kunze4@gmail.com)"
-        ))
-        .build()
-        .expect("http client")
+    crate::user_agent::client()
 }
 
 /// Spawn the ingest, backfill and analysis loops (gated by `ZKB_LISTEN=1`).

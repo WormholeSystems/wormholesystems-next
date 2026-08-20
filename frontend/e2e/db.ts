@@ -396,6 +396,15 @@ export async function seedAggressor(who: {
 	});
 }
 
+/**
+ * Delete a map straight from the database. For the tests that hand ownership away: the
+ * API only lets an owner delete, so the identity that made the map cannot tidy it up, and
+ * a fixed-name map left behind breaks the next run.
+ */
+export async function deleteMapRow(mapId: number) {
+	await withDb((db) => db.query('delete from maps where id = $1', [mapId]));
+}
+
 /** Remove seeded killmails so a rerun starts clean. */
 export async function clearKillmails(ids: number[]) {
 	await withDb((db) => db.query('delete from killmails where id = any($1)', [ids]));

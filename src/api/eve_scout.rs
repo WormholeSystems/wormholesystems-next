@@ -118,11 +118,7 @@ pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScout
 
 async fn fetch_eve_scout() -> Option<Vec<EveScoutConnection>> {
     let client = reqwest::Client::builder()
-        .user_agent(concat!(
-            "vector-wormhole-mapper/",
-            env!("CARGO_PKG_VERSION"),
-            " (tim.kunze4@gmail.com)"
-        ))
+        .user_agent(crate::user_agent::get())
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .ok()?;

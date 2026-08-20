@@ -80,7 +80,7 @@ pub fn definition() -> Value {
 /// Registered globally rather than per guild, so nothing has to track which servers Vector
 /// is in. The cost is that Discord takes a few minutes to roll a change out.
 pub async fn register(application_id: &str, bot_token: &str) -> Result<(), String> {
-    let response = reqwest::Client::new()
+    let response = crate::user_agent::client()
         .put(format!(
             "{}/applications/{application_id}/commands",
             super::API

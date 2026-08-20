@@ -90,7 +90,7 @@ pub async fn callback(
         return (StatusCode::BAD_REQUEST, "that link request expired").into_response();
     };
 
-    let http = reqwest::Client::new();
+    let http = crate::user_agent::client();
     let token: Result<TokenResponse, _> = async {
         http.post(format!("{API}/oauth2/token"))
             .form(&[

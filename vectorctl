@@ -24,22 +24,26 @@ die()  { printf '\n\033[31m%s\033[0m\n' "$1" >&2; exit 1; }
 
 env_get() {
 	[ -f "$ENV_FILE" ] || return 0
-	sed -n "s/^$1=//p" "$ENV_FILE" | tail -1
+	sed -n "s/^$1=//p" "$ENV_FILE" | tail -1 | sed -e 's/^"//' -e 's/"$//'
 }
 
-# Replace the line if it is there, append it if it is not. Values are written as-is; a
-# password with a `#` or a space in it still round-trips because nothing here splits on them.
+# Replace the line if it is there, append it if it is not.
+#
+# Values are quoted, because dotenv refuses a bare value with a space in it and a character
+# name is two words. Embedded quotes and backslashes are escaped so the value survives.
 env_set() {
 	local key=$1 value=$2
+	value=${value//\\/\\\\}
+	value=${value//\"/\\\"}
 	touch "$ENV_FILE"
 	if grep -q "^$key=" "$ENV_FILE"; then
 		local tmp
 		tmp=$(mktemp)
 		grep -v "^$key=" "$ENV_FILE" > "$tmp"
-		printf '%s=%s\n' "$key" "$value" >> "$tmp"
+		printf '%s="%s"\n' "$key" "$value" >> "$tmp"
 		mv "$tmp" "$ENV_FILE"
 	else
-		printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+		printf '%s="%s"\n' "$key" "$value" >> "$ENV_FILE"
 	fi
 	chmod 600 "$ENV_FILE"
 }
@@ -184,6 +188,13 @@ cmd_setup() {
 	fi
 	env_set HTTP_PORT "$http"
 	env_set HTTPS_PORT "$https"
+
+	echo
+	echo "  Who runs this install. Every request to ESI, zKillboard and EVE Ref carries"
+	echo "  these so those services can tell operators apart and reach you if something"
+	echo "  here misbehaves. CCP asks for it; anonymous clients get throttled, then blocked."
+	ask VECTOR_CONTACT_NAME "  In-game character name of the admin"
+	ask VECTOR_CONTACT_EMAIL "  Contact email"
 
 	echo
 	echo "  EVE SSO application (https://developers.eveonline.com/applications)."

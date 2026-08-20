@@ -1,5 +1,5 @@
 import { expect, gotoApp, test } from './fixtures';
-import { createIdentity, grantAccess } from './db';
+import { createIdentity, deleteMapRow, grantAccess } from './db';
 
 // Map settings: renaming on the General section, the names the map hands out under
 // Naming, and the Access section that decides who sees the chain.
@@ -111,6 +111,9 @@ test('ownership is handed on from the danger zone, not granted from the list', a
 		.toEqual([mate.characterId]);
 	// And the danger zone is theirs now, not ours.
 	await expect(page.getByTestId('danger-zone')).toHaveCount(0);
+
+	// The map belongs to the other pilot now, so only the database can take it back.
+	await deleteMapRow(mapId);
 });
 
 test('the access list filters and sorts, and takes a date of its own', async ({ page, api }) => {

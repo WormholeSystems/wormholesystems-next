@@ -30,11 +30,7 @@ impl Runtime {
             bot_token,
             universe: proximity::Universe::load(pool).await?,
             http: reqwest::Client::builder()
-                .user_agent(concat!(
-                    "vector-wormhole-mapper/",
-                    env!("CARGO_PKG_VERSION"),
-                    " (tim.kunze4@gmail.com)"
-                ))
+                .user_agent(crate::user_agent::get())
                 .timeout(std::time::Duration::from_secs(15))
                 .build()
                 .unwrap_or_default(),

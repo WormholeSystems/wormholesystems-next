@@ -34,27 +34,30 @@ test('create a map, then delete it from the list', async ({ page }) => {
 });
 
 test('archiving hides a map without losing it', async ({ page, api }) => {
-	const res = await api.post('/api/maps', { data: { name: 'E2E Archive Me' } });
+	// Named per run: the list is filtered by name, and a leftover from an interrupted run
+	// would otherwise match twice and fail this one.
+	const name = `E2E Archive ${Date.now()}`;
+	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
 
 	await gotoApp(page, '/maps');
-	const card = page.getByTestId('map-card').filter({ hasText: 'E2E Archive Me' });
+	const card = page.getByTestId('map-card').filter({ hasText: name });
 	await expect(card).toBeVisible();
 
 	await card.getByTestId('map-menu').click();
 	await page.getByTestId('map-archive').click();
-	await expect(page.getByTestId('map-card').filter({ hasText: 'E2E Archive Me' })).toHaveCount(0);
+	await expect(page.getByTestId('map-card').filter({ hasText: name })).toHaveCount(0);
 
 	// Still there, just out of the way, and it survives a reload because it is stored.
 	await page.reload();
 	await page.waitForSelector('[data-testid="toggle-archived"]');
 	await page.getByTestId('toggle-archived').click();
-	const archived = page.getByTestId('map-card').filter({ hasText: 'E2E Archive Me' });
+	const archived = page.getByTestId('map-card').filter({ hasText: name });
 	await expect(archived).toBeVisible();
 
 	await archived.getByTestId('map-menu').click();
 	await page.getByTestId('map-archive').click();
-	await expect(page.getByTestId('map-card').filter({ hasText: 'E2E Archive Me' })).toBeVisible();
+	await expect(page.getByTestId('map-card').filter({ hasText: name })).toBeVisible();
 
 	// Clean up: this map is not scoped to one test's map id.
 	await api.delete(`/api/maps/${(await res.json()).id}`);

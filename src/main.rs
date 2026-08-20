@@ -104,7 +104,7 @@ async fn main() {
         Err(e) => panic!("could not seed the SDE reference tables: {e}"),
     }
     let sso = Arc::new(
-        Sso::discover(reqwest::Client::new(), config.sso)
+        Sso::discover(vector::user_agent::client(), config.sso)
             .await
             .expect("could not reach the EVE SSO: check your network connection"),
     );
@@ -112,7 +112,7 @@ async fn main() {
         println!("ESI: {}", config.esi_base_url);
     }
     let esi = EsiClient::with_config(
-        reqwest::Client::new(),
+        vector::user_agent::client(),
         &config.esi_base_url,
         vector::esi::COMPATIBILITY_DATE,
     );

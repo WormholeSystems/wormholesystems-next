@@ -40,7 +40,7 @@ pub struct Downloader {
 impl Downloader {
     pub fn new() -> Downloader {
         Downloader {
-            client: Client::new(),
+            client: crate::user_agent::blocking_client(),
         }
     }
 

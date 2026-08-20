@@ -15,5 +15,6 @@ pub mod session;
 pub mod skyhooks;
 pub mod sovereignty;
 pub mod tracking;
+pub mod user_agent;
 pub mod user_channel;
 pub mod util;
