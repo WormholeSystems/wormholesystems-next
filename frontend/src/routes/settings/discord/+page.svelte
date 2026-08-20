@@ -5,7 +5,7 @@
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 
 	import { page } from '$app/state';
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { DiscordAccount } from '$lib/api/types/DiscordAccount';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -21,7 +21,7 @@
 			account = await api.myDiscord();
 			error = null;
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		} finally {
 			loaded = true;
 		}
@@ -37,7 +37,7 @@
 			await api.unlinkDiscord();
 			await load();
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 </script>

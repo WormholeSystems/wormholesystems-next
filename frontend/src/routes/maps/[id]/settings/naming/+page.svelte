@@ -6,7 +6,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { saveUserSettings } from '$lib/map/user-settings';
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { MapNaming } from '$lib/api/types/MapNaming';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
@@ -30,7 +30,7 @@
 			error = '';
 			await invalidate('ws:map');
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 

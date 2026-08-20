@@ -78,6 +78,18 @@ import type { UpdateConnectionJump } from './types/UpdateConnectionJump';
 import type { UpdateSignature } from './types/UpdateSignature';
 import type { UpdateMapUserSettings } from './types/UpdateMapUserSettings';
 
+/**
+ * What went wrong, as something worth showing.
+ *
+ * A catch binding is `unknown`, because anything can be thrown. Asserting it is an `Error`
+ * at each of the twenty-odd places we catch one is twenty unchecked claims; asking here is
+ * one check, and a thrown string still says something rather than "undefined".
+ */
+export function errorMessage(err: unknown): string {
+	if (err instanceof Error) return err.message;
+	return typeof err === 'string' ? err : 'something went wrong';
+}
+
 export class ApiError extends Error {
 	status: number;
 

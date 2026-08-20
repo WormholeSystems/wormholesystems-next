@@ -10,7 +10,7 @@
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { MapView } from '$lib/api/types/MapView';
 	import { Button } from '$lib/components/ui/button';
@@ -49,7 +49,7 @@
 			error = '';
 			await invalidate('ws:map');
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 
@@ -98,7 +98,7 @@
 			toast.success(`${name} owns this map now`);
 			await invalidate('ws:map');
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 
@@ -108,7 +108,7 @@
 			await api.deleteMap(mapId);
 			goto('/maps');
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 </script>

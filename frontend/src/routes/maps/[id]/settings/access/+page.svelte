@@ -8,7 +8,7 @@
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { AccessSubject } from '$lib/api/types/AccessSubject';
 	import type { MapView } from '$lib/api/types/MapView';
@@ -156,7 +156,7 @@
 			error = '';
 			await Promise.all([invalidate('ws:access'), invalidate('ws:map')]);
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 

@@ -6,7 +6,7 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { page } from '$app/state';
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { AlertDelivery } from '$lib/api/types/AlertDelivery';
 	import type { AlertKind } from '$lib/api/types/AlertKind';
 	import type { AlertMention } from '$lib/api/types/AlertMention';
@@ -48,7 +48,7 @@
 			error = null;
 			canManage = true;
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 			canManage = false;
 		}
 	}
@@ -64,7 +64,7 @@
 			error = null;
 			await load();
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 

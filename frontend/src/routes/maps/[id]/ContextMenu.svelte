@@ -27,7 +27,7 @@
 
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { ConnectionType } from '$lib/api/types/ConnectionType';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { SystemStatus } from '$lib/api/types/SystemStatus';
@@ -86,7 +86,7 @@
 			{
 				loading: 'Building a stress-test chain…',
 				success: 'Stress-test chain built',
-				error: (err) => `debug: ${(err as Error).message}`
+				error: (err) => `debug: ${errorMessage(err)}`
 			}
 		);
 	}

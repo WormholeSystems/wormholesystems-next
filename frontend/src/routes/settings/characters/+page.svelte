@@ -7,7 +7,7 @@
 	import StarIcon from '@lucide/svelte/icons/star';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { CharacterRef } from '$lib/api/types/CharacterRef';
 	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -44,7 +44,7 @@
 			[characters, scopes] = await Promise.all([api.myCharacters(), api.myScopes()]);
 			error = null;
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 
@@ -57,7 +57,7 @@
 			await work;
 			await load();
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 

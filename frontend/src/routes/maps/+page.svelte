@@ -14,7 +14,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { MapEntry } from '$lib/api/types/MapEntry';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -85,7 +85,7 @@
 			newDescription = '';
 			await goto(`/maps/${map.id}`);
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		} finally {
 			busy = false;
 		}
@@ -98,7 +98,7 @@
 			await invalidateAll();
 			toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`);
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 
@@ -107,7 +107,7 @@
 			await api.updateMapUserSettings(map.id, { is_archived: value });
 			await invalidateAll();
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 
@@ -119,7 +119,7 @@
 			await api.deleteMap(map.id);
 			await invalidateAll();
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 

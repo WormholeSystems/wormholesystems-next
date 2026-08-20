@@ -1,7 +1,7 @@
 // The map page's shared state. Interaction state is owned here, never derived from the
 // fetched data, so it survives refetches.
 
-import { api } from '$lib/api/client';
+import { api, errorMessage } from '$lib/api/client';
 import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { CharacterRef } from '$lib/api/types/CharacterRef';
 import type { MapCharacter } from '$lib/api/types/MapCharacter';
@@ -756,7 +756,7 @@ export class MapState {
 			await history;
 			await stale;
 		} catch (err) {
-			const message = (err as Error).message;
+			const message = errorMessage(err);
 			toast.error(`load: ${message}`);
 			// Only the first load can leave the page with nothing to show; a later failure
 			// just means the view is briefly stale.
@@ -777,7 +777,7 @@ export class MapState {
 				}
 				return this.refetch();
 			})
-			.catch((err) => toast.error(copy.failed, { description: (err as Error).message }));
+			.catch((err) => toast.error(copy.failed, { description: errorMessage(err) }));
 	}
 
 	/** What a history step was, for saying which one was just walked past. */
@@ -849,7 +849,7 @@ export class MapState {
 			this.userSettings = { ...this.userSettings, layout_override: own ?? undefined };
 		}
 		this.patchUserSettings({ layout_override: own }).catch((err) =>
-			toast.error(`placement: ${(err as Error).message}`)
+			toast.error(`placement: ${errorMessage(err)}`)
 		);
 	}
 

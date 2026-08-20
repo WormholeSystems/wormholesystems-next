@@ -5,7 +5,7 @@
 	// Granting one permission asks for everything already consented to as well, because SSO
 	// reissues the token wholesale and a per-scope link would drop the rest. The settings step
 	// disables what the missing scopes cannot support rather than offering dead switches.
-import { api } from '$lib/api/client';
+import { api, errorMessage } from '$lib/api/client';
 		import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
@@ -139,7 +139,7 @@ import { api } from '$lib/api/client';
 			.then(() => {
 				if ('tracking_allowed' in patch) map.fetchCharacters();
 			})
-			.catch((err) => toast.error(`setup: ${(err as Error).message}`));
+			.catch((err) => toast.error(`setup: ${errorMessage(err)}`));
 	}
 
 	function finish() {

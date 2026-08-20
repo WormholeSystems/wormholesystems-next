@@ -5,7 +5,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
-	import { api } from '$lib/api/client';
+	import { api, errorMessage } from '$lib/api/client';
 	import type { MapWebhook } from '$lib/api/types/MapWebhook';
 	import type { MapWebhookRole } from '$lib/api/types/MapWebhookRole';
 	import { Button } from '$lib/components/ui/button';
@@ -36,7 +36,7 @@
 			error = null;
 			onchange();
 		} catch (err) {
-			error = (err as Error).message;
+			error = errorMessage(err);
 		}
 	}
 
