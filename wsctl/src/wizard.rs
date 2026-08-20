@@ -61,7 +61,8 @@ pub fn setup(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
 
     ui::heading("Checking the network");
     let mut fatal = false;
-    for check in checks::ports(&[answers.http_port, answers.https_port]) {
+    let ours = stack::proxy_running(runner, dir);
+    for check in checks::ports(&[answers.http_port, answers.https_port], ours) {
         ui::report(&check);
         fatal |= check.verdict == Verdict::Fatal;
     }

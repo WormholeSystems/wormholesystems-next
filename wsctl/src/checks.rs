@@ -90,18 +90,18 @@ pub fn disk(path: &Path) -> Check {
     }
 }
 
-pub fn ports(ports: &[u16]) -> Vec<Check> {
+/// `ours` says this stack's own proxy is running, which is what holds these ports on a
+/// machine that is already serving. Busy is only a problem when it is somebody else.
+pub fn ports(ports: &[u16], ours: bool) -> Vec<Check> {
     ports
         .iter()
-        .map(|&port| {
-            if port_is_free(port) {
-                Check::ok(format!("port {port} is free"))
-            } else {
-                Check::fatal(
-                    format!("port {port} is already in use"),
-                    "Stop whatever is on it, or set HTTP_PORT / HTTPS_PORT to something else.",
-                )
-            }
+        .map(|&port| match (port_is_free(port), ours) {
+            (true, _) => Check::ok(format!("port {port} is free")),
+            (false, true) => Check::ok(format!("port {port} is held by this stack")),
+            (false, false) => Check::fatal(
+                format!("port {port} is already in use"),
+                "Stop whatever is on it, or set HTTP_PORT / HTTPS_PORT to something else.",
+            ),
         })
         .collect()
 }
@@ -222,8 +222,9 @@ pub fn all(
     http: u16,
     https: u16,
 ) -> Result<Vec<Check>> {
+    let ours = crate::stack::proxy_running(runner, dir);
     let mut checks = vec![docker(runner, dir), disk(dir), repo(runner, dir)];
-    checks.extend(ports(&[http, https]));
+    checks.extend(ports(&[http, https], ours));
     checks.push(dns(domain, public_ip()));
     Ok(checks)
 }
@@ -251,10 +252,19 @@ mod tests {
     }
 
     #[test]
-    fn a_port_something_is_listening_on_is_fatal() {
+    fn a_port_something_else_is_listening_on_is_fatal() {
         let held = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
         let port = held.local_addr().unwrap().port();
-        assert_eq!(ports(&[port])[0].verdict, Verdict::Fatal);
+        assert_eq!(ports(&[port], false)[0].verdict, Verdict::Fatal);
+    }
+
+    // An install that is already serving holds its own ports, and telling its operator to
+    // stop whatever is on them means telling them to stop the thing they are updating.
+    #[test]
+    fn a_port_this_stack_holds_is_fine() {
+        let held = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        let port = held.local_addr().unwrap().port();
+        assert_eq!(ports(&[port], true)[0].verdict, Verdict::Ok);
     }
 
     #[test]

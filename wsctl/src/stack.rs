@@ -43,6 +43,15 @@ pub fn api(runner: &mut dyn Runner, dir: &Path, args: &[&str]) -> Result<String>
     runner.capture(dir, "docker", &as_refs(&compose(&full)))
 }
 
+/// Whether this stack's own proxy is up. It is the thing holding 80 and 443 on a machine
+/// that is already running, and a port check that does not know this tells the operator to
+/// stop the very stack they are updating.
+pub fn proxy_running(runner: &mut dyn Runner, dir: &Path) -> bool {
+    runner
+        .capture(dir, "docker", &as_refs(&compose(&["ps", "-q", "caddy"])))
+        .is_ok_and(|out| !out.trim().is_empty())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SdeStatus {
     pub loaded: String,
