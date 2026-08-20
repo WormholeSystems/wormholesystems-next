@@ -15,6 +15,11 @@ import type { Signature } from '$lib/api/types/Signature';
 
 const MAP_ID = 0;
 
+// Real entities, so every portrait and logo on the page is the one EVE serves for them.
+const OWNER_ID = 95569887; // Nicolas Kion
+const CORP_ID = 98630705; // Strix Ridens [OWL.]
+const CORP_TICKER = 'OWL.';
+
 /**
  * Ages are rendered relative to now, so the fixtures carry offsets rather than fixed dates
  * that would drift into "three years ago". Computed once per render, which is also what
@@ -93,7 +98,7 @@ export const DEMO_SYSTEMS: MapSystemView[] = [
 		wormhole_class_id: 5,
 		status: 'hostile',
 		threat_level: 'high',
-		occupying_group: 'HOLE',
+		occupying_group: 'OWL.',
 		statics: [statik('H296', 5), statik('C140', 8)]
 	}),
 	system(4, {
@@ -153,9 +158,9 @@ export const DEMO_CONNECTIONS: MapConnection[] = [
 export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
 	[HOME]: [
 		{
-			character_id: 90000001,
+			character_id: OWNER_ID,
 			name: 'Nicolas Kion',
-			corporation_ticker: 'VCTR',
+			corporation_ticker: CORP_TICKER,
 			solar_system_id: 30000001,
 			ship_type_id: 11192,
 			ship_name: null,
@@ -169,9 +174,9 @@ export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
 	],
 	3: [
 		{
-			character_id: 90000002,
-			name: 'Ana Vale',
-			corporation_ticker: 'VCTR',
+			character_id: 95042605,
+			name: 'Tovan Khev',
+			corporation_ticker: 'CONC',
 			solar_system_id: 30000003,
 			ship_type_id: 17738,
 			ship_name: null,
@@ -250,16 +255,16 @@ export const DEMO_SIGNATURES: Signature[] = [
 ];
 
 /**
- * Grants on the demo map. Real EVE ids, so the portraits and logos the table renders come
- * from the image server exactly as they would on a real one.
+ * Grants on the demo map. Real ids from ESI, so the portraits and logos are the ones the
+ * image server actually serves for these entities.
  */
 export const DEMO_ACCESS: AccessEntry[] = [
-	{ subject_type: 'character', subject_id: 1689391488, name: 'Nicolas Kion', role: 'owner' },
-	{ subject_type: 'alliance', subject_id: 99005338, name: 'Hole Control', role: 'manager' },
-	{ subject_type: 'corporation', subject_id: 98599918, name: 'Wandering Phoenix', role: 'member' },
+	{ subject_type: 'character', subject_id: OWNER_ID, name: 'Nicolas Kion', role: 'owner' },
+	{ subject_type: 'alliance', subject_id: 99014466, name: 'Strix Ridens.', role: 'manager' },
+	{ subject_type: 'corporation', subject_id: CORP_ID, name: 'Strix Ridens', role: 'member' },
 	{
 		subject_type: 'character',
-		subject_id: 96061222,
+		subject_id: 95042605,
 		name: 'Tovan Khev',
 		role: 'viewer',
 		expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString()
