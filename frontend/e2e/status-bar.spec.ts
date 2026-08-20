@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { ageStaleConnections, createIdentity, grantAccess } from './db';
 
 // The map status bar: identity, the live-feed dot, the view toggles, and the undo/redo
@@ -12,7 +12,7 @@ const DODIXIE = 30002659;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('shows the map name and a live socket once connected', async ({ page, api }) => {
@@ -232,14 +232,14 @@ test('stale connections are offered for a one-click sweep', async ({ page, api }
 		const res = await api.post(`/api/maps/${mapId}/systems/add`, {
 			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
 		});
-		return (await res.json()).id as number;
+		return await createdId(res);
 	};
 	const a = await add(J122515, 200);
 	const b = await add(JITA, 500);
 	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
 		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
 	});
-	const connId = (await conn.json()).id as number;
+	const connId = await createdId(conn);
 	await api.post(`/api/maps/${mapId}/connections/set-status`, {
 		data: { map_id: mapId, connection_id: connId, time_status: 'critical' }
 	});

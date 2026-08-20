@@ -1,11 +1,11 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // The map canvas is a painted surface, not a hole in the page: it has to follow the theme
 // like everything else, or a light-mode map is a black rectangle with light grid lines.
 
 test('the canvas and its grid follow the theme', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E Theme' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	await gotoApp(page, `/maps/${mapId}`);
 
 	const canvas = page.getByTestId('map-canvas');

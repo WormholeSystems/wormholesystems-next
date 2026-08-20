@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess } from './db';
 
 // The connection details popover: left-click an edge → signatures, status, wormhole
@@ -10,7 +10,7 @@ const JITA = 30000142;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -24,7 +24,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function connect(
@@ -38,7 +38,7 @@ async function connect(
 		data: { map_id: mapId, from_system: from, to_system: to, kind }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function pasteSig(

@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { setThreat } from './db';
 
 // Threat rings on nodes (setting-gated, suppressed when active) and the Threat card.
@@ -8,7 +8,7 @@ const J122515 = 31001882; // C5 wormhole
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test.afterEach(async () => {
@@ -56,7 +56,7 @@ test('threat ring, setting toggle, and threat card', async ({ page, api }) => {
 	await expect(card.getByText('Threat Alliance')).toBeVisible();
 	await expect(card.getByText('61 kills')).toBeVisible();
 	await expect(
-		card.getByRole('link', { name: 'zKillboard in system' }).first()
+		card.getByRole('link', { name: 'What they have killed in this system, on zKillboard' }).first()
 	).toHaveAttribute(
 		'href',
 		`https://zkillboard.com/alliance/99000001/system/${J122515}/`

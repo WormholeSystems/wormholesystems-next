@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { createdId, expect, test } from './fixtures';
 import {
 	E2E_CORPORATION_ID,
 	createIdentity,
@@ -28,7 +28,7 @@ type Page = import('@playwright/test').Page;
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, alias: string | null) {
@@ -36,7 +36,7 @@ async function addSystem(api: Api, mapId: number, solarSystemId: number, alias: 
 		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /** A pilot with their own session, map access, tracking on, and a starting location. */

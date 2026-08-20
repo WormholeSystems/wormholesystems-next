@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // The interactive map canvas. Each test arranges its own map through the API and
 // navigates straight to it; global teardown removes everything the e2e user owns.
@@ -6,7 +6,7 @@ import { expect, gotoApp, test } from './fixtures';
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('search dialog adds a system to the map', async ({ page, api }) => {

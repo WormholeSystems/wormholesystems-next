@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess, setCharacterPresence, withDb } from './db';
 
 // The pilots card: who is sharing their location on this map, ordered by who can act, and
@@ -17,7 +17,7 @@ type Api = import('@playwright/test').APIRequestContext;
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -31,7 +31,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /** Another member of the map, sharing their location, flying a named hull. */

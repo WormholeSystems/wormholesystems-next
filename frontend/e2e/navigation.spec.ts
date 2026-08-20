@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess } from './db';
 
 // The redesigned navigation panel: always-visible A→B route, the shared watchlist
@@ -12,7 +12,7 @@ const J122515 = 31001882;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -26,7 +26,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function pickSystem(
@@ -131,7 +131,7 @@ test('route settings: preference persists; lifetime tolerance drops EOL holes', 
 	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
 		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
 	});
-	const connId = (await conn.json()).id as number;
+	const connId = await createdId(conn);
 	await api.post(`/api/maps/${mapId}/connections/set-status`, {
 		data: { map_id: mapId, connection_id: connId, time_status: 'eol' }
 	});
@@ -314,7 +314,7 @@ test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
 		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
 	});
-	const connId = (await conn.json()).id as number;
+	const connId = await createdId(conn);
 
 	await gotoApp(page, `/maps/${mapId}`);
 	await setRoute(page, 'J122515', 'Jita');
@@ -331,7 +331,7 @@ test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 	const sig = await api.post(`/api/maps/${mapId}/signatures/add`, {
 		data: { map_id: mapId, solar_system_id: J122515, signature_id: 'QRS-481', group: 'wormhole' }
 	});
-	const sigId = (await sig.json()).id as number;
+	const sigId = await createdId(sig);
 	await api.post(`/api/maps/${mapId}/signatures/link`, {
 		data: { map_id: mapId, signature_pk: sigId, connection_id: connId }
 	});

@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Cleaning the map: the branches nothing reaches any more, once a hole has collapsed and
 // taken the way to them with it.
@@ -9,7 +9,7 @@ const PERIMETER = 30000144;
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -21,7 +21,7 @@ async function addSystem(
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 300, alias: null }
 	});
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('the map says when a branch is adrift, and says what cleaning takes', async ({

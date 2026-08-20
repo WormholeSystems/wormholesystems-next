@@ -1,10 +1,10 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // The top bar: quick access to the maps you keep there, and Tranquility's state.
 
 test('a pinned map shows in the top bar and takes you to it', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E Pinned Map' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 
 	await gotoApp(page, '/maps');
 	const card = page.getByTestId('map-card').filter({ hasText: 'E2E Pinned Map' });
@@ -34,7 +34,7 @@ test('the pilot readout is gone from the bar, and the server status is not', asy
 	api
 }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E NavStatus' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	await gotoApp(page, `/maps/${mapId}`);
 
 	await expect(page.getByTestId('server-status')).toBeVisible();

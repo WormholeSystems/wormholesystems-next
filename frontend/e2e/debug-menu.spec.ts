@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // The development-only debug menu, and the map it builds: three pinned roots, a branching
 // tree, and the loops that a tree layout cannot draw as a tree.
@@ -8,7 +8,7 @@ test('the debug menu builds a chain worth stress-testing the canvas with', async
 	api
 }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E Debug' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 
 	await gotoApp(page, `/maps/${mapId}`);
 	await page.getByTestId('map-canvas').click({ button: 'right', position: { x: 400, y: 300 } });

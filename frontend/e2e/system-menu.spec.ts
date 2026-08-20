@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess } from './db';
 
 // The app-wide solar-system context menu: right-click any system reference (route
@@ -12,7 +12,7 @@ const J122515 = 31001882;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -26,7 +26,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('route rows open the system menu with external links', async ({ page, api }) => {

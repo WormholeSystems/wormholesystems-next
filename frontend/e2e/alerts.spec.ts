@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess } from './db';
 
 // Discord alerts: the settings page that creates them, and the gating that decides who
@@ -13,7 +13,7 @@ type Api = import('@playwright/test').APIRequestContext;
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /** Destinations are registered once per map and pointed at by name. */

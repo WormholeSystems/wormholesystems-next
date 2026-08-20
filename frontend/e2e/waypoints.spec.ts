@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { setCharacterPresence, E2E_CHARACTER_ID } from './db';
 
 // ESI waypoints: menu gating and endpoint validation. The real ESI call is never made in
@@ -10,7 +10,7 @@ const J122515 = 31001882;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('waypoint submenus: k-space only, disabled without online characters', async ({

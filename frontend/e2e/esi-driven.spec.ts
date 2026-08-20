@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import {
 	createIdentity,
 	grantAccess,
@@ -124,7 +124,7 @@ test('nothing is polled while the server is down, and it resumes when it returns
 
 	const mapId = await (async () => {
 		const res = await api.post('/api/maps', { data: { name: 'E2E ServerGate' } });
-		return (await res.json()).id as number;
+		return await createdId(res);
 	})();
 	await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
@@ -241,7 +241,7 @@ async function polledPosition(api: Api, characterId: number) {
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, x = 200) {

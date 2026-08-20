@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { setCharacterPresence } from './db';
 
 const JITA = 30000142;
@@ -9,7 +9,7 @@ const AMARR = 30002187;
 
 async function openRoute(page: import('@playwright/test').Page, api: import('@playwright/test').APIRequestContext) {
 	const res = await api.post('/api/maps', { data: { name: 'E2E RoutePopover' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
 	});

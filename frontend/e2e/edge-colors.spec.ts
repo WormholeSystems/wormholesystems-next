@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Connection stroke colors follow the legacy model: sky stargates, orange reduced,
 // purple EOL, red critical, neutral otherwise; degraded states dash.
@@ -8,12 +8,12 @@ const PERIMETER = 30000144;
 
 test('edge colors and dashes per state', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E EdgeColors' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	const add = async (sid: number, x: number, y: number) => {
 		const r = await api.post(`/api/maps/${mapId}/systems/add`, {
 			data: { map_id: mapId, solar_system_id: sid, x, y, alias: null }
 		});
-		return (await r.json()).id as number;
+		return await createdId(r);
 	};
 	const a = await add(JITA, 200, 200);
 	const b = await add(PERIMETER, 600, 200);
@@ -61,11 +61,11 @@ test('edge colors and dashes per state', async ({ page, api }) => {
 
 test('unknown status uses the neutral border token', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E UnknownBorder' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	const r = await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
 	});
-	const mss = (await r.json()).id as number;
+	const mss = await createdId(r);
 	await api.post(`/api/maps/${mapId}/systems/set-status`, {
 		data: { map_id: mapId, map_solar_system_id: mss, status: 'unknown' }
 	});

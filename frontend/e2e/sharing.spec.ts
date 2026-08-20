@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Watching a map without an account: a share link, and a public map.
 
@@ -7,7 +7,7 @@ const JITA = 30000142;
 
 async function seedMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	const add = async (id: number, x: number) =>
 		(
 			await (

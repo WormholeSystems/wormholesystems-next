@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { createdId, expect, test } from './fixtures';
 import { createIdentity, grantAccess, setScopes, showIntroduction } from './db';
 
 // The one-time walkthrough a map opens with: welcome, ESI permissions, the preferences
@@ -30,7 +30,7 @@ function saved(page: import('@playwright/test').Page) {
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /** A map the given identity is a member of, with the walkthrough still to come. */

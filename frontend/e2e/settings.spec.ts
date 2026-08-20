@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, deleteMapRow, grantAccess } from './db';
 
 // Map settings: renaming on the General section, the names the map hands out under
@@ -7,7 +7,7 @@ import { createIdentity, deleteMapRow, grantAccess } from './db';
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('renaming the map shows up on the map itself', async ({ page, api }) => {

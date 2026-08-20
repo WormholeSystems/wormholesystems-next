@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Route planner: origin/destination via the context menu, jump counts, wormhole
 // shortcuts, and the on-route connection highlight.
@@ -10,7 +10,7 @@ const AMARR = 30002187; // many gates from Jita
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -24,7 +24,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('gate route between adjacent systems via the context menu', async ({ page, api }) => {
@@ -95,7 +95,7 @@ test('wormhole connection shortcuts the route and highlights the edge', async ({
 
 test('navigation pickers support keyboard selection', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E PickerKeys' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	await gotoApp(page, `/maps/${mapId}`);
 
 	const origin = page.getByTestId('system-picker-origin');

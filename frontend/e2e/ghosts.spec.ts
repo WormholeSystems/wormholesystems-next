@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Ghost nodes: a scanned wormhole nobody has flown, drawn so the chain can be laid out
 // and named before anyone does, and merged away once its system is known.
@@ -9,7 +9,7 @@ const JITA = 30000142;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -21,7 +21,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /** Turn on the map-wide setting that makes a pasted wormhole a node. */

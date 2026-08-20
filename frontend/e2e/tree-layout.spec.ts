@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Automatic placement: the chain drawn as a tree from its connections, instead of from
 // wherever people dragged the systems.
@@ -10,7 +10,7 @@ const PERIMETER = 30000144;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -24,7 +24,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function connect(

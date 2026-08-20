@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Legacy context-menu parity and interaction polish.
 
@@ -9,7 +9,7 @@ const J122515 = 31001882; // C5 wormhole
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -23,7 +23,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('menu structure: submenus, external links, remove gating', async ({ page, api }) => {
@@ -117,7 +117,7 @@ test('connection from a C13 system defaults to frigate size', async ({ page, api
 		data: { map_id: mapId, solar_system_id: J171828, x: 200, y: 400, alias: null }
 	});
 	expect(c13.ok()).toBe(true);
-	const c13id = (await c13.json()).id as number;
+	const c13id = await createdId(c13);
 
 	await gotoApp(page, `/maps/${mapId}`);
 	// Drag from Jita's connection handle onto the C13 node.

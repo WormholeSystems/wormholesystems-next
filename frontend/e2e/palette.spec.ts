@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { clearThreats, createIdentity, grantAccess, seedThreat } from './db';
 
 // The Cmd+K palette: jump to a system already on the map, or add one that is not.
@@ -10,7 +10,7 @@ const AMARR = 30002187;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('Cmd+K opens the palette and jumps to a placed system', async ({ page, api }) => {
@@ -51,7 +51,7 @@ test('notes match for members and stay hidden from viewers', async ({ page, api 
 	const added = await api.post(`/api/maps/${mapId}/systems/add`, {
 		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
 	});
-	const placementId = (await added.json()).id as number;
+	const placementId = await createdId(added);
 	const noted = await api.post(`/api/maps/${mapId}/systems/set-notes`, {
 		data: {
 			map_id: mapId,

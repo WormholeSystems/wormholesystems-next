@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess, setCharacterPresence } from './db';
 
 // The full signatures panel (legacy parity): catalog-backed selects, paste diff with
@@ -10,7 +10,7 @@ const JITA = 30000142;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(
@@ -24,7 +24,7 @@ async function addSystem(
 		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
 	});
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /**
@@ -102,7 +102,7 @@ test('paste diff tints and lazy delete cascade to connection and orphan endpoint
 	const connRes = await api.post(`/api/maps/${mapId}/connections/add`, {
 		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' }
 	});
-	const connId = (await connRes.json()).id as number;
+	const connId = await createdId(connRes);
 
 	const { page, ctx } = await openAsMember(browser, mapId, `?system=${J122515}`);
 	await pasteViaEvent(

@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // The EVE Scout card: public wormholes out of Thera and Turnur, one hub at a time, sorted
 // by how far away they are through your own chain.
@@ -14,7 +14,7 @@ type Api = import('@playwright/test').APIRequestContext;
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /**

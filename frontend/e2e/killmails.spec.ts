@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { clearKillmails, seedAggressor, seedKillmail } from './db';
 
 // The killmails card: what died in the mapped systems, newest first, with the expensive
@@ -26,7 +26,7 @@ type Api = import('@playwright/test').APIRequestContext;
 async function createMap(api: Api, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, x: number) {

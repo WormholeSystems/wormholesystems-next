@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // The head tags a link preview is built from. They have to be in the server's HTML, since
 // that is all a crawler reads, and there has to be exactly one of each: two <title> tags
@@ -35,7 +35,7 @@ test('a page can set its own title through its load', async ({ page }) => {
 // A map link is what people paste at each other, so the preview says which map.
 test('a map page is titled after the map', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E SeoMap' } });
-	const mapId = (await res.json()).id as number;
+	const mapId = await createdId(res);
 	await gotoApp(page, `/maps/${mapId}`);
 	await expect(page).toHaveTitle('E2E SeoMap · WormholeSystems');
 });

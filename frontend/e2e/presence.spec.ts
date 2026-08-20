@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 import { createIdentity, grantAccess, setCharacterPresence, setTrackingAllowed } from './db';
 
 // Pilot presence: online, tracking-scoped, opted-in characters of member+ users show on
@@ -9,7 +9,7 @@ const JITA = 30000142;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 test('pilots row shows opted-in online characters and hides on opt-out', async ({

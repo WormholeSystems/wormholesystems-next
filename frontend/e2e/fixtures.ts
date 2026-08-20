@@ -52,3 +52,24 @@ export async function gotoApp(
 		await page.waitForSelector('[data-testid="panel-grid"]');
 	}
 }
+
+/**
+ * The id a create endpoint answers with.
+ *
+ * Every arrangement step in these tests posts something and needs the id back, and a
+ * response body is untyped by nature. Reading it in one place means one checked claim
+ * rather than sixty unchecked ones, and a body that is not what we expect fails here
+ * naming the response instead of somewhere later as a mysterious undefined.
+ */
+export async function createdId(response: import('@playwright/test').APIResponse): Promise<number> {
+	const body: unknown = await response.json();
+	if (typeof body !== 'object' || body === null || !('id' in body)) {
+		throw new Error(`expected a body with an id, got ${JSON.stringify(body)}`);
+	}
+	// SAFETY: `id` is present, and checked to be a number, immediately above.
+	const { id } = body as { id: unknown };
+	if (typeof id !== 'number') {
+		throw new Error(`expected a numeric id, got ${JSON.stringify(id)}`);
+	}
+	return id;
+}

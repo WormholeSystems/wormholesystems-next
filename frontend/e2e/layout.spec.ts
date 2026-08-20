@@ -1,4 +1,4 @@
-import { expect, gotoApp, test } from './fixtures';
+import { createdId, expect, gotoApp, test } from './fixtures';
 
 // Arranging the map page. The layout is per user per map, so everything here has to
 // survive a reload, and the map canvas is a tile like any other.
@@ -8,7 +8,7 @@ const J122515 = 31001882;
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });
 	expect(res.ok()).toBe(true);
-	return (await res.json()).id as number;
+	return await createdId(res);
 }
 
 /** Position and size of a tile, read off the DOM. */
