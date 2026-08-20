@@ -4,6 +4,12 @@ import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { SystemStatus } from '$lib/api/types/SystemStatus';
+
+/** A point in world coordinates. Named, because the map passes a great many of them. */
+export interface Vec2 {
+	x: number;
+	y: number;
+}
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import type { WormholeSize } from '$lib/api/types/WormholeSize';
 import { isWormholeClass } from '$lib/map/classes';
@@ -37,10 +43,10 @@ export function sizeForJumpMass(kg: number | null | undefined): WormholeSize | n
 
 /** World coords of the viewport center (where a freshly-added system lands). */
 export function centerWorld(
-	pan: { x: number; y: number },
+	pan: Vec2,
 	zoom: number,
 	viewport: { width: number; height: number }
-): { x: number; y: number } {
+): Vec2 {
 	return {
 		x: (viewport.width / 2 - pan.x) / zoom,
 		y: (viewport.height / 2 - pan.y) / zoom
@@ -57,9 +63,9 @@ export const NODE_GAP_CELLS = 1;
  */
 export function freePosition(
 	systems: { position_x: number; position_y: number }[],
-	base: { x: number; y: number },
+	base: Vec2,
 	g: GridConfig
-): { x: number; y: number } {
+): Vec2 {
 	const nodeH = 2 * g.cell_size;
 	const gap = NODE_GAP_CELLS * g.cell_size;
 	const stepX = NODE_W + gap;
@@ -117,7 +123,7 @@ export function railEndpoint(
 	maxX: number,
 	centerY: number,
 	towardX: number
-): { x: number; y: number } {
+): Vec2 {
 	const padding = Math.min(RAIL_PADDING, (maxX - minX) / 2);
 	return { x: clamp(towardX, minX + padding, maxX - padding), y: centerY };
 }

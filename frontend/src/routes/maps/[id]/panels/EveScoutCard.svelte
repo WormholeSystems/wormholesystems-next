@@ -143,7 +143,7 @@
 			});
 		const direction = ascending ? 1 : -1;
 		const name = (r: Row) => r.system?.name ?? '';
-		const compare: Record<Column, (a: Row, b: Row) => number> = {
+		const compare = {
 			jumps: byJumps,
 			system: bySystem,
 			region: (a, b) => (a.system?.region ?? '').localeCompare(b.system?.region ?? ''),
@@ -151,7 +151,7 @@
 			type: (a, b) => (a.connection.wormhole_type ?? '').localeCompare(b.connection.wormhole_type ?? ''),
 			// Soonest to collapse first: that is the one you might miss.
 			ttl: (a, b) => (a.connection.remaining_hours ?? 999) - (b.connection.remaining_hours ?? 999)
-		};
+		} satisfies Record<Column, (a: Row, b: Row) => number>;
 		return rows.sort((a, b) => {
 			const primary = compare[column](a, b) * direction;
 			if (primary) return primary;

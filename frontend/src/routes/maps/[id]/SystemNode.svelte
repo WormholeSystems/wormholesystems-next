@@ -96,14 +96,14 @@
 	const unmapped = $derived(Math.max(0, sigCounts.wormholes - connectionCount));
 	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id.
 
-	const STATUS_ICONS: Record<SystemStatus, typeof ShieldCheckIcon> = {
+	const STATUS_ICONS = {
 		friendly: ShieldCheckIcon,
 		hostile: SkullIcon,
 		active: ActivityIcon,
 		unscanned: RadarIcon,
 		empty: CircleDashedIcon,
 		unknown: CircleHelpIcon
-	};
+	} satisfies Record<SystemStatus, typeof ShieldCheckIcon>;
 	const StatusIcon = $derived(STATUS_ICONS[node.status]);
 
 	let editorOpen = $state(false);

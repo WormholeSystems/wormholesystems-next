@@ -20,7 +20,7 @@
 	let status = $state<ServerStatus | null>(untrack(() => initial));
 	let now = $state(new Date());
 
-	const STATES: Record<ServerState, { dot: string; label: string; short: string | null }> = {
+	const STATES = {
 		unknown: { dot: 'bg-muted-foreground/40', label: 'Checking Tranquility…', short: null },
 		online: { dot: 'bg-emerald-500', label: 'Tranquility is up', short: null },
 		// Up, but the door is shut: nothing is broken, and nothing works.
@@ -31,7 +31,7 @@
 			label: 'ESI is unreachable, so the server state is unknown',
 			short: 'ESI down'
 		}
-	};
+	} satisfies Record<ServerState, { dot: string; label: string; short: string | null }>;
 
 	const meta = $derived(STATES[status?.state ?? 'unknown']);
 	/** Worth a word in the header instead of a player count. */

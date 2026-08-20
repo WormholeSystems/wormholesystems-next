@@ -2,12 +2,9 @@
 // out the ones sharing a node edge. All world units; the canvas transform does the scaling.
 
 import type { MapConnection } from '$lib/api/types/MapConnection';
-import { NODE_W, railEndpoint } from './helpers';
+import { NODE_W, railEndpoint, type Vec2 } from './helpers';
 
-export interface Vec2 {
-	x: number;
-	y: number;
-}
+export type { Vec2 };
 
 export interface EdgeGeometry {
 	id: number;

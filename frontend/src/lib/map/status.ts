@@ -8,14 +8,14 @@ import SkullIcon from '@lucide/svelte/icons/skull';
 
 import type { SystemStatus } from '$lib/api/types/SystemStatus';
 
-export const STATUS_ICONS: Record<SystemStatus, typeof ShieldCheckIcon> = {
+export const STATUS_ICONS = {
 	friendly: ShieldCheckIcon,
 	hostile: SkullIcon,
 	active: ActivityIcon,
 	unscanned: RadarIcon,
 	empty: CircleDashedIcon,
 	unknown: CircleHelpIcon
-};
+} satisfies Record<SystemStatus, typeof ShieldCheckIcon>;
 
 export const STATUS_OPTIONS: SystemStatus[] = [
 	'unknown',

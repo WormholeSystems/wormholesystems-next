@@ -80,22 +80,22 @@
 		act(api.deleteAlert(mapId, alert.id));
 	}
 
-	const KIND_LABEL: Record<AlertKind, string> = {
+	const KIND_LABEL = {
 		killmail: 'Kills near the chain',
 		proximity: 'System near the chain',
 		jump_range: 'Capital jump range'
-	};
-	const DELIVERY_LABEL: Record<AlertDelivery, string> = {
+	} satisfies Record<AlertKind, string>;
+	const DELIVERY_LABEL = {
 		webhook: 'Channel webhook',
 		discord_dm: 'Direct message',
 		discord_channel: 'Bot channel'
-	};
-	const MENTION_LABEL: Record<AlertMention, string> = {
+	} satisfies Record<AlertDelivery, string>;
+	const MENTION_LABEL = {
 		none: 'No ping',
 		creator: 'Pings the creator',
 		role: 'Pings a role',
 		everyone: 'Pings everyone'
-	};
+	} satisfies Record<AlertMention, string>;
 	const REASON: Record<string, string> = {
 		manual: 'Turned off by hand',
 		discord_unlinked: 'The creator unlinked their Discord account',

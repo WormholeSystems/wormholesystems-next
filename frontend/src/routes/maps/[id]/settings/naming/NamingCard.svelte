@@ -59,7 +59,7 @@
 		return [...taken, child].join(', ');
 	});
 
-	const EXAMPLE: Record<BookmarkToken, string> = {
+	const EXAMPLE = {
 		alias: '1a',
 		sig: 'ABC',
 		class: 'C5',
@@ -70,9 +70,9 @@
 		wh: 'H296',
 		mass: 'crit',
 		life: 'EOL'
-	};
+	} satisfies Record<BookmarkToken, string>;
 
-	const KSPACE_EXAMPLE: Record<BookmarkToken, string> = {
+	const KSPACE_EXAMPLE = {
 		...EXAMPLE,
 		alias: '1b',
 		class: 'HS',
@@ -80,7 +80,7 @@
 		region: 'The Forge',
 		occupier: '',
 		wh: 'B041'
-	};
+	} satisfies Record<BookmarkToken, string>;
 
 	const FORMATS = [
 		{

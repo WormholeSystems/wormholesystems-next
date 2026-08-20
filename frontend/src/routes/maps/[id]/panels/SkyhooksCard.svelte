@@ -119,7 +119,7 @@
 
 	const sorted = $derived.by(() => {
 		const direction = ascending ? 1 : -1;
-		const compare: Record<Column, (a: Row, b: Row) => number> = {
+		const compare = {
 			jumps: byJumps,
 			planet: (a, b) => a.skyhook.planet_name.localeCompare(b.skyhook.planet_name),
 			region: (a, b) => a.skyhook.region.localeCompare(b.skyhook.region),
@@ -128,7 +128,7 @@
 				const rank = (r: Row) => (r.status === 'upcoming' ? 1 : 0);
 				return rank(a) - rank(b) || a.untilMs - b.untilMs;
 			}
-		};
+		} satisfies Record<Column, (a: Row, b: Row) => number>;
 		return live
 			.filter((r) => r.skyhook.planet_kind === kind)
 			.sort((a, b) => {

@@ -30,6 +30,7 @@ import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import { NODE_W, clamp } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
+import type { Vec2 } from '$lib/map/helpers';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
 import { orphanedSystems } from '$lib/map/orphans';
 import { browser } from '$app/environment';
@@ -84,6 +85,14 @@ const defaultGrid: GridConfig = {
 	world_height: 2000,
 	viewport_height: 1400
 };
+
+/** Where the canvas sits on screen, and how big it is. */
+interface ViewportRect {
+	left: number;
+	top: number;
+	width: number;
+	height: number;
+}
 
 export class MapState {
 	mapId: number;
@@ -806,7 +815,7 @@ export class MapState {
 
 	// --- geometry ---
 
-	viewportRect(): { left: number; top: number; width: number; height: number } {
+	viewportRect(): ViewportRect {
 		const r = this.viewportEl?.getBoundingClientRect();
 		return {
 			// Position is read live: it only matters during a pointer event, and it moves
@@ -822,7 +831,7 @@ export class MapState {
 	}
 
 	/** Screen (client) point → world coords, accounting for pan + zoom. */
-	toWorld(clientX: number, clientY: number): { x: number; y: number } {
+	toWorld(clientX: number, clientY: number): Vec2 {
 		const r = this.viewportRect();
 		return {
 			x: (clientX - r.left - this.pan.x) / this.zoom,

@@ -83,8 +83,14 @@ export function isWormholeClass(wormholeClassId: number | null): boolean {
 	return wormholeClassId !== null && (CLASSES.get(wormholeClassId)?.isWormholeSpace ?? false);
 }
 
+/** How a system is labelled in a list: the short class, and the colour token for it. */
+export interface Classification {
+	badge: string;
+	token: string;
+}
+
 /** Search-dialog badge: class short label for w-space, otherwise the rounded security. */
-export function searchClassification(s: SystemSearchResult): { badge: string; token: string } {
+export function searchClassification(s: SystemSearchResult): Classification {
 	const m = classMeta(s.wormhole_class_id, s.security);
 	return { badge: m.short, token: m.token };
 }
