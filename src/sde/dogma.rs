@@ -173,35 +173,44 @@ pub struct DbuffLocationRequiredSkillModifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sde::load_all;
 
     #[test]
     fn parses_dogma_attributes() {
-        let rows = load_all::<DogmaAttribute>().expect("parse dogmaAttributes");
+        let Some(rows) = crate::sde::parse_sample::<DogmaAttribute>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_dogma_effects() {
-        let rows = load_all::<DogmaEffect>().expect("parse dogmaEffects");
+        let Some(rows) = crate::sde::parse_sample::<DogmaEffect>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_dogma_units() {
-        let rows = load_all::<DogmaUnit>().expect("parse dogmaUnits");
+        let Some(rows) = crate::sde::parse_sample::<DogmaUnit>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_dogma_attribute_categories() {
-        let rows = load_all::<DogmaAttributeCategory>().expect("parse dogmaAttributeCategories");
+        let Some(rows) = crate::sde::parse_sample::<DogmaAttributeCategory>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_dbuff_collections() {
-        let rows = load_all::<DbuffCollection>().expect("parse dbuffCollections");
+        let Some(rows) = crate::sde::parse_sample::<DbuffCollection>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 }

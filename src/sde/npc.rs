@@ -285,65 +285,84 @@ pub struct StationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sde::load_all;
 
     #[test]
     fn parses_npc_corporations() {
-        let rows = load_all::<NpcCorporation>().expect("parse npcCorporations");
+        let Some(rows) = crate::sde::parse_sample::<NpcCorporation>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_npc_stations() {
-        let rows = load_all::<NpcStation>().expect("parse npcStations");
+        let Some(rows) = crate::sde::parse_sample::<NpcStation>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_npc_characters() {
-        let rows = load_all::<NpcCharacter>().expect("parse npcCharacters");
+        let Some(rows) = crate::sde::parse_sample::<NpcCharacter>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_npc_corporation_divisions() {
-        let rows = load_all::<NpcCorporationDivision>().expect("parse npcCorporationDivisions");
+        let Some(rows) = crate::sde::parse_sample::<NpcCorporationDivision>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_factions() {
-        let rows = load_all::<Faction>().expect("parse factions");
+        let Some(rows) = crate::sde::parse_sample::<Faction>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_agent_types() {
-        let rows = load_all::<AgentType>().expect("parse agentTypes");
+        let Some(rows) = crate::sde::parse_sample::<AgentType>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_agents_in_space() {
-        let rows = load_all::<AgentInSpace>().expect("parse agentsInSpace");
+        let Some(rows) = crate::sde::parse_sample::<AgentInSpace>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_corporation_activities() {
-        let rows = load_all::<CorporationActivity>().expect("parse corporationActivities");
+        let Some(rows) = crate::sde::parse_sample::<CorporationActivity>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_station_operations() {
-        let rows = load_all::<StationOperation>().expect("parse stationOperations");
+        let Some(rows) = crate::sde::parse_sample::<StationOperation>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_station_services() {
-        let rows = load_all::<StationService>().expect("parse stationServices");
+        let Some(rows) = crate::sde::parse_sample::<StationService>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 }

@@ -185,77 +185,100 @@ pub struct SkinrTierThreshold {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sde::load_all;
 
     #[test]
     fn parses_skins() {
-        let rows = load_all::<Skin>().expect("parse skins");
+        let Some(rows) = crate::sde::parse_sample::<Skin>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skin_materials() {
-        let rows = load_all::<SkinMaterial>().expect("parse skinMaterials");
+        let Some(rows) = crate::sde::parse_sample::<SkinMaterial>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skin_licenses() {
-        let rows = load_all::<SkinLicense>().expect("parse skinLicenses");
+        let Some(rows) = crate::sde::parse_sample::<SkinLicense>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_components() {
-        let rows = load_all::<SkinrComponent>().expect("parse skinrComponents");
+        let Some(rows) = crate::sde::parse_sample::<SkinrComponent>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_component_categories() {
-        let rows = load_all::<SkinrComponentCategory>().expect("parse skinrComponentCategories");
+        let Some(rows) = crate::sde::parse_sample::<SkinrComponentCategory>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_component_rarities() {
-        let rows = load_all::<SkinrComponentRarity>().expect("parse skinrComponentRarities");
+        let Some(rows) = crate::sde::parse_sample::<SkinrComponentRarity>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_component_point_values() {
-        let rows = load_all::<SkinrComponentPointValue>().expect("parse skinrComponentPointValues");
+        let Some(rows) = crate::sde::parse_sample::<SkinrComponentPointValue>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_slots() {
-        let rows = load_all::<SkinrSlot>().expect("parse skinrSlots");
+        let Some(rows) = crate::sde::parse_sample::<SkinrSlot>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_slot_categories() {
-        let rows = load_all::<SkinrSlotCategory>().expect("parse skinrSlotCategories");
+        let Some(rows) = crate::sde::parse_sample::<SkinrSlotCategory>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_slot_names() {
-        let rows = load_all::<SkinrSlotName>().expect("parse skinrSlotNames");
+        let Some(rows) = crate::sde::parse_sample::<SkinrSlotName>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_slot_configurations() {
-        let rows = load_all::<SkinrSlotConfiguration>().expect("parse skinrSlotConfigurations");
+        let Some(rows) = crate::sde::parse_sample::<SkinrSlotConfiguration>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_skinr_tier_thresholds() {
-        let rows = load_all::<SkinrTierThreshold>().expect("parse skinrTierThresholds");
+        let Some(rows) = crate::sde::parse_sample::<SkinrTierThreshold>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 }

@@ -170,59 +170,76 @@ pub struct MasteryValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sde::load_all;
 
     #[test]
     fn parses_races() {
-        let rows = load_all::<Race>().expect("parse races");
+        let Some(rows) = crate::sde::parse_sample::<Race>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_bloodlines() {
-        let rows = load_all::<Bloodline>().expect("parse bloodlines");
+        let Some(rows) = crate::sde::parse_sample::<Bloodline>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_ancestries() {
-        let rows = load_all::<Ancestry>().expect("parse ancestries");
+        let Some(rows) = crate::sde::parse_sample::<Ancestry>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_character_attributes() {
-        let rows = load_all::<CharacterAttribute>().expect("parse characterAttributes");
+        let Some(rows) = crate::sde::parse_sample::<CharacterAttribute>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_character_titles() {
-        let rows = load_all::<CharacterTitle>().expect("parse characterTitles");
+        let Some(rows) = crate::sde::parse_sample::<CharacterTitle>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_clone_grades() {
-        let rows = load_all::<CloneGrade>().expect("parse cloneGrades");
+        let Some(rows) = crate::sde::parse_sample::<CloneGrade>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_archetypes() {
-        let rows = load_all::<Archetype>().expect("parse archetypes");
+        let Some(rows) = crate::sde::parse_sample::<Archetype>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_certificates() {
-        let rows = load_all::<Certificate>().expect("parse certificates");
+        let Some(rows) = crate::sde::parse_sample::<Certificate>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_masteries() {
-        let rows = load_all::<Mastery>().expect("parse masteries");
+        let Some(rows) = crate::sde::parse_sample::<Mastery>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 }

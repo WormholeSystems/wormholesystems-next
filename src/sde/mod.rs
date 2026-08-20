@@ -100,6 +100,18 @@ pub fn load_all<T: SdeEntity>() -> Result<Vec<T>, SdeError> {
     load_jsonl::<T>(Path::new(SDE_DIR).join(T::FILE))
 }
 
+/// Every row of an entity, for the parse tests, or `None` where the SDE has not been
+/// unpacked. The files are a 100MB download deliberately kept out of the repo, so these
+/// tests check the parsers where the data is (a dev machine, or a deploy after its first
+/// boot) and stand aside where it is not (CI).
+#[cfg(test)]
+pub(crate) fn parse_sample<T: SdeEntity>() -> Option<Vec<T>> {
+    if !Path::new(SDE_DIR).join("_sde.jsonl").exists() {
+        return None;
+    }
+    Some(load_all::<T>().unwrap_or_else(|err| panic!("parse {}: {err}", T::FILE)))
+}
+
 /// Load every row of an entity's file into a `HashMap` keyed by `id`, e.g.
 /// `sde::load::<SolarSystem>()?`.
 pub fn load<T: SdeEntity>() -> Result<HashMap<T::Id, T>, SdeError> {

@@ -208,65 +208,84 @@ pub struct SdeMeta {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sde::load_all;
 
     #[test]
     fn parses_icons() {
-        let rows = load_all::<Icon>().expect("parse icons");
+        let Some(rows) = crate::sde::parse_sample::<Icon>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_graphics() {
-        let rows = load_all::<Graphic>().expect("parse graphics");
+        let Some(rows) = crate::sde::parse_sample::<Graphic>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_graphic_material_sets() {
-        let rows = load_all::<GraphicMaterialSet>().expect("parse graphicMaterialSets");
+        let Some(rows) = crate::sde::parse_sample::<GraphicMaterialSet>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_ship_tree_elements() {
-        let rows = load_all::<ShipTreeElement>().expect("parse shipTreeElements");
+        let Some(rows) = crate::sde::parse_sample::<ShipTreeElement>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_ship_tree_groups() {
-        let rows = load_all::<ShipTreeGroup>().expect("parse shipTreeGroups");
+        let Some(rows) = crate::sde::parse_sample::<ShipTreeGroup>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_ship_tree_factions() {
-        let rows = load_all::<ShipTreeFaction>().expect("parse shipTreeFactions");
+        let Some(rows) = crate::sde::parse_sample::<ShipTreeFaction>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_planet_resources() {
-        let rows = load_all::<PlanetResource>().expect("parse planetResources");
+        let Some(rows) = crate::sde::parse_sample::<PlanetResource>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_planet_schematics() {
-        let rows = load_all::<PlanetSchematic>().expect("parse planetSchematics");
+        let Some(rows) = crate::sde::parse_sample::<PlanetSchematic>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_translation_languages() {
-        let rows = load_all::<TranslationLanguage>().expect("parse translationLanguages");
+        let Some(rows) = crate::sde::parse_sample::<TranslationLanguage>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_sde_meta() {
-        let rows = load_all::<SdeMeta>().expect("parse _sde");
+        let Some(rows) = crate::sde::parse_sample::<SdeMeta>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 }

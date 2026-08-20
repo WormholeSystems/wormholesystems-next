@@ -375,95 +375,124 @@ pub struct ControlTowerResourceEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sde::load_all;
 
     #[test]
     fn parses_types() {
-        let rows = load_all::<Type>().expect("parse types");
+        let Some(rows) = crate::sde::parse_sample::<Type>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_groups() {
-        let rows = load_all::<Group>().expect("parse groups");
+        let Some(rows) = crate::sde::parse_sample::<Group>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_categories() {
-        let rows = load_all::<Category>().expect("parse categories");
+        let Some(rows) = crate::sde::parse_sample::<Category>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_blueprints() {
-        let rows = load_all::<Blueprint>().expect("parse blueprints");
+        let Some(rows) = crate::sde::parse_sample::<Blueprint>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_market_groups() {
-        let rows = load_all::<MarketGroup>().expect("parse marketGroups");
+        let Some(rows) = crate::sde::parse_sample::<MarketGroup>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_meta_groups() {
-        let rows = load_all::<MetaGroup>().expect("parse metaGroups");
+        let Some(rows) = crate::sde::parse_sample::<MetaGroup>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_type_materials() {
-        let rows = load_all::<TypeMaterials>().expect("parse typeMaterials");
+        let Some(rows) = crate::sde::parse_sample::<TypeMaterials>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_type_dogma() {
-        let rows = load_all::<TypeDogma>().expect("parse typeDogma");
+        let Some(rows) = crate::sde::parse_sample::<TypeDogma>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_type_bonus() {
-        let rows = load_all::<TypeBonus>().expect("parse typeBonus");
+        let Some(rows) = crate::sde::parse_sample::<TypeBonus>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_type_lists() {
-        let rows = load_all::<TypeList>().expect("parse typeLists");
+        let Some(rows) = crate::sde::parse_sample::<TypeList>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_type_elements() {
-        let rows = load_all::<TypeElement>().expect("parse typeElements");
+        let Some(rows) = crate::sde::parse_sample::<TypeElement>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_compressible_types() {
-        let rows = load_all::<CompressibleType>().expect("parse compressibleTypes");
+        let Some(rows) = crate::sde::parse_sample::<CompressibleType>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_contraband_types() {
-        let rows = load_all::<ContrabandType>().expect("parse contrabandTypes");
+        let Some(rows) = crate::sde::parse_sample::<ContrabandType>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_dynamic_item_attributes() {
-        let rows = load_all::<DynamicItemAttribute>().expect("parse dynamicItemAttributes");
+        let Some(rows) = crate::sde::parse_sample::<DynamicItemAttribute>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 
     #[test]
     fn parses_control_tower_resources() {
-        let rows = load_all::<ControlTowerResource>().expect("parse controlTowerResources");
+        let Some(rows) = crate::sde::parse_sample::<ControlTowerResource>() else {
+            return;
+        };
         assert!(!rows.is_empty());
     }
 }
