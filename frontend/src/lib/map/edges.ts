@@ -296,7 +296,30 @@ export function treeEdges(
 		register(edge.from, edge.fromNormal, edge.source, edge.target);
 		register(edge.to, edge.toNormal, edge.target, edge.source);
 	}
-	for (const ports of shared.values()) spreadSharedEdge(ports);
+	const spreadCount = new Map<Vec2, number>();
+	for (const ports of shared.values()) {
+		spreadSharedEdge(ports);
+		for (const port of ports) spreadCount.set(port.endpoint, ports.length);
+	}
+
+	// Two nodes sitting level would be joined by a straight line, except that spreading the
+	// ports on the busier one lifts its end off the other's centre line and leaves a jog of
+	// a few pixels. Where the quiet end is this edge's alone, it follows the busy one
+	// instead: entering off-centre reads better than a kink that means nothing.
+	for (const edge of routed) {
+		if (edge.detour) continue;
+		const horizontal = edge.fromNormal.x !== 0;
+		const level = horizontal
+			? Math.abs(edge.source.centerY - edge.target.centerY) < 0.5
+			: Math.abs(edge.source.centerX - edge.target.centerX) < 0.5;
+		if (!level) continue;
+		const fromShared = spreadCount.get(edge.from) ?? 1;
+		const toShared = spreadCount.get(edge.to) ?? 1;
+		if (fromShared === toShared) continue;
+		const [follow, lead] = fromShared < toShared ? [edge.from, edge.to] : [edge.to, edge.from];
+		if (horizontal) follow.y = lead.y;
+		else follow.x = lead.x;
+	}
 
 	// Grouped by the corridor the run crosses, not by the node it leaves: two runs at the
 	// same offset in the same corridor are the same line, whichever nodes they belong to,

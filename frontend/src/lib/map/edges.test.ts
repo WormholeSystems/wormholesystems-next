@@ -265,3 +265,35 @@ describe('runs share a lane where they can', () => {
 		expect(new Set(bendsOf(treeEdges(conns, positions, NODE_H2))).size).toBe(1);
 	});
 });
+
+// A node with two holes spreads its ends apart so they can be told apart. A neighbour level
+// with it, holding only this one hole, has nothing to spread, so the two ends used to sit a
+// few pixels apart and the line kinked on its way across for no reason.
+describe('a level run stays straight', () => {
+	const NODE_H2 = 40;
+
+	it('follows the busier end rather than kinking into the middle of the quiet one', () => {
+		const positions = new Map([
+			[1, { x: 0, y: 300 }],
+			[2, { x: 400, y: 300 }],
+			[3, { x: 400, y: 460 }]
+		]);
+		const g = treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2);
+		const level = g.get(10)!;
+		expect(level.from.y).toBe(level.to.y);
+		expect(level.kind).toBe('elbow');
+	});
+
+	// Only a run that would otherwise be straight gets this: a node above or below still
+	// has a real bend to make, and pulling its end across would drag the line off its own
+	// centre line for nothing.
+	it('leaves a run alone when the nodes are not level', () => {
+		const positions = new Map([
+			[1, { x: 0, y: 300 }],
+			[2, { x: 400, y: 340 }],
+			[3, { x: 400, y: 460 }]
+		]);
+		const g = treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2);
+		expect(g.get(10)!.to.y).toBe(340 + NODE_H2 / 2);
+	});
+});

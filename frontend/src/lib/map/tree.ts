@@ -63,17 +63,21 @@ export function computeTreeLayout(
 	options: TreeOptions = {}
 ): Map<number, { x: number; y: number }> {
 	const gridSize = options.gridSize ?? 20;
-	// Snapped too: a gap of fractional cells makes the per-node snapping alternate.
 	const snap = (value: number) => Math.round(value / gridSize) * gridSize;
+	// Down the cross axis, half a cell. A parent sits at the midpoint of its first and last
+	// child, and with an even number of children that is half a sibling pitch off one of
+	// them. Snapping that to whole cells needs a pitch of two cells or more, which is a
+	// 40px gap between neighbours; at half a cell a pitch of one cell is enough, so the
+	// nodes can sit as close as the row under them allows and the parent still lands level
+	// between them rather than a snap to one side.
+	const crossStep = gridSize / 2;
+	const snapCross = (value: number) => Math.round(value / crossStep) * crossStep;
 	// Wide enough for an edge's badge cluster at its midpoint to clear both nodes.
 	const levelGap = snap(options.levelGap ?? 320);
-	// An even number of cells, and loose enough that a row of pilots under a node does not
-	// touch the next. Even matters: a parent sits at the midpoint of its first and last
-	// child, and with an even count of children that midpoint is half a pitch off one of
-	// them. At an odd pitch that lands half a cell off the grid, and snapping then drops
-	// the parent onto a child's row instead of between the two.
-	const evenCells = 2 * gridSize;
-	const siblingGap = Math.max(evenCells, Math.round((options.siblingGap ?? 80) / evenCells) * evenCells);
+	// A whole number of cells, so half of it is a whole number of cross steps and every
+	// midpoint the layout can produce is a position it can actually place. Node height is
+	// two cells, so this leaves a gap of one cell between neighbours.
+	const siblingGap = Math.max(gridSize, snap(options.siblingGap ?? 60));
 	// Where the first node's top-left sits.
 	const marginX = snap(options.marginX ?? 20);
 	const marginY = snap(options.marginY ?? 20);
@@ -319,7 +323,7 @@ export function computeTreeLayout(
 	for (const node of nodes.values()) {
 		positions.set(node.id, {
 			x: snap(marginX + node.depth * levelGap),
-			y: snap(marginY + node.cross - minCross)
+			y: snapCross(marginY + node.cross - minCross)
 		});
 	}
 	return positions;
