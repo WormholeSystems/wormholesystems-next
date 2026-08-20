@@ -14,14 +14,28 @@ Four containers, from `docker-compose.yml` under the `full` profile:
 | `api` | the Axum API and every background job | Caddy only |
 | `db` | Postgres 16 | the other containers, and `127.0.0.1` on the host |
 
-Caddy is the only thing published. `/api`, `/auth` and `/ws` go to the API; everything else
-goes to the SvelteKit server. The database port is bound to the loopback so `psql` works
-over SSH and nothing else can reach it.
+Caddy is the only thing published. `/api`, `/auth`, `/ws` and `/discord` go to the API;
+everything else goes to the SvelteKit server. The database port is bound to the loopback so
+`psql` works over SSH and nothing else can reach it.
+
+## Before you start
+
+A server with Docker Engine and Compose v2, 5GB of disk, and a DNS A record pointing at it.
+The release build wants about 2GB of memory: on a 2GB machine, add swap first or the
+compiler is killed part way through.
+
+The repository is private, so the server needs its own read-only access. Generate a key on
+the server and add the public half as a deploy key under Settings → Deploy keys:
+
+```sh
+ssh-keygen -t ed25519 -C vector-deploy -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub
+```
 
 ## First run
 
 ```sh
-git clone https://github.com/eve-vector/vector.git
+git clone git@github.com:eve-vector/vector.git
 cd vector
 ./vectorctl setup
 ```
