@@ -201,11 +201,13 @@ describe('runs share a lane where they can', () => {
 	const NODE_H2 = 40;
 	const COL = NODE_W + 136;
 
+	// The corner is the Q control point. The L before it is pulled back by the corner
+	// radius, which varies with the segment lengths, so reading that instead makes two runs
+	// on one lane look like two lanes.
 	function bendsOf(edges: ReturnType<typeof treeEdges>) {
-		return [...edges.values()].map((e) => {
-			const xs = [...e.d.matchAll(/[ML] (-?[\d.]+) /g)].map((m) => Number(m[1]));
-			return Math.round(xs[1]);
-		});
+		return [...edges.values()].map((e) =>
+			Math.round(Number([...e.d.matchAll(/Q (-?[\d.]+) /g)][0][1]))
+		);
 	}
 
 	// A run up and a run down never overlap, so they can sit on the same line and still be
@@ -230,5 +232,25 @@ describe('runs share a lane where they can', () => {
 		]);
 		const bends = bendsOf(treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2));
 		expect(new Set(bends).size).toBe(2);
+	});
+
+	// A tree layout centres a parent between its two children, so the gap either side is
+	// small. Every such parent in a column should kink on the same line: a map of them
+	// kinking a few pixels apart reads as noise.
+	it('lines up the kink for every parent in a column', () => {
+		const positions = new Map<number, { x: number; y: number }>();
+		const conns: MapConnection[] = [];
+		let id = 0;
+		let next = 1;
+		[202, 321, 441, 561, 681].forEach((py, i) => {
+			const parent = next++;
+			positions.set(parent, { x: 687, y: py });
+			for (const cy of [161 + i * 120, 221 + i * 120]) {
+				const child = next++;
+				positions.set(child, { x: 1007, y: cy });
+				conns.push(connection(id++, parent, child));
+			}
+		});
+		expect(new Set(bendsOf(treeEdges(conns, positions, NODE_H2))).size).toBe(1);
 	});
 });

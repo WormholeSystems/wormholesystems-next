@@ -329,22 +329,42 @@ export function treeEdges(
 				? [Math.min(e.from.y, e.to.y), Math.max(e.from.y, e.to.y)]
 				: [Math.min(e.from.x, e.to.x), Math.max(e.from.x, e.to.x)];
 
-		// Packed farthest run first, each taking the innermost lane it fits in. Farthest
-		// first is what makes the runs nest instead of cross; taking the first lane that
-		// fits is what lets a run up and a run down share one.
-		const lanes: [number, number][][] = [];
+		// Where the run leaves and lands along that edge, which is what decides whether one
+		// run's horizontal reaches across another's vertical.
+		const leaves = (e: Routed) => (horizontal ? e.from.y : e.from.x);
+		const lands = (e: Routed) => (horizontal ? e.to.y : e.to.x);
+		const strictlyInside = (v: number, [s, e]: [number, number]) => v > s + 0.5 && v < e - 0.5;
+
+		// Two runs on one lane are collinear and never cross. Two runs on different lanes do
+		// cross when the inner one's landing, or the outer one's departure, falls inside the
+		// other's reach. So a lane is usable when the run fits between what is already on it
+		// and neither of those holds against every other lane.
+		const lanes: Routed[][] = [];
 		const laneOf = new Map<number, number>();
 		const ordered = [...group].sort((a, b) => b.distance - a.distance || a.signed - b.signed);
 		for (const edge of ordered) {
-			const [start, end] = reach(edge);
-			// A run this short is a jog, not a run, and it sits in the band the other runs
-			// leave the node through. Put it beyond all of them, where nothing reaches it.
-			const level = end - start < 2 * CORNER_RADIUS;
-			let lane = level
-				? -1
-				: lanes.findIndex((taken) => taken.every(([s, e]) => start >= e || end <= s));
+			const span = reach(edge);
+			const fits = (lane: number) =>
+				lanes[lane].every((other) => {
+					const [s, e] = reach(other);
+					return span[0] >= e || span[1] <= s;
+				});
+			const clears = (lane: number) =>
+				lanes.every((others, i) => {
+					if (i === lane) return true;
+					const inner = i < lane ? others : [edge];
+					const outer = i < lane ? [edge] : others;
+					return inner.every((a) =>
+						outer.every(
+							(b) =>
+								!strictlyInside(lands(a), reach(b)) && !strictlyInside(leaves(b), reach(a))
+						)
+					);
+				});
+
+			let lane = lanes.findIndex((_, i) => fits(i) && clears(i));
 			if (lane === -1) lane = lanes.push([]) - 1;
-			lanes[lane].push([start, end]);
+			lanes[lane].push(edge);
 			laneOf.set(edge.id, lane);
 		}
 
