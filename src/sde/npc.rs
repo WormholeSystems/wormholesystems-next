@@ -6,9 +6,9 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct NpcCorporation {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "ceoID")]
-    pub ceo_id: Option<i32>,
+    pub ceo_id: Option<i64>,
     pub deleted: bool,
     pub description: Option<LocalizedString>,
     pub extent: String,
@@ -22,7 +22,7 @@ pub struct NpcCorporation {
     pub shares: i64,
     pub size: String,
     #[serde(rename = "stationID")]
-    pub station_id: Option<i32>,
+    pub station_id: Option<i64>,
     pub tax_rate: f64,
     pub ticker_name: String,
     pub unique_name: bool,
@@ -30,24 +30,24 @@ pub struct NpcCorporation {
     pub corporation_trades: Option<Vec<NpcCorporationCorporationTrade>>,
     pub divisions: Option<Vec<NpcCorporationDivisionEntry>>,
     #[serde(rename = "enemyID")]
-    pub enemy_id: Option<i32>,
+    pub enemy_id: Option<i64>,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     #[serde(rename = "friendID")]
-    pub friend_id: Option<i32>,
+    pub friend_id: Option<i64>,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub investors: Option<Vec<NpcCorporationInvestor>>,
     pub lp_offer_tables: Option<Vec<i32>>,
     #[serde(rename = "mainActivityID")]
-    pub main_activity_id: Option<i32>,
+    pub main_activity_id: Option<i64>,
     #[serde(rename = "raceID")]
-    pub race_id: Option<i32>,
+    pub race_id: Option<i64>,
     pub size_factor: Option<f64>,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: Option<i32>,
+    pub solar_system_id: Option<i64>,
     #[serde(rename = "secondaryActivityID")]
-    pub secondary_activity_id: Option<i32>,
+    pub secondary_activity_id: Option<i64>,
     pub exchange_rates: Option<Vec<NpcCorporationExchangeRate>>,
 }
 
@@ -56,7 +56,7 @@ pub struct NpcCorporation {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCorporationCorporationTrade {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: f64,
 }
@@ -66,10 +66,10 @@ pub struct NpcCorporationCorporationTrade {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCorporationDivisionEntry {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub division_number: i32,
     #[serde(rename = "leaderID")]
-    pub leader_id: i32,
+    pub leader_id: i64,
     pub size: i32,
 }
 
@@ -78,7 +78,7 @@ pub struct NpcCorporationDivisionEntry {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCorporationInvestor {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -88,7 +88,7 @@ pub struct NpcCorporationInvestor {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCorporationExchangeRate {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: f64,
 }
@@ -98,23 +98,23 @@ pub struct NpcCorporationExchangeRate {
 #[serde(rename_all = "camelCase")]
 pub struct NpcStation {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub celestial_index: Option<i32>,
     #[serde(rename = "operationID")]
-    pub operation_id: i32,
+    pub operation_id: i64,
     #[serde(rename = "orbitID")]
-    pub orbit_id: i32,
+    pub orbit_id: i64,
     pub orbit_index: Option<i32>,
     #[serde(rename = "ownerID")]
-    pub owner_id: i32,
+    pub owner_id: i64,
     pub position: Position3D,
     pub reprocessing_efficiency: f64,
     pub reprocessing_hangar_flag: i32,
     pub reprocessing_stations_take: f64,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
     pub use_operation_name: bool,
 }
 
@@ -123,29 +123,29 @@ pub struct NpcStation {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCharacter {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "bloodlineID")]
-    pub bloodline_id: i32,
+    pub bloodline_id: i64,
     pub ceo: bool,
     #[serde(rename = "corporationID")]
-    pub corporation_id: i32,
+    pub corporation_id: i64,
     pub gender: bool,
     #[serde(rename = "locationID")]
-    pub location_id: Option<i32>,
+    pub location_id: Option<i64>,
     pub name: LocalizedString,
     #[serde(rename = "raceID")]
-    pub race_id: i32,
+    pub race_id: i64,
     pub start_date: Option<String>,
     pub unique_name: bool,
     pub skills: Option<Vec<NpcCharacterSkill>>,
     #[serde(rename = "ancestryID")]
-    pub ancestry_id: Option<i32>,
+    pub ancestry_id: Option<i64>,
     #[serde(rename = "careerID")]
-    pub career_id: Option<i32>,
+    pub career_id: Option<i64>,
     #[serde(rename = "schoolID")]
-    pub school_id: Option<i32>,
+    pub school_id: Option<i64>,
     #[serde(rename = "specialityID")]
-    pub speciality_id: Option<i32>,
+    pub speciality_id: Option<i64>,
     pub agent: Option<NpcCharacterAgent>,
     pub description: Option<String>,
 }
@@ -155,7 +155,7 @@ pub struct NpcCharacter {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCharacterSkill {
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// Nested `agent` object of `npcCharacters.jsonl`.
@@ -163,9 +163,9 @@ pub struct NpcCharacterSkill {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCharacterAgent {
     #[serde(rename = "agentTypeID")]
-    pub agent_type_id: i32,
+    pub agent_type_id: i64,
     #[serde(rename = "divisionID")]
-    pub division_id: i32,
+    pub division_id: i64,
     pub is_locator: bool,
     pub level: i32,
 }
@@ -175,7 +175,7 @@ pub struct NpcCharacterAgent {
 #[serde(rename_all = "camelCase")]
 pub struct NpcCorporationDivision {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub display_name: Option<String>,
     pub internal_name: String,
     pub leader_type_name: LocalizedString,
@@ -188,22 +188,22 @@ pub struct NpcCorporationDivision {
 #[serde(rename_all = "camelCase")]
 pub struct Faction {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "corporationID")]
-    pub corporation_id: Option<i32>,
+    pub corporation_id: Option<i64>,
     pub description: LocalizedString,
     pub flat_logo: Option<String>,
     pub flat_logo_with_name: Option<String>,
     #[serde(rename = "iconID")]
-    pub icon_id: i32,
+    pub icon_id: i64,
     pub member_races: Vec<i32>,
     #[serde(rename = "militiaCorporationID")]
-    pub militia_corporation_id: Option<i32>,
+    pub militia_corporation_id: Option<i64>,
     pub name: LocalizedString,
     pub short_description: Option<LocalizedString>,
     pub size_factor: f64,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     pub unique_name: bool,
 }
 
@@ -212,7 +212,7 @@ pub struct Faction {
 #[serde(rename_all = "camelCase")]
 pub struct AgentType {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -221,15 +221,15 @@ pub struct AgentType {
 #[serde(rename_all = "camelCase")]
 pub struct AgentInSpace {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "dungeonID")]
-    pub dungeon_id: i32,
+    pub dungeon_id: i64,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     #[serde(rename = "spawnPointID")]
-    pub spawn_point_id: i32,
+    pub spawn_point_id: i64,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// `corporationActivities.jsonl`
@@ -237,7 +237,7 @@ pub struct AgentInSpace {
 #[serde(rename_all = "camelCase")]
 pub struct CorporationActivity {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: LocalizedString,
 }
 
@@ -246,9 +246,9 @@ pub struct CorporationActivity {
 #[serde(rename_all = "camelCase")]
 pub struct StationOperation {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "activityID")]
-    pub activity_id: i32,
+    pub activity_id: i64,
     pub border: f64,
     pub corridor: f64,
     pub description: Option<LocalizedString>,
@@ -267,7 +267,7 @@ pub struct StationOperation {
 #[serde(rename_all = "camelCase")]
 pub struct StationOperationStationType {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -277,7 +277,7 @@ pub struct StationOperationStationType {
 #[serde(rename_all = "camelCase")]
 pub struct StationService {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub service_name: LocalizedString,
     pub description: Option<LocalizedString>,
 }

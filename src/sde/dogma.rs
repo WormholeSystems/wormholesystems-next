@@ -6,9 +6,9 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct DogmaAttribute {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "attributeCategoryID")]
-    pub attribute_category_id: Option<i32>,
+    pub attribute_category_id: Option<i64>,
     pub data_type: i32,
     pub default_value: f64,
     pub description: Option<String>,
@@ -19,17 +19,17 @@ pub struct DogmaAttribute {
     pub stackable: bool,
     pub display_name: Option<LocalizedString>,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub tooltip_description: Option<LocalizedString>,
     pub tooltip_title: Option<LocalizedString>,
     #[serde(rename = "unitID")]
-    pub unit_id: Option<i32>,
+    pub unit_id: Option<i64>,
     #[serde(rename = "chargeRechargeTimeID")]
-    pub charge_recharge_time_id: Option<i32>,
+    pub charge_recharge_time_id: Option<i64>,
     #[serde(rename = "maxAttributeID")]
-    pub max_attribute_id: Option<i32>,
+    pub max_attribute_id: Option<i64>,
     #[serde(rename = "minAttributeID")]
-    pub min_attribute_id: Option<i32>,
+    pub min_attribute_id: Option<i64>,
 }
 
 /// `dogmaEffects.jsonl`
@@ -37,14 +37,14 @@ pub struct DogmaAttribute {
 #[serde(rename_all = "camelCase")]
 pub struct DogmaEffect {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub disallow_auto_repeat: bool,
     #[serde(rename = "dischargeAttributeID")]
-    pub discharge_attribute_id: Option<i32>,
+    pub discharge_attribute_id: Option<i64>,
     #[serde(rename = "durationAttributeID")]
-    pub duration_attribute_id: Option<i32>,
+    pub duration_attribute_id: Option<i64>,
     #[serde(rename = "effectCategoryID")]
-    pub effect_category_id: i32,
+    pub effect_category_id: i64,
     pub electronic_chance: bool,
     pub guid: Option<String>,
     pub is_assistance: bool,
@@ -56,24 +56,24 @@ pub struct DogmaEffect {
     pub range_chance: bool,
     pub distribution: Option<i32>,
     #[serde(rename = "falloffAttributeID")]
-    pub falloff_attribute_id: Option<i32>,
+    pub falloff_attribute_id: Option<i64>,
     #[serde(rename = "rangeAttributeID")]
-    pub range_attribute_id: Option<i32>,
+    pub range_attribute_id: Option<i64>,
     #[serde(rename = "trackingSpeedAttributeID")]
-    pub tracking_speed_attribute_id: Option<i32>,
+    pub tracking_speed_attribute_id: Option<i64>,
     pub description: Option<LocalizedString>,
     pub display_name: Option<LocalizedString>,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub modifier_info: Option<Vec<DogmaEffectModifier>>,
     #[serde(rename = "npcUsageChanceAttributeID")]
-    pub npc_usage_chance_attribute_id: Option<i32>,
+    pub npc_usage_chance_attribute_id: Option<i64>,
     #[serde(rename = "npcActivationChanceAttributeID")]
-    pub npc_activation_chance_attribute_id: Option<i32>,
+    pub npc_activation_chance_attribute_id: Option<i64>,
     #[serde(rename = "fittingUsageChanceAttributeID")]
-    pub fitting_usage_chance_attribute_id: Option<i32>,
+    pub fitting_usage_chance_attribute_id: Option<i64>,
     #[serde(rename = "resistanceAttributeID")]
-    pub resistance_attribute_id: Option<i32>,
+    pub resistance_attribute_id: Option<i64>,
 }
 
 /// An entry of `dogmaEffects.jsonl`'s `modifierInfo` array.
@@ -83,16 +83,16 @@ pub struct DogmaEffectModifier {
     pub domain: String,
     pub func: String,
     #[serde(rename = "modifiedAttributeID")]
-    pub modified_attribute_id: Option<i32>,
+    pub modified_attribute_id: Option<i64>,
     #[serde(rename = "modifyingAttributeID")]
-    pub modifying_attribute_id: Option<i32>,
+    pub modifying_attribute_id: Option<i64>,
     pub operation: Option<i32>,
     #[serde(rename = "groupID")]
-    pub group_id: Option<i32>,
+    pub group_id: Option<i64>,
     #[serde(rename = "skillTypeID")]
-    pub skill_type_id: Option<i32>,
+    pub skill_type_id: Option<i64>,
     #[serde(rename = "effectID")]
-    pub effect_id: Option<i32>,
+    pub effect_id: Option<i64>,
 }
 
 /// `dogmaUnits.jsonl`
@@ -100,7 +100,7 @@ pub struct DogmaEffectModifier {
 #[serde(rename_all = "camelCase")]
 pub struct DogmaUnit {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: Option<LocalizedString>,
     pub display_name: Option<LocalizedString>,
     pub name: String,
@@ -111,7 +111,7 @@ pub struct DogmaUnit {
 #[serde(rename_all = "camelCase")]
 pub struct DogmaAttributeCategory {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: Option<String>,
     pub name: String,
 }
@@ -121,7 +121,7 @@ pub struct DogmaAttributeCategory {
 #[serde(rename_all = "camelCase")]
 pub struct DbuffCollection {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub aggregate_mode: String,
     pub developer_description: String,
     pub item_modifiers: Option<Vec<DbuffItemModifier>>,
@@ -139,7 +139,7 @@ pub struct DbuffCollection {
 #[serde(rename_all = "camelCase")]
 pub struct DbuffItemModifier {
     #[serde(rename = "dogmaAttributeID")]
-    pub dogma_attribute_id: i32,
+    pub dogma_attribute_id: i64,
 }
 
 /// An entry of `dbuffCollections.jsonl`'s `locationGroupModifiers` array.
@@ -147,9 +147,9 @@ pub struct DbuffItemModifier {
 #[serde(rename_all = "camelCase")]
 pub struct DbuffLocationGroupModifier {
     #[serde(rename = "dogmaAttributeID")]
-    pub dogma_attribute_id: i32,
+    pub dogma_attribute_id: i64,
     #[serde(rename = "groupID")]
-    pub group_id: i32,
+    pub group_id: i64,
 }
 
 /// An entry of `dbuffCollections.jsonl`'s `locationModifiers` array.
@@ -157,7 +157,7 @@ pub struct DbuffLocationGroupModifier {
 #[serde(rename_all = "camelCase")]
 pub struct DbuffLocationModifier {
     #[serde(rename = "dogmaAttributeID")]
-    pub dogma_attribute_id: i32,
+    pub dogma_attribute_id: i64,
 }
 
 /// An entry of `dbuffCollections.jsonl`'s `locationRequiredSkillModifiers` array.
@@ -165,9 +165,9 @@ pub struct DbuffLocationModifier {
 #[serde(rename_all = "camelCase")]
 pub struct DbuffLocationRequiredSkillModifier {
     #[serde(rename = "dogmaAttributeID")]
-    pub dogma_attribute_id: i32,
+    pub dogma_attribute_id: i64,
     #[serde(rename = "skillID")]
-    pub skill_id: i32,
+    pub skill_id: i64,
 }
 
 #[cfg(test)]

@@ -9,34 +9,34 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Mission {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub has_standing_rewards: bool,
     pub kill_mission: Option<MissionKillMission>,
     pub messages: Option<Vec<MissionMessage>>,
     pub name: LocalizedString,
     pub expiration_time: Option<i32>,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     pub courier_mission: Option<MissionCourierMission>,
     pub mission_rewards: Option<MissionRewards>,
     #[serde(rename = "corporationID")]
-    pub corporation_id: Option<i32>,
+    pub corporation_id: Option<i64>,
     pub initial_agent_gift_quantity: Option<i32>,
     #[serde(rename = "initialAgentGiftTypeID")]
-    pub initial_agent_gift_type_id: Option<i32>,
+    pub initial_agent_gift_type_id: Option<i64>,
     pub extra_standings: Option<Vec<MissionExtraStanding>>,
     #[serde(rename = "agentTypeID")]
-    pub agent_type_id: Option<i32>,
+    pub agent_type_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionKillMission {
     #[serde(rename = "dungeonID")]
-    pub dungeon_id: Option<i32>,
+    pub dungeon_id: Option<i64>,
     pub objective_quantity: Option<i32>,
     #[serde(rename = "objectiveTypeID")]
-    pub objective_type_id: Option<i32>,
+    pub objective_type_id: Option<i64>,
     pub drop_item_in_mission_container: Option<i32>,
 }
 
@@ -55,7 +55,7 @@ pub struct MissionCourierMission {
     pub objective_quantity: i32,
     pub objective_singleton: bool,
     #[serde(rename = "objectiveTypeID")]
-    pub objective_type_id: i32,
+    pub objective_type_id: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -71,14 +71,14 @@ pub struct MissionRewards {
 pub struct MissionRewardItem {
     pub reward_quantity: Option<i32>,
     #[serde(rename = "rewardTypeID")]
-    pub reward_type_id: Option<i32>,
+    pub reward_type_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MissionExtraStanding {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: f64,
 }
@@ -88,13 +88,13 @@ pub struct MissionExtraStanding {
 #[serde(rename_all = "camelCase")]
 pub struct Dungeon {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub allowed_ships_list: Option<Vec<i32>>,
     #[serde(rename = "archetypeID")]
-    pub archetype_id: i32,
+    pub archetype_id: i64,
     pub description: Option<LocalizedString>,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     pub name: LocalizedString,
     pub gameplay_description: Option<LocalizedString>,
 }
@@ -104,12 +104,12 @@ pub struct Dungeon {
 #[serde(rename_all = "camelCase")]
 pub struct EpicArc {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub arc_restart_interval: i32,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     #[serde(rename = "iconID")]
-    pub icon_id: i32,
+    pub icon_id: i64,
     pub missions: Vec<EpicArcMission>,
     pub name: LocalizedString,
 }
@@ -118,11 +118,11 @@ pub struct EpicArc {
 #[serde(rename_all = "camelCase")]
 pub struct EpicArcMission {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "agentID")]
-    pub agent_id: i32,
+    pub agent_id: i64,
     #[serde(rename = "failMissionID")]
-    pub fail_mission_id: Option<i32>,
+    pub fail_mission_id: Option<i64>,
     pub next_missions: Option<Vec<i32>>,
 }
 
@@ -135,7 +135,7 @@ pub struct MilitaryCampaign {
     pub annotations: MilitaryCampaignAnnotations,
     pub issuer: MilitaryCampaignIssuer,
     pub subtitle: LocalizedString,
-    pub target_progress: i32,
+    pub target_progress: i64,
     pub title: LocalizedString,
 }
 
@@ -143,7 +143,7 @@ pub struct MilitaryCampaign {
 #[serde(rename_all = "camelCase")]
 pub struct MilitaryCampaignIssuer {
     #[serde(rename = "factionID")]
-    pub faction_id: i32,
+    pub faction_id: i64,
 }
 
 /// Nested `annotations` object on a [`MilitaryCampaign`]: UI asset paths, localized copy
@@ -202,7 +202,7 @@ pub struct MilitaryCampaignAnnotations {
     #[serde(rename = "foregroundVideoOutro")]
     pub foreground_video_outro: String,
     #[serde(rename = "mapFocusEntityID")]
-    pub map_focus_entity_id: i32,
+    pub map_focus_entity_id: i64,
     #[serde(rename = "mapHeader")]
     pub map_header: LocalizedString,
     #[serde(rename = "mapSection1Paragraph")]
@@ -252,12 +252,12 @@ pub struct MilitaryCampaignObjective {
     pub content_tags: Vec<String>,
     pub contribution_method_configuration: ObjectiveContributionMethod,
     pub issuer: ObjectiveCorporationIssuer,
-    pub max_progress_per_participant: i32,
+    pub max_progress_per_participant: i64,
     #[serde(rename = "presentingCharacterID")]
-    pub presenting_character_id: i32,
+    pub presenting_character_id: i64,
     pub rewards: ObjectiveRewards,
     pub subtitle: LocalizedString,
-    pub target_progress: i32,
+    pub target_progress: i64,
     pub title: LocalizedString,
     pub annotations: Option<ObjectiveAnnotations>,
 }
@@ -294,7 +294,7 @@ pub struct ObjectiveMatcherValue {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveCorporationIssuer {
     #[serde(rename = "corporationID")]
-    pub corporation_id: i32,
+    pub corporation_id: i64,
 }
 
 /// A `{ factionID }` issuer used by standing rewards.
@@ -302,7 +302,7 @@ pub struct ObjectiveCorporationIssuer {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveFactionIssuer {
     #[serde(rename = "factionID")]
-    pub faction_id: i32,
+    pub faction_id: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -333,7 +333,7 @@ pub struct ObjectiveStandingReward {
 #[serde(rename_all = "camelCase")]
 pub struct ObjectiveAnnotations {
     #[serde(rename = "requiredEnlistmentWithFactionID")]
-    pub required_enlistment_with_faction_id: i32,
+    pub required_enlistment_with_faction_id: i64,
     pub restriction_tooltip: LocalizedString,
     pub warning1: LocalizedString,
     pub warning2: Option<LocalizedString>,
@@ -344,12 +344,12 @@ pub struct ObjectiveAnnotations {
 #[serde(rename_all = "camelCase")]
 pub struct MercenaryTacticalOperation {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub anarchy_impact: i32,
     pub description: LocalizedString,
     pub development_impact: i32,
     #[serde(rename = "dungeonID")]
-    pub dungeon_id: i32,
+    pub dungeon_id: i64,
     pub infomorph_bonus: i32,
     pub name: LocalizedString,
 }
@@ -359,7 +359,7 @@ pub struct MercenaryTacticalOperation {
 #[serde(rename_all = "camelCase")]
 pub struct FreelanceJobSchema {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: Vec<FreelanceJob>,
 }
@@ -492,7 +492,7 @@ pub struct FreelanceInventoryType {
 #[serde(rename_all = "camelCase")]
 pub struct SovereigntyUpgrade {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub fuel: Option<SovereigntyUpgradeFuel>,
     #[serde(rename = "mutually_exclusive_group")]
     pub mutually_exclusive_group: String,
@@ -514,7 +514,7 @@ pub struct SovereigntyUpgradeFuel {
     #[serde(rename = "startup_cost")]
     pub startup_cost: i32,
     #[serde(rename = "type_id")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 #[cfg(test)]

@@ -6,9 +6,9 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Type {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "groupID")]
-    pub group_id: i32,
+    pub group_id: i64,
     pub mass: Option<f64>,
     pub name: LocalizedString,
     pub portion_size: i32,
@@ -17,27 +17,27 @@ pub struct Type {
     pub radius: Option<f64>,
     pub description: Option<LocalizedString>,
     #[serde(rename = "graphicID")]
-    pub graphic_id: Option<i32>,
+    pub graphic_id: Option<i64>,
     #[serde(rename = "soundID")]
-    pub sound_id: Option<i32>,
+    pub sound_id: Option<i64>,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     #[serde(rename = "raceID")]
-    pub race_id: Option<i32>,
+    pub race_id: Option<i64>,
     pub base_price: Option<f64>,
     #[serde(rename = "marketGroupID")]
-    pub market_group_id: Option<i32>,
+    pub market_group_id: Option<i64>,
     pub capacity: Option<f64>,
     #[serde(rename = "metaGroupID")]
-    pub meta_group_id: Option<i32>,
+    pub meta_group_id: Option<i64>,
     pub tech_level: Option<i32>,
     pub meta_level: Option<i32>,
     #[serde(rename = "variationParentTypeID")]
-    pub variation_parent_type_id: Option<i32>,
+    pub variation_parent_type_id: Option<i64>,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     #[serde(rename = "shipTreeGroupID")]
-    pub ship_tree_group_id: Option<i32>,
+    pub ship_tree_group_id: Option<i64>,
 }
 
 /// `groups.jsonl`
@@ -45,17 +45,17 @@ pub struct Type {
 #[serde(rename_all = "camelCase")]
 pub struct Group {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub anchorable: bool,
     pub anchored: bool,
     #[serde(rename = "categoryID")]
-    pub category_id: i32,
+    pub category_id: i64,
     pub fittable_non_singleton: bool,
     pub name: LocalizedString,
     pub published: bool,
     pub use_base_price: bool,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
 }
 
 /// `categories.jsonl`
@@ -63,11 +63,11 @@ pub struct Group {
 #[serde(rename_all = "camelCase")]
 pub struct Category {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: LocalizedString,
     pub published: bool,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
 }
 
 /// `blueprints.jsonl`
@@ -75,10 +75,10 @@ pub struct Category {
 #[serde(rename_all = "camelCase")]
 pub struct Blueprint {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub activities: BlueprintActivities,
     #[serde(rename = "blueprintTypeID")]
-    pub blueprint_type_id: i32,
+    pub blueprint_type_id: i64,
     pub max_production_limit: i32,
 }
 
@@ -109,7 +109,7 @@ pub struct BlueprintActivity {
 pub struct BlueprintMaterial {
     pub quantity: i32,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,7 +118,7 @@ pub struct BlueprintProduct {
     pub probability: Option<f64>,
     pub quantity: i32,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -126,7 +126,7 @@ pub struct BlueprintProduct {
 pub struct BlueprintSkill {
     pub level: i32,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// `marketGroups.jsonl`
@@ -134,14 +134,14 @@ pub struct BlueprintSkill {
 #[serde(rename_all = "camelCase")]
 pub struct MarketGroup {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: Option<LocalizedString>,
     pub has_types: bool,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub name: LocalizedString,
     #[serde(rename = "parentGroupID")]
-    pub parent_group_id: Option<i32>,
+    pub parent_group_id: Option<i64>,
 }
 
 /// `metaGroups.jsonl`
@@ -149,11 +149,11 @@ pub struct MarketGroup {
 #[serde(rename_all = "camelCase")]
 pub struct MetaGroup {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub color: Option<MetaGroupColor>,
     pub name: LocalizedString,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub icon_suffix: Option<String>,
     pub description: Option<LocalizedString>,
 }
@@ -171,7 +171,7 @@ pub struct MetaGroupColor {
 #[serde(rename_all = "camelCase")]
 pub struct TypeMaterials {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub materials: Option<Vec<TypeMaterial>>,
     pub randomized_materials: Option<Vec<TypeMaterialRandomized>>,
 }
@@ -180,7 +180,7 @@ pub struct TypeMaterials {
 #[serde(rename_all = "camelCase")]
 pub struct TypeMaterial {
     #[serde(rename = "materialTypeID")]
-    pub material_type_id: i32,
+    pub material_type_id: i64,
     pub quantity: i32,
 }
 
@@ -188,7 +188,7 @@ pub struct TypeMaterial {
 #[serde(rename_all = "camelCase")]
 pub struct TypeMaterialRandomized {
     #[serde(rename = "materialTypeID")]
-    pub material_type_id: i32,
+    pub material_type_id: i64,
     pub quantity_max: i32,
     pub quantity_min: i32,
 }
@@ -198,7 +198,7 @@ pub struct TypeMaterialRandomized {
 #[serde(rename_all = "camelCase")]
 pub struct TypeDogma {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub dogma_attributes: Vec<TypeDogmaAttribute>,
     pub dogma_effects: Option<Vec<TypeDogmaEffect>>,
 }
@@ -207,7 +207,7 @@ pub struct TypeDogma {
 #[serde(rename_all = "camelCase")]
 pub struct TypeDogmaAttribute {
     #[serde(rename = "attributeID")]
-    pub attribute_id: i32,
+    pub attribute_id: i64,
     pub value: f64,
 }
 
@@ -215,7 +215,7 @@ pub struct TypeDogmaAttribute {
 #[serde(rename_all = "camelCase")]
 pub struct TypeDogmaEffect {
     #[serde(rename = "effectID")]
-    pub effect_id: i32,
+    pub effect_id: i64,
     pub is_default: bool,
 }
 
@@ -224,11 +224,11 @@ pub struct TypeDogmaEffect {
 #[serde(rename_all = "camelCase")]
 pub struct TypeBonus {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub role_bonuses: Option<Vec<TypeBonusEntry>>,
     pub types: Option<Vec<TypeBonusTypePair>>,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub misc_bonuses: Option<Vec<TypeBonusEntry>>,
 }
 
@@ -236,7 +236,7 @@ pub struct TypeBonus {
 #[serde(rename_all = "camelCase")]
 pub struct TypeBonusTypePair {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: Vec<TypeBonusEntry>,
 }
@@ -248,7 +248,7 @@ pub struct TypeBonusEntry {
     pub bonus_text: LocalizedString,
     pub importance: i32,
     #[serde(rename = "unitID")]
-    pub unit_id: Option<i32>,
+    pub unit_id: Option<i64>,
     pub is_positive: Option<bool>,
 }
 
@@ -257,20 +257,20 @@ pub struct TypeBonusEntry {
 #[serde(rename_all = "camelCase")]
 pub struct TypeList {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "includedTypeIDs")]
-    pub included_type_ids: Option<Vec<i32>>,
+    pub included_type_ids: Option<Vec<i64>>,
     pub name: String,
     #[serde(rename = "includedGroupIDs")]
-    pub included_group_ids: Option<Vec<i32>>,
+    pub included_group_ids: Option<Vec<i64>>,
     #[serde(rename = "includedCategoryIDs")]
-    pub included_category_ids: Option<Vec<i32>>,
+    pub included_category_ids: Option<Vec<i64>>,
     #[serde(rename = "excludedGroupIDs")]
-    pub excluded_group_ids: Option<Vec<i32>>,
+    pub excluded_group_ids: Option<Vec<i64>>,
     #[serde(rename = "excludedTypeIDs")]
-    pub excluded_type_ids: Option<Vec<i32>>,
+    pub excluded_type_ids: Option<Vec<i64>>,
     #[serde(rename = "excludedCategoryIDs")]
-    pub excluded_category_ids: Option<Vec<i32>>,
+    pub excluded_category_ids: Option<Vec<i64>>,
     pub display_description: Option<LocalizedString>,
     pub display_name: Option<LocalizedString>,
 }
@@ -280,7 +280,7 @@ pub struct TypeList {
 #[serde(rename_all = "camelCase")]
 pub struct TypeElement {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub elements: Vec<TypeElementEntry>,
 }
 
@@ -288,7 +288,7 @@ pub struct TypeElement {
 #[serde(rename_all = "camelCase")]
 pub struct TypeElementEntry {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -298,9 +298,9 @@ pub struct TypeElementEntry {
 #[serde(rename_all = "camelCase")]
 pub struct CompressibleType {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "compressedTypeID")]
-    pub compressed_type_id: i32,
+    pub compressed_type_id: i64,
 }
 
 /// `contrabandTypes.jsonl`
@@ -308,7 +308,7 @@ pub struct CompressibleType {
 #[serde(rename_all = "camelCase")]
 pub struct ContrabandType {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub factions: Vec<ContrabandFaction>,
 }
 
@@ -316,7 +316,7 @@ pub struct ContrabandType {
 #[serde(rename_all = "camelCase")]
 pub struct ContrabandFaction {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub attack_min_sec: f64,
     pub confiscate_min_sec: f64,
     pub fine_by_value: f64,
@@ -328,7 +328,7 @@ pub struct ContrabandFaction {
 #[serde(rename_all = "camelCase")]
 pub struct DynamicItemAttribute {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "attributeIDs")]
     pub attribute_ids: Vec<DynamicItemAttributeEntry>,
     pub input_output_mapping: Vec<DynamicItemInputOutput>,
@@ -338,7 +338,7 @@ pub struct DynamicItemAttribute {
 #[serde(rename_all = "camelCase")]
 pub struct DynamicItemAttributeEntry {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub high_is_good: Option<bool>,
     pub max: f64,
     pub min: f64,
@@ -356,7 +356,7 @@ pub struct DynamicItemInputOutput {
 #[serde(rename_all = "camelCase")]
 pub struct ControlTowerResource {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub resources: Vec<ControlTowerResourceEntry>,
 }
 
@@ -364,12 +364,12 @@ pub struct ControlTowerResource {
 #[serde(rename_all = "camelCase")]
 pub struct ControlTowerResourceEntry {
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     pub min_security_level: Option<f64>,
     pub purpose: i32,
     pub quantity: i32,
     #[serde(rename = "resourceTypeID")]
-    pub resource_type_id: i32,
+    pub resource_type_id: i64,
 }
 
 #[cfg(test)]

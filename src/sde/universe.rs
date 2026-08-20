@@ -6,18 +6,18 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Region {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "constellationIDs")]
-    pub constellation_ids: Vec<i32>,
+    pub constellation_ids: Vec<i64>,
     pub description: Option<LocalizedString>,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     pub name: LocalizedString,
     #[serde(rename = "nebulaID")]
-    pub nebula_id: i32,
+    pub nebula_id: i64,
     pub position: Position3D,
     #[serde(rename = "wormholeClassID")]
-    pub wormhole_class_id: Option<i32>,
+    pub wormhole_class_id: Option<i64>,
 }
 
 /// `mapConstellations.jsonl`
@@ -25,17 +25,17 @@ pub struct Region {
 #[serde(rename_all = "camelCase")]
 pub struct Constellation {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
     pub name: LocalizedString,
     pub position: Position3D,
     #[serde(rename = "regionID")]
-    pub region_id: i32,
+    pub region_id: i64,
     #[serde(rename = "solarSystemIDs")]
-    pub solar_system_ids: Vec<i32>,
+    pub solar_system_ids: Vec<i64>,
     #[serde(rename = "wormholeClassID")]
-    pub wormhole_class_id: Option<i32>,
+    pub wormhole_class_id: Option<i64>,
 }
 
 /// `mapSolarSystems.jsonl`
@@ -43,38 +43,38 @@ pub struct Constellation {
 #[serde(rename_all = "camelCase")]
 pub struct SolarSystem {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub border: Option<bool>,
     #[serde(rename = "constellationID")]
-    pub constellation_id: i32,
+    pub constellation_id: i64,
     pub hub: Option<bool>,
     pub international: Option<bool>,
     pub luminosity: Option<f64>,
     pub name: LocalizedString,
     #[serde(rename = "planetIDs")]
-    pub planet_ids: Option<Vec<i32>>,
+    pub planet_ids: Option<Vec<i64>>,
     pub position: Position3D,
     #[serde(rename = "position2D")]
     pub position_2d: Option<Position2D>,
     pub radius: f64,
     #[serde(rename = "regionID")]
-    pub region_id: i32,
+    pub region_id: i64,
     pub regional: Option<bool>,
     pub security_class: Option<String>,
     pub security_status: f64,
     #[serde(rename = "starID")]
-    pub star_id: Option<i32>,
+    pub star_id: Option<i64>,
     #[serde(rename = "stargateIDs")]
-    pub stargate_ids: Option<Vec<i32>>,
+    pub stargate_ids: Option<Vec<i64>>,
     pub corridor: Option<bool>,
     pub fringe: Option<bool>,
     #[serde(rename = "wormholeClassID")]
-    pub wormhole_class_id: Option<i32>,
+    pub wormhole_class_id: Option<i64>,
     pub visual_effect: Option<String>,
     pub disallowed_anchor_categories: Option<Vec<i32>>,
     pub disallowed_anchor_groups: Option<Vec<i32>>,
     #[serde(rename = "factionID")]
-    pub faction_id: Option<i32>,
+    pub faction_id: Option<i64>,
 }
 
 /// Nested `attributes` object of `mapPlanets.jsonl`.
@@ -111,24 +111,24 @@ pub struct CelestialStatistics {
 #[serde(rename_all = "camelCase")]
 pub struct Planet {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "asteroidBeltIDs")]
-    pub asteroid_belt_ids: Option<Vec<i32>>,
+    pub asteroid_belt_ids: Option<Vec<i64>>,
     pub attributes: PlanetAttributes,
     pub celestial_index: i32,
     #[serde(rename = "moonIDs")]
-    pub moon_ids: Option<Vec<i32>>,
+    pub moon_ids: Option<Vec<i64>>,
     #[serde(rename = "orbitID")]
-    pub orbit_id: i32,
+    pub orbit_id: i64,
     pub position: Position3D,
     pub radius: i32,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     pub statistics: CelestialStatistics,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
     #[serde(rename = "npcStationIDs")]
-    pub npc_station_ids: Option<Vec<i32>>,
+    pub npc_station_ids: Option<Vec<i64>>,
     pub unique_name: Option<LocalizedString>,
 }
 
@@ -146,21 +146,21 @@ pub struct MoonAttributes {
 #[serde(rename_all = "camelCase")]
 pub struct Moon {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub attributes: MoonAttributes,
     pub celestial_index: i32,
     #[serde(rename = "orbitID")]
-    pub orbit_id: i32,
+    pub orbit_id: i64,
     pub orbit_index: i32,
     pub position: Position3D,
     pub radius: f64,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     pub statistics: Option<CelestialStatistics>,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
     #[serde(rename = "npcStationIDs")]
-    pub npc_station_ids: Option<Vec<i32>>,
+    pub npc_station_ids: Option<Vec<i64>>,
     pub unique_name: Option<LocalizedString>,
 }
 
@@ -180,13 +180,13 @@ pub struct StarStatistics {
 #[serde(rename_all = "camelCase")]
 pub struct Star {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub radius: i64,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     pub statistics: StarStatistics,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// Nested `destination` object of `mapStargates.jsonl`.
@@ -194,9 +194,9 @@ pub struct Star {
 #[serde(rename_all = "camelCase")]
 pub struct StargateDestination {
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     #[serde(rename = "stargateID")]
-    pub stargate_id: i32,
+    pub stargate_id: i64,
 }
 
 /// `mapStargates.jsonl`
@@ -204,13 +204,13 @@ pub struct StargateDestination {
 #[serde(rename_all = "camelCase")]
 pub struct Stargate {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub destination: StargateDestination,
     pub position: Position3D,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// Nested `statistics` object of `mapAsteroidBelts.jsonl` (no `pressure`).
@@ -236,18 +236,18 @@ pub struct BeltStatistics {
 #[serde(rename_all = "camelCase")]
 pub struct AsteroidBelt {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub celestial_index: i32,
     #[serde(rename = "orbitID")]
-    pub orbit_id: i32,
+    pub orbit_id: i64,
     pub orbit_index: i32,
     pub position: Position3D,
     pub radius: Option<f64>,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     pub statistics: Option<BeltStatistics>,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
     pub unique_name: Option<LocalizedString>,
 }
 
@@ -256,14 +256,14 @@ pub struct AsteroidBelt {
 #[serde(rename_all = "camelCase")]
 pub struct SecondarySun {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "effectBeaconTypeID")]
-    pub effect_beacon_type_id: i32,
+    pub effect_beacon_type_id: i64,
     pub position: Position3D,
     #[serde(rename = "solarSystemID")]
-    pub solar_system_id: i32,
+    pub solar_system_id: i64,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// `landmarks.jsonl`
@@ -271,14 +271,14 @@ pub struct SecondarySun {
 #[serde(rename_all = "camelCase")]
 pub struct Landmark {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: LocalizedString,
     pub name: LocalizedString,
     pub position: Position3D,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     #[serde(rename = "locationID")]
-    pub location_id: Option<i32>,
+    pub location_id: Option<i64>,
 }
 
 #[cfg(test)]

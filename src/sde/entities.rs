@@ -2,22 +2,22 @@
 //! `.jsonl` file and primary key, which is what lets [`super::load`] / [`super::load_all`]
 //! work for every entity.
 //!
-//! Most files key on an integer `_key` (the `i32` arm); a handful key on a string (the
+//! Most files key on an integer `_key` (the `i64` arm); a handful key on a string (the
 //! `String` arm, which clones the field).
 
 use super::SdeEntity;
 
 /// Generate `SdeEntity` impls from a `Type => "file.jsonl"` table.
 ///
-/// The default arm is for `i32` keys read straight from `self.id`. Prefix a
+/// The default arm is for `i64` keys read straight from `self.id`. Prefix a
 /// block with `str:` for entities whose `_key` is a `String` (cloned out).
 macro_rules! sde_entities {
     ( $( $ty:ty => $file:literal ),* $(,)? ) => {
         $(
             impl SdeEntity for $ty {
-                type Id = i32;
+                type Id = i64;
                 const FILE: &'static str = $file;
-                fn id(&self) -> i32 { self.id }
+                fn id(&self) -> i64 { self.id }
             }
         )*
     };

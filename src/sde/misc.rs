@@ -6,7 +6,7 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Icon {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub icon_file: String,
 }
 
@@ -15,14 +15,14 @@ pub struct Icon {
 #[serde(rename_all = "camelCase")]
 pub struct Graphic {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub graphic_file: Option<String>,
     pub icon_folder: Option<String>,
     pub sof_faction_name: Option<String>,
     pub sof_hull_name: Option<String>,
     pub sof_race_name: Option<String>,
     #[serde(rename = "sofMaterialSetID")]
-    pub sof_material_set_id: Option<i32>,
+    pub sof_material_set_id: Option<i64>,
     pub sof_layout: Option<Vec<String>>,
 }
 
@@ -41,7 +41,7 @@ pub struct GraphicMaterialSetColor {
 #[serde(rename_all = "camelCase")]
 pub struct GraphicMaterialSet {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub color_hull: Option<GraphicMaterialSetColor>,
     pub color_primary: Option<GraphicMaterialSetColor>,
     pub color_secondary: Option<GraphicMaterialSetColor>,
@@ -64,7 +64,7 @@ pub struct GraphicMaterialSet {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeElement {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: LocalizedString,
     pub icon: String,
     pub name: LocalizedString,
@@ -75,7 +75,7 @@ pub struct ShipTreeElement {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeGroupElement {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -85,7 +85,7 @@ pub struct ShipTreeGroupElement {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeGroupSkill {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub display: bool,
     pub level: i32,
 }
@@ -95,7 +95,7 @@ pub struct ShipTreeGroupSkill {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeGroupPreReqSkill {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub skills: Vec<ShipTreeGroupSkill>,
 }
 
@@ -104,7 +104,7 @@ pub struct ShipTreeGroupPreReqSkill {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeGroup {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: Option<LocalizedString>,
     pub elements: Option<Vec<ShipTreeGroupElement>>,
     pub icon: String,
@@ -121,7 +121,7 @@ pub struct ShipTreeGroup {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeFactionElement {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -131,7 +131,7 @@ pub struct ShipTreeFactionElement {
 #[serde(rename_all = "camelCase")]
 pub struct ShipTreeFaction {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: LocalizedString,
     pub elements: Vec<ShipTreeFactionElement>,
     pub icon: String,
@@ -148,7 +148,7 @@ pub struct PlanetResourceReagent {
     #[serde(rename = "secured_capacity")]
     pub secured_capacity: i32,
     #[serde(rename = "type_id")]
-    pub type_id: i32,
+    pub type_id: i64,
     #[serde(rename = "unsecured_capacity")]
     pub unsecured_capacity: i32,
 }
@@ -158,7 +158,7 @@ pub struct PlanetResourceReagent {
 #[serde(rename_all = "camelCase")]
 pub struct PlanetResource {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub power: Option<i32>,
     pub workforce: Option<i32>,
     pub reagent: Option<PlanetResourceReagent>,
@@ -169,7 +169,7 @@ pub struct PlanetResource {
 #[serde(rename_all = "camelCase")]
 pub struct PlanetSchematicType {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub is_input: bool,
     pub quantity: i32,
 }
@@ -179,7 +179,7 @@ pub struct PlanetSchematicType {
 #[serde(rename_all = "camelCase")]
 pub struct PlanetSchematic {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub cycle_time: i32,
     pub name: LocalizedString,
     pub pins: Vec<i32>,

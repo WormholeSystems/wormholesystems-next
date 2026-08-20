@@ -6,13 +6,13 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Race {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: Option<LocalizedString>,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub name: LocalizedString,
     #[serde(rename = "shipTypeID")]
-    pub ship_type_id: Option<i32>,
+    pub ship_type_id: Option<i64>,
     pub skills: Option<Vec<RaceSkill>>,
 }
 
@@ -21,7 +21,7 @@ pub struct Race {
 #[serde(rename_all = "camelCase")]
 pub struct RaceSkill {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -31,19 +31,19 @@ pub struct RaceSkill {
 #[serde(rename_all = "camelCase")]
 pub struct Bloodline {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub charisma: i32,
     #[serde(rename = "corporationID")]
-    pub corporation_id: i32,
+    pub corporation_id: i64,
     pub description: LocalizedString,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub intelligence: i32,
     pub memory: i32,
     pub name: LocalizedString,
     pub perception: i32,
     #[serde(rename = "raceID")]
-    pub race_id: i32,
+    pub race_id: i64,
     pub willpower: i32,
 }
 
@@ -52,13 +52,13 @@ pub struct Bloodline {
 #[serde(rename_all = "camelCase")]
 pub struct Ancestry {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "bloodlineID")]
-    pub bloodline_id: i32,
+    pub bloodline_id: i64,
     pub charisma: i32,
     pub description: LocalizedString,
     #[serde(rename = "iconID")]
-    pub icon_id: Option<i32>,
+    pub icon_id: Option<i64>,
     pub intelligence: i32,
     pub memory: i32,
     pub name: LocalizedString,
@@ -72,10 +72,10 @@ pub struct Ancestry {
 #[serde(rename_all = "camelCase")]
 pub struct CharacterAttribute {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: String,
     #[serde(rename = "iconID")]
-    pub icon_id: i32,
+    pub icon_id: i64,
     pub name: LocalizedString,
     pub notes: String,
     pub short_description: String,
@@ -95,7 +95,7 @@ pub struct CharacterTitle {
 #[serde(rename_all = "camelCase")]
 pub struct CloneGrade {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: String,
     pub skills: Vec<CloneGradeSkill>,
 }
@@ -106,7 +106,7 @@ pub struct CloneGrade {
 pub struct CloneGradeSkill {
     pub level: i32,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// `archetypes.jsonl`
@@ -114,7 +114,7 @@ pub struct CloneGradeSkill {
 #[serde(rename_all = "camelCase")]
 pub struct Archetype {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: LocalizedString,
     pub title: Option<LocalizedString>,
 }
@@ -124,10 +124,10 @@ pub struct Archetype {
 #[serde(rename_all = "camelCase")]
 pub struct Certificate {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub description: LocalizedString,
     #[serde(rename = "groupID")]
-    pub group_id: i32,
+    pub group_id: i64,
     pub name: LocalizedString,
     pub recommended_for: Option<Vec<i32>>,
     pub skill_types: Vec<CertificateSkillType>,
@@ -138,7 +138,7 @@ pub struct Certificate {
 #[serde(rename_all = "camelCase")]
 pub struct CertificateSkillType {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub advanced: i32,
     pub basic: i32,
     pub elite: i32,
@@ -151,7 +151,7 @@ pub struct CertificateSkillType {
 #[serde(rename_all = "camelCase")]
 pub struct Mastery {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: Vec<MasteryValue>,
 }
@@ -162,7 +162,7 @@ pub struct Mastery {
 #[serde(rename_all = "camelCase")]
 pub struct MasteryValue {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: Vec<i32>,
 }

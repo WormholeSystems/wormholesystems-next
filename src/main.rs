@@ -34,9 +34,11 @@ async fn main() {
 
     // `vector sde-fetch` unpacks the SDE into data/sde if it is not already there, then
     // exits. Needs no database: CI runs it to give the parse tests their files.
+    // `--force` replaces what is there with the current build.
     if args.iter().any(|a| a == "sde-fetch") {
         dotenvy::dotenv().ok();
-        match tokio::task::spawn_blocking(vector::sde::ensure_present)
+        let force = args.iter().any(|a| a == "--force");
+        match tokio::task::spawn_blocking(move || vector::sde::fetch(force))
             .await
             .expect("join failed")
         {

@@ -41,8 +41,18 @@ pub enum EnsurePresentError {
 ///
 /// Blocking network and disk I/O; call it via `spawn_blocking` when on an async runtime.
 pub fn ensure_present() -> Result<bool, EnsurePresentError> {
-    if Path::new(SDE_DIR).join(SDE_MARKER).exists() {
+    fetch(false)
+}
+
+/// As [`ensure_present`], but `force` downloads the current build over whatever is there.
+/// CCP releases a new build every few days, and old files are left in place rather than
+/// removed: a type CCP dropped would otherwise linger and be seeded forever.
+pub fn fetch(force: bool) -> Result<bool, EnsurePresentError> {
+    if !force && Path::new(SDE_DIR).join(SDE_MARKER).exists() {
         return Ok(false);
+    }
+    if force && Path::new(SDE_DIR).exists() {
+        std::fs::remove_dir_all(SDE_DIR)?;
     }
 
     // The archive lands next to its extraction target; make sure `data/` exists.
@@ -58,7 +68,7 @@ pub fn ensure_present() -> Result<bool, EnsurePresentError> {
 /// An SDE record type backed by one `.jsonl` file and addressable by a primary key.
 /// Implemented for every top-level type in `entities.rs`.
 pub trait SdeEntity: serde::de::DeserializeOwned {
-    /// The primary key type (`i32` for most files, `String` for a few).
+    /// The primary key type (`i64` for most files, `String` for a few).
     type Id: std::hash::Hash + std::cmp::Eq;
     /// Filename of the backing `.jsonl`, resolved under [`SDE_DIR`].
     const FILE: &'static str;

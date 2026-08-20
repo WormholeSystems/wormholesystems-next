@@ -141,7 +141,7 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set name = excluded.name, published = excluded.published",
         &categories,
         |b, c| {
-            b.push_bind(c.id as i64)
+            b.push_bind(c.id)
                 .push_bind(en(&c.name))
                 .push_bind(c.published)
         }
@@ -154,8 +154,8 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set category_id = excluded.category_id, name = excluded.name, published = excluded.published",
         &groups,
         |b, g| {
-            b.push_bind(g.id as i64)
-                .push_bind(g.category_id as i64)
+            b.push_bind(g.id)
+                .push_bind(g.category_id)
                 .push_bind(en(&g.name))
                 .push_bind(g.published)
         }
@@ -168,8 +168,8 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set parent_group_id = excluded.parent_group_id, name = excluded.name, has_types = excluded.has_types",
         &market_groups,
         |b, m| {
-            b.push_bind(m.id as i64)
-                .push_bind(m.parent_group_id.map(|v| v as i64))
+            b.push_bind(m.id)
+                .push_bind(m.parent_group_id)
                 .push_bind(en(&m.name))
                 .push_bind(m.has_types)
         }
@@ -182,15 +182,15 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set group_id = excluded.group_id, market_group_id = excluded.market_group_id, name = excluded.name, published = excluded.published, volume = excluded.volume, mass = excluded.mass, capacity = excluded.capacity, icon_id = excluded.icon_id",
         &types,
         |b, t| {
-            b.push_bind(t.id as i64)
-                .push_bind(t.group_id as i64)
-                .push_bind(t.market_group_id.map(|v| v as i64))
+            b.push_bind(t.id)
+                .push_bind(t.group_id)
+                .push_bind(t.market_group_id)
                 .push_bind(en(&t.name))
                 .push_bind(t.published)
                 .push_bind(t.volume)
                 .push_bind(t.mass)
                 .push_bind(t.capacity)
-                .push_bind(t.icon_id.map(|v| v as i64))
+                .push_bind(t.icon_id)
         }
     );
     println!("types: {n}");
@@ -202,12 +202,12 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set name = excluded.name, description = excluded.description, corporation_id = excluded.corporation_id, militia_corporation_id = excluded.militia_corporation_id, home_solar_system_id = excluded.home_solar_system_id, size_factor = excluded.size_factor",
         &factions,
         |b, f| {
-            b.push_bind(f.id as i64)
+            b.push_bind(f.id)
                 .push_bind(en(&f.name))
                 .push_bind(en(&f.description))
-                .push_bind(f.corporation_id.map(|v| v as i64))
-                .push_bind(f.militia_corporation_id.map(|v| v as i64))
-                .push_bind(f.solar_system_id as i64)
+                .push_bind(f.corporation_id)
+                .push_bind(f.militia_corporation_id)
+                .push_bind(f.solar_system_id)
                 .push_bind(f.size_factor)
         }
     );
@@ -220,11 +220,11 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set name = excluded.name, ticker = excluded.ticker, faction_id = excluded.faction_id, ceo_id = excluded.ceo_id",
         &corporations,
         |b, c| {
-            b.push_bind(c.id as i64)
+            b.push_bind(c.id)
                 .push_bind(en(&c.name))
                 .push_bind(&c.ticker_name)
-                .push_bind(c.faction_id.map(|v| v as i64))
-                .push_bind(c.ceo_id.map(|v| v as i64))
+                .push_bind(c.faction_id)
+                .push_bind(c.ceo_id)
         }
     );
     println!("corporations: {n}");
@@ -235,9 +235,9 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set name = excluded.name, faction_id = excluded.faction_id, wormhole_class_id = excluded.wormhole_class_id",
         &regions,
         |b, r| {
-            b.push_bind(r.id as i64)
+            b.push_bind(r.id)
                 .push_bind(en(&r.name))
-                .push_bind(r.faction_id.map(|v| v as i64))
+                .push_bind(r.faction_id)
                 .push_bind(r.wormhole_class_id)
         }
     );
@@ -249,10 +249,10 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set region_id = excluded.region_id, name = excluded.name, faction_id = excluded.faction_id",
         &constellations,
         |b, c| {
-            b.push_bind(c.id as i64)
-                .push_bind(c.region_id as i64)
+            b.push_bind(c.id)
+                .push_bind(c.region_id)
                 .push_bind(en(&c.name))
-                .push_bind(c.faction_id.map(|v| v as i64))
+                .push_bind(c.faction_id)
         }
     );
     println!("constellations: {n}");
@@ -263,15 +263,15 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
         "on conflict (id) do update set constellation_id = excluded.constellation_id, region_id = excluded.region_id, name = excluded.name, security_status = excluded.security_status, security_class = excluded.security_class, faction_id = excluded.faction_id, wormhole_class_id = excluded.wormhole_class_id, star_id = excluded.star_id, pos_x = excluded.pos_x, pos_y = excluded.pos_y, pos_z = excluded.pos_z",
         &solar_systems,
         |b, s| {
-            b.push_bind(s.id as i64)
-                .push_bind(s.constellation_id as i64)
-                .push_bind(s.region_id as i64)
+            b.push_bind(s.id)
+                .push_bind(s.constellation_id)
+                .push_bind(s.region_id)
                 .push_bind(en(&s.name))
                 .push_bind(s.security_status)
                 .push_bind(s.security_class.clone())
-                .push_bind(s.faction_id.map(|v| v as i64))
+                .push_bind(s.faction_id)
                 .push_bind(s.wormhole_class_id)
-                .push_bind(s.star_id.map(|v| v as i64))
+                .push_bind(s.star_id)
                 // Metres from the galactic centre. Only jump range reads them, and only as
                 // a distance between two systems, so the units never surface.
                 .push_bind(s.position.x)
@@ -337,7 +337,7 @@ async fn seed_entities(
             "dogma_units (id, name)",
             "on conflict (id) do update set name = excluded.name",
             &units,
-            |b, u| { b.push_bind(u.id as i64).push_bind(&u.name) }
+            |b, u| { b.push_bind(u.id).push_bind(&u.name) }
         );
         println!("dogma_units: {n}");
     }
@@ -349,9 +349,9 @@ async fn seed_entities(
             "on conflict (id) do update set name = excluded.name, unit_id = excluded.unit_id, default_value = excluded.default_value, high_is_good = excluded.high_is_good, published = excluded.published",
             &attrs,
             |b, a| {
-                b.push_bind(a.id as i64)
+                b.push_bind(a.id)
                     .push_bind(&a.name)
-                    .push_bind(a.unit_id.map(|v| v as i64))
+                    .push_bind(a.unit_id)
                     .push_bind(a.default_value)
                     .push_bind(a.high_is_good)
                     .push_bind(a.published)
@@ -365,7 +365,7 @@ async fn seed_entities(
         let mut rows = Vec::new();
         for td in &type_dogma {
             for a in &td.dogma_attributes {
-                rows.push((td.id as i64, a.attribute_id as i64, a.value));
+                rows.push((td.id, a.attribute_id, a.value));
             }
         }
         let n = bulk!(
@@ -385,11 +385,11 @@ async fn seed_entities(
             "on conflict (id) do update set solar_system_id = excluded.solar_system_id, destination_system_id = excluded.destination_system_id, destination_stargate_id = excluded.destination_stargate_id, type_id = excluded.type_id",
             &stargates,
             |b, s| {
-                b.push_bind(s.id as i64)
-                    .push_bind(s.solar_system_id as i64)
-                    .push_bind(s.destination.solar_system_id as i64)
-                    .push_bind(s.destination.stargate_id as i64)
-                    .push_bind(s.type_id as i64)
+                b.push_bind(s.id)
+                    .push_bind(s.solar_system_id)
+                    .push_bind(s.destination.solar_system_id)
+                    .push_bind(s.destination.stargate_id)
+                    .push_bind(s.type_id)
             }
         );
         println!("stargates: {n}");
@@ -402,9 +402,9 @@ async fn seed_entities(
             "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, celestial_index = excluded.celestial_index, name = excluded.name",
             &planets,
             |b, p| {
-                b.push_bind(p.id as i64)
-                    .push_bind(p.solar_system_id as i64)
-                    .push_bind(p.type_id as i64)
+                b.push_bind(p.id)
+                    .push_bind(p.solar_system_id)
+                    .push_bind(p.type_id)
                     .push_bind(p.celestial_index)
                     .push_bind(p.unique_name.as_ref().map(en))
             }
@@ -419,9 +419,9 @@ async fn seed_entities(
             "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, celestial_index = excluded.celestial_index, name = excluded.name",
             &moons,
             |b, m| {
-                b.push_bind(m.id as i64)
-                    .push_bind(m.solar_system_id as i64)
-                    .push_bind(m.type_id as i64)
+                b.push_bind(m.id)
+                    .push_bind(m.solar_system_id)
+                    .push_bind(m.type_id)
                     .push_bind(m.celestial_index)
                     .push_bind(m.unique_name.as_ref().map(en))
             }
@@ -436,9 +436,9 @@ async fn seed_entities(
             "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, celestial_index = excluded.celestial_index, name = excluded.name",
             &belts,
             |b, a| {
-                b.push_bind(a.id as i64)
-                    .push_bind(a.solar_system_id as i64)
-                    .push_bind(a.type_id as i64)
+                b.push_bind(a.id)
+                    .push_bind(a.solar_system_id)
+                    .push_bind(a.type_id)
                     .push_bind(a.celestial_index)
                     .push_bind(a.unique_name.as_ref().map(en))
             }
@@ -450,15 +450,15 @@ async fn seed_entities(
         // (deferred) corporations FK still validates at commit. The SDE carries no
         // station names, so they are synthesized the way the game builds them:
         // "{System} {Planet} - Moon {N} - {Corp} {Operation}".
-        let corp_ids: HashSet<i64> = corporations.iter().map(|c| c.id as i64).collect();
+        let corp_ids: HashSet<i64> = corporations.iter().map(|c| c.id).collect();
         let corp_names: HashMap<i64, String> = corporations
             .iter()
-            .filter_map(|c| Some((c.id as i64, c.name.en.clone()?)))
+            .filter_map(|c| Some((c.id, c.name.en.clone()?)))
             .collect();
         let operations = crate::sde::load_all::<npc::StationOperation>()?;
         let op_names: HashMap<i64, String> = operations
             .iter()
-            .filter_map(|o| Some((o.id as i64, o.operation_name.en.clone()?)))
+            .filter_map(|o| Some((o.id, o.operation_name.en.clone()?)))
             .collect();
         let system_names: HashMap<i64, String> = sqlx::query!("select id, name from solar_systems")
             .fetch_all(&mut *tx)
@@ -501,9 +501,9 @@ async fn seed_entities(
             "on conflict (id) do update set solar_system_id = excluded.solar_system_id, type_id = excluded.type_id, owner_corporation_id = excluded.owner_corporation_id, operation_id = excluded.operation_id, name = excluded.name",
             &stations,
             |b, s| {
-                let owner = Some(s.owner_id as i64).filter(|id| corp_ids.contains(id));
+                let owner = Some(s.owner_id).filter(|id| corp_ids.contains(id));
                 let mut name = system_names
-                    .get(&(s.solar_system_id as i64))
+                    .get(&{ s.solar_system_id })
                     .cloned()
                     .unwrap_or_default();
                 if let Some(planet) = s.celestial_index.filter(|p| *p > 0) {
@@ -513,21 +513,21 @@ async fn seed_entities(
                 if let Some(moon) = s.orbit_index.filter(|m| *m > 0) {
                     name.push_str(&format!(" - Moon {moon}"));
                 }
-                if let Some(corp) = corp_names.get(&(s.owner_id as i64)) {
+                if let Some(corp) = corp_names.get(&{ s.owner_id }) {
                     name.push_str(" - ");
                     name.push_str(corp);
                 }
                 if s.use_operation_name
-                    && let Some(op) = op_names.get(&(s.operation_id as i64))
+                    && let Some(op) = op_names.get(&{ s.operation_id })
                 {
                     name.push(' ');
                     name.push_str(op);
                 }
-                b.push_bind(s.id as i64)
-                    .push_bind(s.solar_system_id as i64)
-                    .push_bind(s.type_id as i64)
+                b.push_bind(s.id)
+                    .push_bind(s.solar_system_id)
+                    .push_bind(s.type_id)
                     .push_bind(owner)
-                    .push_bind(s.operation_id as i64)
+                    .push_bind(s.operation_id)
                     .push_bind(Some(name))
             }
         );
@@ -543,20 +543,20 @@ async fn seed_entities(
             "on conflict (id) do update set name = excluded.name",
             &services,
             |b, s| {
-                b.push_bind(s.id as i64)
+                b.push_bind(s.id)
                     .push_bind(s.service_name.en.clone().unwrap_or_default())
             }
         );
         println!("station_services: {n}");
 
         let operations = crate::sde::load_all::<npc::StationOperation>()?;
-        let service_ids: HashSet<i64> = services.iter().map(|s| s.id as i64).collect();
+        let service_ids: HashSet<i64> = services.iter().map(|s| s.id).collect();
         let pairs: Vec<(i64, i64)> = operations
             .iter()
             .flat_map(|op| {
                 op.services
                     .iter()
-                    .map(|svc| (op.id as i64, *svc as i64))
+                    .map(|svc| (op.id, *svc as i64))
                     .filter(|(_, svc)| service_ids.contains(svc))
                     .collect::<Vec<_>>()
             })
@@ -795,10 +795,7 @@ async fn seed_static(
     println!("signature_type_spawn_areas: {n}");
 
     // jove observatories: source is region -> [system names]; resolve names to ids.
-    let by_name: HashMap<String, i64> = solar_systems
-        .iter()
-        .map(|s| (en(&s.name), s.id as i64))
-        .collect();
+    let by_name: HashMap<String, i64> = solar_systems.iter().map(|s| (en(&s.name), s.id)).collect();
     let jove: HashMap<String, Vec<String>> = read_json("data/static/jove_observatories.json")?;
     let mut jove_ids: Vec<i64> = jove
         .values()

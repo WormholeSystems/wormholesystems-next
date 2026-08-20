@@ -6,12 +6,12 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct Skin {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "allowCCPDevs")]
     pub allow_ccp_devs: bool,
     pub internal_name: String,
     #[serde(rename = "skinMaterialID")]
-    pub skin_material_id: i32,
+    pub skin_material_id: i64,
     pub types: Vec<i32>,
     pub visible_serenity: bool,
     pub visible_tranquility: bool,
@@ -23,10 +23,10 @@ pub struct Skin {
 #[serde(rename_all = "camelCase")]
 pub struct SkinMaterial {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub display_name: Option<LocalizedString>,
     #[serde(rename = "materialSetID")]
-    pub material_set_id: i32,
+    pub material_set_id: i64,
 }
 
 /// `skinLicenses.jsonl`
@@ -34,12 +34,12 @@ pub struct SkinMaterial {
 #[serde(rename_all = "camelCase")]
 pub struct SkinLicense {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub duration: i32,
     #[serde(rename = "licenseTypeID")]
-    pub license_type_id: i32,
+    pub license_type_id: i64,
     #[serde(rename = "skinID")]
-    pub skin_id: i32,
+    pub skin_id: i64,
     pub is_single_use: Option<bool>,
 }
 
@@ -49,7 +49,7 @@ pub struct SkinLicense {
 pub struct SkinrComponentAssociatedTypeId {
     pub license_uses_granted: i32,
     #[serde(rename = "typeID")]
-    pub type_id: i32,
+    pub type_id: i64,
 }
 
 /// `skinrComponents.sequenceBinder`.
@@ -58,7 +58,7 @@ pub struct SkinrComponentAssociatedTypeId {
 pub struct SkinrComponentSequenceBinder {
     pub count: i32,
     #[serde(rename = "itemTypeID")]
-    pub item_type_id: i32,
+    pub item_type_id: i64,
 }
 
 /// `skinrComponents.jsonl`
@@ -66,7 +66,7 @@ pub struct SkinrComponentSequenceBinder {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrComponent {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "associatedTypeIds")]
     pub associated_type_ids: Vec<SkinrComponentAssociatedTypeId>,
     pub category: i32,
@@ -86,7 +86,7 @@ pub struct SkinrComponent {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrComponentCategory {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -95,7 +95,7 @@ pub struct SkinrComponentCategory {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrComponentRarity {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: LocalizedString,
     pub rank: i32,
 }
@@ -105,7 +105,7 @@ pub struct SkinrComponentRarity {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrComponentPointValueEntry {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -115,7 +115,7 @@ pub struct SkinrComponentPointValueEntry {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrComponentPointValue {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: Vec<SkinrComponentPointValueEntry>,
 }
@@ -125,7 +125,7 @@ pub struct SkinrComponentPointValue {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrSlot {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub allowed_design_component_categories: Vec<i32>,
     pub category: i32,
     pub name: LocalizedString,
@@ -136,7 +136,7 @@ pub struct SkinrSlot {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrSlotCategory {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -145,7 +145,7 @@ pub struct SkinrSlotCategory {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrSlotName {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub name: String,
 }
 
@@ -154,7 +154,7 @@ pub struct SkinrSlotName {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrSlotConfiguration {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     pub allow_all_ships: Option<bool>,
     pub config: Option<Vec<i32>>,
     pub name: String,
@@ -167,7 +167,7 @@ pub struct SkinrSlotConfiguration {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrTierThresholdEntry {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: i32,
 }
@@ -177,7 +177,7 @@ pub struct SkinrTierThresholdEntry {
 #[serde(rename_all = "camelCase")]
 pub struct SkinrTierThreshold {
     #[serde(rename = "_key")]
-    pub id: i32,
+    pub id: i64,
     #[serde(rename = "_value")]
     pub value: Vec<SkinrTierThresholdEntry>,
 }
