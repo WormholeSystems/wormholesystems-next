@@ -32,11 +32,13 @@ if [ -n "$TOKEN" ]; then
 	else
 		RELEASE="https://api.github.com/repos/$REPO/releases/tags/$VERSION"
 	fi
-	# One asset object per line, so the id and the name that belong together stay together.
+	# The response is pretty-printed, so flatten it first: one asset object per line puts
+	# each id beside the name it belongs to. GitHub lists `name` before the nested
+	# `uploader`, so splitting on the brace keeps the two together.
 	ASSET_ID="$(
 		curl -fsSL -H "Authorization: Bearer $TOKEN" \
 			-H "Accept: application/vnd.github+json" "$RELEASE" |
-			tr '{' '\n' |
+			tr -d '\n' | tr '{' '\n' |
 			grep "\"name\"[[:space:]]*:[[:space:]]*\"$ASSET\"" |
 			head -1 |
 			sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p'
@@ -97,7 +99,9 @@ esac
 [ -r /dev/tty ] || exit 0
 
 printf 'Run the setup now? [Y/n] '
-read -r answer < /dev/tty 2>/dev/null || answer=n
+# Braced so a /dev/tty that exists but cannot be opened fails quietly: the redirect's own
+# error is the shell's, not the read's, and would otherwise print before the fallback.
+{ read -r answer < /dev/tty; } 2>/dev/null || answer=n
 case "$answer" in
 	[nN]*) echo "Run \`wsctl setup\` whenever you are ready." ;;
 	*) exec "$BIN_DIR/wsctl" setup < /dev/tty ;;
