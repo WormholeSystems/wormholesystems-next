@@ -46,7 +46,8 @@ interface LayoutNode {
 	shift: number;
 	/** Stitches a shorter subtree's contour into its taller neighbour's. */
 	thread: LayoutNode | null;
-	ancestor: LayoutNode;
+	/** Where a shift lands. Null until one is recorded, which reads as the node itself. */
+	ancestor: LayoutNode | null;
 	/** The final cross-axis coordinate, filled in by the second walk. */
 	cross: number;
 }
@@ -169,10 +170,9 @@ export function computeTreeLayout(
 			change: 0,
 			shift: 0,
 			thread: null,
-			ancestor: null as unknown as LayoutNode,
+			ancestor: null,
 			cross: 0
 		};
-		node.ancestor = node;
 		nodes.set(id, node);
 	}
 	for (const [id, childIds] of childrenOf) {
@@ -200,10 +200,13 @@ export function computeTreeLayout(
 		right.mod += distance;
 	};
 
+	/** The recorded ancestor, or the node itself when none has been recorded yet. */
+	const ancestorOf = (node: LayoutNode) => node.ancestor ?? node;
+
 	// Where a shift is absorbed: the recorded ancestor when it is a sibling of `node`,
 	// else the running default.
 	const ancestorFor = (inner: LayoutNode, node: LayoutNode, fallback: LayoutNode) =>
-		inner.ancestor.parent === node.parent ? inner.ancestor : fallback;
+		ancestorOf(inner).parent === node.parent ? ancestorOf(inner) : fallback;
 
 	const executeShifts = (node: LayoutNode) => {
 		let shift = 0;
@@ -303,10 +306,9 @@ export function computeTreeLayout(
 		change: 0,
 		shift: 0,
 		thread: null,
-		ancestor: null as unknown as LayoutNode,
+		ancestor: null,
 		cross: 0
 	};
-	superRoot.ancestor = superRoot;
 	superRoot.children.forEach((child, index) => {
 		child.parent = superRoot;
 		child.siblingIndex = index + 1;

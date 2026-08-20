@@ -8,7 +8,9 @@
 
 	import { formatBookmark } from '$lib/bookmark';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { Signature } from '$lib/api/types/Signature';
+	import type { TimeStatus } from '$lib/api/types/TimeStatus';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import type { SignatureGroup } from '$lib/api/types/SignatureGroup';
 	import { Button } from '$lib/components/ui/button';
@@ -17,7 +19,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { destClassMeta } from '$lib/map/classes';
 	import { CATEGORIES, categoryMeta, typeById } from '$lib/map/signatures';
-	import type { SignatureContext } from '$lib/map/signature-context';
+	import type { SignatureContext, SignaturePatch } from '$lib/map/signature-context';
 	import ConnectionInput from './ConnectionInput.svelte';
 	import TimeDetails from './TimeDetails.svelte';
 	import TypeInput from './TypeInput.svelte';
@@ -86,7 +88,7 @@
 		}
 	}
 
-	function update(patch: Record<string, unknown>) {
+	function update(patch: SignaturePatch) {
 		ctx.actions?.update(sig.id, patch);
 	}
 
@@ -132,6 +134,16 @@
 	function togglePreserveMass() {
 		if (!connection) return;
 		ctx.actions?.setPreserveMass(connection.id, !connection.preserve_mass);
+	}
+
+	/** The widget's value as a mass status. Its own "fresh" choice means no status at all. */
+	function massFrom(value: string): MassStatus | null {
+		return value === 'reduced' || value === 'critical' ? value : null;
+	}
+
+	/** The same for lifetime, where "healthy" means no status. */
+	function timeFrom(value: string): TimeStatus | null {
+		return value === 'eol' || value === 'critical' ? value : null;
 	}
 
 	const MASS_OPTIONS = [
@@ -270,7 +282,7 @@
 					{#if isWormhole}
 						<DropdownMenu.RadioGroup
 							value={sig.mass_status ?? 'unknown'}
-							onValueChange={(v) => update({ mass_status: v === 'unknown' ? null : v })}
+							onValueChange={(v) => update({ mass_status: massFrom(v) })}
 						>
 							{#each MASS_OPTIONS as opt (opt.value)}
 								<DropdownMenu.RadioItem value={opt.value} class="text-xs">
@@ -284,7 +296,7 @@
 						<DropdownMenu.Separator />
 						<DropdownMenu.RadioGroup
 							value={sig.time_status ?? 'stable'}
-							onValueChange={(v) => update({ time_status: v === 'stable' ? null : v })}
+							onValueChange={(v) => update({ time_status: timeFrom(v) })}
 						>
 							{#each LIFETIME_OPTIONS as opt (opt.value)}
 								<DropdownMenu.RadioItem value={opt.value} class="text-xs">
