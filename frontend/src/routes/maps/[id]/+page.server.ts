@@ -10,5 +10,6 @@ export const load: PageServerLoad = async (event) => {
 		mapView(event, id).catch(() => null),
 		mapUserSettings(event, id).catch(() => null)
 	]);
-	return { view, settings };
+	// A map link is the one people actually paste at each other, so it says which map.
+	return { view, settings, seo: { title: view?.map.name } };
 };

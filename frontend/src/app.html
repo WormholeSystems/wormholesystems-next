@@ -2,7 +2,23 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+		<!-- The bar the browser paints around the page, per theme. -->
+		<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<meta name="apple-mobile-web-app-title" content="WormholeSystems" />
+		<meta name="mobile-web-app-capable" content="yes" />
+
+		<!-- The mark is a single colour, so there is one for each theme rather than one that
+		     disappears on half of them. -->
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" media="(prefers-color-scheme: light)" />
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-dark.png" media="(prefers-color-scheme: dark)" />
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" media="(prefers-color-scheme: light)" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)" />
 		<!-- Apply the saved theme before first paint to avoid a flash. -->
 		<script>
 			(function () {

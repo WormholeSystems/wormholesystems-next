@@ -75,14 +75,6 @@
 
 </script>
 
-<svelte:head>
-	<title>WormholeSystems — wormhole mapping for EVE Online</title>
-	<meta
-		name="description"
-		content="Real-time collaborative wormhole mapping for EVE Online. Open source, self-hosted, one command to stand up."
-	/>
-</svelte:head>
-
 <Tooltip.Provider delayDuration={300}>
 	<!-- Hero: the map itself, on its own canvas, drawn by the map's own components. -->
 	<section class="relative overflow-hidden border-b border-border">

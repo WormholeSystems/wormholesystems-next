@@ -8,5 +8,5 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async (event) => {
 	const { me } = await event.parent();
 	if (!me) redirect(302, '/login');
-	return { maps: await myMaps(event) };
+	return { maps: await myMaps(event), seo: { title: 'Maps' } };
 };

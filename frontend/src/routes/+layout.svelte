@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 
 	import Nav from '$lib/components/Nav.svelte';
+	import Seo from '$lib/components/Seo.svelte';
 	import { Toaster } from '$lib/components/ui/sonner';
 
 	let { children, data } = $props();
@@ -21,9 +22,7 @@
 	});
 </script>
 
-<svelte:head>
-	<title>WormholeSystems</title>
-</svelte:head>
+<Seo />
 
 <Toaster position="top-center" closeButton />
 <Nav me={data.me} maps={data.maps} status={data.status} />
