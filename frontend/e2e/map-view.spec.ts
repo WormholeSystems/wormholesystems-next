@@ -29,9 +29,9 @@ test('search dialog adds a system to the map', async ({ page, api }) => {
 	const node = page.getByTestId('system-node').filter({ hasText: 'Jita' });
 	await expect(node).toBeVisible();
 	await expect(node.getByText('The Forge')).toBeVisible();
-	const pos = await node.evaluate((el) => ({
-		left: parseFloat((el as HTMLElement).style.left),
-		top: parseFloat((el as HTMLElement).style.top)
+	const pos = await node.evaluate((el: HTMLElement) => ({
+		left: parseFloat(el.style.left),
+		top: parseFloat(el.style.top)
 	}));
 	// Click at (500, 500), node 180 wide / 40 tall → top-left near (410, 480).
 	expect(Math.abs(pos.left - 410)).toBeLessThanOrEqual(40);

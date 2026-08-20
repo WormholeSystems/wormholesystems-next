@@ -145,13 +145,17 @@
 		map.setLayoutItems(activeKey, next);
 	}
 
-	function onPointerDown(ev: PointerEvent, id: PanelId, kind: 'move' | 'resize') {
+	function onPointerDown(
+		ev: PointerEvent & { currentTarget: HTMLElement },
+		id: PanelId,
+		kind: 'move' | 'resize'
+	) {
 		if (!map.editingLayout) return;
 		ev.preventDefault();
 		ev.stopPropagation();
 		const origin = items.find((i) => i.i === id);
 		if (!origin) return;
-		(ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+		ev.currentTarget.setPointerCapture(ev.pointerId);
 		gestureFloor = rows;
 		gesture = { id, kind, startX: ev.clientX, startY: ev.clientY, origin, dx: 0, dy: 0, live: null };
 	}

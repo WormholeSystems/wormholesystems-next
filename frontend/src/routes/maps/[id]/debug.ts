@@ -21,7 +21,7 @@ interface Node {
 }
 
 /** The tree, breadth-first, with a row per node so the manual layout is not a pile. */
-function shape(): Node[] {
+function treeNodes(): Node[] {
 	const nodes: Node[] = [];
 	const rows = new Map<number, number>();
 	const row = (depth: number) => {
@@ -69,7 +69,7 @@ async function systemPool(count: number): Promise<number[]> {
  * has to prove it stays out of the nodes.
  */
 export async function seedStressChain(map: MapState): Promise<void> {
-	const nodes = shape();
+	const nodes = treeNodes();
 	const systems = await systemPool(nodes.length);
 	if (systems.length < nodes.length) {
 		toast.error('debug: not enough systems to build the chain');

@@ -11,7 +11,7 @@ test('the canvas and its grid follow the theme', async ({ page, api }) => {
 	const canvas = page.getByTestId('map-canvas');
 	const read = () =>
 		canvas.evaluate((el) => {
-			const world = el.querySelector('[style*="background-image"]') as HTMLElement;
+			const world = el.querySelector<HTMLElement>('[style*="background-image"]');
 			return {
 				canvas: getComputedStyle(el).backgroundColor,
 				grid: getComputedStyle(world).backgroundImage

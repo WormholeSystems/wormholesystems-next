@@ -57,9 +57,9 @@ function nodePosition(page: import('@playwright/test').Page, text: string) {
 	return page
 		.getByTestId('system-node')
 		.filter({ hasText: text })
-		.evaluate((el) => ({
-			left: parseFloat((el as HTMLElement).style.left),
-			top: parseFloat((el as HTMLElement).style.top)
+		.evaluate((el: HTMLElement) => ({
+			left: parseFloat(el.style.left),
+			top: parseFloat(el.style.top)
 		}));
 }
 

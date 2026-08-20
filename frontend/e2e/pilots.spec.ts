@@ -81,7 +81,7 @@ test('pilots are listed with the ones who can act first', async ({ page, api }) 
 		.poll(async () => card.getByTestId('pilot-row').count(), { timeout: 10_000 })
 		.toBe(4);
 	const order = await card.getByTestId('pilot-row').evaluateAll((rows) =>
-		rows.map((r) => (r as HTMLElement).dataset.pilot)
+		rows.map((r: HTMLElement) => r.dataset.pilot)
 	);
 	expect(order).toEqual([
 		'E2E Extra 23', // flying something
@@ -92,7 +92,7 @@ test('pilots are listed with the ones who can act first', async ({ page, api }) 
 
 	// Nobody is hidden, and the ones who cannot act are dimmed rather than dropped.
 	const dimmed = await card.getByTestId('pilot-row').evaluateAll((rows) =>
-		rows.map((r) => (r as HTMLElement).className.includes('opacity-50'))
+		rows.map((r: HTMLElement) => r.className.includes('opacity-50'))
 	);
 	expect(dimmed).toEqual([false, false, true, true]);
 });
