@@ -196,3 +196,39 @@ describe('a hub with many children in the next column', () => {
 		expect(crossings).toBe(0);
 	});
 });
+
+describe('runs share a lane where they can', () => {
+	const NODE_H2 = 40;
+	const COL = NODE_W + 136;
+
+	function bendsOf(edges: ReturnType<typeof treeEdges>) {
+		return [...edges.values()].map((e) => {
+			const xs = [...e.d.matchAll(/[ML] (-?[\d.]+) /g)].map((m) => Number(m[1]));
+			return Math.round(xs[1]);
+		});
+	}
+
+	// A run up and a run down never overlap, so they can sit on the same line and still be
+	// told apart: each keeps its own stroke. Giving them separate lines made a two-hole
+	// system look like a ladder.
+	it('puts one child above and one below on the same line', () => {
+		const positions = new Map([
+			[1, { x: 0, y: 300 }],
+			[2, { x: COL, y: 180 }],
+			[3, { x: COL, y: 420 }]
+		]);
+		const bends = bendsOf(treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2));
+		expect(new Set(bends).size).toBe(1);
+	});
+
+	// Two runs the same way do overlap, and would hide each other.
+	it('keeps two children on the same side apart', () => {
+		const positions = new Map([
+			[1, { x: 0, y: 300 }],
+			[2, { x: COL, y: 60 }],
+			[3, { x: COL, y: 180 }]
+		]);
+		const bends = bendsOf(treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2));
+		expect(new Set(bends).size).toBe(2);
+	});
+});

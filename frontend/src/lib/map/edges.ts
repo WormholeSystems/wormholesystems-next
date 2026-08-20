@@ -316,19 +316,43 @@ export function treeEdges(
 		if (group) group.push(edge);
 		else fans.set(key, [edge]);
 	}
-	// Each run gets its own lane in the corridor between the two nodes, sharing out the
-	// space there is rather than stepping a fixed distance from the middle: a fixed step
-	// walks the outermost runs onto the nodes once there are enough of them. Ordered
-	// farthest-first, so the runs nest and no two cross.
+	// Runs leaving one node share the corridor to the next column. Two of them only need
+	// separate lines where they would overlap and hide each other: a run up and a run down
+	// can sit on the same line and still be told apart, because each keeps its own colour.
+	// So pack them onto as few lines as possible, then space those across the corridor.
 	for (const group of fans.values()) {
 		if (group.length < 2) continue;
 		const horizontal = group[0].fromNormal.x !== 0;
-		group.sort((a, b) => b.distance - a.distance || a.signed - b.signed);
-		group.forEach((edge, i) => {
+		// How far the run reaches along the node edge it leaves from.
+		const reach = (e: Routed): [number, number] =>
+			horizontal
+				? [Math.min(e.from.y, e.to.y), Math.max(e.from.y, e.to.y)]
+				: [Math.min(e.from.x, e.to.x), Math.max(e.from.x, e.to.x)];
+
+		// Packed farthest run first, each taking the innermost lane it fits in. Farthest
+		// first is what makes the runs nest instead of cross; taking the first lane that
+		// fits is what lets a run up and a run down share one.
+		const lanes: [number, number][][] = [];
+		const laneOf = new Map<number, number>();
+		const ordered = [...group].sort((a, b) => b.distance - a.distance || a.signed - b.signed);
+		for (const edge of ordered) {
+			const [start, end] = reach(edge);
+			// A run this short is a jog, not a run, and it sits in the band the other runs
+			// leave the node through. Put it beyond all of them, where nothing reaches it.
+			const level = end - start < 2 * CORNER_RADIUS;
+			let lane = level
+				? -1
+				: lanes.findIndex((taken) => taken.every(([s, e]) => start >= e || end <= s));
+			if (lane === -1) lane = lanes.push([]) - 1;
+			lanes[lane].push([start, end]);
+			laneOf.set(edge.id, lane);
+		}
+
+		for (const edge of group) {
 			const start = horizontal ? edge.from.x : edge.from.y;
 			const end = horizontal ? edge.to.x : edge.to.y;
-			edge.bend = start + ((end - start) * (i + 1)) / (group.length + 1);
-		});
+			edge.bend = start + ((end - start) * (laneOf.get(edge.id)! + 1)) / (lanes.length + 1);
+		}
 	}
 
 	// Detours stack outwards so several between the same roots stay apart.
