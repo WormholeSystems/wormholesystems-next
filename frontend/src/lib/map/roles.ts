@@ -8,6 +8,24 @@ export function atLeast(role: Role | null | undefined, min: Role): boolean {
 	return RANK[role ?? 'viewer'] <= RANK[min];
 }
 
+export const ROLE_LABEL: Record<Role, string> = {
+	viewer: 'Viewer',
+	member: 'Member',
+	manager: 'Manager',
+	owner: 'Owner'
+};
+
+/** What each role may do, in the order they gain it. Shown wherever a role is explained. */
+export const ROLE_HELP: Record<Role, string> = {
+	viewer: 'Reads the chain: systems, connections, signatures and notes. Changes nothing.',
+	member: 'Everything a viewer does, and maps: systems, connections, signatures, intel.',
+	manager: 'Everything a member does, and runs the map: access, naming, alerts, settings.',
+	owner: 'Everything a manager does, and can delete the map.'
+};
+
+/** Least privileged first, which is the order they are explained in. */
+export const ROLES_ASCENDING: Role[] = ['viewer', 'member', 'manager', 'owner'];
+
 /** Owners-first ordering, for the access list. */
 export function byRole(a: Role, b: Role): number {
 	return RANK[a] - RANK[b];

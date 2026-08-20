@@ -28,12 +28,21 @@ test('the landing page states what it is and how to run it', async ({ page }) =>
 test('every section is present without scrolling', async ({ page }) => {
 	await gotoApp(page, '/');
 
-	for (const heading of ['Self-hosting is one command away', 'Ready to map the void?']) {
+	for (const heading of ['Run it yourself. It is one command.', 'Ready to map the void?']) {
 		await expect(page.getByRole('heading', { name: heading })).toBeAttached();
 	}
 	const cta = page.getByRole('heading', { name: 'Ready to map the void?' });
 	await cta.scrollIntoViewIfNeeded();
 	await expect(cta).toBeVisible();
+});
+
+// The access roles are the app's own strings, so the page cannot drift from the settings
+// screen that grants them.
+test('the access section lists every role', async ({ page }) => {
+	await gotoApp(page, '/');
+	for (const role of ['Viewer', 'Member', 'Manager', 'Owner']) {
+		await expect(page.getByText(role, { exact: true }).first()).toBeAttached();
+	}
 });
 
 test('the page does not scroll sideways on a phone', async ({ page }) => {

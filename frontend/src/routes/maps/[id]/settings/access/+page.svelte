@@ -31,7 +31,7 @@
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
-	import { atLeast, byRole } from '$lib/map/roles';
+	import { atLeast, byRole, ROLE_HELP, ROLE_LABEL } from '$lib/map/roles';
 
 	let { data }: { data: { view: MapView; access: AccessEntry[] } } = $props();
 
@@ -50,18 +50,6 @@
 	// Ownership is not grantable here: it is handed on from the General section instead.
 	const ROLES: Role[] = ['viewer', 'member', 'manager'];
 	const ALL_ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
-	const ROLE_LABEL: Record<Role, string> = {
-		viewer: 'Viewer',
-		member: 'Member',
-		manager: 'Manager',
-		owner: 'Owner'
-	};
-	const ROLE_HELP: Record<Role, string> = {
-		viewer: 'Reads the chain: systems, connections, signatures and notes. Changes nothing.',
-		member: 'Everything a viewer does, and maps: systems, connections, signatures, intel.',
-		manager: 'Everything a member does, and runs the map: access, naming, alerts, settings.',
-		owner: 'Everything a manager does, and can delete the map.'
-	};
 
 	$effect(() => {
 		const q = query.trim();

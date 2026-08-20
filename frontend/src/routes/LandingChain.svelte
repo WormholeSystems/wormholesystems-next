@@ -9,11 +9,13 @@
 
 	const CELL = 20;
 	const NODE_H = 2 * CELL;
-	const WIDTH = 700;
-	const HEIGHT = 380;
+	// Whole cells, so the nodes stay on the grid lines they are padded away from.
+	const PAD = 3 * CELL;
+	const WIDTH = 700 + 2 * PAD;
+	const HEIGHT = 380 + 2 * PAD;
 
 	const positions = new Map(
-		DEMO_SYSTEMS.map((s) => [s.id, { x: s.position_x, y: s.position_y }])
+		DEMO_SYSTEMS.map((s) => [s.id, { x: s.position_x + PAD, y: s.position_y + PAD }])
 	);
 	const edges = [...treeEdges(DEMO_CONNECTIONS, positions, NODE_H).values()];
 
@@ -59,7 +61,7 @@
 				<SystemNode
 					{node}
 					nodeH={NODE_H}
-					pos={{ x: node.position_x, y: node.position_y }}
+					pos={positions.get(node.id)!}
 					selected={false}
 					sigCounts={sigCounts(node.id)}
 					connectionCount={connectionCount(node.id)}
@@ -93,19 +95,19 @@
 	   has the whole width, until the viewport itself is narrower than the canvas. */
 	@media (min-width: 1280px) {
 		.chain-fit {
-			--s: 0.82;
+			--s: 0.74;
 		}
 	}
 
 	@media (max-width: 767px) {
 		.chain-fit {
-			--s: 0.62;
+			--s: 0.56;
 		}
 	}
 
 	@media (max-width: 479px) {
 		.chain-fit {
-			--s: 0.46;
+			--s: 0.42;
 		}
 	}
 

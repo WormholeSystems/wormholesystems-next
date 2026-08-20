@@ -1,8 +1,6 @@
 <script lang="ts">
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import BellIcon from '@lucide/svelte/icons/bell';
-	import CheckIcon from '@lucide/svelte/icons/check';
-	import CopyIcon from '@lucide/svelte/icons/copy';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
 	import GitForkIcon from '@lucide/svelte/icons/git-fork';
 	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
@@ -15,9 +13,12 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import MassBar from '$lib/components/map-ui/MassBar.svelte';
+	import AccessDemo from './AccessDemo.svelte';
+	import CountUp from './CountUp.svelte';
 	import LandingChain from './LandingChain.svelte';
 	import Reveal from './Reveal.svelte';
 	import Section from './Section.svelte';
+	import SelfHost from './SelfHost.svelte';
 	import SignatureDemo from './SignatureDemo.svelte';
 
 	let { data } = $props();
@@ -37,14 +38,6 @@
 		{ name: 'K162 → J123746', remaining: 82, jumps: 4, status: 'fresh' },
 		{ name: 'C247 → J104351', remaining: 38, jumps: 14, status: 'reduced' },
 		{ name: 'B274 → Korasen', remaining: 7, jumps: 22, status: 'critical' }
-	];
-
-	const checks = [
-		'Docker and Compose v2',
-		'the domain resolves here',
-		'ports 80 and 443 are free',
-		'disk for the static data',
-		'the checkout is current'
 	];
 
 	const rest = [
@@ -80,16 +73,6 @@
 		}
 	];
 
-	const command = './vectorctl setup';
-	let copied = $state(false);
-	let resetTimer: ReturnType<typeof setTimeout> | undefined;
-
-	function copy() {
-		navigator.clipboard?.writeText(command).catch(() => {});
-		copied = true;
-		clearTimeout(resetTimer);
-		resetTimer = setTimeout(() => (copied = false), 2000);
-	}
 </script>
 
 <svelte:head>
@@ -163,7 +146,7 @@
 			{#each knows as stat (stat.label)}
 				<div class="bg-background px-6 py-10 text-center" data-testid="landing-stat">
 					<div class="font-heading text-4xl font-semibold tracking-tight">
-						{stat.value.toLocaleString('en-US')}
+						<CountUp value={stat.value} />
 					</div>
 					<div class="mt-2 font-mono text-[10px] tracking-[0.15em] text-muted-foreground uppercase">
 						{stat.label}
@@ -211,68 +194,19 @@
 		</div>
 	</Section>
 
-	<!-- The reason to run it yourself, given its own full-width band. -->
-	<section id="self-host" class="relative overflow-hidden border-y border-border bg-card/40">
-		<div class="self-host-glow pointer-events-none absolute inset-0" aria-hidden="true"></div>
-		<div class="relative mx-auto w-full max-w-6xl px-6 py-20 sm:py-24">
-			<Reveal>
-				<p
-					class="flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] text-amber-500 uppercase"
-				>
-					<GitForkIcon class="size-3.5" />
-					Open source · Self-host ready
-				</p>
-				<div class="mt-6 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
-					<div>
-						<h2 class="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
-							Self-hosting is one command away
-						</h2>
-						<p class="mt-4 max-w-prose text-muted-foreground">
-							Postgres, the API, the web server and TLS come up together under Docker. Certificates
-							are issued on the first boot and the static data seeds itself.
-						</p>
-						<div
-							class="mt-6 flex items-center gap-2 rounded border border-border bg-background p-4 font-mono text-sm"
-						>
-							<span class="shrink-0 text-muted-foreground select-none">$</span>
-							<span class="min-w-0 flex-1 break-all">{command}</span>
-							<button
-								class="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-								aria-label="Copy the setup command"
-								data-testid="copy-command"
-								onclick={copy}
-							>
-								{#if copied}
-									<CheckIcon class="size-4 text-emerald-500" />
-								{:else}
-									<CopyIcon class="size-4" />
-								{/if}
-							</button>
-						</div>
-						<p class="mt-3 text-xs text-muted-foreground">
-							After a clone. It asks for your domain and your EVE application, and works the rest
-							out itself.
-						</p>
-					</div>
-					<div class="lg:pt-14">
-						<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-							Checked before it asks for anything
-						</p>
-						<ul class="mt-5 flex flex-col gap-3 text-sm text-muted-foreground">
-							{#each checks as check (check)}
-								<li class="flex items-baseline gap-3">
-									<CheckIcon class="size-3.5 shrink-0 translate-y-0.5 text-emerald-500" />
-									{check}
-								</li>
-							{/each}
-						</ul>
-					</div>
-				</div>
-			</Reveal>
-		</div>
-	</section>
+	<SelfHost />
 
-	<Section label="03 · Everything else" title="The rest of living in a wormhole" wide>
+	<Section
+		label="03 · Access"
+		title="Decide exactly who sees what"
+		body="Grant a character, a corporation or a whole alliance, at four levels, with an expiry if you want one. Or hand out a share link for somebody outside the map entirely, and withdraw it without touching anyone else."
+		tone="muted"
+		wide
+	>
+		<AccessDemo />
+	</Section>
+
+	<Section label="04 · Everything else" title="The rest of living in a wormhole" wide>
 		<div class="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
 			{#each rest as item (item.title)}
 				{@const Icon = item.icon}
@@ -311,13 +245,3 @@
 		</div>
 	</section>
 </Tooltip.Provider>
-
-<style>
-	.self-host-glow {
-		background: radial-gradient(
-			48rem 24rem at 15% 0%,
-			color-mix(in oklab, var(--color-amber-500) 8%, transparent),
-			transparent 70%
-		);
-	}
-</style>
