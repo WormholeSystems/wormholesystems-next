@@ -219,6 +219,10 @@ cmd_setup() {
 	env_set HTTP_PORT "$http"
 	env_set HTTPS_PORT "$https"
 
+	# What the outside world calls this install: OAuth redirects have to match it exactly.
+	local base
+	if [ -n "$domain" ]; then base="https://$domain"; else base="http://localhost:$http"; fi
+
 	echo
 	echo "  Who runs this install. Every request to ESI, zKillboard and EVE Ref carries"
 	echo "  these so those services can tell operators apart and reach you if something"
@@ -228,23 +232,13 @@ cmd_setup() {
 
 	echo
 	echo "  EVE SSO application (https://developers.eveonline.com/applications)."
-	if [ -n "$domain" ]; then
-		echo "  Its callback URL must be exactly: https://$domain/auth/callback"
-	else
-		echo "  Its callback URL must be exactly: http://localhost:$http/auth/callback"
-	fi
+	echo "  Its callback URL must be exactly: $base/auth/callback"
 	ask EVE_CLIENT_ID "  Client ID"
 	ask EVE_CLIENT_SECRET "  Secret" secret
-	if [ -n "$domain" ]; then
-		env_set EVE_REDIRECT_URI "https://$domain/auth/callback"
-	else
-		env_set EVE_REDIRECT_URI "http://localhost:$http/auth/callback"
-	fi
-
-	local base
-	if [ -n "$domain" ]; then base="https://$domain"; else base="http://localhost:$http"; fi
+	env_set EVE_REDIRECT_URI "$base/auth/callback"
 
 	echo
+	local want
 	read -r -p "  Set up Discord (account linking, slash commands, alerts to a channel)? [y/N]: " want
 	if [[ ${want:-n} =~ ^[Yy] ]]; then
 		cat <<-TXT
