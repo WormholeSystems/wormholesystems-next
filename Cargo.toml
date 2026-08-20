@@ -1,8 +1,15 @@
 [package]
 name = "wormholesystems"
+version = "0.1.0"
 edition = "2024"
 # sqlx 0.9 (and its CLI) require rustc >= 1.94.
 rust-version = "1.94"
+
+# `wsctl` is a workspace member rather than another binary here: it pulls in a prompt
+# toolkit the server has no use for, and `default-members` keeps it out of the image build.
+[workspace]
+members = ["wsctl"]
+default-members = ["."]
 
 [dependencies]
 # Web server

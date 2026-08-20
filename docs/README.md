@@ -39,6 +39,8 @@ with layered access control and Discord alerting.
 - `src/esi/`, `src/sde/`, `src/seed/` — talking to EVE: the live API, the static data
   export, and loading the latter into the database.
 - `src/alerts/`, `src/discord/` — what a map watches for, and where the notices go.
+- `wsctl/` — the setup and management tool, a separate crate so the prompt toolkit it
+  needs never reaches the server image. `install.sh` fetches its released binary.
 
 ## Working on it
 

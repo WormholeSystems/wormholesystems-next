@@ -34,10 +34,27 @@ cat ~/.ssh/id_ed25519.pub
 
 ## First run
 
+Install `wsctl`, the setup tool:
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://install.wormhole.systems | sh
+```
+
+It works out this machine's platform, drops the binary in `/usr/local/bin`, and offers to
+run the setup straight away. Pin a version with `WSCTL_VERSION=wsctl-v0.1.0`.
+
+Then, in a checkout:
+
 ```sh
 git clone git@github.com:WormholeSystems/wormholesystems-next.git
 cd wormholesystems-next
-./wsctl setup
+wsctl setup
+```
+
+Without a release for your platform, or to run it from source:
+
+```sh
+cargo run -p wsctl -- setup
 ```
 
 It checks the machine before asking for anything: Docker present and running, compose v2,
@@ -60,7 +77,7 @@ docker compose --profile full logs -f api
 ## Updating
 
 ```sh
-./wsctl update
+wsctl update
 ```
 
 Fast-forwards the checkout, rebuilds, restarts. Migrations run on boot, so there is no
@@ -70,13 +87,13 @@ CCP's static data is deliberately not part of that. `status` says when a newer b
 out; taking it is another ~550MB download and a re-seed of a few minutes:
 
 ```sh
-./wsctl sde-update
+wsctl sde-update
 ```
 
 ## Checking on it
 
 ```sh
-./wsctl status
+wsctl status
 ```
 
 Containers, how far behind origin the checkout is, which SDE build is loaded and whether
@@ -129,7 +146,7 @@ Two things have to wait until the stack is running, because Discord checks them:
 
 1. Set the Interactions Endpoint URL to `https://your-domain/discord/interactions`. Discord
    signs a ping at it and refuses to save if it does not answer.
-2. `./wsctl discord-register` uploads the `/wh` command. It is registered globally,
+2. `wsctl discord-register` uploads the `/wh` command. It is registered globally,
    so Discord takes a few minutes to show it.
 
 ## Backups

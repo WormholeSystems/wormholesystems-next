@@ -1,0 +1,21 @@
+[package]
+name = "wsctl"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+description = "Set up and run WormholeSystems on one machine"
+
+[[bin]]
+name = "wsctl"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+console = "0.16"
+# The console backend rather than crossterm: when the installer pipes the script into a
+# shell, stdin is that pipe and the prompts read the real terminal through /dev/tty. macOS
+# cannot poll a /dev/tty fd with kqueue, which is what crossterm's reader uses; console
+# does plain blocking reads and works either way.
+inquire = { version = "0.9", default-features = false, features = ["console"] }
+rand = "0.9"

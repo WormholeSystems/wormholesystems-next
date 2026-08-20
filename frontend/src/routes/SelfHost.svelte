@@ -10,7 +10,7 @@
 
 	import Reveal from './Reveal.svelte';
 
-	const command = './wsctl setup';
+	const command = 'wsctl setup';
 	let copied = $state(false);
 	let resetTimer: ReturnType<typeof setTimeout> | undefined;
 

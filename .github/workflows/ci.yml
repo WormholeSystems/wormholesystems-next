@@ -77,10 +77,10 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Clippy
-        run: cargo clippy --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Test
-        run: cargo test --locked
+        run: cargo test --workspace --locked
 
   frontend:
     name: frontend
@@ -131,7 +131,7 @@ jobs:
 
       - name: Compile against the query cache
         run: |
-          if ! cargo check --all-targets --locked; then
+          if ! cargo check --workspace --all-targets --locked; then
             echo "::error::.sqlx is out of date, so the production image cannot build."
             echo "Regenerate it against a migrated, seeded database and commit the result:"
             echo "  cargo sqlx prepare -- --all-targets"
