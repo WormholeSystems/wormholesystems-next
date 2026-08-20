@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+#
+# The production image builds with SQLX_OFFLINE=true against the .sqlx cache. A query that
+# is missing from it still compiles here and still passes `cargo test`, because both talk
+# to a real database: it fails minutes into a deploy instead. CI catches it too, but only
+# once the push has already gone out.
+#
+# `cargo sqlx prepare --check` is what settles it. Plain `cargo check` is not enough: with
+# nothing else changed it reuses the build cache, the macros never re-expand, and a cache
+# with a query missing passes.
+#
+# Skip with: git push --no-verify
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+command -v cargo >/dev/null || exit 0
+cargo sqlx --version >/dev/null 2>&1 || {
+	echo "pre-push: sqlx-cli not installed, skipping the query cache check" >&2
+	exit 0
+}
+
+# It needs the database it checks against; without one there is nothing to compare to.
+[ -f .env ] && set -a && . ./.env && set +a
+if ! cargo sqlx database create >/dev/null 2>&1; then
+	echo "pre-push: no database reachable, skipping the query cache check" >&2
+	exit 0
+fi
+
+echo "pre-push: checking the sqlx query cache…"
+if cargo sqlx prepare --check -- --all-targets >/tmp/vector-sqlx-check.log 2>&1; then
+	exit 0
+fi
+
+tail -20 /tmp/vector-sqlx-check.log >&2
+cat >&2 <<'MSG'
+
+pre-push: .sqlx does not match the queries in the code, so the Docker build will fail.
+
+    cargo sqlx prepare -- --all-targets
+    git add .sqlx && git commit --amend --no-edit
+
+MSG
+exit 1

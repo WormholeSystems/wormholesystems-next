@@ -39,3 +39,18 @@ with layered access control and Discord alerting.
 - `src/esi/`, `src/sde/`, `src/seed/` — talking to EVE: the live API, the static data
   export, and loading the latter into the database.
 - `src/alerts/`, `src/discord/` — what a map watches for, and where the notices go.
+
+## Working on it
+
+Queries are checked at compile time against a live database, and the production image
+builds from the `.sqlx` cache instead (`SQLX_OFFLINE=true`). Those two disagree the moment
+a new query is added and the cache is not regenerated: everything passes locally and the
+Docker build fails minutes into a deploy.
+
+```sh
+cargo sqlx prepare -- --all-targets   # after adding or changing a query
+git config core.hooksPath .githooks   # once per clone: checks it before every push
+```
+
+The hook is in [`.githooks/pre-push`](../.githooks/pre-push). CI checks the same thing, in
+the "builds without a database" job.
