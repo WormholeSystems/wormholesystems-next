@@ -210,7 +210,13 @@ cmd_setup() {
 	bold "\nWhat this deployment needs"
 	ask VECTOR_DOMAIN "Public domain (blank for plain http on this machine)"
 	local domain http https
+	# A bare hostname is what Caddy and the redirect URLs want, but a pasted address
+	# usually brings a scheme and a trailing slash with it.
 	domain=$(env_get VECTOR_DOMAIN)
+	domain=${domain#http://}
+	domain=${domain#https://}
+	domain=${domain%%/*}
+	env_set VECTOR_DOMAIN "$domain"
 	if [ -n "$domain" ]; then
 		http=80; https=443
 	else
