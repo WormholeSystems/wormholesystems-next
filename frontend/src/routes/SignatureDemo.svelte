@@ -3,6 +3,7 @@
 	// visitor sees is what the product renders rather than a mock-up of it.
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import SignatureColumns from '$lib/components/map-ui/SignatureColumns.svelte';
 	import { loadCatalog } from '$lib/map/signatures';
 	import type { SignatureContext } from '$lib/map/signature-context';
 	import SignatureRow from './maps/[id]/signatures/SignatureRow.svelte';
@@ -26,11 +27,10 @@
 
 <div class="overflow-hidden rounded border border-border bg-card">
 	<MapPanelHeader>
-		Signatures · Turnur
-		{#snippet actions()}
-			<span class="font-mono text-[10px] text-muted-foreground">{DEMO_SIGNATURES.length}</span>
-		{/snippet}
+		Signatures
+		<span class="ml-1 text-amber-400">{DEMO_SIGNATURES.length}</span>
 	</MapPanelHeader>
+	<SignatureColumns />
 	{#if catalog}
 		{#each DEMO_SIGNATURES as sig (sig.id)}
 			<SignatureRow

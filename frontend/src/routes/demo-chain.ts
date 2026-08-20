@@ -1,3 +1,4 @@
+import type { AccessEntry } from '$lib/api/types/AccessEntry';
 import type { MapCharacter } from '$lib/api/types/MapCharacter';
 import type { MapConnection } from '$lib/api/types/MapConnection';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
@@ -246,4 +247,21 @@ export const DEMO_SIGNATURES: Signature[] = [
 		created_at: hoursAgo(6),
 		updated_at: hoursAgo(6)
 	} as Signature
+];
+
+/**
+ * Grants on the demo map. Real EVE ids, so the portraits and logos the table renders come
+ * from the image server exactly as they would on a real one.
+ */
+export const DEMO_ACCESS: AccessEntry[] = [
+	{ subject_type: 'character', subject_id: 1689391488, name: 'Nicolas Kion', role: 'owner' },
+	{ subject_type: 'alliance', subject_id: 99005338, name: 'Hole Control', role: 'manager' },
+	{ subject_type: 'corporation', subject_id: 98599918, name: 'Wandering Phoenix', role: 'member' },
+	{
+		subject_type: 'character',
+		subject_id: 96061222,
+		name: 'Tovan Khev',
+		role: 'viewer',
+		expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString()
+	}
 ];

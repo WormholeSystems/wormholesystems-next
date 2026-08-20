@@ -28,6 +28,7 @@
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import type { SignatureContext } from '$lib/map/signature-context';
+	import SignatureColumns, { type SortColumn } from '$lib/components/map-ui/SignatureColumns.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
 	import { atLeast } from '$lib/map/roles';
 
@@ -89,7 +90,6 @@
 	);
 
 	// Default: id desc, ties by id ascending, nulls last.
-	type SortColumn = 'id' | 'category' | 'type' | 'age';
 	let sort = $state<{ column: SortColumn; direction: 'asc' | 'desc' }>(
 		(browser && JSON.parse(localStorage.getItem('signatures-sort') ?? 'null')) || {
 			column: 'id',
@@ -399,39 +399,7 @@
 			</div>
 		{:else}
 		<Tooltip.Provider delayDuration={300}>
-			<div
-				class="flex items-center gap-2 border-b border-border/30 bg-muted/20 px-3 font-mono text-[10px] tracking-wider text-muted-foreground uppercase {compact
-					? 'py-0.5'
-					: 'py-1.5'}"
-			>
-				{#snippet arrow(column: SortColumn)}
-					{#if sort.column === column}
-						{#if sort.direction === 'asc'}
-							<ArrowUpIcon class="size-3" />
-						{:else}
-							<ArrowDownIcon class="size-3" />
-						{/if}
-					{/if}
-				{/snippet}
-				<button
-					class="flex w-16 shrink-0 items-center gap-1 hover:text-foreground"
-					onclick={() => handleSort('id')}>ID {@render arrow('id')}</button
-				>
-				<button
-					class="flex w-20 shrink-0 items-center gap-1 hover:text-foreground"
-					onclick={() => handleSort('category')}>Cat {@render arrow('category')}</button
-				>
-				<button
-					class="flex min-w-0 flex-1 items-center gap-1 hover:text-foreground"
-					onclick={() => handleSort('type')}>Type {@render arrow('type')}</button
-				>
-				<span class="min-w-0 flex-1">Conn</span>
-				<button
-					class="flex w-10 shrink-0 items-center justify-end gap-1 hover:text-foreground"
-					onclick={() => handleSort('age')}>Age {@render arrow('age')}</button
-				>
-				<span class="w-12 shrink-0"></span>
-			</div>
+			<SignatureColumns {compact} {sort} onsort={handleSort} />
 
 			{#if creating}
 				<div

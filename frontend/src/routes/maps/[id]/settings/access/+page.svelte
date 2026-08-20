@@ -26,7 +26,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Command from '$lib/components/ui/command';
 	import { Input } from '$lib/components/ui/input';
-	import * as Table from '$lib/components/ui/table';
+	import AccessTable, { type SortKey } from '$lib/components/map-ui/AccessTable.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Popover from '$lib/components/ui/popover';
@@ -75,14 +75,7 @@
 		key: 'role',
 		descending: false
 	});
-	const COLUMNS = [
-		{ key: 'name' as const, label: 'Who' },
-		{ key: 'subject_type' as const, label: 'Kind' },
-		{ key: 'role' as const, label: 'Role' },
-		{ key: 'expires_at' as const, label: 'Ends' }
-	];
-
-	function sortBy(key: (typeof COLUMNS)[number]['key']) {
+	function sortBy(key: SortKey) {
 		sort = sort.key === key ? { key, descending: !sort.descending } : { key, descending: false };
 	}
 
@@ -381,112 +374,25 @@
 			</span>
 		</div>
 
-		<Table.Root data-testid="access-list">
-			<Table.Header>
-				<Table.Row>
-					{#each COLUMNS as column (column.key)}
-						<Table.Head>
-							<button
-								class="flex items-center gap-1 hover:text-foreground"
-								data-testid="sort-{column.key}"
-								onclick={() => sortBy(column.key)}
-							>
-								{column.label}
-								{#if sort.key === column.key}
-									<ArrowIcon
-										class="size-3 {sort.descending ? 'rotate-180' : ''} transition-transform"
-									/>
-								{/if}
-							</button>
-						</Table.Head>
-					{/each}
-					<Table.Head class="w-24"></Table.Head>
-				</Table.Row>
-			</Table.Header>
-			<Table.Body>
-				{#each shown as entry (entry.subject_id)}
-					<Table.Row data-testid="access-row">
-						<Table.Cell>
-							<span class="flex min-w-0 items-center gap-2">
-								<EveImage
-									kind={entry.subject_type}
-									id={entry.subject_id}
-									size={64}
-									title={entry.name ?? String(entry.subject_id)}
-									class="size-7 shrink-0 rounded-sm"
-								/>
-								<span class="truncate">{entry.name ?? `Unknown (${entry.subject_id})`}</span>
-							</span>
-						</Table.Cell>
-						<Table.Cell class="text-muted-foreground">{entry.subject_type}</Table.Cell>
-						<Table.Cell>
-							{#if entry.role === 'owner'}
-								<Badge variant="outline">{ROLE_LABEL.owner}</Badge>
-							{:else if canManage}
-								<Select.Root
-									type="single"
-									value={entry.role}
-									onValueChange={(role) =>
-										act(
-											api.setAccess({
-												map_id: mapId,
-												subject_type: entry.subject_type,
-												subject_id: entry.subject_id,
-												role: role as Role
-											})
-										)}
-								>
-									<Select.Trigger class="w-28">{ROLE_LABEL[entry.role]}</Select.Trigger>
-									<Select.Content>
-										<Select.Group>
-											{#each ROLES as r (r)}
-												<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
-											{/each}
-										</Select.Group>
-									</Select.Content>
-								</Select.Root>
-							{:else}
-								<Badge variant="outline">{ROLE_LABEL[entry.role]}</Badge>
-							{/if}
-						</Table.Cell>
-						<Table.Cell>
-							{#if entry.expires_at}
-								<button
-									type="button"
-									class="text-xs text-amber-500 hover:underline disabled:no-underline"
-									data-testid="access-expiry"
-									title={canManage ? 'Remove the end date' : undefined}
-									disabled={!canManage}
-									onclick={() => (clearing = entry)}
-								>
-									{new Date(entry.expires_at).toLocaleDateString(undefined, {
-										day: 'numeric',
-										month: 'short',
-										year: 'numeric'
-									})}
-								</button>
-							{:else}
-								<span class="text-xs text-muted-foreground">—</span>
-							{/if}
-						</Table.Cell>
-						<Table.Cell class="text-right">
-							{#if canManage && entry.role !== 'owner'}
-								<Button
-									variant="ghost"
-									size="icon"
-									class="size-7 text-muted-foreground hover:text-destructive"
-									aria-label="Revoke access for {entry.name ?? entry.subject_id}"
-									onclick={() =>
-										act(api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id }))}
-								>
-									<TrashIcon />
-								</Button>
-							{/if}
-						</Table.Cell>
-					</Table.Row>
-				{/each}
-			</Table.Body>
-		</Table.Root>
+		<AccessTable
+			entries={shown}
+			{canManage}
+			{sort}
+			onsort={sortBy}
+			actions={{
+				setRole: (entry, role) =>
+					act(
+						api.setAccess({
+							map_id: mapId,
+							subject_type: entry.subject_type,
+							subject_id: entry.subject_id,
+							role
+						})
+					),
+				revoke: (entry) => act(api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id })),
+				clearExpiry: (entry) => (clearing = entry)
+			}}
+		/>
 
 	</Card.Content>
 </Card.Root>

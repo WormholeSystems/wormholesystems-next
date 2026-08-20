@@ -9,8 +9,7 @@ test('shot', async ({ page }) => {
 		await page.evaluate((to) => window.scrollTo(0, to), y);
 		await page.waitForTimeout(60);
 	}
-	await page.evaluate(() => window.scrollTo(0, 0));
 	await page.waitForTimeout(900);
-	await page.screenshot({ path: 'shot-v6.png', fullPage: true, animations: 'disabled' });
+	await page.screenshot({ path: 'shot-v7.png', fullPage: true, animations: 'disabled' });
 	expect(1).toBe(1);
 });
