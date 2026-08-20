@@ -40,7 +40,9 @@
 </script>
 
 <!-- Tracks: index, hop marker, the four shared system columns, then the ignore slot. -->
-<Tooltip.Provider delayDuration={200}>
+<!-- ignoreNonKeyboardFocus: a tooltip that opens because something took focus, rather than
+     because the pointer went near it, leaves a dismiss layer that eats the next click. -->
+<Tooltip.Provider delayDuration={200} ignoreNonKeyboardFocus>
 	<ol
 		class="grid max-h-64 grid-cols-[min-content_min-content_min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2 overflow-y-auto"
 		data-testid="route-list"

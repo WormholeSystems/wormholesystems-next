@@ -40,10 +40,26 @@ test('a map page is titled after the map', async ({ page, api }) => {
 	await expect(page).toHaveTitle('E2E SeoMap · WormholeSystems');
 });
 
+// The mark is one colour, so a single icon disappears on one of the two themes. The SVG
+// carries both and picks inside itself; the PNG behind it relies on the browser honouring
+// `media` on the link, which is why the unconditional one has to be `no-preference` only.
+test('the icon adapts to the theme', async ({ page }) => {
+	const svg = await (await page.request.get('/favicon.svg')).text();
+	expect(svg).toContain('prefers-color-scheme: dark');
+
+	const html = await head(page, '/');
+	expect(html).toContain('href="/favicon.svg"');
+	expect(html).not.toMatch(/<link rel="icon"[^>]*href="\/favicon\.png"[^>]*>(?![^]*media)/);
+	// No unconditional PNG icon, or it would match in dark mode and beat the dark one.
+	for (const m of html.matchAll(/<link rel="icon"[^>]*href="\/favicon(-dark)?\.png"[^>]*>/g)) {
+		expect(m[0]).toContain('media=');
+	}
+});
+
 test('the icons and the card image are actually served', async ({ page }) => {
-	for (const asset of ['/og.png', '/favicon.png', '/favicon-dark.png', '/apple-touch-icon.png']) {
+	for (const asset of ['/og.png', '/favicon.svg', '/favicon.png', '/favicon-dark.png', '/apple-touch-icon.png']) {
 		const res = await page.request.get(asset);
 		expect(res.status(), asset).toBe(200);
-		expect(res.headers()['content-type'], asset).toContain('image/png');
+		expect(res.headers()['content-type'], asset).toContain('image/');
 	}
 });

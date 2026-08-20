@@ -35,7 +35,14 @@
 	>
 		{@render children()}
 	</Popover.Trigger>
-	<Popover.Content class="w-[26rem] p-0" align="end" data-testid="route-popover">
+	<!-- Same as the connection popover: without this the auto-focus lands on the first
+	     tooltip trigger in the list and pops a tooltip nobody asked for. -->
+	<Popover.Content
+		class="w-[26rem] gap-0 p-0"
+		align="end"
+		data-testid="route-popover"
+		onOpenAutoFocus={(ev) => ev.preventDefault()}
+	>
 		<div
 			class="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2"
 		>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import GlobeIcon from '@lucide/svelte/icons/globe';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 
 	import { api } from '$lib/api/client';
@@ -53,6 +54,7 @@
 		{/snippet}
 	</MapPanelHeader>
 	<MapPanelContent>
+	<Tooltip.Provider delayDuration={300} ignoreNonKeyboardFocus>
 		<div class="flex flex-col gap-2 p-3 text-xs">
 			{#if !isWormholeClass(system.wormhole_class_id)}
 				<!-- Threat is derived from killmails in wormhole space; k-space has none. -->
@@ -74,24 +76,41 @@
 							/>
 							<span class="truncate">{e.name}</span>
 							<span class="ml-auto shrink-0 text-muted-foreground">{e.kills} kills</span>
-							<a
-								href="https://zkillboard.com/{e.entity_type}/{e.id}/"
-								target="_blank"
-								rel="noopener"
-								aria-label="zKillboard"
-								class="text-muted-foreground hover:text-foreground"
-							>
-								<GlobeIcon class="size-3.5" />
-							</a>
-							<a
-								href="https://zkillboard.com/{e.entity_type}/{e.id}/system/{system.solar_system_id}/"
-								target="_blank"
-								rel="noopener"
-								aria-label="zKillboard in system"
-								class="text-muted-foreground hover:text-foreground"
-							>
-								<MapPinIcon class="size-3.5" />
-							</a>
+							<!-- Two zKillboard links that look alike, so each says which it is. -->
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									{#snippet child({ props })}
+										<a
+											{...props}
+											href="https://zkillboard.com/{e.entity_type}/{e.id}/"
+											target="_blank"
+											rel="noopener"
+											aria-label="Everything they have killed, on zKillboard"
+											class="flex text-muted-foreground hover:text-foreground"
+										>
+											<GlobeIcon class="size-3.5" />
+										</a>
+									{/snippet}
+								</Tooltip.Trigger>
+								<Tooltip.Content>Everything they have killed, anywhere</Tooltip.Content>
+							</Tooltip.Root>
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									{#snippet child({ props })}
+										<a
+											{...props}
+											href="https://zkillboard.com/{e.entity_type}/{e.id}/system/{system.solar_system_id}/"
+											target="_blank"
+											rel="noopener"
+											aria-label="What they have killed in this system, on zKillboard"
+											class="flex text-muted-foreground hover:text-foreground"
+										>
+											<MapPinIcon class="size-3.5" />
+										</a>
+									{/snippet}
+								</Tooltip.Trigger>
+								<Tooltip.Content>What they have killed in {system.name ?? 'this system'}</Tooltip.Content>
+							</Tooltip.Root>
 						</div>
 					{/each}
 				</div>
@@ -110,5 +129,6 @@
 				zKillboard
 			</a>
 			</div>
-	</MapPanelContent>
+		</Tooltip.Provider>
+</MapPanelContent>
 </MapPanel>

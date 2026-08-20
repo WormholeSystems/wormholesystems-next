@@ -5,7 +5,7 @@
 	// statics and effects exactly as a map node does, since the glyphs say where a hole leads.
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import EffectBadge from '$lib/components/EffectBadge.svelte';
-	import EveImage from '$lib/components/EveImage.svelte';
+	import SovereigntyBadge from '$lib/components/map-ui/SovereigntyBadge.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -14,13 +14,6 @@
 	let { system }: { system: SystemSearchResult } = $props();
 
 	const sov = $derived(system.sovereignty);
-	const sovTitle = $derived(
-		sov === null || sov === undefined
-			? undefined
-			: 'ticker' in sov && sov.ticker
-				? `[${sov.ticker}] ${sov.name}`
-				: sov.name
-	);
 </script>
 
 <ClassBadge classId={system.wormhole_class_id} security={system.security} class="truncate text-xs" />
@@ -56,10 +49,12 @@
 		</span>
 	</Tooltip.Provider>
 {:else if sov}
-	<!-- Logo only; the holder's ticker and name live in the hover tooltip. -->
-	<span class="flex items-center justify-end">
-		<EveImage kind={sov.kind} id={sov.id} size={32} class="size-4 shrink-0 rounded-sm" title={sovTitle} />
-	</span>
+	<!-- Logo only; the holder's ticker and name are one hover away. -->
+	<Tooltip.Provider delayDuration={300} ignoreNonKeyboardFocus>
+		<span class="flex items-center justify-end">
+			<SovereigntyBadge sovereignty={sov} />
+		</span>
+	</Tooltip.Provider>
 {:else}
 	<span></span>
 {/if}

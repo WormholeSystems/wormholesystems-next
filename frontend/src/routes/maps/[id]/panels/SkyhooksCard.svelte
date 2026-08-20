@@ -14,6 +14,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import SovereigntyBadge from '$lib/components/map-ui/SovereigntyBadge.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
@@ -167,12 +168,6 @@
 		};
 	}
 
-	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id,
-	// so anything that is not an alliance uses the corporation one.
-	function sovKind(sov: NonNullable<Skyhook['sovereignty']>) {
-		return sov.kind === 'alliance' ? 'alliance' : 'corporation';
-	}
-
 	function hover(row: Row, on: boolean) {
 		const placed = map.systems.find((s) => s.solar_system_id === row.skyhook.solar_system_id);
 		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
@@ -314,21 +309,7 @@
 
 								<span class="flex w-4 shrink-0 justify-center">
 									{#if row.skyhook.sovereignty}
-										{@const sov = row.skyhook.sovereignty}
-										<Tooltip.Root>
-											<Tooltip.Trigger class="flex">
-												<EveImage
-													kind={sovKind(sov)}
-													id={sov.id}
-													class="size-4 shrink-0 rounded-sm"
-												/>
-											</Tooltip.Trigger>
-											<Tooltip.Content class="flex items-center gap-2">
-												<EveImage kind={sovKind(sov)} id={sov.id} class="size-6 rounded-sm" />
-												{sov.name}
-												{#if 'ticker' in sov}({sov.ticker}){/if}
-											</Tooltip.Content>
-										</Tooltip.Root>
+										<SovereigntyBadge sovereignty={row.skyhook.sovereignty} />
 									{/if}
 								</span>
 

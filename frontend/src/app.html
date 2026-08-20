@@ -12,11 +12,16 @@
 		<meta name="apple-mobile-web-app-title" content="WormholeSystems" />
 		<meta name="mobile-web-app-capable" content="yes" />
 
-		<!-- The mark is a single colour, so there is one for each theme rather than one that
-		     disappears on half of them. -->
+		<!-- The mark is a single colour, so it needs one per theme or it disappears on half
+		     of them. The SVG carries both and chooses inside itself, which works wherever an
+		     SVG icon does; the PNGs behind it rely on the browser honouring `media` on the
+		     link, which not all of them do. So the unconditional PNG is the light one under
+		     `no-preference` only, or it would match in dark mode too and win.
+		     `apple-touch-icon` has no SVG form. -->
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" media="(prefers-color-scheme: light)" />
 		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-dark.png" media="(prefers-color-scheme: dark)" />
-		<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" media="(prefers-color-scheme: no-preference)" />
 		<link rel="apple-touch-icon" href="/apple-touch-icon.png" media="(prefers-color-scheme: light)" />
 		<link rel="apple-touch-icon" href="/apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)" />
 		<!-- Apply the saved theme before first paint to avoid a flash. -->

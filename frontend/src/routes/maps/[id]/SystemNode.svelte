@@ -27,6 +27,7 @@
 	import { classMeta, destClassMeta, isWormholeClass } from '$lib/map/classes';
 	import { NODE_W, statusColor } from '$lib/map/helpers';
 	import EffectBadge from '$lib/components/EffectBadge.svelte';
+	import SovereigntyBadge from '$lib/components/map-ui/SovereigntyBadge.svelte';
 
 	export interface SigCounts {
 		total: number;
@@ -94,7 +95,6 @@
 	const ghost = $derived(node.solar_system_id === null);
 	const unmapped = $derived(Math.max(0, sigCounts.wormholes - connectionCount));
 	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id.
-	const sovKind = $derived(node.sovereignty?.kind === 'alliance' ? 'alliance' : 'corporation');
 
 	const STATUS_ICONS: Record<SystemStatus, typeof ShieldCheckIcon> = {
 		friendly: ShieldCheckIcon,
@@ -254,16 +254,7 @@
 					</Tooltip.Root>
 				{/if}
 				{#if node.sovereignty}
-					<Tooltip.Root>
-						<Tooltip.Trigger class="flex">
-							<EveImage kind={sovKind} id={node.sovereignty.id} class="size-4 shrink-0 rounded-sm" />
-						</Tooltip.Trigger>
-						<Tooltip.Content class="flex items-center gap-2">
-							<EveImage kind={sovKind} id={node.sovereignty.id} class="size-6 rounded-sm" />
-							{node.sovereignty.name}
-							{#if 'ticker' in node.sovereignty}({node.sovereignty.ticker}){/if}
-						</Tooltip.Content>
-					</Tooltip.Root>
+					<SovereigntyBadge sovereignty={node.sovereignty} />
 				{:else if node.effect_name}
 					<EffectBadge name={node.effect_name} wormholeClassId={node.wormhole_class_id ?? 0} />
 				{/if}
