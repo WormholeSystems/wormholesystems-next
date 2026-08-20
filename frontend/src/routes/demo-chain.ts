@@ -1,0 +1,249 @@
+import type { MapCharacter } from '$lib/api/types/MapCharacter';
+import type { MapConnection } from '$lib/api/types/MapConnection';
+import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import type { Signature } from '$lib/api/types/Signature';
+
+/**
+ * A small chain, in the same shapes the API serves, so the landing page can render the
+ * real map components instead of look-alikes that drift away from them.
+ *
+ * Everything here is invented, but it is invented in the type the server would send: if a
+ * field changes shape, this stops compiling rather than quietly rendering something the
+ * product no longer looks like.
+ */
+
+const MAP_ID = 0;
+
+/**
+ * Ages are rendered relative to now, so the fixtures carry offsets rather than fixed dates
+ * that would drift into "three years ago". Computed once per render, which is also what
+ * keeps the server's markup and the client's first paint agreeing.
+ */
+const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+
+function system(
+	id: number,
+	fields: Partial<MapSystemView> & Pick<MapSystemView, 'position_x' | 'position_y'>
+): MapSystemView {
+	return {
+		id,
+		map_id: MAP_ID,
+		solar_system_id: 30000000 + id,
+		alias: null,
+		is_home: false,
+		is_rally: false,
+		is_pinned: false,
+		status: 'unknown',
+		occupying_group: null,
+		name: null,
+		security_status: null,
+		wormhole_class_id: null,
+		region: null,
+		region_id: null,
+		constellation_id: null,
+		constellation: null,
+		effect_name: null,
+		is_shattered: false,
+		threat_level: null,
+		statics: [],
+		sovereignty: null,
+		...fields
+	};
+}
+
+function statik(name: string, destClass: number): MapSystemView['statics'][number] {
+	return {
+		code: name,
+		dest_class: destClass,
+		max_jump_mass: null,
+		max_mass: null,
+		total_mass: null,
+		signature_strength: null,
+		lifetime_hours: null
+	} as MapSystemView['statics'][number];
+}
+
+export const HOME = 1;
+
+export const DEMO_SYSTEMS: MapSystemView[] = [
+	system(HOME, {
+		position_x: 0,
+		position_y: 160,
+		name: 'Turnur',
+		region: 'Metropolis',
+		security_status: 0.35,
+		is_home: true,
+		status: 'friendly'
+	}),
+	system(2, {
+		position_x: 260,
+		position_y: 40,
+		name: 'J103512',
+		region: 'B-R00004',
+		wormhole_class_id: 2,
+		status: 'empty',
+		statics: [statik('D382', 7), statik('Z647', 1)]
+	}),
+	system(3, {
+		position_x: 260,
+		position_y: 160,
+		name: 'J123746',
+		region: 'E-R00028',
+		wormhole_class_id: 5,
+		status: 'hostile',
+		threat_level: 'high',
+		occupying_group: 'HOLE',
+		statics: [statik('H296', 5), statik('C140', 8)]
+	}),
+	system(4, {
+		position_x: 260,
+		position_y: 300,
+		name: 'Korasen',
+		region: 'Black Rise',
+		security_status: 0.28,
+		status: 'active'
+	}),
+	system(5, {
+		position_x: 520,
+		position_y: 100,
+		name: 'J104351',
+		region: 'D-R00016',
+		wormhole_class_id: 3,
+		status: 'unscanned',
+		statics: [statik('X702', 7)]
+	}),
+	system(6, {
+		position_x: 520,
+		position_y: 240,
+		name: 'Q-XEB3',
+		region: 'Fountain',
+		security_status: -0.42,
+		status: 'unknown'
+	})
+];
+
+function connection(id: number, from: number, to: number, fields: Partial<MapConnection> = {}) {
+	return {
+		id,
+		map_id: MAP_ID,
+		from_system: from,
+		to_system: to,
+		type: 'wormhole',
+		mass_status: null,
+		time_status: null,
+		size: null,
+		preserve_mass: false,
+		jumps_count: 0,
+		jumps_mass_sum: 0,
+		created_at: hoursAgo(4),
+		updated_at: hoursAgo(1),
+		...fields
+	} as MapConnection;
+}
+
+export const DEMO_CONNECTIONS: MapConnection[] = [
+	connection(11, HOME, 2),
+	connection(12, HOME, 3, { mass_status: 'reduced', jumps_count: 14, jumps_mass_sum: 620_000_000 }),
+	connection(13, HOME, 4, { time_status: 'critical', jumps_count: 3 }),
+	connection(14, 3, 5),
+	connection(15, 3, 6, { mass_status: 'critical', jumps_count: 22 })
+];
+
+export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
+	[HOME]: [
+		{
+			character_id: 90000001,
+			name: 'Nicolas Kion',
+			corporation_ticker: 'VCTR',
+			solar_system_id: 30000001,
+			ship_type_id: 11192,
+			ship_name: null,
+			ship_type: 'Buzzard',
+			ship_group_id: null,
+			is_docked: false,
+			is_mine: true,
+			online: true,
+			is_active: true
+		} as MapCharacter
+	],
+	3: [
+		{
+			character_id: 90000002,
+			name: 'Ana Vale',
+			corporation_ticker: 'VCTR',
+			solar_system_id: 30000003,
+			ship_type_id: 17738,
+			ship_name: null,
+			ship_type: 'Machariel',
+			ship_group_id: null,
+			is_docked: false,
+			is_mine: false,
+			online: true,
+			is_active: false
+		} as MapCharacter
+	]
+};
+
+/** Signatures scanned in Turnur, in the states the panel colours differently. */
+export const DEMO_SIGNATURES: Signature[] = [
+	{
+		id: 101,
+		map_id: MAP_ID,
+		solar_system_id: 30000001,
+		signature_id: 'ABC-123',
+		group: 'wormhole',
+		signature_type_id: null,
+		name: null,
+		size: null,
+		mass_status: null,
+		time_status: null,
+		connection_id: 12,
+		created_at: hoursAgo(3),
+		updated_at: hoursAgo(3)
+	} as Signature,
+	{
+		id: 102,
+		map_id: MAP_ID,
+		solar_system_id: 30000001,
+		signature_id: 'DEF-456',
+		group: 'wormhole',
+		signature_type_id: null,
+		name: null,
+		size: null,
+		mass_status: null,
+		time_status: 'eol',
+		connection_id: 13,
+		created_at: hoursAgo(15),
+		updated_at: hoursAgo(2)
+	} as Signature,
+	{
+		id: 103,
+		map_id: MAP_ID,
+		solar_system_id: 30000001,
+		signature_id: 'GHI-789',
+		group: 'unknown',
+		signature_type_id: null,
+		name: null,
+		size: null,
+		mass_status: null,
+		time_status: null,
+		connection_id: null,
+		created_at: hoursAgo(0.2),
+		updated_at: hoursAgo(0.2)
+	} as Signature,
+	{
+		id: 104,
+		map_id: MAP_ID,
+		solar_system_id: 30000001,
+		signature_id: 'JKL-012',
+		group: 'data',
+		signature_type_id: null,
+		name: null,
+		size: null,
+		mass_status: null,
+		time_status: null,
+		connection_id: null,
+		created_at: hoursAgo(6),
+		updated_at: hoursAgo(6)
+	} as Signature
+];

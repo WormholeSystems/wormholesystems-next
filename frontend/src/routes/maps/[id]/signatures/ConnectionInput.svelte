@@ -1,7 +1,6 @@
 <script lang="ts">
 	// Links a signature to one of the system's connections. Unclaimed ones list first, and a
 	// typed signature filters to connections whose far end matches the type's destination.
-	import { api } from '$lib/api/client';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { Signature } from '$lib/api/types/Signature';
@@ -9,17 +8,17 @@
 	import * as Select from '$lib/components/ui/select';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { typeById } from '$lib/map/signatures';
-	import type { MapState } from '../map-state.svelte';
+	import type { SignatureContext } from '$lib/map/signature-context';
 
 	let {
-		map,
+		ctx,
 		system,
 		sig,
 		catalog,
 		compact,
 		canWrite
 	}: {
-		map: MapState;
+		ctx: SignatureContext;
 		system: MapSystemView;
 		sig: Signature;
 		catalog: SignatureCatalog;
@@ -29,13 +28,13 @@
 
 	function target(c: MapConnection): MapSystemView | null {
 		const otherPid = c.from_system === system.id ? c.to_system : c.from_system;
-		return map.systems.find((s) => s.id === otherPid) ?? null;
+		return ctx.systems.find((s) => s.id === otherPid) ?? null;
 	}
 
 	const candidates = $derived.by(() => {
 		const type = typeById(catalog, sig.signature_type_id);
 		const targetClass = type?.target_class ?? null;
-		return map.connections
+		return ctx.connections
 			.filter((c) => c.from_system === system.id || c.to_system === system.id)
 			.map((c) => ({ conn: c, target: target(c) }))
 			.filter((e) => e.target !== null)
@@ -53,7 +52,7 @@
 	// Connections another signature in this system already claims.
 	const claimed = $derived(
 		new Set(
-			map.sigs
+			ctx.sigs
 				.filter(
 					(s) =>
 						s.solar_system_id === system.solar_system_id &&
@@ -74,17 +73,12 @@
 
 	function pick(value: string) {
 		if (value === 'unlink') {
-			if (sig.connection_id !== null) {
-				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk: sig.id }));
-			}
+			if (sig.connection_id !== null) ctx.actions?.unlink(sig.id);
 			return;
 		}
 		const connectionId = Number(value);
 		if (!Number.isFinite(connectionId) || connectionId === sig.connection_id) return;
-		map.run(
-			'linkSignature',
-			api.linkSignature({ map_id: map.mapId, signature_pk: sig.id, connection_id: connectionId })
-		);
+		ctx.actions?.link(sig.id, connectionId);
 	}
 </script>
 

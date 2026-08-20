@@ -60,6 +60,38 @@ pub fn routes() -> Router<AppState> {
         .route("/api/threat/{solar_system_id}", get(threat_analysis))
         .route("/api/server-status", get(server_status))
         .route("/api/skyhooks", get(skyhooks))
+        .route("/api/reference-counts", get(reference_counts))
+}
+
+/// How much of New Eden this install has loaded. The landing page states these, so they
+/// are the real contents of this database rather than numbers written into a page.
+#[derive(Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct ReferenceCounts {
+    pub solar_systems: i64,
+    pub wormhole_systems: i64,
+    pub stargates: i64,
+    pub wormhole_types: i64,
+}
+
+/// `GET /api/reference-counts`: how much static data is seeded. Changes only when a new
+/// SDE build is loaded.
+pub async fn reference_counts(State(state): State<AppState>) -> ApiResult<ReferenceCounts> {
+    let row = sqlx::query!(
+        r#"select
+             (select count(*) from solar_systems) as "solar_systems!",
+             (select count(*) from wormhole_systems) as "wormhole_systems!",
+             (select count(*) from stargates) as "stargates!",
+             (select count(*) from wormhole_types) as "wormhole_types!""#
+    )
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(ReferenceCounts {
+        solar_systems: row.solar_systems,
+        wormhole_systems: row.wormhole_systems,
+        stargates: row.stargates,
+        wormhole_types: row.wormhole_types,
+    }))
 }
 
 /// `GET /api/grid-config`: the server-owned map canvas geometry.

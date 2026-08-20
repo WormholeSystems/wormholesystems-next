@@ -27,6 +27,7 @@
 	import { CATEGORIES, loadCatalog, parseScan, typeById } from '$lib/map/signatures';
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
+	import type { SignatureContext } from '$lib/map/signature-context';
 	import SignatureRow from './signatures/SignatureRow.svelte';
 	import { atLeast } from '$lib/map/roles';
 
@@ -34,6 +35,35 @@
 		map: MapState;
 		system: MapSystemView;
 	} = $props();
+
+	// The row and its inputs take this rather than the whole map, so the same components
+	// render from static data elsewhere. Every write they can make is named here.
+	const ctx: SignatureContext = {
+		get systems() {
+			return map.systems;
+		},
+		get connections() {
+			return map.connections;
+		},
+		get sigs() {
+			return map.sigs;
+		},
+		actions: {
+			update: (signature_pk, patch) =>
+				map.run('updateSignature', api.updateSignature({ map_id: map.mapId, signature_pk, ...patch })),
+			remove: (signature_pk) =>
+				map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk })),
+			link: (signature_pk, connection_id) =>
+				map.run('linkSignature', api.linkSignature({ map_id: map.mapId, signature_pk, connection_id })),
+			unlink: (signature_pk) =>
+				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk })),
+			setPreserveMass: (connection_id, preserve_mass) =>
+				map.run(
+					'setPreserveMass',
+					api.setConnectionStatus({ map_id: map.mapId, connection_id, preserve_mass })
+				)
+		}
+	};
 
 	let catalog = $state<SignatureCatalog | null>(null);
 	$effect(() => {
@@ -437,7 +467,7 @@
 			{#if catalog && sorted.length > 0}
 				{#each sorted as sig (sig.id)}
 					<SignatureRow
-						{map}
+						{ctx}
 						{system}
 						{sig}
 						{catalog}

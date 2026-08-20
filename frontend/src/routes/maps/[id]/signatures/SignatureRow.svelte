@@ -6,7 +6,6 @@
 
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
 	import { formatBookmark } from '$lib/bookmark';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { Signature } from '$lib/api/types/Signature';
@@ -18,13 +17,13 @@
 	import * as Select from '$lib/components/ui/select';
 	import { destClassMeta } from '$lib/map/classes';
 	import { CATEGORIES, categoryMeta, typeById } from '$lib/map/signatures';
-	import type { MapState } from '../map-state.svelte';
+	import type { SignatureContext } from '$lib/map/signature-context';
 	import ConnectionInput from './ConnectionInput.svelte';
 	import TimeDetails from './TimeDetails.svelte';
 	import TypeInput from './TypeInput.svelte';
 
 	let {
-		map,
+		ctx,
 		system,
 		sig,
 		catalog,
@@ -33,7 +32,7 @@
 		showStaticsFirst,
 		status
 	}: {
-		map: MapState;
+		ctx: SignatureContext;
 		system: MapSystemView;
 		sig: Signature;
 		catalog: SignatureCatalog;
@@ -49,14 +48,14 @@
 	const connection = $derived(
 		sig.connection_id === null
 			? null
-			: (map.connections.find((c) => c.id === sig.connection_id) ?? null)
+			: (ctx.connections.find((c) => c.id === sig.connection_id) ?? null)
 	);
 	// The linked connection's far end, for type narrowing and the bookmark class.
 	const linkedTarget = $derived.by(() => {
 		if (!connection) return null;
 		const otherPid =
 			connection.from_system === system.id ? connection.to_system : connection.from_system;
-		return map.systems.find((s) => s.id === otherPid) ?? null;
+		return ctx.systems.find((s) => s.id === otherPid) ?? null;
 	});
 
 	// Inline ID editing: alphanumerics only, uppercased, dash after 3 characters.
@@ -88,10 +87,7 @@
 	}
 
 	function update(patch: Record<string, unknown>) {
-		map.run(
-			'updateSignature',
-			api.updateSignature({ map_id: map.mapId, signature_pk: sig.id, ...patch })
-		);
+		ctx.actions?.update(sig.id, patch);
 	}
 
 	function pickCategory(value: string) {
@@ -130,19 +126,12 @@
 	}
 
 	function remove() {
-		map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk: sig.id }));
+		ctx.actions?.remove(sig.id);
 	}
 
 	function togglePreserveMass() {
 		if (!connection) return;
-		map.run(
-			'setPreserveMass',
-			api.setConnectionStatus({
-				map_id: map.mapId,
-				connection_id: connection.id,
-				preserve_mass: !connection.preserve_mass
-			})
-		);
+		ctx.actions?.setPreserveMass(connection.id, !connection.preserve_mass);
 	}
 
 	const MASS_OPTIONS = [
@@ -242,7 +231,7 @@
 	<!-- Wormhole rows only; on a site the type cell absorbs the column. -->
 	{#if isWormhole}
 		<div class="min-w-0 flex-1">
-			<ConnectionInput {map} {system} {sig} {catalog} {compact} {canWrite} />
+			<ConnectionInput {ctx} {system} {sig} {catalog} {compact} {canWrite} />
 		</div>
 	{/if}
 

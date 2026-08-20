@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select\n             (select count(*) from solar_systems) as \"solar_systems!\",\n             (select count(*) from wormhole_systems) as \"wormhole_systems!\",\n             (select count(*) from stargates) as \"stargates!\",\n             (select count(*) from wormhole_types) as \"wormhole_types!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_systems!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "wormhole_systems!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "stargates!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "wormhole_types!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "26f4468aa947ff9efdeb122018c881c86606f3382a52a04e8c6974a5d04684a3"
+}

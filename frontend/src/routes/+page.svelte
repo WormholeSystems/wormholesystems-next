@@ -1,56 +1,42 @@
 <script lang="ts">
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import BellIcon from '@lucide/svelte/icons/bell';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import CopyIcon from '@lucide/svelte/icons/copy';
+	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
 	import GitForkIcon from '@lucide/svelte/icons/git-fork';
+	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 	import MapIcon from '@lucide/svelte/icons/map';
+	import RouteIcon from '@lucide/svelte/icons/route';
+	import TelescopeIcon from '@lucide/svelte/icons/telescope';
+	import UndoIcon from '@lucide/svelte/icons/undo-2';
 
 	import { Button } from '$lib/components/ui/button';
-	import { gridBackground } from '$lib/map/helpers';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import MassBar from '$lib/components/map-ui/MassBar.svelte';
 	import LandingChain from './LandingChain.svelte';
+	import Reveal from './Reveal.svelte';
+	import Section from './Section.svelte';
+	import SignatureDemo from './SignatureDemo.svelte';
 
-	// One tile each, in the order someone evaluating this would ask about them. Two of them
-	// take a double column, which is what fills the four-wide grid exactly.
-	const features = [
-		{
-			wide: true,
-			label: 'Signatures',
-			title: 'Paste the scanner, keep the chain',
-			body: 'Drop probe-scanner output in and the panel diffs it: new signatures appear, renamed ones keep their link, and a wormhole you have flown ties itself to the connection it opened.'
-		},
-		{
-			wide: false,
-			label: 'Routing',
-			title: 'The shortest way home',
-			body: 'Routes run through the chain and the stargate graph together, weighted by security, and by how much lifetime and mass you are willing to trust.'
-		},
-		{
-			wide: false,
-			label: 'Pilots',
-			title: 'Who is where, live',
-			body: 'Everyone who opts in shares their position from ESI. The map shows where they are, how far that is from you, and what they are flying.'
-		},
-		{
-			wide: true,
-			label: 'Connections',
-			title: 'Mass and lifetime that add up',
-			body: 'Every jump is recorded against the hole it went through, so a connection knows what it has taken. Critical ones surface before someone rolls into them.'
-		},
-		{
-			wide: false,
-			label: 'Alerts',
-			title: 'Told in Discord',
-			body: 'Watch a system, a range of jumps, or a chain, and get told there. Slash commands answer from the same map, and accounts link to their pilots.'
-		},
-		{
-			wide: false,
-			label: 'Access',
-			title: 'Who sees what',
-			body: 'Viewer, member, manager, owner. Share a link for people outside the map entirely, and withdraw it without touching anyone else.'
-		}
-	];
+	let { data } = $props();
 
-	const install = [
-		{ cmd: 'git clone git@github.com:eve-vector/vector.git', note: null },
-		{ cmd: './vectorctl setup', note: 'asks for what it needs, checks the rest' }
+	// What this install actually holds, straight out of its own database. Deliberately not
+	// usage numbers: every copy is somebody's own server, so a global "capsuleers aboard"
+	// would be a figure nobody running this could stand behind.
+	const knows = $derived([
+		{ value: data.reference.solar_systems, label: 'Solar systems' },
+		{ value: data.reference.wormhole_systems, label: 'Wormhole systems' },
+		{ value: data.reference.stargates, label: 'Stargates' },
+		{ value: data.reference.wormhole_types, label: 'Wormhole types' }
+	]);
+
+	// The same numbers the connection panel shows, in the states it colours differently.
+	const holes = [
+		{ name: 'K162 → J123746', remaining: 82, jumps: 4, status: 'fresh' },
+		{ name: 'C247 → J104351', remaining: 38, jumps: 14, status: 'reduced' },
+		{ name: 'B274 → Korasen', remaining: 7, jumps: 22, status: 'critical' }
 	];
 
 	const checks = [
@@ -60,134 +46,278 @@
 		'disk for the static data',
 		'the checkout is current'
 	];
+
+	const rest = [
+		{
+			icon: RouteIcon,
+			title: 'Smart routing',
+			body: 'The shortest way home through the chain and the gates together, weighted by security and by how much lifetime and mass you will trust.'
+		},
+		{
+			icon: CrosshairIcon,
+			title: 'Threat analysis',
+			body: 'Recent kills surface against the systems they happened in, so you know what you are jumping into.'
+		},
+		{
+			icon: BellIcon,
+			title: 'Discord alerts',
+			body: 'Watch a system, a jump range, or the whole chain. Slash commands answer from the same map.'
+		},
+		{
+			icon: TelescopeIcon,
+			title: 'EVE Scout',
+			body: 'Thera and Turnur connections pulled in and kept current, so routing can use them too.'
+		},
+		{
+			icon: LayoutGridIcon,
+			title: 'Your own layout',
+			body: 'Drag the panels where you want them. Phone, tablet, laptop and desktop each remember their own arrangement.'
+		},
+		{
+			icon: UndoIcon,
+			title: 'Undo anything',
+			body: 'Every change is a command with an inverse, so a mis-pasted scan or a wrong signature is one keystroke back.'
+		}
+	];
+
+	const command = './vectorctl setup';
+	let copied = $state(false);
+	let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function copy() {
+		navigator.clipboard?.writeText(command).catch(() => {});
+		copied = true;
+		clearTimeout(resetTimer);
+		resetTimer = setTimeout(() => (copied = false), 2000);
+	}
 </script>
 
 <svelte:head>
 	<title>Vector — wormhole mapping for EVE Online</title>
 	<meta
 		name="description"
-		content="Real-time collaborative wormhole mapping for EVE Online. Open source and self-hosted."
+		content="Real-time collaborative wormhole mapping for EVE Online. Open source, self-hosted, one command to stand up."
 	/>
 </svelte:head>
 
-<!-- Hero: the product's own canvas, grid and all. -->
-<section class="relative overflow-hidden border-b border-border">
-	<div
-		class="pointer-events-none absolute inset-0 opacity-70"
-		style:background-image={gridBackground()}
-		style:background-size="40px 40px"
-	></div>
-	<div
-		class="relative mx-auto flex w-full max-w-7xl flex-col items-center gap-10 px-6 py-20 lg:flex-row lg:justify-between lg:py-28"
-	>
-		<div class="max-w-xl">
-			<p class="font-mono text-[11px] tracking-[0.25em] text-muted-foreground uppercase">
-				EVE Online · Wormhole mapping
-			</p>
-			<h1 class="mt-4 font-heading text-5xl font-semibold tracking-tight sm:text-6xl">
-				Map the chain<br />together.
-			</h1>
-			<p class="mt-5 max-w-prose text-muted-foreground">
-				One live map for the whole corp. Signatures, mass, lifetime and everyone's position, in
-				step for everybody looking at it. Run it on your own machine.
-			</p>
-			<div class="mt-8 flex flex-wrap items-center gap-3">
-				<Button href="/maps" size="lg">
-					<MapIcon data-icon="inline-start" />
-					Open your maps
-				</Button>
-				<Button href="#self-host" size="lg" variant="outline">
-					Self-host it
-					<ArrowRightIcon data-icon="inline-end" />
-				</Button>
-			</div>
-		</div>
-		<LandingChain />
-	</div>
-</section>
-
-<!-- Features, dense and asymmetric: two double-width tiles fill the four-wide grid exactly. -->
-<section class="mx-auto w-full max-w-7xl px-6 py-16">
-	<div class="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
-		{#each features as feature (feature.label)}
-			<article
-				class="flex flex-col gap-2 bg-background p-6 {feature.wide ? 'sm:col-span-2' : ''}"
-				data-testid="landing-feature"
-			>
-				<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-					{feature.label}
+<Tooltip.Provider delayDuration={300}>
+	<!-- Hero: the map itself, on its own canvas, drawn by the map's own components. -->
+	<section class="relative overflow-hidden border-b border-border">
+		<div
+			class="mx-auto flex w-full max-w-7xl flex-col items-center gap-12 px-6 py-20 xl:flex-row xl:gap-16 xl:py-28"
+		>
+			<div class="max-w-xl shrink-0">
+				<p
+					class="flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase"
+				>
+					<span class="size-1.5 animate-pulse rounded-full bg-green-500"></span>
+					Live, shared wormhole maps
 				</p>
-				<h2 class="font-heading text-lg font-medium tracking-tight">{feature.title}</h2>
-				<p class="text-sm text-muted-foreground">{feature.body}</p>
-			</article>
-		{/each}
-	</div>
-</section>
-
-<!-- Self-hosting: the actual commands, and what setup does before it asks for anything. -->
-<section id="self-host" class="border-y border-border bg-card/40">
-	<div class="mx-auto grid w-full max-w-7xl gap-px bg-border lg:grid-cols-3">
-		<div class="bg-background p-6 lg:col-span-2">
-			<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-				Self-hosted
-			</p>
-			<h2 class="mt-2 font-heading text-lg font-medium tracking-tight">
-				Two commands on one machine
-			</h2>
-			<div class="mt-4 border border-border bg-card p-4 font-mono text-xs">
-				{#each install as line (line.cmd)}
-					<p class="flex items-baseline gap-2 py-0.5">
-						<span class="text-muted-foreground select-none">$</span>
-						<!-- The command wraps under the prompt rather than pushing it onto its own line. -->
-						<span class="min-w-0 break-all">
-							{line.cmd}
-							{#if line.note}
-								<span class="text-muted-foreground">&nbsp;# {line.note}</span>
-							{/if}
-						</span>
-					</p>
-				{/each}
+				<h1
+					class="mt-6 font-heading text-5xl leading-[1.02] font-semibold tracking-tight sm:text-6xl"
+				>
+					Map the chain<br />together.
+				</h1>
+				<p class="mt-6 max-w-prose text-muted-foreground">
+					One live map for the whole corp. Signatures, mass, lifetime and everyone's position, in
+					step for everybody looking at it. Run it on your own machine.
+				</p>
+				<div class="mt-8 flex flex-wrap items-center gap-3">
+					<Button href="/maps" size="lg">
+						<MapIcon data-icon="inline-start" />
+						Open your maps
+					</Button>
+					<Button href="#self-host" size="lg" variant="outline">
+						Self-host it
+						<ArrowRightIcon data-icon="inline-end" />
+					</Button>
+				</div>
+				<p class="mt-8 font-mono text-[10px] tracking-[0.15em] text-muted-foreground/70 uppercase">
+					ESI-secure · No client install · Your database
+				</p>
 			</div>
-			<p class="mt-4 text-sm text-muted-foreground">
-				Postgres, the API, the web server and TLS come up together under Docker. Certificates are
-				issued on the first boot and the static data seeds itself.
-			</p>
-		</div>
-		<div class="bg-background p-6">
-			<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-				Checked first
-			</p>
-			<h2 class="mt-2 font-heading text-lg font-medium tracking-tight">
-				Before it asks for anything
-			</h2>
-			<ul class="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
-				{#each checks as check (check)}
-					<li class="flex items-baseline gap-2">
-						<span class="font-mono text-[10px] text-muted-foreground/60">✓</span>
-						{check}
-					</li>
-				{/each}
-			</ul>
-		</div>
-	</div>
-</section>
 
-<section class="mx-auto w-full max-w-7xl px-6 py-16">
-	<div class="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
-		<div class="max-w-xl">
-			<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-				Open source
-			</p>
-			<h2 class="mt-2 font-heading text-2xl font-medium tracking-tight">
-				Your map, your database, your machine
-			</h2>
-			<p class="mt-3 text-sm text-muted-foreground">
-				Nothing about your chain leaves the box you put it on. Read the code, run it, change it.
-			</p>
+			<div class="shrink-0 overflow-hidden rounded border border-border bg-card shadow-lg">
+				<MapPanelHeader>
+					home.map · Turnur
+					{#snippet actions()}
+						<span class="flex items-center gap-1.5">
+							<span
+								class="size-2 rounded-full"
+								style="background: var(--color-status-hostile)"
+							></span>
+							<span class="size-2 rounded-full" style="background: var(--color-status-active)"></span>
+							<span class="size-2 rounded-full" style="background: var(--color-status-empty)"></span>
+						</span>
+					{/snippet}
+				</MapPanelHeader>
+				<div class="relative overflow-hidden">
+					<LandingChain />
+				</div>
+			</div>
 		</div>
-		<Button href="https://github.com/eve-vector/vector" variant="outline" size="lg">
-			<GitForkIcon data-icon="inline-start" />
-			Source on GitHub
-		</Button>
-	</div>
-</section>
+	</section>
+
+	<Section label="What this copy knows" tone="muted">
+		<div class="grid grid-cols-2 gap-px bg-border md:grid-cols-4">
+			{#each knows as stat (stat.label)}
+				<div class="bg-background px-6 py-10 text-center" data-testid="landing-stat">
+					<div class="font-heading text-4xl font-semibold tracking-tight">
+						{stat.value.toLocaleString('en-US')}
+					</div>
+					<div class="mt-2 font-mono text-[10px] tracking-[0.15em] text-muted-foreground uppercase">
+						{stat.label}
+					</div>
+				</div>
+			{/each}
+		</div>
+		<p class="mt-6 text-center text-xs text-muted-foreground">
+			Seeded from CCP's static data export on the first boot, and re-seeded when they publish a new
+			one.
+		</p>
+	</Section>
+
+	<Section
+		id="signatures"
+		label="01 · Signatures"
+		title="Scanning is copy and paste"
+		body="Drop probe-scanner output in and the panel diffs it: new signatures appear, renamed ones keep their link, and a wormhole you have flown ties itself to the connection it opened. Nobody re-scans what the group already worked out."
+	>
+		<!-- The signature panel's own rows, from static data. -->
+		<SignatureDemo />
+	</Section>
+
+	<Section
+		label="02 · Connections"
+		title="Mass and lifetime that add up"
+		body="Every jump is recorded against the hole it went through, with the ship that made it, so a connection knows what it has actually taken rather than what somebody remembered. Critical ones surface before anyone rolls into them."
+		tone="muted"
+		reverse
+	>
+		<div class="flex flex-col gap-5 rounded border border-border bg-card p-5">
+			{#each holes as hole (hole.name)}
+				<div class="flex flex-col gap-2">
+					<div class="flex items-baseline justify-between text-xs">
+						<span class="font-mono">{hole.name}</span>
+						<span class="text-muted-foreground">{hole.jumps} jumps</span>
+					</div>
+					<MassBar remainingPercent={hole.remaining} />
+					<div class="flex items-baseline justify-between text-[11px] text-muted-foreground">
+						<span>Remaining</span>
+						<span class="tabular-nums">≈ {hole.remaining}%</span>
+					</div>
+				</div>
+			{/each}
+		</div>
+	</Section>
+
+	<!-- The reason to run it yourself, given its own full-width band. -->
+	<section id="self-host" class="relative overflow-hidden border-y border-border bg-card/40">
+		<div class="self-host-glow pointer-events-none absolute inset-0" aria-hidden="true"></div>
+		<div class="relative mx-auto w-full max-w-6xl px-6 py-20 sm:py-24">
+			<Reveal>
+				<p
+					class="flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] text-amber-500 uppercase"
+				>
+					<GitForkIcon class="size-3.5" />
+					Open source · Self-host ready
+				</p>
+				<div class="mt-6 grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+					<div>
+						<h2 class="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">
+							Self-hosting is one command away
+						</h2>
+						<p class="mt-4 max-w-prose text-muted-foreground">
+							Postgres, the API, the web server and TLS come up together under Docker. Certificates
+							are issued on the first boot and the static data seeds itself.
+						</p>
+						<div
+							class="mt-6 flex items-center gap-2 rounded border border-border bg-background p-4 font-mono text-sm"
+						>
+							<span class="shrink-0 text-muted-foreground select-none">$</span>
+							<span class="min-w-0 flex-1 break-all">{command}</span>
+							<button
+								class="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+								aria-label="Copy the setup command"
+								data-testid="copy-command"
+								onclick={copy}
+							>
+								{#if copied}
+									<CheckIcon class="size-4 text-emerald-500" />
+								{:else}
+									<CopyIcon class="size-4" />
+								{/if}
+							</button>
+						</div>
+						<p class="mt-3 text-xs text-muted-foreground">
+							After a clone. It asks for your domain and your EVE application, and works the rest
+							out itself.
+						</p>
+					</div>
+					<div class="lg:pt-14">
+						<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+							Checked before it asks for anything
+						</p>
+						<ul class="mt-5 flex flex-col gap-3 text-sm text-muted-foreground">
+							{#each checks as check (check)}
+								<li class="flex items-baseline gap-3">
+									<CheckIcon class="size-3.5 shrink-0 translate-y-0.5 text-emerald-500" />
+									{check}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				</div>
+			</Reveal>
+		</div>
+	</section>
+
+	<Section label="03 · Everything else" title="The rest of living in a wormhole" wide>
+		<div class="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+			{#each rest as item (item.title)}
+				{@const Icon = item.icon}
+				<div class="flex flex-col gap-2 bg-background p-6">
+					<Icon class="size-4 text-muted-foreground" />
+					<h3 class="mt-1 font-heading text-base font-medium tracking-tight">{item.title}</h3>
+					<p class="text-sm text-muted-foreground">{item.body}</p>
+				</div>
+			{/each}
+		</div>
+	</Section>
+
+	<section class="border-t border-border bg-card/40">
+		<div class="mx-auto w-full max-w-6xl px-6 py-24 text-center">
+			<Reveal>
+				<p class="font-mono text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
+					Your map, your database, your machine
+				</p>
+				<h2 class="mt-4 font-heading text-4xl font-semibold tracking-tight sm:text-5xl">
+					Ready to map the void?
+				</h2>
+				<p class="mx-auto mt-5 max-w-prose text-muted-foreground">
+					Nothing about your chain leaves the box you put it on. Read the code, run it, change it.
+				</p>
+				<div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+					<Button href="/maps" size="lg">
+						<MapIcon data-icon="inline-start" />
+						Open your maps
+					</Button>
+					<Button href="https://github.com/eve-vector/vector" size="lg" variant="outline">
+						<GitForkIcon data-icon="inline-start" />
+						Source on GitHub
+					</Button>
+				</div>
+			</Reveal>
+		</div>
+	</section>
+</Tooltip.Provider>
+
+<style>
+	.self-host-glow {
+		background: radial-gradient(
+			48rem 24rem at 15% 0%,
+			color-mix(in oklab, var(--color-amber-500) 8%, transparent),
+			transparent 70%
+		);
+	}
+</style>

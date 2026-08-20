@@ -6,20 +6,40 @@ test('the landing page states what it is and how to run it', async ({ page }) =>
 	await gotoApp(page, '/');
 
 	await expect(page.getByRole('heading', { level: 1 })).toContainText('Map the chain');
-	await expect(page.getByTestId('landing-feature')).toHaveCount(6);
 
-	// The install commands are the point of the self-host section, so they are real text on
-	// the page rather than an image someone has to retype from.
+	// The numbers are this install's own reference tables, not decoration, so they have to
+	// be real ones rather than the zeroes an unreachable API falls back to.
+	const stats = page.getByTestId('landing-stat');
+	await expect(stats).toHaveCount(4);
+	for (const stat of await stats.all()) {
+		await expect(stat).toHaveText(/^[1-9][\d,]*\s/);
+	}
+
+	// The setup command is the point of the self-host section, so it is real text on the
+	// page rather than an image someone has to retype from.
 	await expect(page.getByText('./vectorctl setup')).toBeVisible();
 
-	await page.getByRole('link', { name: 'Open your maps' }).click();
+	await page.getByRole('link', { name: 'Open your maps' }).first().click();
 	await expect(page).toHaveURL(/\/maps$/);
+});
+
+// Sections fade in on scroll. Visible has to be the resting state: hidden-until-observed
+// means a section is missing outright for anyone whose observer never runs.
+test('every section is present without scrolling', async ({ page }) => {
+	await gotoApp(page, '/');
+
+	for (const heading of ['Self-hosting is one command away', 'Ready to map the void?']) {
+		await expect(page.getByRole('heading', { name: heading })).toBeAttached();
+	}
+	const cta = page.getByRole('heading', { name: 'Ready to map the void?' });
+	await cta.scrollIntoViewIfNeeded();
+	await expect(cta).toBeVisible();
 });
 
 test('the page does not scroll sideways on a phone', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await gotoApp(page, '/');
-	await page.getByTestId('landing-feature').first().waitFor();
+	await page.getByTestId('landing-stat').first().waitFor();
 
 	const overflows = await page.evaluate(
 		() => document.documentElement.scrollWidth > document.documentElement.clientWidth

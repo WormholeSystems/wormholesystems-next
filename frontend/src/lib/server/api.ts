@@ -16,6 +16,7 @@ import { env } from '$env/dynamic/private';
 import type { RequestEvent } from '@sveltejs/kit';
 
 import type { CharacterSummary } from '$lib/api/types/CharacterSummary';
+import type { ReferenceCounts } from '$lib/api/types/ReferenceCounts';
 import type { ServerStatus } from '$lib/api/types/ServerStatus';
 import type { MapEntry } from '$lib/api/types/MapEntry';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
@@ -68,6 +69,19 @@ export function mapUserSettings(event: RequestEvent, mapId: number): Promise<Map
 /** Who has been granted access to a map. */
 export function accessList(event: RequestEvent, mapId: number): Promise<AccessEntry[]> {
 	return get<AccessEntry[]>(event, `/api/maps/${mapId}/access`);
+}
+
+/**
+ * How much static data this install has seeded, for the landing page. A failure falls back
+ * to zeroes, which the page renders as a row it simply does not draw.
+ */
+export function referenceCounts(event: RequestEvent): Promise<ReferenceCounts> {
+	return get<ReferenceCounts>(event, '/api/reference-counts').catch(() => ({
+		solar_systems: 0,
+		wormhole_systems: 0,
+		stargates: 0,
+		wormhole_types: 0
+	}));
 }
 
 /**

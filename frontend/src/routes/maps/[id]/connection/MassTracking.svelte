@@ -23,6 +23,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { Input } from '$lib/components/ui/input';
 	import ShipCombobox from '$lib/components/pickers/ShipCombobox.svelte';
+	import MassBar from '$lib/components/map-ui/MassBar.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -53,13 +54,6 @@
 	const remainingMassKg = $derived(
 		totalMass === null ? null : Math.max(0, totalMass - connection.jumps_mass_sum)
 	);
-	const barColor = $derived.by(() => {
-		if (remainingPercent === null) return 'bg-neutral-500';
-		if (remainingPercent <= 10) return 'bg-red-500';
-		if (remainingPercent <= 50) return 'bg-amber-500';
-		return 'bg-green-500';
-	});
-
 	let logOpen = $state(false);
 	let jumps = $state<ConnectionJump[]>([]);
 	async function refreshLog() {
@@ -427,29 +421,7 @@
 	<div class="grid grid-cols-2 divide-y text-xs text-muted-foreground *:py-1">
 		{#if remainingPercent !== null}
 			<div class="col-span-full">
-				<div class="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
-					<div
-						class="h-full rounded-full transition-all {barColor}"
-						style="width: {remainingPercent}%"
-						data-testid="mass-bar"
-					></div>
-					<Tooltip.Root>
-						<Tooltip.Trigger
-							class="absolute inset-y-0 left-[10%] flex w-2 -translate-x-1/2 justify-center"
-						>
-							<span class="h-full w-px bg-popover"></span>
-						</Tooltip.Trigger>
-						<Tooltip.Content>Below 10% the hole verges to critical</Tooltip.Content>
-					</Tooltip.Root>
-					<Tooltip.Root>
-						<Tooltip.Trigger
-							class="absolute inset-y-0 left-1/2 flex w-2 -translate-x-1/2 justify-center"
-						>
-							<span class="h-full w-px bg-popover"></span>
-						</Tooltip.Trigger>
-						<Tooltip.Content>Below 50% the hole shrinks to reduced</Tooltip.Content>
-					</Tooltip.Root>
-				</div>
+				<MassBar {remainingPercent} />
 			</div>
 			{#if remainingMassKg !== null}
 				<div class="col-span-full grid grid-cols-subgrid">
