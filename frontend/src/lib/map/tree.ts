@@ -67,8 +67,13 @@ export function computeTreeLayout(
 	const snap = (value: number) => Math.round(value / gridSize) * gridSize;
 	// Wide enough for an edge's badge cluster at its midpoint to clear both nodes.
 	const levelGap = snap(options.levelGap ?? 320);
-	// Loose enough that a row of pilots under a node does not touch the next.
-	const siblingGap = snap(options.siblingGap ?? 60);
+	// An even number of cells, and loose enough that a row of pilots under a node does not
+	// touch the next. Even matters: a parent sits at the midpoint of its first and last
+	// child, and with an even count of children that midpoint is half a pitch off one of
+	// them. At an odd pitch that lands half a cell off the grid, and snapping then drops
+	// the parent onto a child's row instead of between the two.
+	const evenCells = 2 * gridSize;
+	const siblingGap = Math.max(evenCells, Math.round((options.siblingGap ?? 80) / evenCells) * evenCells);
 	// Where the first node's top-left sits.
 	const marginX = snap(options.marginX ?? 20);
 	const marginY = snap(options.marginY ?? 20);

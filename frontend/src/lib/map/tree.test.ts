@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { computeTreeLayout, type TreeInput } from './tree';
 
-// Defaults: gridSize 20, levelGap 320, siblingGap 60, marginX 20, marginY 20.
+// Defaults: gridSize 20, levelGap 320, siblingGap 80, marginX 20, marginY 20.
 
 function layout(input: Partial<TreeInput>) {
 	return computeTreeLayout({ nodeIds: [], edges: [], rootIds: [], ...input });
@@ -102,9 +102,28 @@ describe('computeTreeLayout', () => {
 		const second = positions.get(3)!;
 		expect(first.x).toBe(340);
 		expect(second.x).toBe(340);
-		expect(second.y - first.y).toBe(60);
-		// The parent sits on the snapped midpoint between them.
-		expect(Math.abs(parent.y - (first.y + second.y) / 2)).toBeLessThanOrEqual(10);
+		expect(second.y - first.y).toBe(80);
+		// Exactly between them, not a snap away from it. A sibling pitch of an even number
+		// of cells is what buys this: at an odd pitch the midpoint is half a cell off the
+		// grid and snapping drops the parent onto one of the two children's rows.
+		expect(parent.y).toBe((first.y + second.y) / 2);
+	});
+
+	// Four children span three pitches, so the midpoint is one and a half pitches from
+	// either end: the case an odd pitch cannot place on the grid at all.
+	it('centres a parent on an even number of children', () => {
+		const positions = layout({
+			nodeIds: [1, 2, 3, 4, 5],
+			edges: [
+				{ from: 1, to: 2 },
+				{ from: 1, to: 3 },
+				{ from: 1, to: 4 },
+				{ from: 1, to: 5 }
+			],
+			rootIds: [1]
+		});
+		const ys = [2, 3, 4, 5].map((id) => positions.get(id)!.y).sort((a, b) => a - b);
+		expect(positions.get(1)!.y).toBe((ys[0] + ys[ys.length - 1]) / 2);
 	});
 
 	it('keeps a tall branch clear of the next one, not just its first row', () => {
