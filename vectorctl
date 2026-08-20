@@ -42,7 +42,7 @@ env_set() {
 	if grep -q "^$key=" "$ENV_FILE"; then
 		local tmp
 		tmp=$(mktemp)
-		grep -v "^$key=" "$ENV_FILE" > "$tmp"
+		grep -v "^$key=" "$ENV_FILE" > "$tmp" || true
 		printf '%s="%s"\n' "$key" "$value" >> "$tmp"
 		mv "$tmp" "$ENV_FILE"
 	else
@@ -64,7 +64,8 @@ ask_required() {
 
 # Prompt with the current value as the default, so re-running setup is safe.
 ask() {
-	local key=$1 prompt=$2 secret=${3:-} current answer
+	local key=$1 prompt=$2 secret=${3:-} current answer=""
+	current=$(env_get "$key")
 	if [ -n "$current" ] && [ -n "$secret" ]; then
 		read -r -p "$prompt [keep existing]: " answer
 	elif [ -n "$current" ]; then
@@ -78,7 +79,7 @@ ask() {
 # As `ask`, but a blank answer removes the key rather than writing an empty value. Discord
 # is read as all-or-nothing, and an empty client id counts as present.
 ask_optional() {
-	local key=$1 prompt=$2 secret=${3:-} current answer
+	local key=$1 prompt=$2 secret=${3:-} current answer=""
 	current=$(env_get "$key")
 	if [ -n "$current" ] && [ -n "$secret" ]; then
 		read -r -p "$prompt [keep existing, or - to clear]: " answer
@@ -97,7 +98,7 @@ env_unset() {
 	[ -f "$ENV_FILE" ] || return 0
 	local tmp
 	tmp=$(mktemp)
-	grep -v "^$1=" "$ENV_FILE" > "$tmp"
+	grep -v "^$1=" "$ENV_FILE" > "$tmp" || true
 	mv "$tmp" "$ENV_FILE"
 	chmod 600 "$ENV_FILE"
 }
