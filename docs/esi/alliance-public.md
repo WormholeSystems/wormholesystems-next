@@ -32,7 +32,7 @@ X-Compatibility-Date: 2026-06-09
 
 ```json
 {
-  "name": "Vector Coalition",
+  "name": "WormholeSystems Coalition",
   "ticker": "VCTR",
   "creator_corporation_id": 98000001,
   "creator_id": 91234567,
@@ -41,7 +41,7 @@ X-Compatibility-Date: 2026-06-09
 }
 ```
 
-## In vector
+## In WormholeSystems
 
 Resolves an alliance's name/ticker for display of
 [`map_access`](../database/access.md#map_access) entries.

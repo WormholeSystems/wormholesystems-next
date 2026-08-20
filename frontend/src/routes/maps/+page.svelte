@@ -131,7 +131,7 @@
 	};
 </script>
 
-<svelte:head><title>Maps · Vector</title></svelte:head>
+<svelte:head><title>Maps · WormholeSystems</title></svelte:head>
 
 {#snippet card(map: MapEntry)}
 	<div

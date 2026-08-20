@@ -41,7 +41,7 @@ async function openAsMember(
 	await grantAccess(mapId, member.characterId, 'member');
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}${query}`);
@@ -318,7 +318,7 @@ test('viewer sees a read-only panel', async ({ page, api, browser }) => {
 
 	const viewerCtx = await browser.newContext();
 	await viewerCtx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await viewerCtx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);
@@ -346,7 +346,7 @@ test('pasting into a system the character is not in warns first', async ({ api, 
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
 	]);
 	const memberPage = await ctx.newPage();
 	await memberPage.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);

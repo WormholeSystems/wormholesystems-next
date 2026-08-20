@@ -4,8 +4,8 @@ import { expect, test } from '@playwright/test';
 
 test('home page renders', async ({ page }) => {
 	await page.goto('/');
-	await expect(page.getByRole('heading', { name: 'Vector' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Open your maps' })).toBeVisible();
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Map the chain');
+	await expect(page.getByRole('link', { name: 'Open your maps' }).first()).toBeVisible();
 });
 
 test('maps requires login', async ({ page }) => {

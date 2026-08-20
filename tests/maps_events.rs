@@ -6,22 +6,22 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::connection::{
+use wormholesystems::maps::connection::{
     AddConnection, RemoveConnection, add_connection, remove_connection,
 };
-use vector::maps::connection::{SetConnectionStatus, set_connection_status};
-use vector::maps::events_log::{
+use wormholesystems::maps::connection::{SetConnectionStatus, set_connection_status};
+use wormholesystems::maps::events_log::{
     GotoMapEvent, MapEventEntry, MapHistory, MapIdBody, goto, list_history, redo, undo,
 };
-use vector::maps::map::{GetMap, get_map};
-use vector::maps::signatures::{
+use wormholesystems::maps::map::{GetMap, get_map};
+use wormholesystems::maps::signatures::{
     AddSignature, RemoveSignature, add_signature, list_signatures, remove_signature,
 };
-use vector::maps::solar_system::{
+use wormholesystems::maps::solar_system::{
     AddSystem, RemoveSystem, RemoveSystems, SetAlias, add_system, remove_system, remove_systems,
     set_alias,
 };
-use vector::maps::{
+use wormholesystems::maps::{
     Actor, ConnectionType, MapConnection, MapError, MapSystemView, MassStatus, Role, SignatureGroup,
 };
 
@@ -513,8 +513,8 @@ async fn removing_a_connection_and_undoing_it_keeps_the_endpoints(pool: PgPool) 
 /// stays (it is pinned), but the edge into it must come back too.
 #[sqlx::test]
 async fn cleaning_stale_connections_undoes_as_one_step(pool: PgPool) {
-    use vector::maps::connection::{CleanStaleConnections, clean_stale_connections};
-    use vector::maps::solar_system::{SetPinned, set_pinned};
+    use wormholesystems::maps::connection::{CleanStaleConnections, clean_stale_connections};
+    use wormholesystems::maps::solar_system::{SetPinned, set_pinned};
 
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
@@ -542,7 +542,7 @@ async fn cleaning_stale_connections_undoes_as_one_step(pool: PgPool) {
                 connection_id: conn.id,
                 kind: None,
                 mass_status: None,
-                time_status: Some(Some(vector::maps::TimeStatus::Critical)),
+                time_status: Some(Some(wormholesystems::maps::TimeStatus::Critical)),
                 size: None,
                 preserve_mass: None,
             },
@@ -589,7 +589,7 @@ async fn cleaning_stale_connections_undoes_as_one_step(pool: PgPool) {
 /// A fresh critical mark is not stale: sweeping must not touch a hole someone just flagged.
 #[sqlx::test]
 async fn a_freshly_critical_connection_is_not_swept(pool: PgPool) {
-    use vector::maps::connection::{CleanStaleConnections, clean_stale_connections};
+    use wormholesystems::maps::connection::{CleanStaleConnections, clean_stale_connections};
 
     let w = world(&pool).await;
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
@@ -603,7 +603,7 @@ async fn a_freshly_critical_connection_is_not_swept(pool: PgPool) {
             connection_id: conn.id,
             kind: None,
             mass_status: None,
-            time_status: Some(Some(vector::maps::TimeStatus::Critical)),
+            time_status: Some(Some(wormholesystems::maps::TimeStatus::Critical)),
             size: None,
             preserve_mass: None,
         },

@@ -1,6 +1,6 @@
-//! Linking a Vector account to a Discord one.
+//! Linking a WormholeSystems account to a Discord one.
 //!
-//! Standard OAuth2 with the `identify` scope, which is all Vector needs to direct-message
+//! Standard OAuth2 with the `identify` scope, which is all WormholeSystems needs to direct-message
 //! the right person and know who a slash command is speaking for.
 //!
 //! The handshake reuses `oauth_login_flows`, the same single-use state table the EVE login
@@ -18,7 +18,7 @@ use crate::session;
 
 use super::{API, DiscordUser};
 
-/// `GET /discord/connect`, start the link. Requires a Vector session.
+/// `GET /discord/connect`, start the link. Requires a WormholeSystems session.
 pub async fn connect(State(state): State<AppState>, jar: CookieJar) -> Response {
     let Some(config) = state.discord.as_ref() else {
         return (StatusCode::NOT_FOUND, "Discord is not configured").into_response();
@@ -125,7 +125,7 @@ pub async fn callback(
         return (StatusCode::BAD_GATEWAY, "Discord would not say who you are").into_response();
     };
 
-    // One Discord account per Vector user and the reverse: both are how "which person is
+    // One Discord account per WormholeSystems user and the reverse: both are how "which person is
     // this" is answered, and two answers is no answer.
     let stored = sqlx::query!(
         "insert into discord_accounts (user_id, discord_user_id, username, display_name, avatar)

@@ -4,7 +4,7 @@
 mod common;
 
 use sqlx::PgPool;
-use vector::killmails::{Org, analyze};
+use wormholesystems::killmails::{Org, analyze};
 
 const WH_SYSTEM: i64 = 31000099;
 
@@ -58,7 +58,7 @@ async fn threat_levels_follow_the_kill_thresholds(pool: PgPool) {
 
     // 60 kills spread over 6 distinct days → critical, with the org in the top list.
     insert_kills(&pool, 60, 6, org.clone(), 1).await;
-    analyze(&pool, &vector::esi::EsiClient::new())
+    analyze(&pool, &wormholesystems::esi::EsiClient::new())
         .await
         .unwrap();
 
@@ -91,7 +91,7 @@ async fn orgs_below_five_active_days_are_ignored(pool: PgPool) {
 
     // 60 kills but concentrated on 3 days → filtered out entirely → unknown.
     insert_kills(&pool, 60, 3, org, 1).await;
-    analyze(&pool, &vector::esi::EsiClient::new())
+    analyze(&pool, &wormholesystems::esi::EsiClient::new())
         .await
         .unwrap();
 
@@ -126,7 +126,7 @@ async fn twenty_kills_across_a_week_is_high(pool: PgPool) {
         1,
     )
     .await;
-    analyze(&pool, &vector::esi::EsiClient::new())
+    analyze(&pool, &wormholesystems::esi::EsiClient::new())
         .await
         .unwrap();
     let level: String =

@@ -4,13 +4,13 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::connection::{AddConnection, add_connection};
-use vector::maps::jumps::{
+use wormholesystems::maps::connection::{AddConnection, add_connection};
+use wormholesystems::maps::jumps::{
     AddConnectionJump, JumpDirection, RemoveConnectionJump, UpdateConnectionJump, add_jump,
     claim_pending, list_jumps, prune_unclaimed, record_transit, remove_jump, update_jump,
 };
-use vector::maps::solar_system::{AddSystem, add_system};
-use vector::maps::{Actor, ConnectionType, MapError, MapHub, Role};
+use wormholesystems::maps::solar_system::{AddSystem, add_system};
+use wormholesystems::maps::{Actor, ConnectionType, MapError, MapHub, Role};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     add_system(

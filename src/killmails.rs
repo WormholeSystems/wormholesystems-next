@@ -951,7 +951,7 @@ async fn import_day(
     )))
 }
 
-/// Backfill killmails from EVE Ref's daily archives (`vector killmails-backfill <days>`),
+/// Backfill killmails from EVE Ref's daily archives (`wormholesystems killmails-backfill <days>`),
 /// most recent day first. Days already in the ledger are skipped, so re-running only fetches
 /// what is missing. Ends with a threat analysis run so the data shows up immediately.
 pub async fn backfill(pool: &PgPool, esi: &EsiClient, days: u32) -> Result<(), BoxError> {

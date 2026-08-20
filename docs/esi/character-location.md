@@ -37,7 +37,7 @@ X-Compatibility-Date: 2026-06-09
 
 In space, neither `station_id` nor `structure_id` is present.
 
-## In vector
+## In WormholeSystems
 
 Feeds [`character_status`](../database/tracking.md#character_status): `solar_system_id`
 maps directly; `is_docked` is **derived** as `station_id IS NOT NULL OR structure_id IS

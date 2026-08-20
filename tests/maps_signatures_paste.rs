@@ -4,14 +4,14 @@ mod common;
 
 use common::{SYS_A, SYS_B, world};
 use sqlx::PgPool;
-use vector::maps::connection::{AddConnection, add_connection};
-use vector::maps::signatures::{
+use wormholesystems::maps::connection::{AddConnection, add_connection};
+use wormholesystems::maps::signatures::{
     AddSignature, LinkSignature, PasteSignatures, PastedSignature, RemoveSignature,
     RemoveSignatures, Signature, UpdateSignature, add_signature, expire_signatures, link_signature,
     list_signatures, paste_signatures, remove_signature, remove_signatures, update_signature,
 };
-use vector::maps::solar_system::{AddSystem, add_system};
-use vector::maps::{Actor, ConnectionType, MapError, SignatureGroup};
+use wormholesystems::maps::solar_system::{AddSystem, add_system};
+use wormholesystems::maps::{Actor, ConnectionType, MapError, SignatureGroup};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     add_system(
@@ -295,7 +295,7 @@ async fn update_group_change_clears_type_link_and_state(pool: PgPool) {
             signature_id: "WHX-003".into(),
             group: SignatureGroup::Wormhole,
             signature_type_id: Some(500),
-            time_status: Some(vector::maps::TimeStatus::Eol),
+            time_status: Some(wormholesystems::maps::TimeStatus::Eol),
             ..Default::default()
         },
     )

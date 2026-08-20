@@ -25,7 +25,7 @@ pub enum Subject {
 #[ts(export)]
 pub enum Side {
     Victim,
-    /// The killing blow. Vector keeps that one attacker, not the whole gang.
+    /// The killing blow. WormholeSystems keeps that one attacker, not the whole gang.
     Attacker,
     Either,
 }

@@ -4,13 +4,13 @@ mod common;
 
 use common::{SYS_A, SYS_B, add_character, member_with_role, new_user, world};
 use sqlx::PgPool;
-use vector::maps::access::effective_role;
-use vector::maps::connection::{AddConnection, add_connection};
-use vector::maps::map::{
+use wormholesystems::maps::access::effective_role;
+use wormholesystems::maps::connection::{AddConnection, add_connection};
+use wormholesystems::maps::map::{
     CreateMap, DeleteMap, GetMap, UpdateMap, create_map, delete_map, get_map, list_maps, update_map,
 };
-use vector::maps::solar_system::{AddSystem, add_system};
-use vector::maps::{Actor, ConnectionType, MapError, Role};
+use wormholesystems::maps::solar_system::{AddSystem, add_system};
+use wormholesystems::maps::{Actor, ConnectionType, MapError, Role};
 
 #[sqlx::test]
 async fn create_returns_fields_and_grants_owner(pool: PgPool) {
@@ -244,8 +244,8 @@ async fn delete_is_owner_only_and_cascades(pool: PgPool) {
 
 #[sqlx::test]
 async fn list_returns_accessible_maps_with_highest_role(pool: PgPool) {
-    use vector::maps::SubjectType;
-    use vector::maps::access::{SetAccess, set_access};
+    use wormholesystems::maps::SubjectType;
+    use wormholesystems::maps::access::{SetAccess, set_access};
     let w = world(&pool).await;
 
     // A second user, member via their corporation, viewer via their character — member wins.

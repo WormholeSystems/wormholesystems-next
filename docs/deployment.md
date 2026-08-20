@@ -1,4 +1,4 @@
-# Deploying Vector
+# Deploying WormholeSystems
 
 One machine, Docker, and a domain. Everything below assumes a fresh server you can point a
 DNS record at.
@@ -28,16 +28,16 @@ The repository is private, so the server needs its own read-only access. Generat
 the server and add the public half as a deploy key under Settings → Deploy keys:
 
 ```sh
-ssh-keygen -t ed25519 -C vector-deploy -f ~/.ssh/id_ed25519 -N ""
+ssh-keygen -t ed25519 -C wormholesystems-deploy -f ~/.ssh/id_ed25519 -N ""
 cat ~/.ssh/id_ed25519.pub
 ```
 
 ## First run
 
 ```sh
-git clone git@github.com:eve-vector/vector.git
-cd vector
-./vectorctl setup
+git clone git@github.com:WormholeSystems/wormholesystems-next.git
+cd wormholesystems-next
+./wsctl setup
 ```
 
 It checks the machine before asking for anything: Docker present and running, compose v2,
@@ -60,7 +60,7 @@ docker compose --profile full logs -f api
 ## Updating
 
 ```sh
-./vectorctl update
+./wsctl update
 ```
 
 Fast-forwards the checkout, rebuilds, restarts. Migrations run on boot, so there is no
@@ -70,13 +70,13 @@ CCP's static data is deliberately not part of that. `status` says when a newer b
 out; taking it is another ~550MB download and a re-seed of a few minutes:
 
 ```sh
-./vectorctl sde-update
+./wsctl sde-update
 ```
 
 ## Checking on it
 
 ```sh
-./vectorctl status
+./wsctl status
 ```
 
 Containers, how far behind origin the checkout is, which SDE build is loaded and whether
@@ -99,9 +99,9 @@ Cloudflare's own certificate and put Caddy behind it.
 
 | key | why |
 |---|---|
-| `VECTOR_DOMAIN` | Caddy's site address. Blank serves plain http, which is only useful locally. |
+| `WS_DOMAIN` | Caddy's site address. Blank serves plain http, which is only useful locally. |
 | `HTTP_PORT`, `HTTPS_PORT` | What Caddy publishes. 80 and 443 in production. |
-| `VECTOR_CONTACT_NAME`, `VECTOR_CONTACT_EMAIL` | Who runs this install. Every request to ESI, zKillboard and EVE Ref carries them, which is how those services tell operators apart and reach you. The server refuses to start without them. |
+| `WS_CONTACT_NAME`, `WS_CONTACT_EMAIL` | Who runs this install. Every request to ESI, zKillboard and EVE Ref carries them, which is how those services tell operators apart and reach you. The server refuses to start without them. |
 | `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` | The SSO application. |
 | `EVE_REDIRECT_URI` | Derived from the domain; must match the application exactly. |
 | `POSTGRES_PASSWORD` | Generated once. Changing it means changing it in Postgres too. |
@@ -110,8 +110,8 @@ Discord and the killmail ingest are optional and off unless configured; see `.en
 
 ## Discord
 
-Optional, and `setup` offers it. Vector uses a Discord application for three things: linking
-an account so `/vector` knows who you are, the slash commands themselves, and posting alerts
+Optional, and `setup` offers it. WormholeSystems uses a Discord application for three things: linking
+an account so `/wh` knows who you are, the slash commands themselves, and posting alerts
 to a channel. Alerts to a webhook work without any of this.
 
 At <https://discord.com/developers/applications>, create an application and take:
@@ -129,7 +129,7 @@ Two things have to wait until the stack is running, because Discord checks them:
 
 1. Set the Interactions Endpoint URL to `https://your-domain/discord/interactions`. Discord
    signs a ping at it and refuses to save if it does not answer.
-2. `./vectorctl discord-register` uploads the `/vector` command. It is registered globally,
+2. `./wsctl discord-register` uploads the `/wh` command. It is registered globally,
    so Discord takes a few minutes to show it.
 
 ## Backups
@@ -137,7 +137,7 @@ Two things have to wait until the stack is running, because Discord checks them:
 Not automated. The database is the only thing that matters:
 
 ```sh
-docker compose exec -T db pg_dump -U vector vector | gzip > vector-$(date +%F).sql.gz
+docker compose exec -T db pg_dump -U vector vector | gzip > wormholesystems-$(date +%F).sql.gz
 ```
 
 Restoring is the same in reverse, into a stopped stack with an empty database.

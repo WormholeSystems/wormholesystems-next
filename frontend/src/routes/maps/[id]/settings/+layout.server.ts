@@ -11,7 +11,7 @@ export const load: LayoutServerLoad = async (event) => {
 	const { me } = await event.parent();
 	if (!me) redirect(302, '/login');
 
-	event.depends('vector:map');
+	event.depends('ws:map');
 	const view = await mapView(event, Number(event.params.id)).catch(() => null);
 	if (!view) error(404, 'That map is not one you can open.');
 	return { view };

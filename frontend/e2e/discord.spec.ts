@@ -8,7 +8,7 @@ test('the settings page offers to connect when nothing is linked', async ({ page
 	await expect(page.getByTestId('discord-unlinked')).toBeVisible();
 	await expect(page.getByTestId('discord-connect')).toHaveAttribute('href', '/discord/connect');
 	// And it says what the bot can do, so the page is worth visiting before linking.
-	await expect(page.getByText('/vector route')).toBeVisible();
+	await expect(page.getByText('/wh route')).toBeVisible();
 });
 
 test('connecting without a Discord app configured says so rather than 500ing', async ({ api }) => {

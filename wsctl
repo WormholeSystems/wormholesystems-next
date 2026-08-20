@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Deploy and run Vector on a single machine.
+# Deploy and run WormholeSystems on a single machine.
 #
-#   ./vectorctl setup    first run: check the box, ask for what it needs, start the stack
-#   ./vectorctl update   pull, rebuild, restart, and say what changed
-#   ./vectorctl status   what is running, what version, what the SDE is on
+#   ./wsctl setup    first run: check the box, ask for what it needs, start the stack
+#   ./wsctl update   pull, rebuild, restart, and say what changed
+#   ./wsctl status   what is running, what version, what the SDE is on
 #
-#   ./vectorctl sde-update         take a newer static data export
-#   ./vectorctl discord-register   upload the /vector slash command to Discord
+#   ./wsctl sde-update         take a newer static data export
+#   ./wsctl discord-register   upload the /wh slash command to Discord
 #
 # Everything it writes lives in .env next to this script. It never edits the compose file.
 
@@ -194,7 +194,7 @@ check_repo() {
 	dirty=$(git status --porcelain | wc -l | tr -d ' ')
 	[ "$dirty" -eq 0 ] || warn "$dirty uncommitted change(s) here; an update will not touch them"
 	if [ "$behind" -gt 0 ]; then
-		warn "$behind commit(s) behind origin. ./vectorctl update takes them."
+		warn "$behind commit(s) behind origin. ./wsctl update takes them."
 	else
 		ok "up to date with origin"
 	fi
@@ -202,11 +202,11 @@ check_repo() {
 
 check_sde() {
 	local out
-	out=$("${COMPOSE[@]}" run --rm --no-deps -T api vector sde-status 2>/dev/null || true)
+	out=$("${COMPOSE[@]}" run --rm --no-deps -T api wormholesystems sde-status 2>/dev/null || true)
 	case "$out" in
-		*"update_available=yes"*) warn "a newer SDE build is out ($(sed -n 's/^latest=//p' <<<"$out")); ./vectorctl sde-update takes it" ;;
+		*"update_available=yes"*) warn "a newer SDE build is out ($(sed -n 's/^latest=//p' <<<"$out")); ./wsctl sde-update takes it" ;;
 		*"update_available=no"*)  ok "SDE is current ($(sed -n 's/^loaded=\([0-9]*\).*/\1/p' <<<"$out"))" ;;
-		*) warn "could not check the SDE build (is the stack built? try ./vectorctl update)" ;;
+		*) warn "could not check the SDE build (is the stack built? try ./wsctl update)" ;;
 	esac
 }
 
@@ -219,15 +219,15 @@ cmd_setup() {
 	check_repo
 
 	bold "\nWhat this deployment needs"
-	ask VECTOR_DOMAIN "Public domain (blank for plain http on this machine)"
+	ask WS_DOMAIN "Public domain (blank for plain http on this machine)"
 	local domain http https
 	# A bare hostname is what Caddy and the redirect URLs want, but a pasted address
 	# usually brings a scheme and a trailing slash with it.
-	domain=$(env_get VECTOR_DOMAIN)
+	domain=$(env_get WS_DOMAIN)
 	domain=${domain#http://}
 	domain=${domain#https://}
 	domain=${domain%%/*}
-	env_set VECTOR_DOMAIN "$domain"
+	env_set WS_DOMAIN "$domain"
 	if [ -n "$domain" ]; then
 		http=80; https=443
 	else
@@ -244,8 +244,8 @@ cmd_setup() {
 	echo "  Who runs this install. Every request to ESI, zKillboard and EVE Ref carries"
 	echo "  these so those services can tell operators apart and reach you if something"
 	echo "  here misbehaves. CCP asks for it; anonymous clients get throttled, then blocked."
-	ask_required VECTOR_CONTACT_NAME "  In-game character name of the admin"
-	ask_required VECTOR_CONTACT_EMAIL "  Contact email"
+	ask_required WS_CONTACT_NAME "  In-game character name of the admin"
+	ask_required WS_CONTACT_EMAIL "  Contact email"
 
 	echo
 	echo "  EVE SSO application (https://developers.eveonline.com/applications)."
@@ -265,7 +265,7 @@ cmd_setup() {
 		    General Information  copy the Application ID and the Public Key
 		    OAuth2               copy the Client ID and Client Secret, and add this
 		                         redirect exactly: $base/discord/callback
-		    Bot                  only if you want Vector to post as a bot or send DMs;
+		    Bot                  only if you want WormholeSystems to post as a bot or send DMs;
 		                         copy the token, otherwise leave it blank below
 
 		  Leave any of these blank to skip Discord entirely.
@@ -306,7 +306,7 @@ cmd_setup() {
 		echo "    1. In the application's General Information, set the Interactions Endpoint"
 		echo "       URL to $base/discord/interactions and save. Discord signs a ping at it,"
 		echo "       and refuses to save if it does not answer."
-		echo "    2. ./vectorctl discord-register  (uploads /vector; Discord takes a few"
+		echo "    2. ./wsctl discord-register  (uploads /wh; Discord takes a few"
 		echo "       minutes to roll it out)"
 	fi
 	echo "  Follow it with: docker compose --profile full logs -f api"
@@ -347,7 +347,7 @@ cmd_status() {
 	bold "\nStatic data"
 	check_sde
 	local domain
-	domain=$(env_get VECTOR_DOMAIN)
+	domain=$(env_get WS_DOMAIN)
 	if [ -n "$domain" ]; then
 		bold "\nPublic"
 		if curl -fsS --max-time 5 -o /dev/null "https://$domain/api/server-status"; then
@@ -362,14 +362,14 @@ cmd_status() {
 # is a ~550MB download and a re-seed that takes several minutes.
 cmd_sde_update() {
 	bold "Updating the SDE"
-	"${COMPOSE[@]}" run --rm --no-deps -T api vector sde-fetch --force
+	"${COMPOSE[@]}" run --rm --no-deps -T api wormholesystems sde-fetch --force
 	"${COMPOSE[@]}" restart api
 	ok "downloaded; the API re-seeds from it as it boots"
 }
 
 cmd_discord_register() {
 	[ -n "$(env_get DISCORD_BOT_TOKEN)" ] || die "DISCORD_BOT_TOKEN is not set; slash commands need the bot."
-	"${COMPOSE[@]}" run --rm --no-deps -T api vector discord-register
+	"${COMPOSE[@]}" run --rm --no-deps -T api wormholesystems discord-register
 }
 
 case "${1:-help}" in

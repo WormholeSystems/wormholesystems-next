@@ -121,7 +121,7 @@ test('members cannot see or change a map alerts', async ({ page, api, browser })
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
 	]);
 	const memberPage = await ctx.newPage();
 	await memberPage.goto(`http://localhost:5173/maps/${mapId}/settings/alerts`);

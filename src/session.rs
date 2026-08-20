@@ -12,7 +12,7 @@ use crate::esi::jwt::Claims;
 use crate::maps::Actor;
 
 /// Name of the cookie holding the opaque session id.
-pub const SESSION_COOKIE: &str = "vector_session";
+pub const SESSION_COOKIE: &str = "ws_session";
 
 /// An ESI entity (corp/alliance) we cache so a character's deferred FKs resolve. Carries
 /// just what the entity tables require; refreshed on each login.

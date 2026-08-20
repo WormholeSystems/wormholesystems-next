@@ -161,7 +161,7 @@ test('viewers do not get a pilot list at all', async ({ api, browser }) => {
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);

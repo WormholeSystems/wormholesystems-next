@@ -2,7 +2,7 @@
 
 What a placed solar system looks like and how it behaves in the legacy WormholeSystems
 project (`~/Documents/Code/PHP/wormholesystems`, Laravel + Inertia + Vue 3). Written as a
-reference for rebuilding the map in Vector. File paths below are relative to the legacy
+reference for rebuilding the map in WormholeSystems. File paths below are relative to the legacy
 repo; line numbers are from its current working tree.
 
 ## 1. Component architecture
@@ -214,7 +214,7 @@ Confirmation dialogs exist only on the map background menu (Clear map / Clean ma
 | Connection drop | `POST /map-connections` `{from, to, ship_size}` |
 | Add-connection dialog | `POST /map-solarsystems` with `connect_to_map_solarsystem_id` |
 
-## 5. Differences from Vector's current node
+## 5. Differences from WormholeSystems's current node
 
 As of the parity port, the node and its interactions match legacy in: status vocabulary
 and colors, class color tokens, icon cluster (status/home/rally/pin/signatures/unmapped/
@@ -225,8 +225,8 @@ context menu structure (status and external submenus, waypoints, route planner, 
 gating and selection hijack), ship-size heuristic on connection create, threat rings, and
 client-side routing with edge highlighting.
 
-Still intentionally different or deferred: intrinsic node width (Vector stays fixed
-180px), the anchor-point position model (Vector stores top-left), command palette, tree
+Still intentionally different or deferred: intrinsic node width (WormholeSystems stays fixed
+180px), the anchor-point position model (WormholeSystems stores top-left), command palette, tree
 layout, organize-selection, watchlist and Find tabs of navigation, EVE Scout integration,
-killmails/audits/ship-history panels, presence realtime push (Vector polls), and the
+killmails/audits/ship-history panels, presence realtime push (WormholeSystems polls), and the
 Dotlan region-map underscore handling for named regions is shared.

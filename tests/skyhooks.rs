@@ -5,8 +5,8 @@ mod common;
 use chrono::{Duration, Utc};
 use common::{SYS_A, SYS_B, seed_universe};
 use sqlx::PgPool;
-use vector::esi::skyhooks::{RaidableSkyhook, TheftWindow};
-use vector::skyhooks::{PlanetKind, list, store};
+use wormholesystems::esi::skyhooks::{RaidableSkyhook, TheftWindow};
+use wormholesystems::skyhooks::{PlanetKind, list, store};
 
 /// A planet the SDE knows about, so the sync has something to hang a skyhook on.
 async fn seed_planet(pool: &PgPool, id: i64, system: i64, index: i32, type_name: &str) {

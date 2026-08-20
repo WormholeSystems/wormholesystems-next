@@ -1,5 +1,5 @@
 // Solar-system class metadata, ported from the legacy solarsystem_classes catalogue and
-// keyed by vector's numeric wormhole_class_id (k-space uses 7/8/9, Pochven 25).
+// keyed by our numeric wormhole_class_id (k-space uses 7/8/9, Pochven 25).
 
 import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 

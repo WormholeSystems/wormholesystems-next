@@ -39,7 +39,7 @@
 	function updateMap(ghost: boolean) {
 		api
 			.updateMap({ map_id: mapId, ghost_unlinked_wormholes: ghost })
-			.then(() => invalidate('vector:map'))
+			.then(() => invalidate('ws:map'))
 			.catch(() => {});
 	}
 </script>

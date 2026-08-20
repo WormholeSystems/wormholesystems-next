@@ -42,7 +42,7 @@ An array, one object per character:
 ]
 ```
 
-## In vector
+## In WormholeSystems
 
 The efficient way to keep [`characters`](../database/authentication.md#characters)
 `.corporation_id` / `.alliance_id` current — which directly drives

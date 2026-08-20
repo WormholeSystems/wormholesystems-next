@@ -48,7 +48,7 @@ macro_rules! bulk {
     };
 }
 
-/// CLI entry point (`vector seed`): always re-seeds, regardless of the loaded build.
+/// CLI entry point (`wormholesystems seed`): always re-seeds, regardless of the loaded build.
 pub async fn run() -> Result<(), BoxError> {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL")?;

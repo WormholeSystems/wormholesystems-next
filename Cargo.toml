@@ -1,5 +1,5 @@
 [package]
-name = "vector"
+name = "wormholesystems"
 edition = "2024"
 # sqlx 0.9 (and its CLI) require rustc >= 1.94.
 rust-version = "1.94"

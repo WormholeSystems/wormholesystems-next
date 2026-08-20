@@ -3,8 +3,8 @@
 //! the session lifecycle. These are pure DB logic, so they're driven directly with a pool.
 
 use sqlx::PgPool;
-use vector::esi::jwt::Claims;
-use vector::session::{
+use wormholesystems::esi::jwt::Claims;
+use wormholesystems::session::{
     Entity, actor_for_session, create_session, delete_session, ensure_preferred_character,
     persist_identity, set_active_character, set_preferred_character,
 };

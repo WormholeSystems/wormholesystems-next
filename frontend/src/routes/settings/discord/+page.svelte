@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Linking this Vector account to a Discord one. Per account, not per map: a direct message
+	// Linking this WormholeSystems account to a Discord one. Per account, not per map: a direct message
 	// and a slash command both need to know which Discord user this is.
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -51,7 +51,7 @@
 		<Card.Header>
 			<Card.Title>Your Discord account</Card.Title>
 			<Card.Description>
-				Linking lets the bot know which maps are yours, so <code>/vector</code> can answer about
+				Linking lets the bot know which maps are yours, so <code>/wh</code> can answer about
 				them and alerts can reach you directly.
 			</Card.Description>
 		</Card.Header>
@@ -71,7 +71,7 @@
 					</Button>
 				</div>
 				{#if justLinked}
-					<p class="text-xs text-emerald-500">Linked. Try <code>/vector account</code> in Discord.</p>
+					<p class="text-xs text-emerald-500">Linked. Try <code>/wh account</code> in Discord.</p>
 				{/if}
 			{:else}
 				<p class="text-sm text-muted-foreground" data-testid="discord-unlinked">
@@ -93,19 +93,19 @@
 		<Card.Content>
 			<ul class="flex flex-col gap-2 text-sm">
 				<li>
-					<code class="text-foreground">/vector account</code>
-					<span class="text-muted-foreground">: which Vector account this Discord user is.</span>
+					<code class="text-foreground">/wh account</code>
+					<span class="text-muted-foreground">: which WormholeSystems account this Discord user is.</span>
 				</li>
 				<li>
-					<code class="text-foreground">/vector alerts list</code>
+					<code class="text-foreground">/wh alerts list</code>
 					<span class="text-muted-foreground">: the alerts you created, and whether they are on.</span>
 				</li>
 				<li>
-					<code class="text-foreground">/vector alerts enable · disable · remove</code>
+					<code class="text-foreground">/wh alerts enable · disable · remove</code>
 					<span class="text-muted-foreground">: manage one without leaving Discord.</span>
 				</li>
 				<li>
-					<code class="text-foreground">/vector route</code>
+					<code class="text-foreground">/wh route</code>
 					<span class="text-muted-foreground">
 						: how far a system is from one of your chains, counting wormholes as free.
 					</span>

@@ -167,7 +167,7 @@
 		<Card.Header>
 			<Card.Title>EVE permissions</Card.Title>
 			<Card.Description>
-				What EVE lets Vector read for the acting character. All optional, and revocable in
+				What EVE lets WormholeSystems read for the acting character. All optional, and revocable in
 				EVE's own settings at any time.
 			</Card.Description>
 		</Card.Header>

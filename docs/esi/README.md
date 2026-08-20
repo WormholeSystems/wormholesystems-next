@@ -1,6 +1,6 @@
 # ESI (EVE Swagger Interface)
 
-The endpoints `vector` consumes from CCP's REST API — one file per endpoint, with
+The endpoints `wormholesystems` consumes from CCP's REST API — one file per endpoint, with
 parameters, the exact response structure, and examples. Curated, not a mirror of the
 full [openapi.json](https://esi.evetech.net/meta/openapi.json).
 

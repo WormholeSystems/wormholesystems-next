@@ -17,7 +17,7 @@ test('the landing page states what it is and how to run it', async ({ page }) =>
 
 	// The setup command is the point of the self-host section, so it is real text on the
 	// page rather than an image someone has to retype from.
-	await expect(page.getByText('./vectorctl setup')).toBeVisible();
+	await expect(page.getByText('./wsctl setup')).toBeVisible();
 
 	await page.getByRole('link', { name: 'Open your maps' }).first().click();
 	await expect(page).toHaveURL(/\/maps$/);

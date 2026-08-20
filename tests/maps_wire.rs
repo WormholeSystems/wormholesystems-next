@@ -4,9 +4,9 @@
 
 use chrono::{DateTime, Utc};
 
-use vector::maps::connection::SetConnectionStatus;
-use vector::maps::signatures::AddSignature;
-use vector::maps::{
+use wormholesystems::maps::connection::SetConnectionStatus;
+use wormholesystems::maps::signatures::AddSignature;
+use wormholesystems::maps::{
     ConnectionType, Map, MapConnection, MapEvent, MapSystemView, MapView, MassStatus,
     SignatureGroup, Static, SystemStatus, ThreatLevel, TimeStatus, WormholeSize,
 };
@@ -103,7 +103,7 @@ fn partial_update_command_preserves_leave_vs_clear_vs_set() {
     assert_eq!(parsed.time_status, Some(None), "null must mean clear");
     assert_eq!(parsed.mass_status, None, "absent must mean leave");
 
-    let parsed: vector::maps::signatures::UpdateSignature = serde_json::from_str(
+    let parsed: wormholesystems::maps::signatures::UpdateSignature = serde_json::from_str(
         r#"{"map_id":1,"signature_pk":2,"signature_type_id":null,"name":"x"}"#,
     )
     .unwrap();
@@ -138,7 +138,7 @@ fn map_view_round_trips() {
             description: None,
             image_url: None,
             created_at: ts(),
-            naming: vector::maps::map::MapNaming {
+            naming: wormholesystems::maps::map::MapNaming {
                 alias_scheme: "numeric".into(),
                 ignored_alias: "HOME".into(),
                 bookmark_wormhole: "{alias} {sig} {class}".into(),
@@ -151,7 +151,7 @@ fn map_view_round_trips() {
             is_public: false,
             share_token: None,
         },
-        role: vector::maps::Role::Member,
+        role: wormholesystems::maps::Role::Member,
         character_has_access: true,
         systems: vec![MapSystemView {
             id: 10,
@@ -212,9 +212,9 @@ fn map_view_round_trips() {
 /// change it was meant to protect.
 #[test]
 fn map_command_inverses_round_trip_through_json() {
-    use vector::maps::MapCommand;
-    use vector::maps::connection::{RemoveConnection, SetConnectionStatus};
-    use vector::maps::solar_system::{RemoveSystem, SetAlias};
+    use wormholesystems::maps::MapCommand;
+    use wormholesystems::maps::connection::{RemoveConnection, SetConnectionStatus};
+    use wormholesystems::maps::solar_system::{RemoveSystem, SetAlias};
 
     let commands = [
         MapCommand::SetAlias(SetAlias {

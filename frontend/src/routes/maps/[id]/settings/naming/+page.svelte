@@ -28,7 +28,7 @@
 		try {
 			await api.updateMap({ map_id: mapId, naming });
 			error = '';
-			await invalidate('vector:map');
+			await invalidate('ws:map');
 		} catch (err) {
 			error = (err as Error).message;
 		}

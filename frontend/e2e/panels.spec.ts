@@ -95,7 +95,7 @@ test('viewers cannot see notes', async ({ page, api, browser }) => {
 	// The details endpoint refuses viewers outright.
 	const viewerCtx = await browser.newContext();
 	await viewerCtx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await viewerCtx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);

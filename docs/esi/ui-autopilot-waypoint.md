@@ -27,7 +27,7 @@ X-Compatibility-Date: 2026-06-09
 
 No response body.
 
-## In vector
+## In WormholeSystems
 
 Backs the "set destination / route home" action from the map — e.g. setting the
 shortest path out of the chain on the active character's autopilot.

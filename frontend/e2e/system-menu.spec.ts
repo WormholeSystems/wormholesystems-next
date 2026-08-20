@@ -140,7 +140,7 @@ test('waypoint submenu is disabled without online characters', async ({ api, bro
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
 	]);
 	const memberPage = await ctx.newPage();
 	await memberPage.goto(`http://localhost:5173/maps/${mapId}`);
@@ -164,7 +164,7 @@ test('viewers get no write items', async ({ page, api, browser }) => {
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);

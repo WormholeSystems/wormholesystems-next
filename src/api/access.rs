@@ -39,7 +39,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// `GET /api/access-subjects/search?q=`, characters, corporations and alliances that can
-/// be granted access. Only entities Vector has already cached are searchable (a character
+/// be granted access. Only entities WormholeSystems has already cached are searchable (a character
 /// who has signed in, or a corp/alliance one of them belongs to), hence the UI also
 /// accepting a raw EVE id.
 pub async fn search_access_subjects(

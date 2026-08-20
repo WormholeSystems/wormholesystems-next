@@ -56,7 +56,7 @@ An object with a `solar_systems` array; each entry has a `solar_system_id` and a
 }
 ```
 
-## In vector
+## In WormholeSystems
 
 Refreshes [`system_sovereignty`](../database/universe.md#system_sovereignty) — one row
 per claimed system (alliance/corporation **or** faction). Pulled wholesale by

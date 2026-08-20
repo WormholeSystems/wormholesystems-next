@@ -99,6 +99,6 @@ export function serverStatus(event: RequestEvent): Promise<ServerStatus | null> 
 export async function userSettingsLoad(
 	event: RequestEvent & { depends: (...deps: string[]) => void }
 ) {
-	event.depends('vector:user-settings');
+	event.depends('ws:user-settings');
 	return { settings: await mapUserSettings(event, Number(event.params.id)).catch(() => null) };
 }

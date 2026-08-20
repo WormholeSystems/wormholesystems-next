@@ -37,7 +37,7 @@ X-Compatibility-Date: 2026-06-09
 }
 ```
 
-## In vector
+## In WormholeSystems
 
 Feeds [`character_status`](../database/tracking.md#character_status): `online`
 directly, and `last_online_at` from `last_logout` (so the UI can show "last seen N

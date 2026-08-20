@@ -1,4 +1,4 @@
-name: vector
+name: wormholesystems
 icon: null
 processes:
   # Long-running dev services — start with the stack.

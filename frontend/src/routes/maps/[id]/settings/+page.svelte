@@ -47,7 +47,7 @@
 		try {
 			await work;
 			error = '';
-			await invalidate('vector:map');
+			await invalidate('ws:map');
 		} catch (err) {
 			error = (err as Error).message;
 		}
@@ -96,7 +96,7 @@
 			await api.transferOwnership({ map_id: mapId, subject_id: subject });
 			heir = '';
 			toast.success(`${name} owns this map now`);
-			await invalidate('vector:map');
+			await invalidate('ws:map');
 		} catch (err) {
 			error = (err as Error).message;
 		}

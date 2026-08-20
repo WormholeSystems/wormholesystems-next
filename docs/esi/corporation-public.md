@@ -39,7 +39,7 @@ X-Compatibility-Date: 2026-06-09
 
 ```json
 {
-  "name": "Vector Holdings",
+  "name": "WormholeSystems Holdings",
   "ticker": "VCTR",
   "alliance_id": 99000001,
   "member_count": 142,
@@ -50,7 +50,7 @@ X-Compatibility-Date: 2026-06-09
 }
 ```
 
-## In vector
+## In WormholeSystems
 
 Resolves a corporation's name/ticker for display of
 [`map_access`](../database/access.md#map_access) entries (we store ids, render names).

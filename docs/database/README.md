@@ -1,6 +1,6 @@
 # Database
 
-The application data model for `vector`, split by domain. The backing store is
+The application data model for `wormholesystems`, split by domain. The backing store is
 **PostgreSQL**.
 
 Written **spec first**: each doc describes the goals, structure, and expected

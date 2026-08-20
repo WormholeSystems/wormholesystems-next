@@ -454,7 +454,7 @@
 												entry.is_step && !entry.applied && 'text-muted-foreground'
 											)}
 										>
-											<span class="text-muted-foreground">{entry.character_name ?? 'Vector'}</span>
+											<span class="text-muted-foreground">{entry.character_name ?? 'WormholeSystems'}</span>
 											{entry.label}
 										</span>
 										{#if isHead}

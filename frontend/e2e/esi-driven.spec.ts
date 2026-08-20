@@ -137,7 +137,7 @@ test('nothing is polled while the server is down, and it resumes when it returns
 
 	const pilotApi = await playwright.request.newContext({
 		baseURL: 'http://127.0.0.1:3000',
-		extraHTTPHeaders: { cookie: `vector_session=${identity.session}` }
+		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` }
 	});
 	await pilotApi.post(`/api/maps/${mapId}/settings/user`, {
 		data: { tracking_allowed: true, prompt_for_signature: false }
@@ -153,7 +153,7 @@ test('nothing is polled while the server is down, and it resumes when it returns
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 
@@ -300,7 +300,7 @@ test('a pilot moving shows up on everyone else\u2019s map, not just their own', 
 	await grantAccess(mapId, watcher.characterId, 'member');
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: watcher.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: watcher.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 
@@ -431,7 +431,7 @@ test('the poller drives the whole jump, from ESI to the prompt', async ({
 
 	const pilotApi = await playwright.request.newContext({
 		baseURL: 'http://127.0.0.1:3000',
-		extraHTTPHeaders: { cookie: `vector_session=${identity.session}` }
+		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` }
 	});
 	await pilotApi.post(`/api/maps/${mapId}/settings/user`, {
 		data: { tracking_allowed: true, prompt_for_signature: true }
@@ -439,7 +439,7 @@ test('the poller drives the whole jump, from ESI to the prompt', async ({
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 	// Opening the map is also what marks the user active: the poller ignores anyone whose

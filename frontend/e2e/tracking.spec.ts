@@ -54,7 +54,7 @@ async function openAsPilot(
 
 	const api = await playwright.request.newContext({
 		baseURL: 'http://127.0.0.1:3000',
-		extraHTTPHeaders: { cookie: `vector_session=${identity.session}` }
+		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` }
 	});
 	const res = await api.post(`/api/maps/${mapId}/settings/user`, {
 		data: { tracking_allowed: true, prompt_for_signature: true, ...settings }
@@ -63,7 +63,7 @@ async function openAsPilot(
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}?system=${startSystem}`);

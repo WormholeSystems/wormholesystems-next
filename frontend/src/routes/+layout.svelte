@@ -22,7 +22,7 @@
 </script>
 
 <svelte:head>
-	<title>Vector</title>
+	<title>WormholeSystems</title>
 </svelte:head>
 
 <Toaster position="top-center" closeButton />

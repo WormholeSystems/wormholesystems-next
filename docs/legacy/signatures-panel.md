@@ -2,7 +2,7 @@
 
 How the Signatures panel behaves in the legacy WormholeSystems project
 (`~/Documents/Code/PHP/wormholesystems`, Laravel + Inertia + Vue 3). Written as a
-reference for rebuilding the panel in Vector. File paths are relative to the legacy repo.
+reference for rebuilding the panel in WormholeSystems. File paths are relative to the legacy repo.
 
 ## 1. Component architecture
 
@@ -268,7 +268,7 @@ ids must be exactly 7 chars server-side.
   signature and the connection, `lifetime_updated_at` bumped only on actual change. The
   connection's `ship_size` is locked from the signature's wormhole type.
 - **Edit from either side**: editing the connection runs the symmetric merge across the
-  connection and all linked signatures. (In Vector this lives in the DB sync triggers of
+  connection and all linked signatures. (In WormholeSystems this lives in the DB sync triggers of
   migration 0009.)
 - **Unlink**: plain `map_connection_id: null`; the connection stays on the map.
 - **Delete signature**: also deletes the linked connection unless another signature on
@@ -297,7 +297,7 @@ The panel itself is visible to viewers (Notes is not).
 - Sorting is client-side only; the server sends rows unordered.
 - Toasts on every mutation (create/update/delete/paste/bulk delete).
 
-## 9. Differences from Vector today
+## 9. Differences from WormholeSystems today
 
 Ported in full as of the signatures-panel rebuild: column table with sorting, compact
 mode, category vocabulary/icons/filters, catalog-backed category+type selects (served by
@@ -310,9 +310,9 @@ mass/lifetime/preserve-mass row menu, copy bookmark, and viewer read-only gating
 Deliberate divergences:
 
 - Sort preference persists in localStorage, not a cookie.
-- No Factional Warfare category (absent from Vector's catalog data; combined FW labels
+- No Factional Warfare category (absent from WormholeSystems's catalog data; combined FW labels
   fall back to their site segment via the parser's segment rule).
-- The paste selection does not clear on other users' signature events (Vector's WS layer
+- The paste selection does not clear on other users' signature events (WormholeSystems's WS layer
   refetches without parsing frames); it clears on system change, Unselect, and delete.
 - A wormhole row's raw scanner name is preserved rather than nulled on repaste.
 - `preserve_mass` is stored and toggleable but unused until jump-mass tracking exists.

@@ -15,6 +15,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import ServerStatus from '$lib/components/ServerStatus.svelte';
+	import Logo from '$lib/components/Logo.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let {
@@ -57,8 +58,9 @@
 	<!-- Three columns so the middle holds its place however long the shortcut list grows. -->
 	<div class="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-4 px-5">
 		<div class="flex min-w-0 items-center gap-4">
-		<a href="/" class="font-heading text-sm font-semibold tracking-[0.2em] text-foreground">
-			VECTOR
+		<a href="/" class="flex items-center gap-2 text-foreground">
+			<Logo class="size-5" />
+			<span class="font-heading text-sm font-semibold tracking-tight">WormholeSystems</span>
 		</a>
 		<!-- Without an account this only leads to the sign-in page, so it is not shown. -->
 		{#if me}

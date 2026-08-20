@@ -4,11 +4,11 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::watchlist::{
+use wormholesystems::maps::watchlist::{
     AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned, add_watchlist_entry,
     list_watchlist, remove_watchlist_entry, set_watchlist_pinned,
 };
-use vector::maps::{MapError, Role};
+use wormholesystems::maps::{MapError, Role};
 
 /// A new map arrives with the trade hubs already watched and pinned, so the navigation
 /// panel can answer "how far from Jita" before anyone configures anything. The fixture

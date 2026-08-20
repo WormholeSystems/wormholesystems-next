@@ -2,7 +2,7 @@
 
 /**
  * A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it. Oriented
- * hub-first rather than in EVE Scout's in/out terms, and statuses normalized to Vector's
+ * hub-first rather than in EVE Scout's in/out terms, and statuses normalized to WormholeSystems's
  * own vocabulary.
  */
 export type EveScoutConnection = { hub_solar_system_id: number, 

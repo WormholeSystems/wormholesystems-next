@@ -26,7 +26,7 @@ const PONG: u8 = 1;
 const CHANNEL_MESSAGE: u8 = 4;
 const AUTOCOMPLETE_RESULT: u8 = 8;
 
-/// Only the sender sees it. Everything Vector replies with is about the sender's own maps,
+/// Only the sender sees it. Everything WormholeSystems replies with is about the sender's own maps,
 /// so it stays out of the channel.
 const EPHEMERAL: u32 = 1 << 6;
 

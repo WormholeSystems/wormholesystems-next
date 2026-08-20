@@ -12,7 +12,7 @@
 		{
 			href: '/settings/characters',
 			label: 'Characters',
-			description: 'Who you fly, and what they let Vector see',
+			description: 'Who you fly, and what they let WormholeSystems see',
 			icon: IdCardIcon
 		},
 		{

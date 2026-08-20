@@ -5,20 +5,22 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::connection::{RemoveConnection, remove_connection};
-use vector::maps::events_log::{MapIdBody, undo};
-use vector::maps::ghost::{
+use wormholesystems::maps::connection::{RemoveConnection, remove_connection};
+use wormholesystems::maps::events_log::{MapIdBody, undo};
+use wormholesystems::maps::ghost::{
     AddGhostSystem, ResolveGhostSystem, add_ghost_system, resolve_ghost_system,
 };
-use vector::maps::map::{GetMap, get_map};
-use vector::maps::signatures::{
+use wormholesystems::maps::map::{GetMap, get_map};
+use wormholesystems::maps::signatures::{
     AddSignature, PasteSignatures, PastedSignature, RemoveSignature, UpdateSignature,
     add_signature, list_signatures, paste_signatures, remove_signature, update_signature,
 };
-use vector::maps::solar_system::{
+use wormholesystems::maps::solar_system::{
     AddSystem, RemoveSystem, SetPinned, add_system, remove_system, set_pinned,
 };
-use vector::maps::{Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus, WormholeSize};
+use wormholesystems::maps::{
+    Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus, WormholeSize,
+};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     add_system(
@@ -638,14 +640,14 @@ async fn a_real_system_left_without_connections_stays(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
     let far = place(&pool, w.owner, w.map_id, SYS_B).await;
-    vector::maps::connection::add_connection(
+    wormholesystems::maps::connection::add_connection(
         &pool,
         w.owner,
-        vector::maps::connection::AddConnection {
+        wormholesystems::maps::connection::AddConnection {
             map_id: w.map_id,
             from_system: home,
             to_system: far,
-            kind: vector::maps::ConnectionType::Wormhole,
+            kind: wormholesystems::maps::ConnectionType::Wormhole,
             size: None,
         },
     )
@@ -905,23 +907,23 @@ async fn deleting_the_signature_leaves_a_real_system(pool: PgPool) {
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
     let far = place(&pool, w.owner, w.map_id, SYS_B).await;
     let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
-    let edge = vector::maps::connection::add_connection(
+    let edge = wormholesystems::maps::connection::add_connection(
         &pool,
         w.owner,
-        vector::maps::connection::AddConnection {
+        wormholesystems::maps::connection::AddConnection {
             map_id: w.map_id,
             from_system: home,
             to_system: far,
-            kind: vector::maps::ConnectionType::Wormhole,
+            kind: wormholesystems::maps::ConnectionType::Wormhole,
             size: None,
         },
     )
     .await
     .unwrap();
-    vector::maps::signatures::link_signature(
+    wormholesystems::maps::signatures::link_signature(
         &pool,
         w.owner,
-        vector::maps::signatures::LinkSignature {
+        wormholesystems::maps::signatures::LinkSignature {
             map_id: w.map_id,
             signature_pk: sig,
             connection_id: edge.id,

@@ -233,7 +233,7 @@ import { api } from '$lib/api/client';
 		{#if step === 1}
 			<div class="flex flex-col gap-4 text-sm">
 				<p class="text-muted-foreground">
-					Vector keeps a wormhole chain that several people edit at once. It can also build
+					WormholeSystems keeps a wormhole chain that several people edit at once. It can also build
 					that chain from where your characters actually are, which is the part worth setting
 					up now.
 				</p>

@@ -4,13 +4,13 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::events_log::{MapIdBody, undo};
-use vector::maps::solar_system::{
+use wormholesystems::maps::events_log::{MapIdBody, undo};
+use wormholesystems::maps::solar_system::{
     AddSystem, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome, SetPinned,
     SetRally, SystemMove, add_system, move_system, move_systems, remove_system, remove_systems,
     set_alias, set_home, set_pinned, set_rally,
 };
-use vector::maps::{MapError, Role};
+use wormholesystems::maps::{MapError, Role};
 
 #[sqlx::test]
 async fn add_system_returns_fields_and_persists(pool: PgPool) {
@@ -418,7 +418,7 @@ async fn a_pinned_system_will_not_move_but_the_home_system_will(pool: PgPool) {
     );
 }
 
-async fn mark_home(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64) {
+async fn mark_home(pool: &PgPool, actor: wormholesystems::maps::Actor, map_id: i64, id: i64) {
     set_home(
         pool,
         actor,
@@ -432,7 +432,13 @@ async fn mark_home(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i
     .unwrap();
 }
 
-async fn pin(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64, value: bool) {
+async fn pin(
+    pool: &PgPool,
+    actor: wormholesystems::maps::Actor,
+    map_id: i64,
+    id: i64,
+    value: bool,
+) {
     set_pinned(
         pool,
         actor,
@@ -446,15 +452,30 @@ async fn pin(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64, va
     .unwrap();
 }
 
-async fn position(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, id: i64) -> (f64, f64) {
-    let view = vector::maps::map::get_map(pool, actor, vector::maps::map::GetMap { map_id })
-        .await
-        .unwrap();
+async fn position(
+    pool: &PgPool,
+    actor: wormholesystems::maps::Actor,
+    map_id: i64,
+    id: i64,
+) -> (f64, f64) {
+    let view = wormholesystems::maps::map::get_map(
+        pool,
+        actor,
+        wormholesystems::maps::map::GetMap { map_id },
+    )
+    .await
+    .unwrap();
     let s = view.systems.iter().find(|s| s.id == id).expect("placed");
     (s.position_x, s.position_y)
 }
 
-async fn place(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, sys: i64, x: f64) -> i64 {
+async fn place(
+    pool: &PgPool,
+    actor: wormholesystems::maps::Actor,
+    map_id: i64,
+    sys: i64,
+    x: f64,
+) -> i64 {
     add_system(
         pool,
         actor,
@@ -471,8 +492,8 @@ async fn place(pool: &PgPool, actor: vector::maps::Actor, map_id: i64, sys: i64,
     .id
 }
 
-async fn placed_ids(pool: &PgPool, actor: vector::maps::Actor, map_id: i64) -> Vec<i64> {
-    vector::maps::map::get_map(pool, actor, vector::maps::map::GetMap { map_id })
+async fn placed_ids(pool: &PgPool, actor: wormholesystems::maps::Actor, map_id: i64) -> Vec<i64> {
+    wormholesystems::maps::map::get_map(pool, actor, wormholesystems::maps::map::GetMap { map_id })
         .await
         .unwrap()
         .systems

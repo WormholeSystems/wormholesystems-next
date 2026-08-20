@@ -5,8 +5,8 @@ mod common;
 
 use common::world;
 use sqlx::PgPool;
-use vector::alerts::filters::{Candidates, Match, Mode, Rule, Side, Subject};
-use vector::alerts::{self, AlertKind};
+use wormholesystems::alerts::filters::{Candidates, Match, Mode, Rule, Side, Subject};
+use wormholesystems::alerts::{self, AlertKind};
 
 async fn make_alert(pool: &PgPool, map_id: i64, kind: &str) -> i64 {
     let webhook = sqlx::query_scalar!(
@@ -145,7 +145,7 @@ fn filters_decide_what_is_worth_a_message() {
         mode: Mode::Include,
         ids: vec![99000002],
     };
-    assert!(vector::alerts::filters::matches(
+    assert!(wormholesystems::alerts::filters::matches(
         std::slice::from_ref(&watch_them),
         Match::Any,
         &kill
@@ -159,7 +159,7 @@ fn filters_decide_what_is_worth_a_message() {
         mode: Mode::Exclude,
         ids: vec![99000001],
     };
-    assert!(!vector::alerts::filters::matches(
+    assert!(!wormholesystems::alerts::filters::matches(
         &[watch_them, not_our_losses],
         Match::Any,
         &kill

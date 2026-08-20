@@ -10,7 +10,7 @@ use super::ApiResult;
 use crate::auth::AppState;
 
 /// A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it. Oriented
-/// hub-first rather than in EVE Scout's in/out terms, and statuses normalized to Vector's
+/// hub-first rather than in EVE Scout's in/out terms, and statuses normalized to WormholeSystems's
 /// own vocabulary.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]

@@ -38,7 +38,7 @@ X-Compatibility-Date: 2026-06-09
 
 ```json
 {
-  "name": "Vector Pilot",
+  "name": "WormholeSystems Pilot",
   "corporation_id": 98000001,
   "alliance_id": 99000001,
   "birthday": "2015-03-24T11:00:00Z",
@@ -50,7 +50,7 @@ X-Compatibility-Date: 2026-06-09
 }
 ```
 
-## In vector
+## In WormholeSystems
 
 Resolves a character's name and current corp/alliance. For keeping the corp/alliance of
 *many* characters fresh, prefer the bulk

@@ -354,7 +354,7 @@ test('viewers see the watchlist read-only', async ({ page, api, browser }) => {
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);

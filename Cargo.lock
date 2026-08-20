@@ -2700,30 +2700,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
-name = "vector"
-version = "0.0.0"
-dependencies = [
- "axum",
- "axum-extra",
- "bzip2",
- "chrono",
- "dotenvy",
- "ed25519-dalek",
- "hex",
- "jsonwebtoken",
- "reqwest",
- "serde",
- "serde_json",
- "sqlx",
- "tar",
- "thiserror",
- "tokio",
- "ts-rs",
- "uuid",
- "zip",
-]
-
-[[package]]
 name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3102,6 +3078,30 @@ name = "wit-bindgen"
 version = "0.57.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+
+[[package]]
+name = "wormholesystems"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "axum-extra",
+ "bzip2",
+ "chrono",
+ "dotenvy",
+ "ed25519-dalek",
+ "hex",
+ "jsonwebtoken",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tar",
+ "thiserror",
+ "tokio",
+ "ts-rs",
+ "uuid",
+ "zip",
+]
 
 [[package]]
 name = "writeable"

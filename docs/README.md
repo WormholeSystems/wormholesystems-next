@@ -1,6 +1,6 @@
-# vector — documentation
+# WormholeSystems — documentation
 
-`vector` is a Rust rewrite of [**WormholeSystems**](https://wormhole.systems/), a
+`wormholesystems` is a Rust rewrite of [**WormholeSystems**](https://wormhole.systems/), a
 real-time, collaborative wormhole-mapping tool for EVE Online.
 
 It lets a corp or alliance map a wormhole chain together: pilots share one live map,

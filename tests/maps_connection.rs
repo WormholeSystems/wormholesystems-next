@@ -4,12 +4,12 @@ mod common;
 
 use common::{SYS_A, SYS_B, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::connection::{
+use wormholesystems::maps::connection::{
     AddConnection, RemoveConnection, SetConnectionStatus, add_connection, remove_connection,
     set_connection_status,
 };
-use vector::maps::solar_system::{AddSystem, add_system};
-use vector::maps::{ConnectionType, MapError, MassStatus, Role, TimeStatus};
+use wormholesystems::maps::solar_system::{AddSystem, add_system};
+use wormholesystems::maps::{ConnectionType, MapError, MassStatus, Role, TimeStatus};
 
 #[sqlx::test]
 async fn add_connection_returns_fields_and_validates(pool: PgPool) {

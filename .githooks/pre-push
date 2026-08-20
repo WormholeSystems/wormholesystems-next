@@ -28,11 +28,11 @@ if ! cargo sqlx database create >/dev/null 2>&1; then
 fi
 
 echo "pre-push: checking the sqlx query cache…"
-if cargo sqlx prepare --check -- --all-targets >/tmp/vector-sqlx-check.log 2>&1; then
+if cargo sqlx prepare --check -- --all-targets >/tmp/wh-sqlx-check.log 2>&1; then
 	exit 0
 fi
 
-tail -20 /tmp/vector-sqlx-check.log >&2
+tail -20 /tmp/wh-sqlx-check.log >&2
 cat >&2 <<'MSG'
 
 pre-push: .sqlx does not match the queries in the code, so the Docker build will fail.

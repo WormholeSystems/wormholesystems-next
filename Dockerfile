@@ -14,8 +14,8 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /app/target/release/vector /usr/local/bin/vector
+COPY --from=build /app/target/release/wormholesystems /usr/local/bin/wormholesystems
 COPY data ./data
 ENV LISTEN_ADDR=0.0.0.0:3000
 EXPOSE 3000
-CMD ["vector"]
+CMD ["wormholesystems"]

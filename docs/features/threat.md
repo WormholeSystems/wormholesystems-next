@@ -16,7 +16,7 @@ Both loops are gated behind `ZKB_LISTEN=1` so dev machines don't poll zKillboard
 default. All requests send a descriptive User-Agent; zKillboard rejects anonymous
 clients with 403.
 
-`vector killmails-backfill [days]` (default 30) imports EVE Ref's daily archives
+`wormholesystems killmails-backfill [days]` (default 30) imports EVE Ref's daily archives
 (`https://data.everef.net/killmails/{year}/killmails-YYYY-MM-DD.tar.bz2`, extracted with
 the system `tar`), newest day first, then runs the analysis once. A 404 means no
 killmails were published for that day. Existing rows are left untouched, so it composes

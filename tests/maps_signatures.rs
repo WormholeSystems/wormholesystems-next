@@ -5,17 +5,17 @@ mod common;
 
 use common::{SYS_A, SYS_B, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::connection::{
+use wormholesystems::maps::connection::{
     AddConnection, SetConnectionStatus, add_connection, set_connection_status,
 };
-use vector::maps::map::{GetMap, get_map};
-use vector::maps::signatures::{
+use wormholesystems::maps::map::{GetMap, get_map};
+use wormholesystems::maps::signatures::{
     AddSignature, LinkSignature, RemoveSignature, Signature, UnlinkSignature, UpdateSignature,
     add_signature, link_signature, list_signatures, remove_signature, unlink_signature,
     update_signature,
 };
-use vector::maps::solar_system::{AddSystem, add_system};
-use vector::maps::{Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus};
+use wormholesystems::maps::solar_system::{AddSystem, add_system};
+use wormholesystems::maps::{Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus};
 
 /// Place `system` on the map; return its `map_solar_systems` id.
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
@@ -210,7 +210,7 @@ async fn link_merges_worst_then_edits_propagate(pool: PgPool) {
             map_id: w.map_id,
             from_system: a,
             to_system: b,
-            kind: vector::maps::ConnectionType::Wormhole,
+            kind: wormholesystems::maps::ConnectionType::Wormhole,
             size: None,
         },
     )
@@ -333,7 +333,7 @@ async fn link_validations_and_unlink(pool: PgPool) {
             map_id: w.map_id,
             from_system: a,
             to_system: b,
-            kind: vector::maps::ConnectionType::Wormhole,
+            kind: wormholesystems::maps::ConnectionType::Wormhole,
             size: None,
         },
     )
@@ -418,7 +418,7 @@ async fn connection_state(
     actor: Actor,
     map_id: i64,
     connection_id: i64,
-) -> vector::maps::MapConnection {
+) -> wormholesystems::maps::MapConnection {
     get_map(pool, actor, GetMap { map_id })
         .await
         .unwrap()

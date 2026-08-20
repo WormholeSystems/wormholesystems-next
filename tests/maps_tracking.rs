@@ -5,12 +5,12 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
 use sqlx::PgPool;
-use vector::maps::events_log::{MapIdBody, list_history, redo, undo};
-use vector::maps::map::{GetMap, get_map};
-use vector::maps::signatures::{AddSignature, add_signature, list_signatures};
-use vector::maps::solar_system::{AddSystem, add_system};
-use vector::maps::tracking::{TrackJump, track_jump};
-use vector::maps::{Actor, MapError, Role, SignatureGroup, WormholeSize};
+use wormholesystems::maps::events_log::{MapIdBody, list_history, redo, undo};
+use wormholesystems::maps::map::{GetMap, get_map};
+use wormholesystems::maps::signatures::{AddSignature, add_signature, list_signatures};
+use wormholesystems::maps::solar_system::{AddSystem, add_system};
+use wormholesystems::maps::tracking::{TrackJump, track_jump};
+use wormholesystems::maps::{Actor, MapError, Role, SignatureGroup, WormholeSize};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, sys: i64, x: f64) -> i64 {
     add_system(
@@ -276,7 +276,7 @@ async fn a_viewer_cannot_build_the_chain(pool: PgPool) {
 #[sqlx::test]
 async fn the_connection_claims_the_transit_recorded_before_it_existed(pool: PgPool) {
     let w = world(&pool).await;
-    let hub = vector::maps::MapHub::new();
+    let hub = wormholesystems::maps::MapHub::new();
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
 
     sqlx::query(
@@ -316,7 +316,7 @@ async fn the_connection_claims_the_transit_recorded_before_it_existed(pool: PgPo
     .unwrap();
 
     // The pilot flies through before the hole is on the map.
-    vector::maps::jumps::record_transit(&pool, &hub, w.owner.character_id, SYS_A, SYS_B)
+    wormholesystems::maps::jumps::record_transit(&pool, &hub, w.owner.character_id, SYS_A, SYS_B)
         .await
         .unwrap();
     let pending: i64 =

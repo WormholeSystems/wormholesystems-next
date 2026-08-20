@@ -116,11 +116,11 @@ mod tests {
     #[test]
     fn a_variable_set_to_nothing_is_missing() {
         unsafe {
-            std::env::set_var("VECTOR_TEST_BLANK", "   ");
-            std::env::set_var("VECTOR_TEST_FILLED", " kept ");
+            std::env::set_var("WS_TEST_BLANK", "   ");
+            std::env::set_var("WS_TEST_FILLED", " kept ");
         }
-        assert!(nonempty("VECTOR_TEST_BLANK").is_none());
-        assert!(nonempty("VECTOR_TEST_UNSET_ENTIRELY").is_none());
-        assert_eq!(nonempty("VECTOR_TEST_FILLED").as_deref(), Some("kept"));
+        assert!(nonempty("WS_TEST_BLANK").is_none());
+        assert!(nonempty("WS_TEST_UNSET_ENTIRELY").is_none());
+        assert_eq!(nonempty("WS_TEST_FILLED").as_deref(), Some("kept"));
     }
 }

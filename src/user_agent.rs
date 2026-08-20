@@ -7,12 +7,12 @@
 
 use std::sync::OnceLock;
 
-pub const NAME_VAR: &str = "VECTOR_CONTACT_NAME";
-pub const EMAIL_VAR: &str = "VECTOR_CONTACT_EMAIL";
+pub const NAME_VAR: &str = "WS_CONTACT_NAME";
+pub const EMAIL_VAR: &str = "WS_CONTACT_EMAIL";
 
 static AGENT: OnceLock<String> = OnceLock::new();
 
-/// `vector/0.1.0 (Some Pilot; someone@example.com; +https://github.com/eve-vector/vector)`
+/// `wormholesystems/0.1.0 (Some Pilot; someone@example.com; +https://github.com/WormholeSystems/wormholesystems-next)`
 ///
 /// Panics if the contact is not configured. That is deliberate: a deploy that talks to ESI
 /// anonymously is one that gets throttled and then banned, and failing at the first request
@@ -22,7 +22,7 @@ pub fn get() -> &'static str {
         let name = contact(NAME_VAR);
         let email = contact(EMAIL_VAR);
         format!(
-            "vector/{} ({name}; {email}; +https://github.com/eve-vector/vector)",
+            "wormholesystems/{} ({name}; {email}; +https://github.com/WormholeSystems/wormholesystems-next)",
             env!("CARGO_PKG_VERSION")
         )
     })
@@ -68,10 +68,10 @@ mod tests {
             std::env::set_var(super::EMAIL_VAR, "admin@example.com");
         }
         let agent = super::get();
-        assert!(agent.starts_with("vector/"), "{agent}");
+        assert!(agent.starts_with("wormholesystems/"), "{agent}");
         assert!(agent.contains("(Zvi Sarok; admin@example.com;"), "{agent}");
         assert!(
-            agent.contains("+https://github.com/eve-vector/vector"),
+            agent.contains("+https://github.com/WormholeSystems/wormholesystems-next"),
             "{agent}"
         );
     }

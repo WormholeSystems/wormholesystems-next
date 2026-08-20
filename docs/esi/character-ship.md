@@ -35,7 +35,7 @@ X-Compatibility-Date: 2026-06-09
 }
 ```
 
-## In vector
+## In WormholeSystems
 
 Feeds the `ship_*` fields of
 [`character_status`](../database/tracking.md#character_status). A changed

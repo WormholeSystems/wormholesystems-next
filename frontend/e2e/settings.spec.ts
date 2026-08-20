@@ -39,7 +39,7 @@ test('the owner is listed, and granting adds a second entry', async ({ page, api
 	await expect(help).toContainText('Viewer');
 	await expect(help).toContainText('Everything a manager does, and can delete the map.');
 
-	// The grant search only knows entities Vector has cached, so a known character resolves.
+	// The grant search only knows entities WormholeSystems has cached, so a known character resolves.
 	// Driven by keyboard alone, which is what a combobox is for.
 	await page.getByTestId('grant-search').click();
 	await page.getByPlaceholder('Name, ticker, or an EVE id…').fill('E2E Extra 2');
@@ -168,7 +168,7 @@ test('a viewer sees the roles but cannot change them', async ({ page, api }) => 
 
 	const ctx = await page.context().browser()!.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}/settings/access`);

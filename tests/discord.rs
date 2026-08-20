@@ -3,7 +3,7 @@
 mod common;
 
 use sqlx::PgPool;
-use vector::discord;
+use wormholesystems::discord;
 
 async fn link(pool: &PgPool, user_id: i64, discord_id: &str) {
     sqlx::query!(

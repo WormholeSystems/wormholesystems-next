@@ -71,7 +71,7 @@ test('notes match for members and stay hidden from viewers', async ({ page, api 
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 	const ctx = await page.context().browser()!.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);

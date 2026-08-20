@@ -10,7 +10,7 @@
 
 	import Reveal from './Reveal.svelte';
 
-	const command = './vectorctl setup';
+	const command = './wsctl setup';
 	let copied = $state(false);
 	let resetTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -30,7 +30,7 @@
 		'the checkout is not behind origin'
 	];
 
-	// The rest of vectorctl, so the story is the whole life of the install, not day one.
+	// The rest of wsctl, so the story is the whole life of the install, not day one.
 	const commands = [
 		{ cmd: 'setup', body: 'Checks the machine, asks for what it needs, brings the stack up.' },
 		{ cmd: 'update', body: 'Pulls, rebuilds, restarts, and says what changed.' },
@@ -127,7 +127,7 @@
 							{#each commands as item (item.cmd)}
 								<div class="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
 									<dt class="w-40 shrink-0 font-mono text-xs text-amber-500/90">
-										vectorctl {item.cmd}
+										wsctl {item.cmd}
 									</dt>
 									<dd class="text-xs text-muted-foreground">{item.body}</dd>
 								</div>

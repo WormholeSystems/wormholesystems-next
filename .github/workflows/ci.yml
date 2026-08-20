@@ -39,8 +39,8 @@ jobs:
       # would fail on every query. The offline job below is what keeps the cache honest.
       SQLX_OFFLINE: "true"
       # Every outbound request carries a contact; CI's is this repository.
-      VECTOR_CONTACT_NAME: "vector CI"
-      VECTOR_CONTACT_EMAIL: "ci@github.com/eve-vector/vector"
+      WS_CONTACT_NAME: "WormholeSystems CI"
+      WS_CONTACT_EMAIL: "ci@wormhole.systems"
       # `#[sqlx::test]` makes a fresh database per test from this connection and applies the
       # migrations itself. The tests seed the handful of systems they need, so no SDE.
       DATABASE_URL: postgres://vector:vector@localhost:5432/vector

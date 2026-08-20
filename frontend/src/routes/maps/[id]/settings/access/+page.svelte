@@ -154,7 +154,7 @@
 		try {
 			await work;
 			error = '';
-			await Promise.all([invalidate('vector:access'), invalidate('vector:map')]);
+			await Promise.all([invalidate('ws:access'), invalidate('ws:map')]);
 		} catch (err) {
 			error = (err as Error).message;
 		}

@@ -145,9 +145,9 @@ map. Fixed 180×40 cards, the free router's curves, the same grid background, a 
 prop, no interaction at all. Worth knowing it exists, because it is the cheapest way to
 render a map outside the live canvas (a share view, an alert preview, a print).
 
-## 10. Vector today, and the gaps
+## 10. WormholeSystems today, and the gaps
 
-| Area | Legacy | Vector (`frontend/src/routes/maps/[id]/`) |
+| Area | Legacy | WormholeSystems (`frontend/src/routes/maps/[id]/`) |
 |------|--------|-------------------------------------------|
 | Scroll model | native scroll container, `scrollLeft/Top` | one `translate(pan) scale(zoom)` world div |
 | Zoom | 0.5–2, 0.1 steps, cookie-persisted, % readout | *ported*: same range and step, `localStorage` per map, % readout |
@@ -161,10 +161,10 @@ render a map outside the live canvas (a share view, an alert preview, a print).
 | Readonly renderer | `MapReadonly.vue` | **missing** |
 
 The zoom row's persistence differs on purpose: legacy keeps one scale for every map in a
-cookie, Vector keeps one per map in `localStorage`. Both are per browser rather than per
+cookie, WormholeSystems keeps one per map in `localStorage`. Both are per browser rather than per
 account, because how far out you want to be depends on the screen you are sitting at.
 
-Two Vector-side details that matter for the port:
+Two WormholeSystems-side details that matter for the port:
 
 - The transform model (`translate` + `scale` on one world div) is not a scroll container,
   so panning is clamped by hand and the scrollbar thumbs are computed from `pan` rather

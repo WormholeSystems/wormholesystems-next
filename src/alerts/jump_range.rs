@@ -34,7 +34,7 @@ async fn locate(pool: &PgPool, id: i64) -> Option<Located> {
         name: row.name,
         security: row.security_status,
         position: (row.pos_x?, row.pos_y?, row.pos_z?),
-        // 7/8/9 are the k-space bands Vector assigns; anything else is a hole of some kind.
+        // 7/8/9 are the k-space bands WormholeSystems assigns; anything else is a hole of some kind.
         is_wormhole: !matches!(row.wormhole_class_id, Some(7) | Some(8) | Some(9) | None),
     })
 }

@@ -14,7 +14,7 @@ use serde::Deserialize;
 /// command shapes, not transport.
 pub const API: &str = "https://discord.com/api/v10";
 
-/// The bits of a Discord user Vector stores.
+/// The bits of a Discord user WormholeSystems stores.
 #[derive(Debug, Clone, Deserialize, serde::Serialize)]
 pub struct DiscordUser {
     pub id: String,

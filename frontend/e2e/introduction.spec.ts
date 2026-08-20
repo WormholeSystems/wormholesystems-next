@@ -51,7 +51,7 @@ async function openAsNewcomer(
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'vector_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}`);

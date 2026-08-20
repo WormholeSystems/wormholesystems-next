@@ -6,15 +6,15 @@ mod common;
 use chrono::{Duration, Utc};
 use common::{add_character, member_with_role, new_user, world};
 use sqlx::PgPool;
-use vector::maps::access::reader_for;
-use vector::maps::access::{
+use wormholesystems::maps::access::reader_for;
+use wormholesystems::maps::access::{
     RevokeAccess, SetAccess, TransferOwnership, effective_role, list_access, revoke_access,
     set_access, transfer_ownership,
 };
-use vector::maps::map::{
+use wormholesystems::maps::map::{
     GetMap, UpdateMap, get_map, read_map, revoke_share_token, rotate_share_token, update_map,
 };
-use vector::maps::{Actor, MapError, Role, SubjectType};
+use wormholesystems::maps::{Actor, MapError, Role, SubjectType};
 
 #[sqlx::test]
 async fn set_access_grants_and_then_changes_role_in_place(pool: PgPool) {
@@ -227,7 +227,7 @@ async fn access_via_corporation_grant(pool: PgPool) {
 /// limited-access warning is about.
 #[sqlx::test]
 async fn map_view_flags_an_active_character_without_its_own_grant(pool: PgPool) {
-    use vector::maps::Actor;
+    use wormholesystems::maps::Actor;
 
     let w = world(&pool).await;
     let user = new_user(&pool).await;

@@ -76,7 +76,7 @@
 </script>
 
 <svelte:head>
-	<title>Vector — wormhole mapping for EVE Online</title>
+	<title>WormholeSystems — wormhole mapping for EVE Online</title>
 	<meta
 		name="description"
 		content="Real-time collaborative wormhole mapping for EVE Online. Open source, self-hosted, one command to stand up."
@@ -236,7 +236,7 @@
 						<MapIcon data-icon="inline-start" />
 						Open your maps
 					</Button>
-					<Button href="https://github.com/eve-vector/vector" size="lg" variant="outline">
+					<Button href="https://github.com/WormholeSystems/wormholesystems-next" size="lg" variant="outline">
 						<GitForkIcon data-icon="inline-start" />
 						Source on GitHub
 					</Button>

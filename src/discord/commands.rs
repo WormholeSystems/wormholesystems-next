@@ -1,6 +1,6 @@
 //! The slash commands.
 //!
-//! One `/vector` with subcommands, so Vector claims a single name in a server's command
+//! One `/wh` with subcommands, so WormholeSystems claims a single name in a server's command
 //! list. Every reply is ephemeral and every command needs a linked account, because
 //! everything they answer is about the sender's own maps.
 
@@ -13,13 +13,13 @@ use super::interactions::{CommandOption, Interaction, focused, option};
 /// The command tree, as Discord wants it registered.
 pub fn definition() -> Value {
     json!({
-        "name": "vector",
+        "name": "wh",
         "description": "Your wormhole maps",
         "options": [
             {
                 "type": 1,
                 "name": "account",
-                "description": "Show which Vector account this Discord user is linked to"
+                "description": "Show which WormholeSystems account this Discord user is linked to"
             },
             {
                 "type": 2,
@@ -77,7 +77,7 @@ pub fn definition() -> Value {
 
 /// Upload the command tree to Discord, replacing whatever is registered.
 ///
-/// Registered globally rather than per guild, so nothing has to track which servers Vector
+/// Registered globally rather than per guild, so nothing has to track which servers WormholeSystems
 /// is in. The cost is that Discord takes a few minutes to roll a change out.
 pub async fn register(application_id: &str, bot_token: &str) -> Result<(), String> {
     let response = crate::user_agent::client()
@@ -190,7 +190,7 @@ fn parse(options: &[CommandOption]) -> Action<'_> {
 }
 
 fn unlinked() -> String {
-    "This Discord account is not linked to a Vector account yet. Open Vector, go to \
+    "This Discord account is not linked to a WormholeSystems account yet. Open WormholeSystems, go to \
      Settings → Discord, and press Connect."
         .into()
 }
@@ -219,7 +219,7 @@ async fn account(state: &AppState, user_id: i64) -> String {
     .unwrap_or(0);
 
     if characters.is_empty() {
-        return "Linked, but that Vector account has no characters yet.".into();
+        return "Linked, but that WormholeSystems account has no characters yet.".into();
     }
     format!(
         "Linked to **{}**{}. {maps} {} you can see.",
@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn the_command_registers_as_one_name_with_subcommands() {
         let definition = definition();
-        assert_eq!(definition["name"], "vector");
+        assert_eq!(definition["name"], "wh");
         let subs = definition["options"].as_array().unwrap();
         assert_eq!(subs.len(), 3);
         for sub in subs {
@@ -541,7 +541,7 @@ mod tests {
     #[test]
     fn an_alert_action_is_read_from_inside_its_group() {
         let enable = options(
-            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+            r#"{"name":"wh","options":[{"name":"alerts","type":2,"options":[
                  {"name":"enable","type":1,"options":[{"name":"alert","value":"42"}]}]}]}"#,
         );
         assert_eq!(
@@ -553,7 +553,7 @@ mod tests {
         );
 
         let disable = options(
-            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+            r#"{"name":"wh","options":[{"name":"alerts","type":2,"options":[
                  {"name":"disable","type":1,"options":[{"name":"alert","value":"42"}]}]}]}"#,
         );
         assert_eq!(
@@ -565,7 +565,7 @@ mod tests {
         );
 
         let remove = options(
-            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+            r#"{"name":"wh","options":[{"name":"alerts","type":2,"options":[
                  {"name":"remove","type":1,"options":[{"name":"alert","value":"42"}]}]}]}"#,
         );
         assert_eq!(parse(&remove), Action::AlertsRemove { alert: Some(42) });
@@ -575,13 +575,13 @@ mod tests {
     #[test]
     fn listing_alerts_keeps_the_map_it_was_filtered_by() {
         let filtered = options(
-            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+            r#"{"name":"wh","options":[{"name":"alerts","type":2,"options":[
                  {"name":"list","type":1,"options":[{"name":"map","value":"7"}]}]}]}"#,
         );
         assert_eq!(parse(&filtered), Action::AlertsList { map: Some("7") });
 
         let all = options(
-            r#"{"name":"vector","options":[{"name":"alerts","type":2,"options":[
+            r#"{"name":"wh","options":[{"name":"alerts","type":2,"options":[
                  {"name":"list","type":1}]}]}"#,
         );
         assert_eq!(parse(&all), Action::AlertsList { map: None });
@@ -591,7 +591,7 @@ mod tests {
     #[test]
     fn a_plain_subcommand_reads_its_own_arguments() {
         let route = options(
-            r#"{"name":"vector","options":[{"name":"route","type":1,"options":[
+            r#"{"name":"wh","options":[{"name":"route","type":1,"options":[
                  {"name":"map","value":"7"},{"name":"system","value":"30000142"}]}]}"#,
         );
         assert_eq!(
@@ -602,12 +602,12 @@ mod tests {
             }
         );
         assert_eq!(
-            parse(&options(r#"{"name":"vector","options":[]}"#)),
+            parse(&options(r#"{"name":"wh","options":[]}"#)),
             Action::Nothing
         );
         assert_eq!(
             parse(&options(
-                r#"{"name":"vector","options":[{"name":"wat","type":1}]}"#
+                r#"{"name":"wh","options":[{"name":"wat","type":1}]}"#
             )),
             Action::Unknown("wat")
         );

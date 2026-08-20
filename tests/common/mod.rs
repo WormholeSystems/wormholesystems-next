@@ -3,10 +3,10 @@
 #![allow(dead_code)]
 
 use sqlx::PgPool;
-use vector::maps::access::SetAccess;
-use vector::maps::access::set_access;
-use vector::maps::map::{CreateMap, create_map};
-use vector::maps::{Actor, Role, SubjectType};
+use wormholesystems::maps::access::SetAccess;
+use wormholesystems::maps::access::set_access;
+use wormholesystems::maps::map::{CreateMap, create_map};
+use wormholesystems::maps::{Actor, Role, SubjectType};
 
 // Three solar systems are seeded so systems can be placed and connected.
 pub const SYS_A: i64 = 30000142;

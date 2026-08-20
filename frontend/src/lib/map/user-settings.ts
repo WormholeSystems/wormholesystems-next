@@ -11,6 +11,6 @@ import type { UpdateMapUserSettings } from '$lib/api/types/UpdateMapUserSettings
 export function saveUserSettings(mapId: number, patch: UpdateMapUserSettings): Promise<void> {
 	return api
 		.updateMapUserSettings(mapId, patch)
-		.then(() => invalidate('vector:user-settings'))
+		.then(() => invalidate('ws:user-settings'))
 		.catch(() => {});
 }

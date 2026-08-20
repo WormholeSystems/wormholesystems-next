@@ -1,6 +1,6 @@
 # UI style guide
 
-The visual language for Vector's interface. Keep new UI consistent with this; when in
+The visual language for WormholeSystems's interface. Keep new UI consistent with this; when in
 doubt, prefer **less** — fewer borders, less color, smaller radii.
 
 ## Principles
