@@ -34,6 +34,10 @@ jobs:
           --health-retries 10
 
     env:
+      # Compile against `.sqlx`, not the database. `#[sqlx::test]` applies the migrations
+      # when each test runs, so at compile time this database is still empty and the macros
+      # would fail on every query. The offline job below is what keeps the cache honest.
+      SQLX_OFFLINE: "true"
       # `#[sqlx::test]` makes a fresh database per test from this connection and applies the
       # migrations itself. The tests seed the handful of systems they need, so no SDE.
       DATABASE_URL: postgres://vector:vector@localhost:5432/vector
