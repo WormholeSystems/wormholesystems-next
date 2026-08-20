@@ -51,10 +51,20 @@ env_set() {
 	chmod 600 "$ENV_FILE"
 }
 
+# Keeps asking until there is an answer. The app refuses to start without any of these, so
+# accepting a blank one only moves the failure to the first boot, several minutes later.
+ask_required() {
+	local key=$1
+	while :; do
+		ask "$@"
+		[ -z "$(env_get "$key")" ] || return 0
+		warn "$key is required."
+	done
+}
+
 # Prompt with the current value as the default, so re-running setup is safe.
 ask() {
 	local key=$1 prompt=$2 secret=${3:-} current answer
-	current=$(env_get "$key")
 	if [ -n "$current" ] && [ -n "$secret" ]; then
 		read -r -p "$prompt [keep existing]: " answer
 	elif [ -n "$current" ]; then
@@ -233,14 +243,14 @@ cmd_setup() {
 	echo "  Who runs this install. Every request to ESI, zKillboard and EVE Ref carries"
 	echo "  these so those services can tell operators apart and reach you if something"
 	echo "  here misbehaves. CCP asks for it; anonymous clients get throttled, then blocked."
-	ask VECTOR_CONTACT_NAME "  In-game character name of the admin"
-	ask VECTOR_CONTACT_EMAIL "  Contact email"
+	ask_required VECTOR_CONTACT_NAME "  In-game character name of the admin"
+	ask_required VECTOR_CONTACT_EMAIL "  Contact email"
 
 	echo
 	echo "  EVE SSO application (https://developers.eveonline.com/applications)."
 	echo "  Its callback URL must be exactly: $base/auth/callback"
-	ask EVE_CLIENT_ID "  Client ID"
-	ask EVE_CLIENT_SECRET "  Secret" secret
+	ask_required EVE_CLIENT_ID "  Client ID"
+	ask_required EVE_CLIENT_SECRET "  Secret" secret
 	env_set EVE_REDIRECT_URI "$base/auth/callback"
 
 	echo

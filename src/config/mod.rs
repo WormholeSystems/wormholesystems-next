@@ -66,16 +66,26 @@ impl Config {
 
 fn discord_from_env() -> Option<DiscordConfig> {
     Some(DiscordConfig {
-        client_id: std::env::var("DISCORD_CLIENT_ID").ok()?,
-        client_secret: std::env::var("DISCORD_CLIENT_SECRET").ok()?,
-        redirect_uri: std::env::var("DISCORD_REDIRECT_URI").ok()?,
-        public_key: std::env::var("DISCORD_PUBLIC_KEY").ok()?,
-        bot_token: std::env::var("DISCORD_BOT_TOKEN").ok(),
+        client_id: nonempty("DISCORD_CLIENT_ID")?,
+        client_secret: nonempty("DISCORD_CLIENT_SECRET")?,
+        redirect_uri: nonempty("DISCORD_REDIRECT_URI")?,
+        public_key: nonempty("DISCORD_PUBLIC_KEY")?,
+        bot_token: nonempty("DISCORD_BOT_TOKEN"),
     })
 }
 
+/// The value of `key`, or `None` when it is unset or blank.
+fn nonempty(key: &str) -> Option<String> {
+    let value = std::env::var(key).ok()?;
+    let value = value.trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+/// A variable set to nothing counts as missing. Compose passes an empty `.env` value
+/// through as an empty string, and taking it at face value moves the failure from here,
+/// where the message names the variable, to wherever the value is first used.
 fn required(key: &'static str) -> Result<String, ConfigError> {
-    std::env::var(key).map_err(|_| ConfigError::Missing(key))
+    nonempty(key).ok_or(ConfigError::Missing(key))
 }
 
 /// Build the map [`GridConfig`] from the environment; each field falls back to its default
@@ -95,4 +105,22 @@ fn optional_f64(key: &str, default: f64) -> f64 {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Compose hands a blank `.env` value to the container as an empty string, which used to
+    // pass for present and then panic on first use, several minutes into the first boot.
+    #[test]
+    fn a_variable_set_to_nothing_is_missing() {
+        unsafe {
+            std::env::set_var("VECTOR_TEST_BLANK", "   ");
+            std::env::set_var("VECTOR_TEST_FILLED", " kept ");
+        }
+        assert!(nonempty("VECTOR_TEST_BLANK").is_none());
+        assert!(nonempty("VECTOR_TEST_UNSET_ENTIRELY").is_none());
+        assert_eq!(nonempty("VECTOR_TEST_FILLED").as_deref(), Some("kept"));
+    }
 }
