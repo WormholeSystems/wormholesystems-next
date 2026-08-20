@@ -51,11 +51,32 @@ cd wormholesystems-next
 wsctl setup
 ```
 
-Without a release for your platform, or to run it from source:
+While the repository is private, that download needs a token that can read it:
 
 ```sh
-cargo run -p wsctl -- setup
+export WSCTL_TOKEN=ghp_...
+curl -fsSL -H "Authorization: Bearer $WSCTL_TOKEN" \
+  https://raw.githubusercontent.com/WormholeSystems/wormholesystems-next/main/install.sh | sh
 ```
+
+A private repository's release assets are not reachable by plain URL at all, so with a
+token the installer goes through the API instead: it finds the asset by name and asks for
+its bytes.
+
+### Building it instead
+
+No release for your platform, no token, or you would rather not download a binary. The
+checkout has the source, and Docker is already here:
+
+```sh
+docker run --rm -u "$(id -u):$(id -g)" -e CARGO_HOME=/tmp/cargo \
+  -v "$PWD":/w -w /w rust:1.94-slim-bookworm cargo build --release -p wsctl
+sudo install -m755 target/release/wsctl /usr/local/bin/wsctl
+```
+
+Running as yourself rather than root keeps `target/` yours; without `-u` the build leaves
+root-owned files behind. With Rust already installed, `cargo run -p wsctl -- setup` does
+the same thing without the container.
 
 It checks the machine before asking for anything: Docker present and running, compose v2,
 disk space, and whether this checkout is behind origin. Then it asks for the domain and the

@@ -12,19 +12,45 @@ VERSION="${WSCTL_VERSION:-latest}"
 case "$(uname -s)-$(uname -m)" in
 	Linux-x86_64)  TARGET=x86_64-unknown-linux-gnu ;;
 	Linux-aarch64) TARGET=aarch64-unknown-linux-gnu ;;
-	Darwin-x86_64) TARGET=x86_64-apple-darwin ;;
 	Darwin-arm64)  TARGET=aarch64-apple-darwin ;;
 	*)
-		echo "wsctl has no build for $(uname -s) $(uname -m)." >&2
-		echo "Clone the repository and run: cargo run -p wsctl -- setup" >&2
+		echo "wsctl has no released build for $(uname -s) $(uname -m)." >&2
+		echo "Build it from a checkout instead:" >&2
+		echo "  cargo run -p wsctl -- setup" >&2
 		exit 1
 		;;
 esac
 
-if [ "$VERSION" = latest ]; then
-	URL="https://github.com/$REPO/releases/latest/download/wsctl-$TARGET"
+ASSET="wsctl-$TARGET"
+TOKEN="${WSCTL_TOKEN:-${GITHUB_TOKEN:-${GH_TOKEN:-}}}"
+
+# A public release is a plain download. A private one is not reachable that way at all, so
+# with a token we go through the API instead: find the asset by name, then ask for its bytes.
+if [ -n "$TOKEN" ]; then
+	if [ "$VERSION" = latest ]; then
+		RELEASE="https://api.github.com/repos/$REPO/releases/latest"
+	else
+		RELEASE="https://api.github.com/repos/$REPO/releases/tags/$VERSION"
+	fi
+	# One asset object per line, so the id and the name that belong together stay together.
+	ASSET_ID="$(
+		curl -fsSL -H "Authorization: Bearer $TOKEN" \
+			-H "Accept: application/vnd.github+json" "$RELEASE" |
+			tr '{' '\n' |
+			grep "\"name\"[[:space:]]*:[[:space:]]*\"$ASSET\"" |
+			head -1 |
+			sed -n 's/.*"id"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p'
+	)"
+	if [ -z "$ASSET_ID" ]; then
+		echo "No asset named $ASSET in $VERSION of $REPO." >&2
+		echo "Check the release exists and the token can read the repository." >&2
+		exit 1
+	fi
+	URL="https://api.github.com/repos/$REPO/releases/assets/$ASSET_ID"
+elif [ "$VERSION" = latest ]; then
+	URL="https://github.com/$REPO/releases/latest/download/$ASSET"
 else
-	URL="https://github.com/$REPO/releases/download/$VERSION/wsctl-$TARGET"
+	URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
 fi
 
 # /usr/local/bin when it is ours to write to, so it is already on PATH.
@@ -41,8 +67,18 @@ echo "Downloading $URL"
 # To a temporary file first: a half-written binary in place is worse than none.
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
-if ! curl -fsSL -o "$TMP" "$URL"; then
-	echo "Download failed. Is there a release for $TARGET yet?" >&2
+if [ -n "$TOKEN" ]; then
+	fetch() {
+		curl -fsSL -H "Authorization: Bearer $TOKEN" -H "Accept: application/octet-stream" \
+			-o "$1" "$2"
+	}
+else
+	fetch() { curl -fsSL -o "$1" "$2"; }
+fi
+
+if ! fetch "$TMP" "$URL"; then
+	echo "Download failed." >&2
+	echo "If $REPO is private, set WSCTL_TOKEN to a token that can read it." >&2
 	exit 1
 fi
 chmod +x "$TMP"
