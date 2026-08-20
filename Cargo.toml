@@ -32,7 +32,14 @@ sqlx = { version = "0.9", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-ts-rs = { version = "12.0.1", features = ["chrono-impl"] }
+# `no-serde-warnings`: ts-rs warns on any serde attribute it does not itself understand,
+# and it does not understand `deserialize_with`. Thirteen fields use it for the
+# absent-versus-null distinction, which changes how a value is read and not what it looks
+# like on the wire, so the generated types are right (`field?: T | null`) and the warnings
+# were thirteen per build saying nothing. The cost: a future attribute that really does
+# change the wire shape will now be ignored quietly, so check the generated type when you
+# add one.
+ts-rs = { version = "12.0.1", features = ["chrono-impl", "no-serde-warnings"] }
 # Verifying Discord's signature on interaction webhooks.
 ed25519-dalek = { version = "3.0.0", default-features = false, features = ["alloc"] }
 hex = "0.4.3"
