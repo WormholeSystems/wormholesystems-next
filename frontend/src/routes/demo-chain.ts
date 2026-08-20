@@ -62,11 +62,10 @@ function statik(name: string, destClass: number): MapSystemView['statics'][numbe
 		code: name,
 		dest_class: destClass,
 		max_jump_mass: null,
-		max_mass: null,
 		total_mass: null,
 		signature_strength: null,
 		lifetime_hours: null
-	} as MapSystemView['statics'][number];
+	} satisfies MapSystemView['statics'][number];
 }
 
 export const HOME = 1;
@@ -134,17 +133,18 @@ function connection(id: number, from: number, to: number, fields: Partial<MapCon
 		map_id: MAP_ID,
 		from_system: from,
 		to_system: to,
-		type: 'wormhole',
+		kind: 'wormhole',
 		mass_status: null,
 		time_status: null,
 		size: null,
 		preserve_mass: false,
 		jumps_count: 0,
 		jumps_mass_sum: 0,
+		time_status_updated_at: null,
 		created_at: hoursAgo(4),
 		updated_at: hoursAgo(1),
 		...fields
-	} as MapConnection;
+	} satisfies MapConnection;
 }
 
 export const DEMO_CONNECTIONS: MapConnection[] = [
@@ -167,10 +167,8 @@ export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
 			ship_type: 'Buzzard',
 			ship_group_id: null,
 			is_docked: false,
-			is_mine: true,
-			online: true,
-			is_active: true
-		} as MapCharacter
+			is_mine: true
+		} satisfies MapCharacter
 	],
 	3: [
 		{
@@ -183,10 +181,8 @@ export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
 			ship_type: 'Machariel',
 			ship_group_id: null,
 			is_docked: false,
-			is_mine: false,
-			online: true,
-			is_active: false
-		} as MapCharacter
+			is_mine: false
+		} satisfies MapCharacter
 	]
 };
 
@@ -204,9 +200,10 @@ export const DEMO_SIGNATURES: Signature[] = [
 		mass_status: null,
 		time_status: null,
 		connection_id: 12,
+		time_status_updated_at: null,
 		created_at: hoursAgo(3),
 		updated_at: hoursAgo(3)
-	} as Signature,
+	} satisfies Signature,
 	{
 		id: 102,
 		map_id: MAP_ID,
@@ -219,9 +216,10 @@ export const DEMO_SIGNATURES: Signature[] = [
 		mass_status: null,
 		time_status: 'eol',
 		connection_id: 13,
+		time_status_updated_at: null,
 		created_at: hoursAgo(15),
 		updated_at: hoursAgo(2)
-	} as Signature,
+	} satisfies Signature,
 	{
 		id: 103,
 		map_id: MAP_ID,
@@ -234,9 +232,10 @@ export const DEMO_SIGNATURES: Signature[] = [
 		mass_status: null,
 		time_status: null,
 		connection_id: null,
+		time_status_updated_at: null,
 		created_at: hoursAgo(0.2),
 		updated_at: hoursAgo(0.2)
-	} as Signature,
+	} satisfies Signature,
 	{
 		id: 104,
 		map_id: MAP_ID,
@@ -249,9 +248,10 @@ export const DEMO_SIGNATURES: Signature[] = [
 		mass_status: null,
 		time_status: null,
 		connection_id: null,
+		time_status_updated_at: null,
 		created_at: hoursAgo(6),
 		updated_at: hoursAgo(6)
-	} as Signature
+	} satisfies Signature
 ];
 
 /**
