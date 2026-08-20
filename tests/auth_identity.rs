@@ -34,6 +34,14 @@ async fn character_user(pool: &PgPool, character_id: i64) -> i64 {
         .unwrap()
 }
 
+async fn user_exists(pool: &PgPool, user_id: i64) -> bool {
+    sqlx::query_scalar!("select exists(select 1 from users where id = $1)", user_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+        .unwrap_or(false)
+}
+
 async fn is_preferred(pool: &PgPool, character_id: i64) -> bool {
     sqlx::query_scalar("select is_preferred from characters where id = $1")
         .bind(character_id)
@@ -129,6 +137,70 @@ async fn linking_attaches_a_character_without_making_it_preferred(pool: PgPool) 
     assert!(
         !is_preferred(&pool, 200).await,
         "a linked second character is not preferred"
+    );
+}
+
+/// Both people signed up separately, then one hands their character to the other. Each
+/// account had a preferred character of its own, and carrying that flag across gave the
+/// receiving account two, which the unique index refuses: the link failed outright.
+#[sqlx::test]
+async fn linking_a_character_that_already_has_its_own_account(pool: PgPool) {
+    let first = persist_identity(&pool, &claims(100, "h1"), corp(2001), None, None)
+        .await
+        .unwrap();
+    let second = persist_identity(&pool, &claims(200, "h2"), corp(2001), None, None)
+        .await
+        .unwrap();
+    assert_ne!(first, second, "two separate accounts to begin with");
+    assert!(
+        is_preferred(&pool, 200).await,
+        "each is preferred in its own"
+    );
+
+    let linked = persist_identity(&pool, &claims(200, "h2"), corp(2001), None, Some(first))
+        .await
+        .unwrap();
+
+    assert_eq!(linked, first, "the character joins the other account");
+    assert_eq!(character_user(&pool, 200).await, first);
+    assert!(
+        is_preferred(&pool, 100).await,
+        "the receiving account keeps the character it preferred"
+    );
+    assert!(
+        !is_preferred(&pool, 200).await,
+        "the arriving character does not bring its old account's preference with it"
+    );
+    assert!(
+        !user_exists(&pool, second).await,
+        "the account it left has no characters, so nothing can sign into it again"
+    );
+}
+
+/// The emptied account goes, but not one that still has somebody in it.
+#[sqlx::test]
+async fn an_account_with_characters_left_is_not_removed(pool: PgPool) {
+    let first = persist_identity(&pool, &claims(100, "h1"), corp(2001), None, None)
+        .await
+        .unwrap();
+    let second = persist_identity(&pool, &claims(200, "h2"), corp(2001), None, None)
+        .await
+        .unwrap();
+    persist_identity(&pool, &claims(300, "h3"), corp(2001), None, Some(second))
+        .await
+        .unwrap();
+
+    persist_identity(&pool, &claims(200, "h2"), corp(2001), None, Some(first))
+        .await
+        .unwrap();
+
+    assert!(
+        user_exists(&pool, second).await,
+        "character 300 is still there, so the account stays"
+    );
+    assert!(
+        is_preferred(&pool, 300).await,
+        "and it takes over as that account's preferred one"
     );
 }
 

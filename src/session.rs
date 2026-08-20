@@ -197,6 +197,8 @@ pub async fn persist_identity(
     )
     .fetch_optional(&mut *tx)
     .await?;
+    // Who held it before, so an account this leaves empty can be cleared up below.
+    let previous_owner = existing.as_ref().and_then(|c| c.user_id);
 
     let user_id = match (link_user_id, existing) {
         // Linking a character to the already-signed-in user.
@@ -228,6 +230,14 @@ pub async fn persist_identity(
              owner_hash = excluded.owner_hash,
              corporation_id = excluded.corporation_id,
              alliance_id = excluded.alliance_id,
+             -- Moving accounts drops the flag: it is the old account's answer to which
+             -- character it preferred, and carrying it over gives the new account two
+             -- preferred characters, which the unique index refuses. The statement below
+             -- sets it again if the new account has none.
+             is_preferred = case
+                 when characters.user_id is distinct from excluded.user_id then false
+                 else characters.is_preferred
+             end,
              updated_at = now()",
         character_id,
         user_id,
@@ -249,6 +259,33 @@ pub async fn persist_identity(
     )
     .execute(&mut *tx)
     .await?;
+
+    if let Some(previous) = previous_owner
+        && previous != user_id
+    {
+        // The character that left may have been the one that account preferred, which
+        // would leave it with none. Same rule as removing a character by hand: the lowest
+        // id takes over, because there is nothing better to go on.
+        sqlx::query!(
+            "update characters set is_preferred = true
+             where id = (select id from characters where user_id = $1 order by id limit 1)
+               and not exists (select 1 from characters where user_id = $1 and is_preferred)",
+            previous,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // An account whose last character just left is nothing anyone can sign into again,
+        // so it goes. Map access is held per character rather than per account, so the maps
+        // this character could reach it still can, under its new owner.
+        sqlx::query!(
+            "delete from users
+             where id = $1 and not exists (select 1 from characters where user_id = $1)",
+            previous,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(user_id)
