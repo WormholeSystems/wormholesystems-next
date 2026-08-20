@@ -148,6 +148,25 @@ describe('a hub with many children in the next column', () => {
 	const targetX = NODE_W + 136;
 	const ys = [20, 80, 147, 207, 267, 327, 387, 447, 507, 567, 627, 687, 747];
 
+	/** Every vertical segment of every edge, which is what a lane actually is. */
+	function verticalRuns(edges: ReturnType<typeof treeEdges>) {
+		const runs: { id: number; x: number; y1: number; y2: number }[] = [];
+		for (const e of edges.values()) {
+			const pts = [...e.d.matchAll(/[MLQ] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
+				x: Number(m[1]),
+				y: Number(m[2])
+			}));
+			for (let i = 1; i < pts.length; i++) {
+				const a = pts[i - 1];
+				const b = pts[i];
+				if (Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) > 0.5) {
+					runs.push({ id: e.id, x: a.x, y1: Math.min(a.y, b.y), y2: Math.max(a.y, b.y) });
+				}
+			}
+		}
+		return runs;
+	}
+
 	function hub() {
 		const positions = new Map([[1, { x: 0, y: 390 }]]);
 		ys.forEach((y, i) => positions.set(i + 2, { x: targetX, y }));
@@ -169,31 +188,23 @@ describe('a hub with many children in the next column', () => {
 		}
 	});
 
-	it('nests the runs so none of them cross', () => {
-		const segments = [...hub().values()].map((e) => {
-			const pts = [...e.d.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
-				x: Number(m[1]),
-				y: Number(m[2])
-			}));
-			return pts.slice(1).map((p, i) => ({ x1: pts[i].x, y1: pts[i].y, x2: p.x, y2: p.y }));
-		});
-
-		let crossings = 0;
-		for (let i = 0; i < segments.length; i++) {
-			for (let j = i + 1; j < segments.length; j++) {
-				for (const a of segments[i]) {
-					for (const b of segments[j]) {
-						const aFlat = Math.abs(a.y1 - a.y2) < 0.5;
-						if (aFlat === Math.abs(b.y1 - b.y2) < 0.5) continue;
-						const [h, v] = aFlat ? [a, b] : [b, a];
-						const spansX = Math.min(h.x1, h.x2) < v.x1 - 0.5 && v.x1 < Math.max(h.x1, h.x2) - 0.5;
-						const spansY = Math.min(v.y1, v.y2) < h.y1 - 0.5 && h.y1 < Math.max(v.y1, v.y2) - 0.5;
-						if (spansX && spansY) crossings++;
-					}
-				}
+	it('never draws two runs on top of each other', () => {
+		const runs = verticalRuns(hub());
+		for (let i = 0; i < runs.length; i++) {
+			for (let j = i + 1; j < runs.length; j++) {
+				if (runs[i].id === runs[j].id) continue;
+				if (Math.abs(runs[i].x - runs[j].x) > 0.5) continue;
+				const lo = Math.max(runs[i].y1, runs[j].y1);
+				const hi = Math.min(runs[i].y2, runs[j].y2);
+				expect(hi - lo).toBeLessThanOrEqual(0.5);
 			}
 		}
-		expect(crossings).toBe(0);
+	});
+
+	// Thirteen holes, six of them above the node and six below. Every run above overlaps
+	// every other run above near the node, so six lines is the fewest it can be drawn with.
+	it('uses no more lines than the runs actually need', () => {
+		expect(new Set(verticalRuns(hub()).map((r) => Math.round(r.x))).size).toBe(6);
 	});
 });
 

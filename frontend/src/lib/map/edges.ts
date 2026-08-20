@@ -298,7 +298,9 @@ export function treeEdges(
 	}
 	for (const ports of shared.values()) spreadSharedEdge(ports);
 
-	// Stagger the runs fanning out of one node, ordered by far-end distance so they nest.
+	// Grouped by the corridor the run crosses, not by the node it leaves: two runs at the
+	// same offset in the same corridor are the same line, whichever nodes they belong to,
+	// so they all have to be packed together or they lie on top of each other.
 	const fans = new Map<string, Routed[]>();
 	for (const edge of routed) {
 		if (edge.detour) continue;
@@ -311,7 +313,8 @@ export function treeEdges(
 		const along = horizontal ? other.centerY - primary.centerY : other.centerX - primary.centerX;
 		edge.distance = Math.abs(along);
 		edge.signed = along;
-		const key = `${horizontal ? 'h' : 'v'}|${primary.centerX},${primary.centerY}`;
+		const across = horizontal ? [edge.from.x, edge.to.x] : [edge.from.y, edge.to.y];
+		const key = `${horizontal ? 'h' : 'v'}|${Math.min(...across)},${Math.max(...across)}`;
 		const group = fans.get(key);
 		if (group) group.push(edge);
 		else fans.set(key, [edge]);
@@ -329,16 +332,6 @@ export function treeEdges(
 				? [Math.min(e.from.y, e.to.y), Math.max(e.from.y, e.to.y)]
 				: [Math.min(e.from.x, e.to.x), Math.max(e.from.x, e.to.x)];
 
-		// Where the run leaves and lands along that edge, which is what decides whether one
-		// run's horizontal reaches across another's vertical.
-		const leaves = (e: Routed) => (horizontal ? e.from.y : e.from.x);
-		const lands = (e: Routed) => (horizontal ? e.to.y : e.to.x);
-		const strictlyInside = (v: number, [s, e]: [number, number]) => v > s + 0.5 && v < e - 0.5;
-
-		// Two runs on one lane are collinear and never cross. Two runs on different lanes do
-		// cross when the inner one's landing, or the outer one's departure, falls inside the
-		// other's reach. So a lane is usable when the run fits between what is already on it
-		// and neither of those holds against every other lane.
 		const lanes: Routed[][] = [];
 		const laneOf = new Map<number, number>();
 		const ordered = [...group].sort((a, b) => b.distance - a.distance || a.signed - b.signed);
@@ -349,29 +342,23 @@ export function treeEdges(
 					const [s, e] = reach(other);
 					return span[0] >= e || span[1] <= s;
 				});
-			const clears = (lane: number) =>
-				lanes.every((others, i) => {
-					if (i === lane) return true;
-					const inner = i < lane ? others : [edge];
-					const outer = i < lane ? [edge] : others;
-					return inner.every((a) =>
-						outer.every(
-							(b) =>
-								!strictlyInside(lands(a), reach(b)) && !strictlyInside(leaves(b), reach(a))
-						)
-					);
-				});
-
-			let lane = lanes.findIndex((_, i) => fits(i) && clears(i));
+			// Overlap is the only thing a lane cannot have: two runs on one line hide each
+			// other, where two runs that cross stay readable. Taken longest first, first fit,
+			// that lands on the fewest lanes the corridor can be drawn with.
+			let lane = lanes.findIndex((_, i) => fits(i));
 			if (lane === -1) lane = lanes.push([]) - 1;
 			lanes[lane].push(edge);
 			laneOf.set(edge.id, lane);
 		}
 
+		// One corridor, so one set of lines: measured from its near edge, not from each
+		// run's own direction, or a run drawn leftward would count its lanes backwards.
+		const [near, far] = (() => {
+			const ends = group.flatMap((e) => (horizontal ? [e.from.x, e.to.x] : [e.from.y, e.to.y]));
+			return [Math.min(...ends), Math.max(...ends)];
+		})();
 		for (const edge of group) {
-			const start = horizontal ? edge.from.x : edge.from.y;
-			const end = horizontal ? edge.to.x : edge.to.y;
-			edge.bend = start + ((end - start) * (laneOf.get(edge.id)! + 1)) / (lanes.length + 1);
+			edge.bend = near + ((far - near) * (laneOf.get(edge.id)! + 1)) / (lanes.length + 1);
 		}
 	}
 
