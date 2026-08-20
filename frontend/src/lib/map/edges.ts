@@ -152,16 +152,23 @@ function blockedInColumn(source: Rect, target: Rect, column: Rect[]): boolean {
 
 /**
  * A vertical run belongs in the lanes between columns, never inside one: crossing another
- * edge is readable, disappearing behind a node is not.
+ * edge is readable, disappearing behind a node is not. Only columns the run actually
+ * passes between count, and the shifted lane stays inside them, so an edge never runs past
+ * the node it is heading for and doubles back.
  */
-function intoLane(x: number, columns: number[]): number {
+function intoLane(x: number, columns: number[], from: number, to: number): number {
+	const near = Math.min(from, to);
+	const far = Math.max(from, to);
 	for (const left of columns) {
+		if (left + NODE_W <= near || left >= far) continue;
 		if (x > left - LANE_MARGIN / 2 && x < left + NODE_W + LANE_MARGIN) {
-			return left + NODE_W + LANE_MARGIN;
+			return clamp(left + NODE_W + LANE_MARGIN, near, far);
 		}
 	}
 	return x;
 }
+
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 interface Port {
 	endpoint: Vec2;
@@ -309,18 +316,18 @@ export function treeEdges(
 		if (group) group.push(edge);
 		else fans.set(key, [edge]);
 	}
+	// Each run gets its own lane in the corridor between the two nodes, sharing out the
+	// space there is rather than stepping a fixed distance from the middle: a fixed step
+	// walks the outermost runs onto the nodes once there are enough of them. Ordered
+	// farthest-first, so the runs nest and no two cross.
 	for (const group of fans.values()) {
 		if (group.length < 2) continue;
 		const horizontal = group[0].fromNormal.x !== 0;
-		// More connections than the spacing fits: tighten so the outermost run still clears.
-		const gap = Math.min(
-			...group.map((e) => Math.abs(horizontal ? e.to.x - e.from.x : e.to.y - e.from.y))
-		);
-		const spacing = Math.min(BEND_SPACING, (gap * 0.8) / (group.length - 1));
 		group.sort((a, b) => b.distance - a.distance || a.signed - b.signed);
 		group.forEach((edge, i) => {
-			const base = horizontal ? (edge.from.x + edge.to.x) / 2 : (edge.from.y + edge.to.y) / 2;
-			edge.bend = base + (i - (group.length - 1) / 2) * spacing;
+			const start = horizontal ? edge.from.x : edge.from.y;
+			const end = horizontal ? edge.to.x : edge.to.y;
+			edge.bend = start + ((end - start) * (i + 1)) / (group.length + 1);
 		});
 	}
 
@@ -341,7 +348,12 @@ export function treeEdges(
 	// The midpoint between two columns two apart lands exactly on the column between them.
 	for (const edge of routed) {
 		if (edge.detour || edge.fromNormal.x === 0) continue;
-		edge.bend = intoLane(edge.bend ?? (edge.from.x + edge.to.x) / 2, columns);
+		edge.bend = intoLane(
+			edge.bend ?? (edge.from.x + edge.to.x) / 2,
+			columns,
+			edge.from.x,
+			edge.to.x
+		);
 	}
 
 	const out = new Map<number, EdgeGeometry>();

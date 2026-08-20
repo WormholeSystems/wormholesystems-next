@@ -142,3 +142,57 @@ describe('treeEdges', () => {
 		expect(g.to).toEqual({ x: 60 + NODE_W / 2, y: 400 });
 	});
 });
+
+describe('a hub with many children in the next column', () => {
+	const NODE_H2 = 40;
+	const targetX = NODE_W + 136;
+	const ys = [20, 80, 147, 207, 267, 327, 387, 447, 507, 567, 627, 687, 747];
+
+	function hub() {
+		const positions = new Map([[1, { x: 0, y: 390 }]]);
+		ys.forEach((y, i) => positions.set(i + 2, { x: targetX, y }));
+		return treeEdges(
+			ys.map((_, i) => connection(10 + i, 1, i + 2)),
+			positions,
+			NODE_H2
+		);
+	}
+
+	// The bend used to step a fixed distance from the middle, which walked the outermost
+	// runs onto the target column: they were then shunted past it and doubled back.
+	it('keeps every run between the two columns', () => {
+		for (const edge of hub().values()) {
+			for (const [, x] of edge.d.matchAll(/[MLQ] (-?[\d.]+) -?[\d.]+/g)) {
+				expect(Number(x)).toBeGreaterThanOrEqual(NODE_W - 0.5);
+				expect(Number(x)).toBeLessThanOrEqual(targetX + 0.5);
+			}
+		}
+	});
+
+	it('nests the runs so none of them cross', () => {
+		const segments = [...hub().values()].map((e) => {
+			const pts = [...e.d.matchAll(/[ML] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
+				x: Number(m[1]),
+				y: Number(m[2])
+			}));
+			return pts.slice(1).map((p, i) => ({ x1: pts[i].x, y1: pts[i].y, x2: p.x, y2: p.y }));
+		});
+
+		let crossings = 0;
+		for (let i = 0; i < segments.length; i++) {
+			for (let j = i + 1; j < segments.length; j++) {
+				for (const a of segments[i]) {
+					for (const b of segments[j]) {
+						const aFlat = Math.abs(a.y1 - a.y2) < 0.5;
+						if (aFlat === Math.abs(b.y1 - b.y2) < 0.5) continue;
+						const [h, v] = aFlat ? [a, b] : [b, a];
+						const spansX = Math.min(h.x1, h.x2) < v.x1 - 0.5 && v.x1 < Math.max(h.x1, h.x2) - 0.5;
+						const spansY = Math.min(v.y1, v.y2) < h.y1 - 0.5 && h.y1 < Math.max(v.y1, v.y2) - 0.5;
+						if (spansX && spansY) crossings++;
+					}
+				}
+			}
+		}
+		expect(crossings).toBe(0);
+	});
+});
