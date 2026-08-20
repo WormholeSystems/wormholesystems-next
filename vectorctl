@@ -6,6 +6,9 @@
 #   ./vectorctl update   pull, rebuild, restart, and say what changed
 #   ./vectorctl status   what is running, what version, what the SDE is on
 #
+#   ./vectorctl sde-update         take a newer static data export
+#   ./vectorctl discord-register   upload the /vector slash command to Discord
+#
 # Everything it writes lives in .env next to this script. It never edits the compose file.
 
 set -euo pipefail
@@ -60,6 +63,33 @@ ask() {
 		read -r -p "$prompt: " answer
 	fi
 	env_set "$key" "${answer:-$current}"
+}
+
+# As `ask`, but a blank answer removes the key rather than writing an empty value. Discord
+# is read as all-or-nothing, and an empty client id counts as present.
+ask_optional() {
+	local key=$1 prompt=$2 secret=${3:-} current answer
+	current=$(env_get "$key")
+	if [ -n "$current" ] && [ -n "$secret" ]; then
+		read -r -p "$prompt [keep existing, or - to clear]: " answer
+	else
+		read -r -p "$prompt [${current:-skip}]: " answer
+	fi
+	answer=${answer:-$current}
+	if [ -z "$answer" ] || [ "$answer" = "-" ]; then
+		env_unset "$key"
+	else
+		env_set "$key" "$answer"
+	fi
+}
+
+env_unset() {
+	[ -f "$ENV_FILE" ] || return 0
+	local tmp
+	tmp=$(mktemp)
+	grep -v "^$1=" "$ENV_FILE" > "$tmp"
+	mv "$tmp" "$ENV_FILE"
+	chmod 600 "$ENV_FILE"
 }
 
 # --- checks ------------------------------------------------------------------
@@ -163,7 +193,7 @@ check_sde() {
 	local out
 	out=$("${COMPOSE[@]}" run --rm --no-deps -T api vector sde-status 2>/dev/null || true)
 	case "$out" in
-		*"update_available=yes"*) warn "a newer SDE build is out ($(sed -n 's/^latest=//p' <<<"$out")); it loads on the next restart" ;;
+		*"update_available=yes"*) warn "a newer SDE build is out ($(sed -n 's/^latest=//p' <<<"$out")); ./vectorctl sde-update takes it" ;;
 		*"update_available=no"*)  ok "SDE is current ($(sed -n 's/^loaded=\([0-9]*\).*/\1/p' <<<"$out"))" ;;
 		*) warn "could not check the SDE build (is the stack built? try ./vectorctl update)" ;;
 	esac
@@ -211,6 +241,37 @@ cmd_setup() {
 		env_set EVE_REDIRECT_URI "http://localhost:$http/auth/callback"
 	fi
 
+	local base
+	if [ -n "$domain" ]; then base="https://$domain"; else base="http://localhost:$http"; fi
+
+	echo
+	read -r -p "  Set up Discord (account linking, slash commands, alerts to a channel)? [y/N]: " want
+	if [[ ${want:-n} =~ ^[Yy] ]]; then
+		cat <<-TXT
+
+		  At https://discord.com/developers/applications, make an application, then:
+
+		    General Information  copy the Application ID and the Public Key
+		    OAuth2               copy the Client ID and Client Secret, and add this
+		                         redirect exactly: $base/discord/callback
+		    Bot                  only if you want Vector to post as a bot or send DMs;
+		                         copy the token, otherwise leave it blank below
+
+		  Leave any of these blank to skip Discord entirely.
+
+		TXT
+		ask_optional DISCORD_APPLICATION_ID "  Application ID"
+		ask_optional DISCORD_PUBLIC_KEY "  Public key"
+		ask_optional DISCORD_CLIENT_ID "  Client ID"
+		ask_optional DISCORD_CLIENT_SECRET "  Client secret" secret
+		ask_optional DISCORD_BOT_TOKEN "  Bot token (optional)" secret
+		if [ -n "$(env_get DISCORD_CLIENT_ID)" ]; then
+			env_set DISCORD_REDIRECT_URI "$base/discord/callback"
+		else
+			env_unset DISCORD_REDIRECT_URI
+		fi
+	fi
+
 	# A database nobody chose a password for is a database with the password in the README.
 	if [ -z "$(env_get POSTGRES_PASSWORD)" ]; then
 		env_set POSTGRES_PASSWORD "$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32)"
@@ -228,6 +289,15 @@ cmd_setup() {
 
 	bold "\nAfter the first boot"
 	echo "  The API seeds the static data on its first start, which takes a few minutes."
+	if [ -n "$(env_get DISCORD_CLIENT_ID)" ]; then
+		echo
+		echo "  Then finish Discord, which needs this running to verify itself:"
+		echo "    1. In the application's General Information, set the Interactions Endpoint"
+		echo "       URL to $base/discord/interactions and save. Discord signs a ping at it,"
+		echo "       and refuses to save if it does not answer."
+		echo "    2. ./vectorctl discord-register  (uploads /vector; Discord takes a few"
+		echo "       minutes to roll it out)"
+	fi
 	echo "  Follow it with: docker compose --profile full logs -f api"
 	if [ -n "$domain" ]; then
 		echo "  Then open https://$domain"
@@ -277,8 +347,24 @@ cmd_status() {
 	fi
 }
 
+# The SDE is only downloaded when it is missing, so a new build is taken deliberately: it
+# is a ~550MB download and a re-seed that takes several minutes.
+cmd_sde_update() {
+	bold "Updating the SDE"
+	"${COMPOSE[@]}" run --rm --no-deps -T api vector sde-fetch --force
+	"${COMPOSE[@]}" restart api
+	ok "downloaded; the API re-seeds from it as it boots"
+}
+
+cmd_discord_register() {
+	[ -n "$(env_get DISCORD_BOT_TOKEN)" ] || die "DISCORD_BOT_TOKEN is not set; slash commands need the bot."
+	"${COMPOSE[@]}" run --rm --no-deps -T api vector discord-register
+}
+
 case "${1:-help}" in
 	setup)  cmd_setup ;;
+	sde-update) cmd_sde_update ;;
+	discord-register) cmd_discord_register ;;
 	update) cmd_update ;;
 	status) cmd_status ;;
 	*)

@@ -14,6 +14,10 @@
 	handle /auth/* {
 		reverse_proxy api:3000
 	}
+	# Account linking and the endpoint Discord posts interactions to.
+	handle /discord/* {
+		reverse_proxy api:3000
+	}
 	handle {
 		reverse_proxy web:3001
 	}

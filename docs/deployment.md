@@ -86,6 +86,30 @@ Cloudflare's own certificate and put Caddy behind it.
 
 Discord and the killmail ingest are optional and off unless configured; see `.env.example`.
 
+## Discord
+
+Optional, and `setup` offers it. Vector uses a Discord application for three things: linking
+an account so `/vector` knows who you are, the slash commands themselves, and posting alerts
+to a channel. Alerts to a webhook work without any of this.
+
+At <https://discord.com/developers/applications>, create an application and take:
+
+| where | what | into |
+|---|---|---|
+| General Information | Application ID | `DISCORD_APPLICATION_ID` |
+| General Information | Public Key | `DISCORD_PUBLIC_KEY` |
+| OAuth2 | Client ID and Client Secret | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` |
+| Bot | Token, only to post as the bot or send DMs | `DISCORD_BOT_TOKEN` |
+
+Add `https://your-domain/discord/callback` as an OAuth2 redirect, exactly.
+
+Two things have to wait until the stack is running, because Discord checks them:
+
+1. Set the Interactions Endpoint URL to `https://your-domain/discord/interactions`. Discord
+   signs a ping at it and refuses to save if it does not answer.
+2. `./vectorctl discord-register` uploads the `/vector` command. It is registered globally,
+   so Discord takes a few minutes to show it.
+
 ## Backups
 
 Not automated. The database is the only thing that matters:

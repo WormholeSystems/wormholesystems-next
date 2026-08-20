@@ -31,6 +31,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      # The unpacked SDE, ~550MB downloaded on first boot. In a volume so recreating the
+      # container (every update) does not download it all over again.
+      - sde:/app/data/sde
 
   web:
     build: frontend
@@ -65,5 +69,6 @@ services:
 
 volumes:
   pgdata:
+  sde:
   caddy_data:
   caddy_config:

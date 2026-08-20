@@ -1,0 +1,11 @@
+# The SDE is ~550MB unpacked. It is not in git, but a developer's copy would otherwise be
+# baked into the image, and the container downloads its own into a volume on first boot.
+data/sde/
+data/sde.zip
+
+target/
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/test-results/
+.git/

@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 
 // In dev the Axum API runs separately; proxy the backend paths so the whole app
-// (including the EVE SSO flow and both WebSockets) lives on the vite origin.
+// (including the EVE SSO flow, Discord linking and both WebSockets) lives on the vite
+// origin.
 const backend = 'http://127.0.0.1:3000';
 
 export default defineConfig({
@@ -23,6 +24,7 @@ export default defineConfig({
 		proxy: {
 			'/api': backend,
 			'/auth': backend,
+			'/discord': backend,
 			'/ws': { target: backend, ws: true }
 		}
 	},
