@@ -32,6 +32,21 @@ async fn main() {
         return;
     }
 
+    // `vector sde-fetch` unpacks the SDE into data/sde if it is not already there, then
+    // exits. Needs no database: CI runs it to give the parse tests their files.
+    if args.iter().any(|a| a == "sde-fetch") {
+        dotenvy::dotenv().ok();
+        match tokio::task::spawn_blocking(vector::sde::ensure_present)
+            .await
+            .expect("join failed")
+        {
+            Ok(true) => println!("SDE downloaded and unpacked into {}", vector::sde::SDE_DIR),
+            Ok(false) => println!("SDE already unpacked in {}", vector::sde::SDE_DIR),
+            Err(err) => panic!("could not fetch the SDE: {err}"),
+        }
+        return;
+    }
+
     // `vector sde-status` says which SDE build is loaded and whether CCP has a newer one.
     // The deploy CLI reads this to decide whether an update is worth pulling.
     if args.iter().any(|a| a == "sde-status") {

@@ -38,6 +38,9 @@ jobs:
       # when each test runs, so at compile time this database is still empty and the macros
       # would fail on every query. The offline job below is what keeps the cache honest.
       SQLX_OFFLINE: "true"
+      # Every outbound request carries a contact; CI's is this repository.
+      VECTOR_CONTACT_NAME: "vector CI"
+      VECTOR_CONTACT_EMAIL: "ci@github.com/eve-vector/vector"
       # `#[sqlx::test]` makes a fresh database per test from this connection and applies the
       # migrations itself. The tests seed the handful of systems they need, so no SDE.
       DATABASE_URL: postgres://vector:vector@localhost:5432/vector
@@ -48,6 +51,27 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+
+      # The parse tests read real SDE files, which are a 100MB download kept out of the
+      # repo. Cached against CCP's build number, so a new build fetches once and every run
+      # after it reuses the unpacked copy.
+      - name: Which SDE build is current
+        id: sde
+        run: |
+          build=$(curl -fsS --max-time 20 https://developers.eveonline.com/static-data/tranquility/latest.jsonl \
+            | sed -n 's/.*"buildNumber": *\([0-9]*\).*/\1/p')
+          echo "build=${build:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the SDE
+        id: sde-cache
+        uses: actions/cache@v4
+        with:
+          path: data/sde
+          key: sde-${{ steps.sde.outputs.build }}
+
+      - name: Fetch the SDE
+        if: steps.sde-cache.outputs.cache-hit != 'true'
+        run: cargo run --locked -- sde-fetch
 
       - name: Format
         run: cargo fmt --all --check
