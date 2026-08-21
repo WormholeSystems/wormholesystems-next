@@ -8,7 +8,7 @@ import {
 	findRoute,
 	type DynamicEdge,
 	type RouteGraph,
-	type RoutingSettings
+	type RoutingSettings,
 } from './algorithm';
 
 // A line of five stargate-linked systems, 1 through 5.
@@ -16,7 +16,7 @@ const LINE: [number, number][] = [
 	[1, 2],
 	[2, 3],
 	[3, 4],
-	[4, 5]
+	[4, 5],
 ];
 
 const settings = (over: Partial<RoutingSettings> = {}): RoutingSettings => ({
@@ -24,17 +24,17 @@ const settings = (over: Partial<RoutingSettings> = {}): RoutingSettings => ({
 	securityPenalty: 0,
 	allowTimeStatus: 'critical',
 	allowMassStatus: 'critical',
-	...over
+	...over,
 });
 
 const graph = (
 	gates: [number, number][] = LINE,
 	dynamic: DynamicEdge[] = [],
-	security: [number, number][] = []
+	security: [number, number][] = [],
 ): RouteGraph => ({
 	stargates: buildAdjacency(gates),
 	dynamic: buildDynamicAdjacency(dynamic),
-	security: new Map(security)
+	security: new Map(security),
 });
 
 const path = (result: { route: { id: number }[] } | null) => result?.route.map((s) => s.id);
@@ -69,7 +69,7 @@ describe('findRoute', () => {
 	it('never routes through Zarzakh, whatever it connects', () => {
 		const viaZarzakh: [number, number][] = [
 			[1, ZARZAKH_SYSTEM_ID],
-			[ZARZAKH_SYSTEM_ID, 5]
+			[ZARZAKH_SYSTEM_ID, 5],
 		];
 		expect(findRoute(graph(viaZarzakh), 1, 5, settings())).toBeNull();
 	});
@@ -93,14 +93,14 @@ describe('route preferences', () => {
 		[1, 7],
 		[7, 4],
 		[1, 8],
-		[8, 4]
+		[8, 4],
 	];
 	const sec: [number, number][] = [
 		[1, 0.9],
 		[2, -0.3],
 		[7, 0.9],
 		[8, 0.3],
-		[4, 0.9]
+		[4, 0.9],
 	];
 
 	it('shorter ignores security: every branch is two jumps', () => {
@@ -112,7 +112,7 @@ describe('route preferences', () => {
 			graph(forked, [], sec),
 			1,
 			4,
-			settings({ preference: 'safer', securityPenalty: 50 })
+			settings({ preference: 'safer', securityPenalty: 50 }),
 		);
 		expect(path(found)).toEqual([1, 7, 4]);
 	});
@@ -124,7 +124,7 @@ describe('route preferences', () => {
 			graph(forked, [], sec),
 			1,
 			4,
-			settings({ preference: 'less_secure', securityPenalty: 50 })
+			settings({ preference: 'less_secure', securityPenalty: 50 }),
 		);
 		expect(path(found)).toEqual([1, 8, 4]);
 	});

@@ -39,13 +39,13 @@ function rectAt(position: Vec2, nodeH: number): Rect {
 		maxX: position.x + NODE_W,
 		maxY: position.y + nodeH,
 		centerX: position.x + NODE_W / 2,
-		centerY: position.y + nodeH / 2
+		centerY: position.y + nodeH / 2,
 	};
 }
 
 const midpoint = (from: Vec2, to: Vec2): Vec2 => ({
 	x: (from.x + to.x) / 2,
-	y: (from.y + to.y) / 2
+	y: (from.y + to.y) / 2,
 });
 
 export function curveBetween(from: Vec2, to: Vec2): string {
@@ -58,7 +58,7 @@ export function curveBetween(from: Vec2, to: Vec2): string {
 export function freeEdges(
 	connections: MapConnection[],
 	positions: ReadonlyMap<number, Vec2>,
-	nodeH: number
+	nodeH: number,
 ): Map<number, EdgeGeometry> {
 	const out = new Map<number, EdgeGeometry>();
 	for (const c of connections) {
@@ -73,7 +73,7 @@ export function freeEdges(
 			from,
 			to,
 			center: midpoint(from, to),
-			d: curveBetween(from, to)
+			d: curveBetween(from, to),
 		});
 	}
 	return out;
@@ -107,7 +107,7 @@ function facingEnds(source: Rect, target: Rect, detour: boolean) {
 			from: { x: source.maxX, y: source.centerY },
 			to: { x: target.maxX, y: target.centerY },
 			fromNormal: { x: 1, y: 0 },
-			toNormal: { x: 1, y: 0 }
+			toNormal: { x: 1, y: 0 },
 		};
 	}
 	return facingEndsDirect(source, target);
@@ -125,7 +125,7 @@ function facingEndsDirect(source: Rect, target: Rect) {
 			from: { x: rightward ? source.maxX : source.minX, y: source.centerY },
 			to: { x: rightward ? target.minX : target.maxX, y: target.centerY },
 			fromNormal: { x: rightward ? 1 : -1, y: 0 },
-			toNormal: { x: rightward ? -1 : 1, y: 0 }
+			toNormal: { x: rightward ? -1 : 1, y: 0 },
 		};
 	}
 	const downward = dy >= 0;
@@ -133,7 +133,7 @@ function facingEndsDirect(source: Rect, target: Rect) {
 		from: { x: source.centerX, y: downward ? source.maxY : source.minY },
 		to: { x: target.centerX, y: downward ? target.minY : target.maxY },
 		fromNormal: { x: 0, y: downward ? 1 : -1 },
-		toNormal: { x: 0, y: downward ? -1 : 1 }
+		toNormal: { x: 0, y: downward ? -1 : 1 },
 	};
 }
 
@@ -142,8 +142,7 @@ function blockedInColumn(source: Rect, target: Rect, column: Rect[]): boolean {
 	const top = Math.min(source.centerY, target.centerY);
 	const bottom = Math.max(source.centerY, target.centerY);
 	return column.some(
-		(other) =>
-			other !== source && other !== target && other.minY < bottom && other.maxY > top
+		(other) => other !== source && other !== target && other.minY < bottom && other.maxY > top,
 	);
 }
 
@@ -194,19 +193,19 @@ function elbowCorners(edge: Routed): [Vec2, Vec2] {
 		const midX = edge.bend ?? (edge.from.x + edge.to.x) / 2;
 		return [
 			{ x: midX, y: edge.from.y },
-			{ x: midX, y: edge.to.y }
+			{ x: midX, y: edge.to.y },
 		];
 	}
 	const midY = edge.bend ?? (edge.from.y + edge.to.y) / 2;
 	return [
 		{ x: edge.from.x, y: midY },
-		{ x: edge.to.x, y: midY }
+		{ x: edge.to.x, y: midY },
 	];
 }
 
 function roundedPath(points: Vec2[], radius: number): string {
 	const pts = points.filter(
-		(p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y) > 0.01
+		(p, i) => i === 0 || Math.hypot(p.x - points[i - 1].x, p.y - points[i - 1].y) > 0.01,
 	);
 	if (pts.length < 2) return '';
 	let d = `M ${pts[0].x} ${pts[0].y}`;
@@ -219,11 +218,11 @@ function roundedPath(points: Vec2[], radius: number): string {
 		const r = Math.min(radius, lenIn / 2, lenOut / 2);
 		const start = {
 			x: curr.x + ((prev.x - curr.x) / lenIn) * r,
-			y: curr.y + ((prev.y - curr.y) / lenIn) * r
+			y: curr.y + ((prev.y - curr.y) / lenIn) * r,
 		};
 		const end = {
 			x: curr.x + ((next.x - curr.x) / lenOut) * r,
-			y: curr.y + ((next.y - curr.y) / lenOut) * r
+			y: curr.y + ((next.y - curr.y) / lenOut) * r,
 		};
 		d += ` L ${start.x} ${start.y} Q ${curr.x} ${curr.y} ${end.x} ${end.y}`;
 	}
@@ -238,7 +237,7 @@ function roundedPath(points: Vec2[], radius: number): string {
 export function treeEdges(
 	connections: MapConnection[],
 	positions: ReadonlyMap<number, Vec2>,
-	nodeH: number
+	nodeH: number,
 ): Map<number, EdgeGeometry> {
 	// One rect per node, shared below so the column index can be compared by identity.
 	const rects = new Map<number, Rect>();
@@ -272,7 +271,7 @@ export function treeEdges(
 			bend: null,
 			detour,
 			distance: 0,
-			signed: 0
+			signed: 0,
 		});
 	}
 
@@ -283,7 +282,7 @@ export function treeEdges(
 			endpoint,
 			normal,
 			box,
-			sortKey: normal.x !== 0 ? other.centerY : other.centerX
+			sortKey: normal.x !== 0 ? other.centerY : other.centerX,
 		};
 		const ports = shared.get(key);
 		if (ports) ports.push(port);
@@ -403,7 +402,7 @@ export function treeEdges(
 			edge.bend ?? (edge.from.x + edge.to.x) / 2,
 			columns,
 			edge.from.x,
-			edge.to.x
+			edge.to.x,
 		);
 	}
 
@@ -416,7 +415,7 @@ export function treeEdges(
 			from: edge.from,
 			to: edge.to,
 			center: midpoint(corners[0], corners[1]),
-			d: roundedPath([edge.from, corners[0], corners[1], edge.to], CORNER_RADIUS)
+			d: roundedPath([edge.from, corners[0], corners[1], edge.to], CORNER_RADIUS),
 		});
 	}
 	return out;

@@ -84,7 +84,7 @@ test('filters narrow a killmail alert to who is involved', async ({ page, api })
 	// The rule survives a round trip through the server.
 	const alerts = await (await api.get(`/api/maps/${mapId}/alerts`)).json();
 	expect(alerts[0].filters).toEqual([
-		{ subject: 'alliance', side: 'either', mode: 'include', ids: [99000001, 99000002] }
+		{ subject: 'alliance', side: 'either', mode: 'include', ids: [99000001, 99000002] },
 	]);
 });
 
@@ -121,7 +121,7 @@ test('members cannot see or change a map alerts', async ({ page, api, browser })
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' },
 	]);
 	const memberPage = await ctx.newPage();
 	await memberPage.goto(`http://localhost:5173/maps/${mapId}/settings/alerts`);

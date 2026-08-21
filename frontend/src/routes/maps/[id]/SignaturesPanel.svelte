@@ -28,12 +28,17 @@
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import type { SignatureContext } from '$lib/map/signature-context';
-	import SignatureColumns, { type SortColumn } from '$lib/components/map-ui/SignatureColumns.svelte';
+	import SignatureColumns, {
+		type SortColumn,
+	} from '$lib/components/map-ui/SignatureColumns.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
 	import { atLeast } from '$lib/map/roles';
 	import { solarSystemId, systemName } from '$lib/map/system';
 
-	let { map, system }: {
+	let {
+		map,
+		system,
+	}: {
 		map: MapState;
 		system: MapSystemView;
 	} = $props();
@@ -52,19 +57,25 @@
 		},
 		actions: {
 			update: (signature_pk, patch) =>
-				map.run('updateSignature', api.updateSignature({ map_id: map.mapId, signature_pk, ...patch })),
+				map.run(
+					'updateSignature',
+					api.updateSignature({ map_id: map.mapId, signature_pk, ...patch }),
+				),
 			remove: (signature_pk) =>
 				map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk })),
 			link: (signature_pk, connection_id) =>
-				map.run('linkSignature', api.linkSignature({ map_id: map.mapId, signature_pk, connection_id })),
+				map.run(
+					'linkSignature',
+					api.linkSignature({ map_id: map.mapId, signature_pk, connection_id }),
+				),
 			unlink: (signature_pk) =>
 				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk })),
 			setPreserveMass: (connection_id, preserve_mass) =>
 				map.run(
 					'setPreserveMass',
-					api.setConnectionStatus({ map_id: map.mapId, connection_id, preserve_mass })
-				)
-		}
+					api.setConnectionStatus({ map_id: map.mapId, connection_id, preserve_mass }),
+				),
+		},
 	};
 
 	let catalog = $state<SignatureCatalog | null>(null);
@@ -86,21 +97,21 @@
 
 	// The HIDDEN set is what persists, so a new category defaults to visible.
 	let hidden = $state<string[]>(
-		browser ? JSON.parse(localStorage.getItem('signatures-category-hidden-filters') ?? '[]') : []
+		browser ? JSON.parse(localStorage.getItem('signatures-category-hidden-filters') ?? '[]') : [],
 	);
 	$effect(() => {
 		localStorage.setItem('signatures-category-hidden-filters', JSON.stringify(hidden));
 	});
 	const activeFilters = $derived(
-		CATEGORIES.map((c) => c.group as string).filter((g) => !hidden.includes(g))
+		CATEGORIES.map((c) => c.group as string).filter((g) => !hidden.includes(g)),
 	);
 
 	// Default: id desc, ties by id ascending, nulls last.
 	let sort = $state<{ column: SortColumn; direction: 'asc' | 'desc' }>(
 		(browser && JSON.parse(localStorage.getItem('signatures-sort') ?? 'null')) || {
 			column: 'id',
-			direction: 'desc'
-		}
+			direction: 'desc',
+		},
 	);
 	$effect(() => {
 		localStorage.setItem('signatures-sort', JSON.stringify(sort));
@@ -141,7 +152,7 @@
 				case 'category':
 					cmp = cmpNullableStrings(
 						a.group === 'unknown' ? null : a.group,
-						b.group === 'unknown' ? null : b.group
+						b.group === 'unknown' ? null : b.group,
 					);
 					break;
 				case 'type':
@@ -176,11 +187,9 @@
 		}
 	});
 
-	const pastedIds = $derived(
-		pasted === null ? null : new Set(pasted.map((p) => p.signature_id))
-	);
+	const pastedIds = $derived(pasted === null ? null : new Set(pasted.map((p) => p.signature_id)));
 	const deletedSigs = $derived(
-		pastedIds === null ? [] : mySigs.filter((s) => !pastedIds.has(s.signature_id))
+		pastedIds === null ? [] : mySigs.filter((s) => !pastedIds.has(s.signature_id)),
 	);
 	function rowStatus(s: Signature): 'new' | 'updated' | 'deleted' | null {
 		if (pastedIds === null) return null;
@@ -217,8 +226,8 @@
 			api.pasteSignatures({
 				map_id: map.mapId,
 				solar_system_id: systemId,
-				signatures: rows
-			})
+				signatures: rows,
+			}),
 		);
 	}
 
@@ -249,8 +258,8 @@
 			'removeMissingSignatures',
 			api.removeSignaturesBulk({
 				map_id: map.mapId,
-				signature_pks: deletedSigs.map((s) => s.id)
-			})
+				signature_pks: deletedSigs.map((s) => s.id),
+			}),
 		);
 		pasted = null;
 	}
@@ -282,8 +291,8 @@
 					map_id: map.mapId,
 					solar_system_id: systemId,
 					signature_id: value,
-					group: 'unknown'
-				})
+					group: 'unknown',
+				}),
 			);
 		}
 	}
@@ -312,7 +321,9 @@
 				aria-label={compact
 					? 'Switch to comfortable signature list'
 					: 'Switch to compact signature list'}
-				title={compact ? 'Switch to comfortable signature list' : 'Switch to compact signature list'}
+				title={compact
+					? 'Switch to comfortable signature list'
+					: 'Switch to compact signature list'}
 				data-testid="compact-toggle"
 				onclick={() => setSetting({ compact_signature_list: !compact })}
 			>
@@ -396,66 +407,66 @@
 		{#if system.kind === 'ghost'}
 			<div class="flex flex-col items-center justify-center gap-2 p-4 text-center">
 				<p class="max-w-56 text-[11px] text-muted-foreground">
-					An unmapped hole has nothing to scan yet. Assign a system to it and its signatures
-					land here.
+					An unmapped hole has nothing to scan yet. Assign a system to it and its signatures land
+					here.
 				</p>
 			</div>
 		{:else}
-		<Tooltip.Provider delayDuration={300}>
-			<SignatureColumns {compact} {sort} onsort={handleSort} />
+			<Tooltip.Provider delayDuration={300}>
+				<SignatureColumns {compact} {sort} onsort={handleSort} />
 
-			{#if creating}
-				<div
-					class="flex items-center gap-2 border-b border-border/30 px-3 {compact
-						? 'py-0.5'
-						: 'py-1.5'}"
-				>
-					<div class="w-16 shrink-0">
-						<Input
-							bind:ref={newInput}
-							value={newId}
-							oninput={(e) => (newId = formatId(e.currentTarget.value))}
-							onblur={saveNew}
-							onkeydown={(e) => {
-								if (e.key === 'Enter') saveNew();
-								if (e.key === 'Escape') {
-									creating = false;
-									newId = '';
-								}
-							}}
-							class="w-full rounded-none border-border/50 bg-background/50 px-1.5 font-mono text-xs uppercase {compact
-								? 'h-5'
-								: 'h-6'}"
-							maxlength={7}
-							placeholder="XXX-XXX"
-							data-testid="new-signature-id"
-						/>
+				{#if creating}
+					<div
+						class="flex items-center gap-2 border-b border-border/30 px-3 {compact
+							? 'py-0.5'
+							: 'py-1.5'}"
+					>
+						<div class="w-16 shrink-0">
+							<Input
+								bind:ref={newInput}
+								value={newId}
+								oninput={(e) => (newId = formatId(e.currentTarget.value))}
+								onblur={saveNew}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') saveNew();
+									if (e.key === 'Escape') {
+										creating = false;
+										newId = '';
+									}
+								}}
+								class="w-full rounded-none border-border/50 bg-background/50 px-1.5 font-mono text-xs uppercase {compact
+									? 'h-5'
+									: 'h-6'}"
+								maxlength={7}
+								placeholder="XXX-XXX"
+								data-testid="new-signature-id"
+							/>
+						</div>
+						<span class="text-xs text-muted-foreground">New signature</span>
 					</div>
-					<span class="text-xs text-muted-foreground">New signature</span>
-				</div>
-			{/if}
+				{/if}
 
-			{#if catalog && sorted.length > 0}
-				{#each sorted as sig (sig.id)}
-					<SignatureRow
-						{ctx}
-						{system}
-						{sig}
-						{catalog}
-						{compact}
-						{canWrite}
-						{showStaticsFirst}
-						status={rowStatus(sig)}
-					/>
-				{/each}
-			{:else if !creating}
-				<div class="flex flex-col items-center justify-center gap-2 p-4">
-					<p class="font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase">
-						{hiddenCount > 0 ? `${hiddenCount} hidden by filters` : 'No signatures'}
-					</p>
-				</div>
-			{/if}
-		</Tooltip.Provider>
+				{#if catalog && sorted.length > 0}
+					{#each sorted as sig (sig.id)}
+						<SignatureRow
+							{ctx}
+							{system}
+							{sig}
+							{catalog}
+							{compact}
+							{canWrite}
+							{showStaticsFirst}
+							status={rowStatus(sig)}
+						/>
+					{/each}
+				{:else if !creating}
+					<div class="flex flex-col items-center justify-center gap-2 p-4">
+						<p class="font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase">
+							{hiddenCount > 0 ? `${hiddenCount} hidden by filters` : 'No signatures'}
+						</p>
+					</div>
+				{/if}
+			</Tooltip.Provider>
 		{/if}
 	</MapPanelContent>
 </MapPanel>

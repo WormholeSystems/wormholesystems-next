@@ -23,20 +23,20 @@
 	const SCOPES: Record<string, { name: string; blurb: string }> = {
 		'esi-location.read_location.v1': {
 			name: 'Character location',
-			blurb: 'Puts you on your system, and measures distances from where you are.'
+			blurb: 'Puts you on your system, and measures distances from where you are.',
 		},
 		'esi-location.read_online.v1': {
 			name: 'Online status',
-			blurb: 'Stops the map reporting you as somewhere you left hours ago.'
+			blurb: 'Stops the map reporting you as somewhere you left hours ago.',
 		},
 		'esi-location.read_ship_type.v1': {
 			name: 'Ship type',
-			blurb: 'Shows what you are flying, not just that you are there.'
+			blurb: 'Shows what you are flying, not just that you are there.',
 		},
 		'esi-ui.write_waypoint.v1': {
 			name: 'Set waypoints',
-			blurb: 'Lets the map put a destination straight into your client.'
-		}
+			blurb: 'Lets the map put a destination straight into your client.',
+		},
 	};
 
 	async function load() {
@@ -68,7 +68,7 @@
 
 	const missing = $derived(scopes.filter((s) => !s.granted));
 	const grantUrl = $derived(
-		`/auth/login?scopes=${encodeURIComponent(missing.map((s) => s.scope).join(','))}&return_to=${encodeURIComponent('/settings/characters')}`
+		`/auth/login?scopes=${encodeURIComponent(missing.map((s) => s.scope).join(','))}&return_to=${encodeURIComponent('/settings/characters')}`,
 	);
 </script>
 
@@ -80,18 +80,23 @@
 	<Card.Root>
 		<Card.Header>
 			<div class="flex items-start justify-between gap-3">
-			<div class="flex flex-col gap-1.5">
-				<Card.Title>Characters</Card.Title>
-				<Card.Description>
-					The active one is who the map acts as. Switching is instant and changes nothing
-					else. The starred one is who you start as when you sign in on a new device.
-				</Card.Description>
+				<div class="flex flex-col gap-1.5">
+					<Card.Title>Characters</Card.Title>
+					<Card.Description>
+						The active one is who the map acts as. Switching is instant and changes nothing else.
+						The starred one is who you start as when you sign in on a new device.
+					</Card.Description>
+				</div>
+				<Button
+					variant="outline"
+					size="sm"
+					href="/auth/login?link=true"
+					data-testid="add-character"
+				>
+					<PlusIcon data-icon="inline-start" />
+					Add character
+				</Button>
 			</div>
-			<Button variant="outline" size="sm" href="/auth/login?link=true" data-testid="add-character">
-				<PlusIcon data-icon="inline-start" />
-				Add character
-			</Button>
-		</div>
 		</Card.Header>
 		<Card.Content class="flex flex-col divide-y divide-border/40">
 			{#each characters as character (character.character_id)}

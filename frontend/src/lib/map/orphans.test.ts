@@ -5,7 +5,7 @@ import { orphanedSystems } from './orphans';
 const system = (id: number, anchor: 'pinned' | 'home' | null = null) => ({
 	id,
 	is_pinned: anchor === 'pinned',
-	is_home: anchor === 'home'
+	is_home: anchor === 'home',
 });
 const edge = (from_system: number, to_system: number) => ({ from_system, to_system });
 const ids = (systems: { id: number }[]) => systems.map((s) => s.id);

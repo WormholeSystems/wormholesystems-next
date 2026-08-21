@@ -73,7 +73,7 @@
 	let filter = $state('');
 	let sort = $state<{ key: 'name' | 'subject_type' | 'role' | 'expires_at'; descending: boolean }>({
 		key: 'role',
-		descending: false
+		descending: false,
 	});
 	function sortBy(key: SortKey) {
 		sort = sort.key === key ? { key, descending: !sort.descending } : { key, descending: false };
@@ -85,7 +85,7 @@
 			(e) =>
 				!needle ||
 				(e.name ?? '').toLowerCase().includes(needle) ||
-				String(e.subject_id).includes(needle)
+				String(e.subject_id).includes(needle),
 		);
 		const compare = (a: AccessEntry, b: AccessEntry) => {
 			switch (sort.key) {
@@ -104,7 +104,8 @@
 			}
 		};
 		return [...rows].sort(
-			(a, b) => (sort.descending ? -1 : 1) * (compare(a, b) || (a.name ?? '').localeCompare(b.name ?? ''))
+			(a, b) =>
+				(sort.descending ? -1 : 1) * (compare(a, b) || (a.name ?? '').localeCompare(b.name ?? '')),
 		);
 	});
 
@@ -121,15 +122,15 @@
 				subject_type: entry.subject_type,
 				subject_id: entry.subject_id,
 				role: entry.role,
-				expires_at: null
-			})
+				expires_at: null,
+			}),
 		);
 	}
 
 	// Only a manager sees the link: the API withholds the token from anyone else.
 	let revoking = $state(false);
 	const shareUrl = $derived(
-		view.map.share_token ? `${page.url.origin}/share/${view.map.share_token}` : ''
+		view.map.share_token ? `${page.url.origin}/share/${view.map.share_token}` : '',
 	);
 
 	function rotateShare() {
@@ -166,7 +167,7 @@
 		{ hours: 12, label: 'For 12 hours' },
 		{ hours: 24, label: 'For a day' },
 		{ hours: 24 * 7, label: 'For a week' },
-		{ hours: 24 * 30, label: 'For a month' }
+		{ hours: 24 * 30, label: 'For a month' },
 	];
 	/** `null` is the permanent grant; a date ends at the close of that day. */
 	let ends = $state<Date | null>(null);
@@ -176,7 +177,7 @@
 	const endsLabel = $derived(
 		ends === null
 			? 'No end date'
-			: ends.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+			: ends.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
 	);
 
 	function endsIn(hours: number) {
@@ -207,8 +208,8 @@
 				subject_type: subject.subject_type,
 				subject_id: subject.subject_id,
 				role: newRole,
-				expires_at: ends?.toISOString() ?? null
-			})
+				expires_at: ends?.toISOString() ?? null,
+			}),
 		).then(() => {
 			query = '';
 			picked = null;
@@ -226,7 +227,8 @@
 <Card.Root>
 	<Card.Header>
 		<Card.Title>Access</Card.Title>
-		<Card.Description>Granting a corporation or alliance covers every pilot in it.</Card.Description>
+		<Card.Description>Granting a corporation or alliance covers every pilot in it.</Card.Description
+		>
 	</Card.Header>
 	<Card.Content class="flex flex-col gap-4">
 		{#if canManage}
@@ -235,115 +237,115 @@
 					Add a character, corp or alliance
 				</label>
 				<div class="flex items-center gap-2">
-						<Popover.Root bind:open={picking}>
-							<Popover.Trigger
-								class="flex h-7 min-w-0 flex-1 items-center rounded-md border border-input bg-input/20 px-2 text-left text-xs/relaxed {picked
-									? ''
-									: 'text-muted-foreground'}"
-								data-testid="grant-search"
-							>
-								<span class="block truncate">
-									{picked ? picked.name : 'Name, ticker, or an EVE id'}
-								</span>
-							</Popover.Trigger>
-							<Popover.Content class="w-96 p-0" align="start">
-								<!-- Matching happens server-side, so Command's own filter stays out of it. -->
-								<Command.Root shouldFilter={false}>
-									<Command.Input placeholder="Name, ticker, or an EVE id…" bind:value={query} />
-									<Command.List data-testid="grant-matches">
-										<Command.Empty>
-											{query.trim().length < 2
-												? 'Type at least two characters.'
-												: 'Nothing found. An EVE id works too.'}
-										</Command.Empty>
-										<Command.Group>
-											{#each matches as m (m.subject_type + m.subject_id)}
-												<Command.Item
-													value={`${m.subject_type}-${m.subject_id}`}
-													onSelect={() => choose(m)}
-													data-testid="grant-match"
-												>
-													<EveImage
-														kind={m.subject_type}
-														id={m.subject_id}
-														size={64}
-														title={m.name}
-														class="size-6 rounded-sm"
-													/>
-													<span class="flex-1 truncate">{m.name}</span>
-													{#if m.ticker}
-														<span class="text-xs text-muted-foreground">[{m.ticker}]</span>
-													{/if}
-													<span class="text-xs text-muted-foreground">{m.subject_type}</span>
-												</Command.Item>
-											{/each}
-										</Command.Group>
-									</Command.List>
-								</Command.Root>
-							</Popover.Content>
-						</Popover.Root>
-						<Select.Root type="single" bind:value={newRole}>
-							<Select.Trigger class="w-32" data-testid="grant-role">
-								{ROLE_LABEL[newRole]}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Group>
-									{#each ROLES as r (r)}
-										<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
-									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
-						<Popover.Root bind:open={picking_date}>
-							<Popover.Trigger
-								class="flex h-7 w-40 items-center justify-between gap-1.5 rounded-md border border-input bg-input/20 px-2 text-xs/relaxed {ends
-									? ''
-									: 'text-muted-foreground'}"
-								data-testid="grant-duration"
-							>
-								{endsLabel}
-								<CalendarIcon class="size-3.5 shrink-0 text-muted-foreground" />
-							</Popover.Trigger>
-							<Popover.Content class="w-auto p-0" align="end">
-								<div class="flex flex-col border-b border-border/50 p-1">
+					<Popover.Root bind:open={picking}>
+						<Popover.Trigger
+							class="flex h-7 min-w-0 flex-1 items-center rounded-md border border-input bg-input/20 px-2 text-left text-xs/relaxed {picked
+								? ''
+								: 'text-muted-foreground'}"
+							data-testid="grant-search"
+						>
+							<span class="block truncate">
+								{picked ? picked.name : 'Name, ticker, or an EVE id'}
+							</span>
+						</Popover.Trigger>
+						<Popover.Content class="w-96 p-0" align="start">
+							<!-- Matching happens server-side, so Command's own filter stays out of it. -->
+							<Command.Root shouldFilter={false}>
+								<Command.Input placeholder="Name, ticker, or an EVE id…" bind:value={query} />
+								<Command.List data-testid="grant-matches">
+									<Command.Empty>
+										{query.trim().length < 2
+											? 'Type at least two characters.'
+											: 'Nothing found. An EVE id works too.'}
+									</Command.Empty>
+									<Command.Group>
+										{#each matches as m (m.subject_type + m.subject_id)}
+											<Command.Item
+												value={`${m.subject_type}-${m.subject_id}`}
+												onSelect={() => choose(m)}
+												data-testid="grant-match"
+											>
+												<EveImage
+													kind={m.subject_type}
+													id={m.subject_id}
+													size={64}
+													title={m.name}
+													class="size-6 rounded-sm"
+												/>
+												<span class="flex-1 truncate">{m.name}</span>
+												{#if m.ticker}
+													<span class="text-xs text-muted-foreground">[{m.ticker}]</span>
+												{/if}
+												<span class="text-xs text-muted-foreground">{m.subject_type}</span>
+											</Command.Item>
+										{/each}
+									</Command.Group>
+								</Command.List>
+							</Command.Root>
+						</Popover.Content>
+					</Popover.Root>
+					<Select.Root type="single" bind:value={newRole}>
+						<Select.Trigger class="w-32" data-testid="grant-role">
+							{ROLE_LABEL[newRole]}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each ROLES as r (r)}
+									<Select.Item value={r} label={ROLE_LABEL[r]}>{ROLE_LABEL[r]}</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+					<Popover.Root bind:open={picking_date}>
+						<Popover.Trigger
+							class="flex h-7 w-40 items-center justify-between gap-1.5 rounded-md border border-input bg-input/20 px-2 text-xs/relaxed {ends
+								? ''
+								: 'text-muted-foreground'}"
+							data-testid="grant-duration"
+						>
+							{endsLabel}
+							<CalendarIcon class="size-3.5 shrink-0 text-muted-foreground" />
+						</Popover.Trigger>
+						<Popover.Content class="w-auto p-0" align="end">
+							<div class="flex flex-col border-b border-border/50 p-1">
+								<button
+									class="px-2 py-1 text-left text-xs hover:bg-accent"
+									data-testid="duration-forever"
+									onclick={() => {
+										ends = null;
+										customDate = undefined;
+										picking_date = false;
+									}}
+								>
+									No end date
+								</button>
+								{#each DURATIONS as option (option.hours)}
 									<button
 										class="px-2 py-1 text-left text-xs hover:bg-accent"
-										data-testid="duration-forever"
-										onclick={() => {
-											ends = null;
-											customDate = undefined;
-											picking_date = false;
-										}}
+										data-testid="duration-{option.hours}"
+										onclick={() => endsIn(option.hours)}
 									>
-										No end date
+										{option.label}
 									</button>
-									{#each DURATIONS as option (option.hours)}
-										<button
-											class="px-2 py-1 text-left text-xs hover:bg-accent"
-											data-testid="duration-{option.hours}"
-											onclick={() => endsIn(option.hours)}
-										>
-											{option.label}
-										</button>
-									{/each}
-								</div>
-								<Calendar
-									type="single"
-									bind:value={customDate}
-									minValue={today(getLocalTimeZone())}
-									onValueChange={endsOn}
-									data-testid="duration-calendar"
-								/>
-							</Popover.Content>
-						</Popover.Root>
-						<Button
-							onclick={grant}
-							disabled={!picked && !Number(query.trim())}
-							data-testid="grant-button"
-						>
-							Grant
-						</Button>
-					</div>
+								{/each}
+							</div>
+							<Calendar
+								type="single"
+								bind:value={customDate}
+								minValue={today(getLocalTimeZone())}
+								onValueChange={endsOn}
+								data-testid="duration-calendar"
+							/>
+						</Popover.Content>
+					</Popover.Root>
+					<Button
+						onclick={grant}
+						disabled={!picked && !Number(query.trim())}
+						data-testid="grant-button"
+					>
+						Grant
+					</Button>
+				</div>
 			</div>
 
 			<!-- Owner is listed to be read, not chosen: it is handed on, not granted. -->
@@ -386,14 +388,13 @@
 							map_id: mapId,
 							subject_type: entry.subject_type,
 							subject_id: entry.subject_id,
-							role
-						})
+							role,
+						}),
 					),
 				revoke: (entry) => act(api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id })),
-				clearExpiry: (entry) => (clearing = entry)
+				clearExpiry: (entry) => (clearing = entry),
 			}}
 		/>
-
 	</Card.Content>
 </Card.Root>
 
@@ -404,8 +405,8 @@
 		<Card.Header>
 			<Card.Title>Sharing</Card.Title>
 			<Card.Description>
-				Both open the map itself, read-only: the chain as it is scanned, with no editing
-				and no pilots.
+				Both open the map itself, read-only: the chain as it is scanned, with no editing and no
+				pilots.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex flex-col py-0">
@@ -466,8 +467,8 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Withdraw the share link?</AlertDialog.Title>
 			<AlertDialog.Description>
-				Everyone watching through it loses the map at once. People with a grant are not
-				affected, and you can always make a new link.
+				Everyone watching through it loses the map at once. People with a grant are not affected,
+				and you can always make a new link.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

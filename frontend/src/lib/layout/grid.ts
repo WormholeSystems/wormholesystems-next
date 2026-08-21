@@ -59,14 +59,14 @@ export function moveItem(
 	id: string,
 	x: number,
 	y: number,
-	cols: number
+	cols: number,
 ): GridItem[] {
 	const moving = items.find((item) => item.i === id);
 	if (!moving) return items;
 	const placed: GridItem = {
 		...moving,
 		x: clamp(x, 0, Math.max(0, cols - moving.w)),
-		y: Math.max(0, y)
+		y: Math.max(0, y),
 	};
 	const rest = items.filter((item) => item.i !== id);
 	return compact(push(rest, placed), cols).map((item) => item);
@@ -82,7 +82,7 @@ export function resizeItem(
 	w: number,
 	h: number,
 	cols: number,
-	min: MinSize
+	min: MinSize,
 ): GridItem[] {
 	const target = items.find((item) => item.i === id);
 	if (!target) return items;
@@ -105,7 +105,7 @@ function push(others: GridItem[], anchor: GridItem): GridItem[] {
 	// A pushed item can collide with the next; bounded because each pass settles one more.
 	for (let pass = 0; pass < result.length; pass++) {
 		const hit = sorted(result).find(
-			(item) => !settled.includes(item) && settled.some((s) => collides(item, s))
+			(item) => !settled.includes(item) && settled.some((s) => collides(item, s)),
 		);
 		if (!hit) break;
 		const blockers = settled.filter((s) => collides(hit, s));
@@ -154,6 +154,6 @@ export function tileBox(item: GridItem, cols: number, rowHeight: number): TileBo
 		left: `${(item.x / cols) * 100}%`,
 		top: `${item.y * rowHeight}px`,
 		width: `${(item.w / cols) * 100}%`,
-		height: `${item.h * rowHeight}px`
+		height: `${item.h * rowHeight}px`,
 	};
 }

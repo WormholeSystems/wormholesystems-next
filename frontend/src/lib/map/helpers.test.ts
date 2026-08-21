@@ -8,7 +8,7 @@ const grid: GridConfig = {
 	cell_size: 20,
 	world_width: 4000,
 	world_height: 2000,
-	viewport_height: 1400
+	viewport_height: 1400,
 };
 
 const GAP = NODE_GAP_CELLS * grid.cell_size;
@@ -22,7 +22,7 @@ function at(x: number, y: number): MapSystemView {
 function clearance(a: { x: number; y: number }, b: { x: number; y: number }) {
 	return {
 		x: Math.abs(a.x - b.x) - NODE_W,
-		y: Math.abs(a.y - b.y) - NODE_H
+		y: Math.abs(a.y - b.y) - NODE_H,
 	};
 }
 
@@ -49,7 +49,7 @@ describe('freePosition', () => {
 		const placed = [
 			at(origin.x, origin.y),
 			// Sitting exactly where the first free slot would otherwise be.
-			at(origin.x + NODE_W + GAP, origin.y)
+			at(origin.x + NODE_W + GAP, origin.y),
 		];
 
 		const spot = freePosition(placed, origin, grid);

@@ -27,7 +27,7 @@ const base = () => env.API_BASE ?? 'http://127.0.0.1:3000';
 
 async function get<T>(event: RequestEvent, path: string): Promise<T> {
 	const res = await event.fetch(`${base()}${path}`, {
-		headers: { cookie: event.request.headers.get('cookie') ?? '' }
+		headers: { cookie: event.request.headers.get('cookie') ?? '' },
 	});
 	if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
 	return res.json();
@@ -80,7 +80,7 @@ export function referenceCounts(event: RequestEvent): Promise<ReferenceCounts> {
 		solar_systems: 0,
 		wormhole_systems: 0,
 		stargates: 0,
-		wormhole_types: 0
+		wormhole_types: 0,
 	}));
 }
 
@@ -97,7 +97,7 @@ export function serverStatus(event: RequestEvent): Promise<ServerStatus | null> 
  * toggle refetches the settings and not the whole chain the section's layout holds.
  */
 export async function userSettingsLoad(
-	event: RequestEvent & { depends: (...deps: string[]) => void }
+	event: RequestEvent & { depends: (...deps: string[]) => void },
 ) {
 	event.depends('ws:user-settings');
 	return { settings: await mapUserSettings(event, Number(event.params.id)).catch(() => null) };

@@ -17,7 +17,7 @@
 		canWrite,
 		showStaticsFirst,
 		linkedClass,
-		onpick
+		onpick,
 	}: {
 		system: MappedSystem;
 		sig: Signature;
@@ -52,7 +52,7 @@
 		return [
 			{ label: 'Statics', types: statics },
 			{ label: 'K162', types: k162 },
-			{ label: 'Wormholes', types: rest }
+			{ label: 'Wormholes', types: rest },
 		].filter((s) => s.types.length > 0);
 	});
 
@@ -85,7 +85,10 @@
 	onValueChange={pick}
 	disabled={!canWrite || categoryId === null}
 >
-	<Select.Trigger class="w-full min-w-0 overflow-hidden text-xs {compact ? '!h-5 !py-0' : ''}" data-testid="sig-type">
+	<Select.Trigger
+		class="w-full min-w-0 overflow-hidden text-xs {compact ? '!h-5 !py-0' : ''}"
+		data-testid="sig-type"
+	>
 		{#if selected}
 			{@render typeLabel(selected)}
 		{:else if sig.name}

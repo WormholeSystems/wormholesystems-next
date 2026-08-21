@@ -18,10 +18,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	x: number,
-	y: number
+	y: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -31,10 +31,10 @@ async function connect(
 	api: import('@playwright/test').APIRequestContext,
 	mapId: number,
 	from: number,
-	to: number
+	to: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: from, to_system: to, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: from, to_system: to, kind: 'wormhole' },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -48,7 +48,7 @@ async function seedChain(api: import('@playwright/test').APIRequestContext, name
 	await connect(api, mapId, home, second);
 	await connect(api, mapId, home, third);
 	await api.post(`/api/maps/${mapId}/systems/set-home`, {
-		data: { map_id: mapId, map_solar_system_id: home, value: true }
+		data: { map_id: mapId, map_solar_system_id: home, value: true },
 	});
 	return { mapId, home, second, third };
 }
@@ -59,14 +59,14 @@ function nodePosition(page: import('@playwright/test').Page, text: string) {
 		.filter({ hasText: text })
 		.evaluate((el: HTMLElement) => ({
 			left: parseFloat(el.style.left),
-			top: parseFloat(el.style.top)
+			top: parseFloat(el.style.top),
 		}));
 }
 
 test('a map set to automatic placement draws the chain as a tree', async ({ page, api }) => {
 	const { mapId } = await seedChain(api, 'E2E Tree');
 	await api.post(`/api/maps/${mapId}/update`, {
-		data: { map_id: mapId, layout: 'tree' }
+		data: { map_id: mapId, layout: 'tree' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -88,7 +88,7 @@ test('a map set to automatic placement draws the chain as a tree', async ({ page
 test('a viewer can pick their own placement when the map allows it', async ({ page, api }) => {
 	const { mapId } = await seedChain(api, 'E2E TreeOverride');
 	await api.post(`/api/maps/${mapId}/update`, {
-		data: { map_id: mapId, allow_layout_override: true }
+		data: { map_id: mapId, allow_layout_override: true },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -103,7 +103,10 @@ test('a viewer can pick their own placement when the map allows it', async ({ pa
 	// before the write lands, so wait for the stored value: reloading first would cancel
 	// the request in flight.
 	await expect
-		.poll(async () => (await (await api.get(`/api/maps/${mapId}/settings/user`)).json()).layout_override)
+		.poll(
+			async () =>
+				(await (await api.get(`/api/maps/${mapId}/settings/user`)).json()).layout_override,
+		)
 		.toBe('tree');
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
@@ -121,13 +124,10 @@ test('the switcher is hidden unless the map hands the choice over', async ({ pag
 	await expect(page.getByTestId('placement-controls')).toHaveCount(0);
 });
 
-test('shift-drag still rubber-bands while the layout places the systems', async ({
-	page,
-	api
-}) => {
+test('shift-drag still rubber-bands while the layout places the systems', async ({ page, api }) => {
 	const { mapId } = await seedChain(api, 'E2E TreeMarquee');
 	await api.post(`/api/maps/${mapId}/update`, {
-		data: { map_id: mapId, layout: 'tree' }
+		data: { map_id: mapId, layout: 'tree' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -150,9 +150,12 @@ test('shift-drag still rubber-bands while the layout places the systems', async 
 	await page.keyboard.up('Shift');
 
 	await expect
-		.poll(async () => await page.locator('[data-testid="system-node"]').evaluateAll(
-			(nodes) => nodes.filter((n) => n.className.includes('amber')).length
-		))
+		.poll(
+			async () =>
+				await page
+					.locator('[data-testid="system-node"]')
+					.evaluateAll((nodes) => nodes.filter((n) => n.className.includes('amber')).length),
+		)
 		.toBeGreaterThan(0);
 });
 

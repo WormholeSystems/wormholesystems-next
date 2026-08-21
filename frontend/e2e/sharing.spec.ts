@@ -12,23 +12,19 @@ async function seedMap(api: import('@playwright/test').APIRequestContext, name: 
 		(
 			await (
 				await api.post(`/api/maps/${mapId}/systems/add`, {
-					data: { map_id: mapId, solar_system_id: id, x, y: 300, alias: null }
+					data: { map_id: mapId, solar_system_id: id, x, y: 300, alias: null },
 				})
 			).json()
 		).id as number;
 	const home = await add(J122515, 200);
 	const far = await add(JITA, 600);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: home, to_system: far, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: home, to_system: far, kind: 'wormhole' },
 	});
 	return mapId;
 }
 
-test('a share link shows the chain to somebody with no account', async ({
-	page,
-	browser,
-	api
-}) => {
+test('a share link shows the chain to somebody with no account', async ({ page, browser, api }) => {
 	const mapId = await seedMap(api, 'E2E Shared');
 
 	await gotoApp(page, `/maps/${mapId}/settings/access`);
@@ -101,7 +97,7 @@ test('a private map is not readable by a link that was never made', async ({ bro
 test('a public map needs no link at all', async ({ browser, api }) => {
 	const mapId = await seedMap(api, 'E2E Public');
 	await api.post(`/api/maps/${mapId}/update`, {
-		data: { map_id: mapId, is_public: true }
+		data: { map_id: mapId, is_public: true },
 	});
 
 	const guest = await browser.newContext();

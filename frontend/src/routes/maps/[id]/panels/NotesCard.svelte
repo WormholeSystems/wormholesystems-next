@@ -13,7 +13,10 @@
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import type { MapState } from '../map-state.svelte';
 
-	let { map, system }: {
+	let {
+		map,
+		system,
+	}: {
 		map: MapState;
 		system: MapSystemView;
 	} = $props();
@@ -51,7 +54,7 @@
 		const value = draft.trim() || null;
 		map.run(
 			'setNotes',
-			api.setNotes({ map_id: map.mapId, map_solar_system_id: system.id, notes: value })
+			api.setNotes({ map_id: map.mapId, map_solar_system_id: system.id, notes: value }),
 		);
 		notes = value;
 		editing = false;

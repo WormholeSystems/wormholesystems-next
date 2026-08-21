@@ -43,7 +43,7 @@ function statusFromSignature(signature: Signature | null) {
 	return {
 		size: signature?.size ?? null,
 		mass_status: signature?.mass_status ?? null,
-		time_status: signature?.time_status ?? null
+		time_status: signature?.time_status ?? null,
 	};
 }
 
@@ -170,7 +170,7 @@ export class JumpTracker {
 			originSignatures,
 			new Map(catalog.types.map((t) => [t.id, t])),
 			target.classId,
-			new Set(ghosts.keys())
+			new Set(ghosts.keys()),
 		);
 
 		// Nothing to ask about: the question is off, or no signature on the origin could be
@@ -189,7 +189,7 @@ export class JumpTracker {
 				targetSolarSystemId: toSystemId,
 				signaturePk: null,
 				alias: this.suggestAliasFor(origin, target, existing),
-				at: this.placeNear(origin)
+				at: this.placeNear(origin),
 			});
 			return;
 		}
@@ -205,7 +205,7 @@ export class JumpTracker {
 			catalog,
 			suggestedAlias: this.suggestAliasFor(origin, target, existing),
 			ghostAliases: this.aliasesOf(ghosts, originSignatures),
-			at: this.placeNear(origin)
+			at: this.placeNear(origin),
 		};
 	}
 
@@ -214,12 +214,12 @@ export class JumpTracker {
 		const connection = this.map.connections.find(
 			(c) =>
 				(c.from_system === origin.id && c.to_system === target.id) ||
-				(c.from_system === target.id && c.to_system === origin.id)
+				(c.from_system === target.id && c.to_system === origin.id),
 		);
 		if (!connection) return null;
 		return {
 			connection,
-			signature: this.map.sigs.find((s) => s.connection_id === connection.id) ?? null
+			signature: this.map.sigs.find((s) => s.connection_id === connection.id) ?? null,
 		};
 	}
 
@@ -229,7 +229,7 @@ export class JumpTracker {
 			return {
 				name: existing.name,
 				classId: existing.wormhole_class_id,
-				security: existing.security_status
+				security: existing.security_status,
 			};
 		}
 		try {
@@ -244,7 +244,7 @@ export class JumpTracker {
 	private suggestAliasFor(
 		origin: MappedSystem,
 		target: { classId: number | null; security: number },
-		existing: MappedSystem | null
+		existing: MappedSystem | null,
 	): string | null {
 		// A system already on the map keeps the name the chain knows it by.
 		if (existing?.alias) return existing.alias;
@@ -262,9 +262,9 @@ export class JumpTracker {
 			scheme: naming?.alias_scheme as AliasScheme | undefined,
 			targetKind: aliasTargetKind(
 				targetIsWormhole,
-				classMeta(target.classId, target.security).short
+				classMeta(target.classId, target.security).short,
 			),
-			ignoredAlias: naming?.ignored_alias
+			ignoredAlias: naming?.ignored_alias,
 		});
 	}
 
@@ -273,7 +273,7 @@ export class JumpTracker {
 		return freePosition(
 			this.map.systems,
 			{ x: origin.position_x, y: origin.position_y },
-			this.map.grid
+			this.map.grid,
 		);
 	}
 
@@ -295,8 +295,7 @@ export class JumpTracker {
 
 		const fromSignature = statusFromSignature(signature);
 		const catalog = this.prompt?.catalog ?? null;
-		const type =
-			signature && catalog ? typeById(catalog, signature.signature_type_id) : null;
+		const type = signature && catalog ? typeById(catalog, signature.signature_type_id) : null;
 		const size =
 			choice.size ?? sizeForJumpMass(type?.max_jump_mass) ?? fromSignature.size ?? undefined;
 
@@ -309,7 +308,7 @@ export class JumpTracker {
 					alias: choice.alias?.trim() || undefined,
 					size,
 					mass_status: choice.massStatus ?? fromSignature.mass_status ?? undefined,
-					time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined
+					time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined,
 				});
 				return;
 			}
@@ -329,8 +328,8 @@ export class JumpTracker {
 				alias: choice.alias?.trim() || undefined,
 				size,
 				mass_status: choice.massStatus ?? fromSignature.mass_status ?? undefined,
-				time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined
-			})
+				time_status: choice.timeStatus ?? fromSignature.time_status ?? undefined,
+			}),
 		);
 	}
 
@@ -338,7 +337,7 @@ export class JumpTracker {
 	private resolve(
 		ghostPlacementId: number,
 		solarSystemId: number,
-		details: Partial<ResolveGhostSystem> = {}
+		details: Partial<ResolveGhostSystem> = {},
 	) {
 		this.map.run(
 			'assignSystem',
@@ -346,8 +345,8 @@ export class JumpTracker {
 				...details,
 				map_id: this.map.mapId,
 				map_solar_system_id: ghostPlacementId,
-				solar_system_id: solarSystemId
-			})
+				solar_system_id: solarSystemId,
+			}),
 		);
 	}
 

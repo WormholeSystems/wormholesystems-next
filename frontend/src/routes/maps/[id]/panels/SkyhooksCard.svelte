@@ -29,15 +29,14 @@
 		statusDot,
 		statusText,
 		timing,
-		type SkyhookStatus
+		type SkyhookStatus,
 	} from '$lib/skyhooks/timer';
 	import { cn } from '$lib/utils';
 	import type { MapState } from '../map-state.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
-	let { map }: { map: MapState } =
-		$props();
+	let { map }: { map: MapState } = $props();
 
 	type Column = 'jumps' | 'planet' | 'region' | 'timer';
 
@@ -92,14 +91,14 @@
 			const t = timing(skyhook, now);
 			const route = routes.get(skyhook.solar_system_id);
 			return { skyhook, status: t.status, untilMs: t.untilMs, route, jumps: route?.jumps ?? null };
-		})
+		}),
 	);
 
 	const live = $derived(rows.filter((r) => r.status !== 'closed' && shown.includes(r.status)));
 	const counts = $derived({
 		lava: live.filter((r) => r.skyhook.planet_kind === 'lava').length,
 		ice: live.filter((r) => r.skyhook.planet_kind === 'ice').length,
-		other: live.filter((r) => r.skyhook.planet_kind === 'other').length
+		other: live.filter((r) => r.skyhook.planet_kind === 'other').length,
 	});
 
 	/**
@@ -109,7 +108,7 @@
 	const choices = $derived([
 		{ key: 'lava' as const, label: 'Lava' },
 		{ key: 'ice' as const, label: 'Ice' },
-		...(counts.other > 0 ? [{ key: 'other' as const, label: 'Other' }] : [])
+		...(counts.other > 0 ? [{ key: 'other' as const, label: 'Other' }] : []),
 	]);
 
 	/** Unreachable sorts last however the column is pointed: it is never the answer. */
@@ -128,7 +127,7 @@
 			timer: (a, b) => {
 				const rank = (r: Row) => (r.status === 'upcoming' ? 1 : 0);
 				return rank(a) - rank(b) || a.untilMs - b.untilMs;
-			}
+			},
 		} satisfies Record<Column, (a: Row, b: Row) => number>;
 		return live
 			.filter((r) => r.skyhook.planet_kind === kind)
@@ -165,7 +164,7 @@
 			effect_name: null,
 			sovereignty: skyhook.sovereignty ?? null,
 			// Skyhooks are nullsec; a k-space system has no statics.
-			statics: []
+			statics: [],
 		};
 	}
 
@@ -178,7 +177,7 @@
 	const FILTERS: { key: SkyhookStatus; label: string }[] = [
 		{ key: 'upcoming', label: 'Upcoming' },
 		{ key: 'open', label: 'Raidable now' },
-		{ key: 'closing', label: 'Closing within 15m' }
+		{ key: 'closing', label: 'Closing within 15m' },
 	];
 </script>
 
@@ -318,7 +317,10 @@
 									{#if row.route}
 										<RoutePopover {map} steps={row.route.route}>
 											<span
-												class={cn('cursor-pointer font-medium tabular-nums', jumpTone(row.jumps ?? 0))}
+												class={cn(
+													'cursor-pointer font-medium tabular-nums',
+													jumpTone(row.jumps ?? 0),
+												)}
 												data-testid="skyhook-jumps">{row.jumps}j</span
 											>
 										</RoutePopover>
@@ -331,7 +333,7 @@
 									<Tooltip.Trigger
 										class={cn(
 											'w-16 shrink-0 cursor-help text-right font-mono text-[10px] font-semibold tabular-nums',
-											statusText(row.status)
+											statusText(row.status),
 										)}
 										data-testid="skyhook-timer"
 									>

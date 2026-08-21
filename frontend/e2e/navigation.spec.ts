@@ -20,10 +20,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	x: number,
-	y: number
+	y: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -33,7 +33,7 @@ async function pickSystem(
 	page: import('@playwright/test').Page,
 	picker: string,
 	query: string,
-	name: string
+	name: string,
 ) {
 	await page.getByTestId(picker).click();
 	const input = page.getByPlaceholder('Search…').last();
@@ -51,7 +51,7 @@ async function setRoute(page: import('@playwright/test').Page, from: string, to:
 
 test('watchlist: defaults, add, unified origin badge, pin, remove, reload persistence', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E NavWatch');
 	await addSystem(api, mapId, JITA, 200, 200);
@@ -123,17 +123,17 @@ test('route ignore: per-hop X reroutes, Clear restores', async ({ page, api }) =
 
 test('route settings: preference persists; lifetime tolerance drops EOL holes', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E NavSettings');
 	const a = await addSystem(api, mapId, JITA, 200, 200);
 	const b = await addSystem(api, mapId, AMARR, 560, 200);
 	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' },
 	});
 	const connId = await createdId(conn);
 	await api.post(`/api/maps/${mapId}/connections/set-status`, {
-		data: { map_id: mapId, connection_id: connId, time_status: 'eol' }
+		data: { map_id: mapId, connection_id: connId, time_status: 'eol' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -165,7 +165,7 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	// A mapped neighbour, so route highlighting has an edge to light up.
 	const perimeter = await addSystem(api, mapId, PERIMETER, 560, 200);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: jita, to_system: perimeter, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: jita, to_system: perimeter, kind: 'wormhole' },
 	});
 	await gotoApp(page, `/maps/${mapId}`);
 	await page.getByTestId('system-node').filter({ hasText: 'Jita' }).click();
@@ -231,13 +231,15 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	// A station row can be right-clicked to set it as the in-game destination.
 	await page.getByTestId('find-station').first().click({ button: 'right' });
 	await expect(page.getByTestId('destination-menu')).toBeVisible();
-	await expect(page.getByTestId('destination-menu').getByTestId('menu-set-destination')).toBeVisible();
+	await expect(
+		page.getByTestId('destination-menu').getByTestId('menu-set-destination'),
+	).toBeVisible();
 	await page.keyboard.press('Escape');
 });
 
 test('the pickers suggest systems already in play, before anything is typed', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E NavPicks');
 	await addSystem(api, mapId, J122515, 200, 200);
@@ -271,20 +273,19 @@ test('typing in a picker replaces the suggestions with search results', async ({
 	await expect(page.getByTestId('picker-suggestion').first()).toBeVisible();
 	await page.getByPlaceholder('Search…').fill('Amarr');
 	await expect(page.getByTestId('picker-suggestion')).toHaveCount(0);
-	await expect(page.getByTestId('picker-result').filter({ hasText: 'Amarr' }).first()).toBeVisible();
+	await expect(
+		page.getByTestId('picker-result').filter({ hasText: 'Amarr' }).first(),
+	).toBeVisible();
 });
 
-test('unreachable watchlist rows stay the same height as reachable ones', async ({
-	page,
-	api
-}) => {
+test('unreachable watchlist rows stay the same height as reachable ones', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E WatchHeight');
 	await addSystem(api, mapId, JITA, 200, 200);
 	// Amarr is gate-reachable from Jita (and already there as a default hub); the wormhole
 	// system is not reachable at all.
 	for (const sys of [AMARR, J122515]) {
 		await api.post(`/api/maps/${mapId}/watchlist/add`, {
-			data: { map_id: mapId, solar_system_id: sys }
+			data: { map_id: mapId, solar_system_id: sys },
 		});
 	}
 
@@ -312,7 +313,7 @@ test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 	const a = await addSystem(api, mapId, J122515, 200, 200);
 	const b = await addSystem(api, mapId, JITA, 560, 200);
 	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' },
 	});
 	const connId = await createdId(conn);
 
@@ -329,24 +330,26 @@ test('a wormhole hop names the signature to warp to', async ({ page, api }) => {
 	await page.mouse.move(0, 0);
 
 	const sig = await api.post(`/api/maps/${mapId}/signatures/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, signature_id: 'QRS-481', group: 'wormhole' }
+		data: { map_id: mapId, solar_system_id: J122515, signature_id: 'QRS-481', group: 'wormhole' },
 	});
 	const sigId = await createdId(sig);
 	await api.post(`/api/maps/${mapId}/signatures/link`, {
-		data: { map_id: mapId, signature_pk: sigId, connection_id: connId }
+		data: { map_id: mapId, signature_pk: sigId, connection_id: connId },
 	});
 
 	// Linked, the tooltip names the signature: that is what you look for in the scanner.
 	await expect(marker).toHaveText('WH');
 	await marker.hover();
-	await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Take wormhole QRS-481');
+	await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(
+		'Take wormhole QRS-481',
+	);
 });
 
 test('viewers see the watchlist read-only', async ({ page, api, browser }) => {
 	const mapId = await createMap(api, 'E2E NavViewer');
 	await addSystem(api, mapId, JITA, 200, 200);
 	const owner = await api.post(`/api/maps/${mapId}/watchlist/add`, {
-		data: { map_id: mapId, solar_system_id: AMARR }
+		data: { map_id: mapId, solar_system_id: AMARR },
 	});
 	expect(owner.ok()).toBe(true);
 	const viewer = await createIdentity(3);
@@ -354,7 +357,7 @@ test('viewers see the watchlist read-only', async ({ page, api, browser }) => {
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);

@@ -11,14 +11,14 @@ test('edge colors and dashes per state', async ({ page, api }) => {
 	const mapId = await createdId(res);
 	const add = async (sid: number, x: number, y: number) => {
 		const r = await api.post(`/api/maps/${mapId}/systems/add`, {
-			data: { map_id: mapId, solar_system_id: sid, x, y, alias: null }
+			data: { map_id: mapId, solar_system_id: sid, x, y, alias: null },
 		});
 		return await createdId(r);
 	};
 	const a = await add(JITA, 200, 200);
 	const b = await add(PERIMETER, 600, 200);
 	const gate = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: a, to_system: b, kind: 'stargate' }
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'stargate' },
 	});
 	expect(gate.ok()).toBe(true);
 
@@ -30,7 +30,7 @@ test('edge colors and dashes per state', async ({ page, api }) => {
 	// Flip it to a reduced-mass wormhole: orange and dashed.
 	const cid = (await (await api.get(`/api/maps/${mapId}`)).json()).connections[0].id;
 	await api.post(`/api/maps/${mapId}/connections/set-status`, {
-		data: { map_id: mapId, connection_id: cid, kind: 'wormhole', mass_status: 'reduced' }
+		data: { map_id: mapId, connection_id: cid, kind: 'wormhole', mass_status: 'reduced' },
 	});
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
@@ -39,23 +39,20 @@ test('edge colors and dashes per state', async ({ page, api }) => {
 
 	// EOL via the connection context menu (Lifetime submenu): purple.
 	await api.post(`/api/maps/${mapId}/connections/set-status`, {
-		data: { map_id: mapId, connection_id: cid, mass_status: 'stable' }
+		data: { map_id: mapId, connection_id: cid, mass_status: 'stable' },
 	});
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
 	await page.locator('path[stroke="transparent"]').click({ button: 'right', force: true });
 	await page.getByTestId('lifetime-subtrigger').hover();
-	await page
-		.getByTestId('lifetime-submenu')
-		.getByRole('button', { name: 'End of Life' })
-		.click();
+	await page.getByTestId('lifetime-submenu').getByRole('button', { name: 'End of Life' }).click();
 	await expect(edge).toHaveAttribute('stroke', '#a855f7'); // purple-500
 
 	// The menu marks the current state and warns on non-gate stargate marking.
 	await page.locator('path[stroke="transparent"]').click({ button: 'right', force: true });
 	await page.getByTestId('size-subtrigger').hover();
 	await expect(
-		page.getByTestId('size-submenu').getByRole('button', { name: 'Frigate' })
+		page.getByTestId('size-submenu').getByRole('button', { name: 'Frigate' }),
 	).toBeVisible();
 });
 
@@ -63,11 +60,11 @@ test('unknown status uses the neutral border token', async ({ page, api }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E UnknownBorder' } });
 	const mapId = await createdId(res);
 	const r = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null },
 	});
 	const mss = await createdId(r);
 	await api.post(`/api/maps/${mapId}/systems/set-status`, {
-		data: { map_id: mapId, map_solar_system_id: mss, status: 'unknown' }
+		data: { map_id: mapId, map_solar_system_id: mss, status: 'unknown' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);

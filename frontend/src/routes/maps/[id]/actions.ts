@@ -35,7 +35,10 @@ export const MAP_ACTIONS = {
 	setConnectionMass: { failed: 'Could not set the mass' },
 	setConnectionLifetime: { failed: 'Could not set the lifetime' },
 	setPreserveMass: { failed: 'Could not change mass tracking' },
-	cleanStale: { failed: 'Could not clean the stale connections', done: 'Stale connections cleaned' },
+	cleanStale: {
+		failed: 'Could not clean the stale connections',
+		done: 'Stale connections cleaned',
+	},
 	addJump: { failed: 'Could not log the jump' },
 	updateJump: { failed: 'Could not update the jump' },
 	removeJump: { failed: 'Could not remove the jump' },
@@ -62,7 +65,7 @@ export const MAP_ACTIONS = {
 	setPlacement: { failed: 'Could not change the placement' },
 
 	// Lands in the EVE client, where the app cannot show you anything.
-	setWaypoint: { failed: 'Could not set the destination', done: 'Destination set' }
+	setWaypoint: { failed: 'Could not set the destination', done: 'Destination set' },
 } as const satisfies Record<string, ActionCopy>;
 
 export type MapAction = keyof typeof MAP_ACTIONS;

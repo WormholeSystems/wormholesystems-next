@@ -18,7 +18,7 @@ export const BOOKMARK_TOKENS = [
 	'size',
 	'wh',
 	'mass',
-	'life'
+	'life',
 ] as const;
 
 export type BookmarkToken = (typeof BOOKMARK_TOKENS)[number];
@@ -33,7 +33,7 @@ export const DEFAULT_IGNORED_ALIAS = 'HOME';
 const SIZE_LABELS: Partial<Record<WormholeSize, string>> = {
 	small: 'SM',
 	medium: 'MD',
-	xl: 'XL'
+	xl: 'XL',
 };
 /** Stable resolves to nothing, so mass only appears once the hole has actually degraded. */
 const MASS_LABELS: Partial<Record<MassStatus, string>> = { reduced: 'reduced', critical: 'crit' };
@@ -75,7 +75,7 @@ export interface BookmarkFormats {
 export function isReturnBookmark(
 	destinationAlias: string | null | undefined,
 	oppositeAlias: string | null | undefined,
-	ignoredAlias: string | null | undefined
+	ignoredAlias: string | null | undefined,
 ): boolean {
 	const opposite = (oppositeAlias ?? '').trim();
 	if (!opposite) return false;
@@ -104,7 +104,7 @@ export function shortSignatureId(signatureId: string | null | undefined): string
 
 export function bookmarkTokens(
 	system: BookmarkSystem,
-	context: BookmarkContext
+	context: BookmarkContext,
 ): Record<BookmarkToken, string> {
 	return {
 		alias: system.alias ?? '',
@@ -116,7 +116,7 @@ export function bookmarkTokens(
 		size: context.size ? (SIZE_LABELS[context.size] ?? '') : '',
 		wh: context.wormholeCode ?? '',
 		mass: context.massStatus ? (MASS_LABELS[context.massStatus] ?? '') : '',
-		life: context.timeStatus ? (LIFE_LABELS[context.timeStatus] ?? '') : ''
+		life: context.timeStatus ? (LIFE_LABELS[context.timeStatus] ?? '') : '',
 	};
 }
 
@@ -124,13 +124,10 @@ export function bookmarkTokens(
  * Substitute `{token}` placeholders, collapsing the gap empty ones leave. Unknown
  * placeholders are left as written so a typo in the format stays visible.
  */
-export function renderBookmark(
-	template: string,
-	values: Record<BookmarkToken, string>
-): string {
+export function renderBookmark(template: string, values: Record<BookmarkToken, string>): string {
 	return template
 		.replace(/\{(\w+)\}/g, (match, token: string) =>
-			token in values ? values[token as BookmarkToken] : match
+			token in values ? values[token as BookmarkToken] : match,
 		)
 		.replace(/\s+/g, ' ')
 		.trim();
@@ -146,7 +143,7 @@ export function formatBookmark(
 	system: BookmarkSystem,
 	context: BookmarkContext,
 	formats?: BookmarkFormats | null,
-	oppositeAlias?: string | null
+	oppositeAlias?: string | null,
 ): string {
 	const ignored = formats?.ignoredAlias ?? DEFAULT_IGNORED_ALIAS;
 	const template = isReturnBookmark(system.alias, oppositeAlias, ignored)

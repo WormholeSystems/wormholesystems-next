@@ -14,7 +14,7 @@ const WORMHOLE_LETTERS = 'ABCDEFGIJKMOQRSTUVWXYZ';
 /** Whether `alias` is the map's ignored alias (e.g. HOME). An empty setting matches nothing. */
 export function isIgnoredAlias(
 	alias: string | null | undefined,
-	ignoredAlias: string | null | undefined
+	ignoredAlias: string | null | undefined,
 ): boolean {
 	const ignored = (ignoredAlias ?? '').trim();
 	if (!ignored) return false;
@@ -24,7 +24,7 @@ export function isIgnoredAlias(
 /** The reserved letter for a target's class, or undefined for wormholes. */
 export function aliasTargetKind(
 	targetIsWormhole: boolean,
-	classShort: string | null | undefined
+	classShort: string | null | undefined,
 ): AliasTargetKind | undefined {
 	if (targetIsWormhole) return 'wormhole';
 	const kind = (classShort ?? '').toLowerCase();
@@ -77,7 +77,7 @@ function nextKspaceIndex(prefix: string, letter: string, aliases: string[]): num
 export function guessNextAlias(
 	parentAlias: string | null | undefined,
 	aliases: string[],
-	opts?: { scheme?: AliasScheme; targetKind?: AliasTargetKind; ignoredAlias?: string }
+	opts?: { scheme?: AliasScheme; targetKind?: AliasTargetKind; ignoredAlias?: string },
 ): string {
 	let prefix = (parentAlias ?? '').trim().toUpperCase();
 	// The home system is not a chain node, so its children start a fresh sequence.
@@ -98,14 +98,14 @@ export function guessNextAlias(
 		(alias) =>
 			alias.length > prefix.length &&
 			alias.startsWith(prefix) &&
-			/^\d+$/.test(alias.slice(prefix.length))
+			/^\d+$/.test(alias.slice(prefix.length)),
 	);
 	// Drop grandchildren: `121` extends `12`, which itself extends the prefix.
 	const direct = numeric.filter(
 		(alias) =>
 			!numeric.some(
-				(other) => other !== alias && other.length < alias.length && alias.startsWith(other)
-			)
+				(other) => other !== alias && other.length < alias.length && alias.startsWith(other),
+			),
 	);
 
 	const used = new Set<number>();
@@ -138,6 +138,6 @@ export function suggestAlias(params: {
 	return guessNextAlias(params.parentAlias, params.aliases, {
 		scheme: params.scheme,
 		targetKind: params.targetKind,
-		ignoredAlias: params.ignoredAlias
+		ignoredAlias: params.ignoredAlias,
 	});
 }

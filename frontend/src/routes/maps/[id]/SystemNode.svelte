@@ -54,7 +54,7 @@
 		onmenu,
 		onsavealias,
 		draggable = true,
-		signatureId = null
+		signatureId = null,
 	}: {
 		node: MapSystemView;
 		nodeH: number;
@@ -87,15 +87,19 @@
 	const mapped = $derived(node.kind === 'system' ? node : null);
 	const ghost = $derived(mapped === null);
 
-	const cls = $derived(classMeta(mapped?.wormhole_class_id ?? null, mapped?.security_status ?? null));
+	const cls = $derived(
+		classMeta(mapped?.wormhole_class_id ?? null, mapped?.security_status ?? null),
+	);
 	// Suppressed while active, so the amber ring is not fighting the threat ring.
 	const threatRing = $derived(
-		showThreat && !active && (mapped?.threat_level === 'high' || mapped?.threat_level === 'critical')
+		showThreat &&
+			!active &&
+			(mapped?.threat_level === 'high' || mapped?.threat_level === 'critical')
 			? mapped.threat_level
-			: null
+			: null,
 	);
 	const showStatics = $derived(
-		isWormholeClass(mapped?.wormhole_class_id ?? null) && (mapped?.statics.length ?? 0) > 0
+		isWormholeClass(mapped?.wormhole_class_id ?? null) && (mapped?.statics.length ?? 0) > 0,
 	);
 	const unmapped = $derived(Math.max(0, sigCounts.wormholes - connectionCount));
 	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id.
@@ -106,7 +110,7 @@
 		active: ActivityIcon,
 		unscanned: RadarIcon,
 		empty: CircleDashedIcon,
-		unknown: CircleHelpIcon
+		unknown: CircleHelpIcon,
 	} satisfies Record<SystemStatus, typeof ShieldCheckIcon>;
 	const StatusIcon = $derived(STATUS_ICONS[node.status]);
 
@@ -207,13 +211,17 @@
 				{/if}
 				{#if node.is_home}
 					<Tooltip.Root>
-						<Tooltip.Trigger class="flex"><HomeIcon class="size-[14px] text-amber-400" /></Tooltip.Trigger>
+						<Tooltip.Trigger class="flex"
+							><HomeIcon class="size-[14px] text-amber-400" /></Tooltip.Trigger
+						>
 						<Tooltip.Content>Home system</Tooltip.Content>
 					</Tooltip.Root>
 				{/if}
 				{#if node.is_rally}
 					<Tooltip.Root>
-						<Tooltip.Trigger class="flex"><FlagIcon class="size-[14px] text-red-400" /></Tooltip.Trigger>
+						<Tooltip.Trigger class="flex"
+							><FlagIcon class="size-[14px] text-red-400" /></Tooltip.Trigger
+						>
 						<Tooltip.Content>Rally point</Tooltip.Content>
 					</Tooltip.Root>
 				{/if}
@@ -229,11 +237,15 @@
 					<Tooltip.Root>
 						<Tooltip.Trigger class="flex" data-testid="sig-icon">
 							<SatelliteIcon
-								class="size-[14px] {sigCounts.uncategorized > 0 ? 'text-rose-500' : 'text-amber-500'}"
+								class="size-[14px] {sigCounts.uncategorized > 0
+									? 'text-rose-500'
+									: 'text-amber-500'}"
 							/>
 						</Tooltip.Trigger>
 						<Tooltip.Content>
-							{sigCounts.total} signature{sigCounts.total === 1 ? '' : 's'}{sigCounts.uncategorized > 0
+							{sigCounts.total} signature{sigCounts.total === 1
+								? ''
+								: 's'}{sigCounts.uncategorized > 0
 								? `, ${sigCounts.uncategorized} uncategorized`
 								: ''}
 						</Tooltip.Content>

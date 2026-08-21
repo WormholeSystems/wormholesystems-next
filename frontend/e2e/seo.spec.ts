@@ -57,7 +57,13 @@ test('the icon adapts to the theme', async ({ page }) => {
 });
 
 test('the icons and the card image are actually served', async ({ page }) => {
-	for (const asset of ['/og.png', '/favicon.svg', '/favicon.png', '/favicon-dark.png', '/apple-touch-icon.png']) {
+	for (const asset of [
+		'/og.png',
+		'/favicon.svg',
+		'/favicon.png',
+		'/favicon-dark.png',
+		'/apple-touch-icon.png',
+	]) {
 		const res = await page.request.get(asset);
 		expect(res.status(), asset).toBe(200);
 		expect(res.headers()['content-type'], asset).toContain('image/');

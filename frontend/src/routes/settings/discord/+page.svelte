@@ -51,8 +51,8 @@
 		<Card.Header>
 			<Card.Title>Your Discord account</Card.Title>
 			<Card.Description>
-				Linking lets the bot know which maps are yours, so <code>/wh</code> can answer about
-				them and alerts can reach you directly.
+				Linking lets the bot know which maps are yours, so <code>/wh</code> can answer about them and
+				alerts can reach you directly.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex flex-col gap-4">
@@ -94,11 +94,15 @@
 			<ul class="flex flex-col gap-2 text-sm">
 				<li>
 					<code class="text-foreground">/wh account</code>
-					<span class="text-muted-foreground">: which WormholeSystems account this Discord user is.</span>
+					<span class="text-muted-foreground"
+						>: which WormholeSystems account this Discord user is.</span
+					>
 				</li>
 				<li>
 					<code class="text-foreground">/wh alerts list</code>
-					<span class="text-muted-foreground">: the alerts you created, and whether they are on.</span>
+					<span class="text-muted-foreground"
+						>: the alerts you created, and whether they are on.</span
+					>
 				</li>
 				<li>
 					<code class="text-foreground">/wh alerts enable · disable · remove</code>

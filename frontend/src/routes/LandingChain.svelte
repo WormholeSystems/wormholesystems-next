@@ -15,7 +15,7 @@
 	const HEIGHT = 380 + 2 * PAD;
 
 	const positions = new Map(
-		DEMO_SYSTEMS.map((s) => [s.id, { x: s.position_x + PAD, y: s.position_y + PAD }])
+		DEMO_SYSTEMS.map((s) => [s.id, { x: s.position_x + PAD, y: s.position_y + PAD }]),
 	);
 	const edges = [...treeEdges(DEMO_CONNECTIONS, positions, NODE_H).values()];
 

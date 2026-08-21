@@ -17,7 +17,7 @@
 		sig,
 		catalog,
 		compact,
-		canWrite
+		canWrite,
 	}: {
 		ctx: SignatureContext;
 		system: MappedSystem;
@@ -42,7 +42,7 @@
 			.filter(
 				(e) =>
 					targetClass === null ||
-					(e.target?.kind === 'system' && e.target.wormhole_class_id === targetClass)
+					(e.target?.kind === 'system' && e.target.wormhole_class_id === targetClass),
 			)
 			.toSorted((a, b) => {
 				const aa = a.target?.alias ?? null;
@@ -63,10 +63,10 @@
 					(s) =>
 						s.solar_system_id === system.solar_system_id &&
 						s.id !== sig.id &&
-						s.connection_id !== null
+						s.connection_id !== null,
 				)
-				.map((s) => s.connection_id)
-		)
+				.map((s) => s.connection_id),
+		),
 	);
 
 	const unclaimed = $derived(candidates.filter((e) => !claimed.has(e.conn.id)));
@@ -74,7 +74,7 @@
 	const selected = $derived(
 		sig.connection_id === null
 			? null
-			: (candidates.find((e) => e.conn.id === sig.connection_id) ?? null)
+			: (candidates.find((e) => e.conn.id === sig.connection_id) ?? null),
 	);
 
 	function pick(value: string) {
@@ -115,7 +115,10 @@
 	onValueChange={pick}
 	disabled={!canWrite}
 >
-	<Select.Trigger class="w-full min-w-0 overflow-hidden text-xs {compact ? '!h-5 !py-0' : ''}" data-testid="sig-connection">
+	<Select.Trigger
+		class="w-full min-w-0 overflow-hidden text-xs {compact ? '!h-5 !py-0' : ''}"
+		data-testid="sig-connection"
+	>
 		{#if selected}
 			{@render connLabel(selected)}
 		{:else}

@@ -36,7 +36,7 @@
 				animated = 0;
 				frame = requestAnimationFrame(step);
 			},
-			{ threshold: 0.4 }
+			{ threshold: 0.4 },
 		);
 		io.observe(el);
 		return () => {

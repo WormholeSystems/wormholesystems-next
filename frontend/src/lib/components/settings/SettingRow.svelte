@@ -10,7 +10,7 @@
 		disabled = false,
 		blocked,
 		control,
-		id
+		id,
 	}: {
 		label: string;
 		description?: string;
@@ -25,7 +25,7 @@
 <div
 	class={cn(
 		'flex items-start justify-between gap-6 border-b border-border/40 py-4 last:border-b-0',
-		disabled && 'opacity-60'
+		disabled && 'opacity-60',
 	)}
 	data-testid="setting-row"
 	data-setting={id}

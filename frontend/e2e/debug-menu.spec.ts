@@ -5,7 +5,7 @@ import { createdId, expect, gotoApp, test } from './fixtures';
 
 test('the debug menu builds a chain worth stress-testing the canvas with', async ({
 	page,
-	api
+	api,
 }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E Debug' } });
 	const mapId = await createdId(res);
@@ -19,10 +19,9 @@ test('the debug menu builds a chain worth stress-testing the canvas with', async
 	// for the finished shape rather than for the first paint.
 	await expect(page.getByTestId('system-node')).toHaveCount(45, { timeout: 60_000 });
 	await expect
-		.poll(
-			async () => (await (await api.get(`/api/maps/${mapId}`)).json()).connections.length,
-			{ timeout: 60_000 }
-		)
+		.poll(async () => (await (await api.get(`/api/maps/${mapId}`)).json()).connections.length, {
+			timeout: 60_000,
+		})
 		// The 42 tree edges, plus the three loops back into it.
 		.toBe(45);
 

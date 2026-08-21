@@ -8,7 +8,7 @@
 
 	let {
 		onpick,
-		testid = 'ship-search'
+		testid = 'ship-search',
 	}: {
 		onpick: (ship: ShipSearchResult) => void;
 		testid?: string;
@@ -39,7 +39,12 @@
 </script>
 
 <Command.Root shouldFilter={false} class="rounded-md border bg-transparent">
-	<Command.Input placeholder="Search ship type…" bind:value={term} data-testid={testid} class="h-7 text-xs" />
+	<Command.Input
+		placeholder="Search ship type…"
+		bind:value={term}
+		data-testid={testid}
+		class="h-7 text-xs"
+	/>
 	{#if term.trim().length > 0}
 		<Command.List class="max-h-40">
 			<Command.Empty>No matches</Command.Empty>

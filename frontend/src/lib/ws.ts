@@ -23,7 +23,7 @@ const MAX_RETRY_MS = 15_000;
 export function openMapSocket(
 	mapId: number,
 	onEvent: (event: MapEvent | null) => void,
-	onState?: (state: SocketState) => void
+	onState?: (state: SocketState) => void,
 ): () => void {
 	let ws: WebSocket | null = null;
 	let retryMs = FIRST_RETRY_MS;

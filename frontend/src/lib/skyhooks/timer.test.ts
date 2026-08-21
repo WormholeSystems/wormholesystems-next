@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { CLOSING_SOON_MS, describe as describeTiming, formatDuration, formatWindow, timing } from './timer';
+import {
+	CLOSING_SOON_MS,
+	describe as describeTiming,
+	formatDuration,
+	formatWindow,
+	timing,
+} from './timer';
 import type { Skyhook } from '$lib/api/types/Skyhook';
 
 const NOW = new Date('2026-08-17T13:00:00Z');
@@ -19,7 +25,7 @@ function skyhook(from: string, hours = 2): Skyhook {
 		constellation_id: 20000812,
 		security_status: -0.2,
 		vulnerable_from: start.toISOString(),
-		vulnerable_until: new Date(start.getTime() + hours * 3_600_000).toISOString()
+		vulnerable_until: new Date(start.getTime() + hours * 3_600_000).toISOString(),
 	};
 }
 

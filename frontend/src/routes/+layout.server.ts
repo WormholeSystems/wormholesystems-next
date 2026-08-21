@@ -9,7 +9,7 @@ export const load: LayoutServerLoad = async (event) => {
 	const [me, maps, status] = await Promise.all([
 		currentCharacter(event),
 		myMaps(event).catch(() => []),
-		serverStatus(event)
+		serverStatus(event),
 	]);
 	return { me, maps, status };
 };

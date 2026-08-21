@@ -21,7 +21,7 @@
 	let {
 		me,
 		maps = [],
-		status = null
+		status = null,
 	}: { me: CharacterSummary | null; maps?: MapEntry[]; status?: ServerState | null } = $props();
 
 	// The shortcuts are a view of the list the layout already loads, not a second fetch.
@@ -58,62 +58,61 @@
 	<!-- Three columns so the middle holds its place however long the shortcut list grows. -->
 	<div class="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-4 px-5">
 		<div class="flex min-w-0 items-center gap-4">
-		<a href="/" class="flex items-center gap-2 text-foreground">
-			<Logo class="size-5" />
-			<span class="font-heading text-sm font-semibold tracking-tight">WormholeSystems</span>
-		</a>
-		<!-- Without an account this only leads to the sign-in page, so it is not shown. -->
-		{#if me}
-			<a
-				href="/maps"
-				class="flex items-center gap-1.5 text-sm transition-colors {here === '/maps'
-					? 'text-foreground'
-					: 'text-muted-foreground hover:text-foreground'}"
-			>
-				<MapIcon class="size-4" />
-				Maps
+			<a href="/" class="flex items-center gap-2 text-foreground">
+				<Logo class="size-5" />
+				<span class="font-heading text-sm font-semibold tracking-tight">WormholeSystems</span>
 			</a>
-		{/if}
-
-		<span class="hidden min-w-0 items-center gap-1 lg:flex" data-testid="pinned-maps">
-			{#each inline as map (map.id)}
+			<!-- Without an account this only leads to the sign-in page, so it is not shown. -->
+			{#if me}
 				<a
-					href="/maps/{map.id}"
-					class="flex max-w-44 min-w-0 items-center gap-1.5 px-2 py-1 text-xs transition-colors {here ===
-					`/maps/${map.id}`
-						? 'bg-muted/50 text-foreground'
-						: 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'}"
-					data-testid="pinned-map"
-					title={map.name}
+					href="/maps"
+					class="flex items-center gap-1.5 text-sm transition-colors {here === '/maps'
+						? 'text-foreground'
+						: 'text-muted-foreground hover:text-foreground'}"
 				>
-					<MapIcon class="size-3.5 shrink-0" />
-					<span class="truncate">{map.name}</span>
+					<MapIcon class="size-4" />
+					Maps
 				</a>
-			{/each}
-			{#if overflow.length > 0}
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger
-						class="px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-						data-testid="pinned-overflow"
-					>
-						+{overflow.length}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="start" class="w-56">
-						{#each overflow as map (map.id)}
-							<DropdownMenu.Item>
-								{#snippet child({ props })}
-									<a href="/maps/{map.id}" {...props}>
-										<MapIcon />
-										<span class="truncate">{map.name}</span>
-									</a>
-								{/snippet}
-							</DropdownMenu.Item>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
 			{/if}
-		</span>
 
+			<span class="hidden min-w-0 items-center gap-1 lg:flex" data-testid="pinned-maps">
+				{#each inline as map (map.id)}
+					<a
+						href="/maps/{map.id}"
+						class="flex max-w-44 min-w-0 items-center gap-1.5 px-2 py-1 text-xs transition-colors {here ===
+						`/maps/${map.id}`
+							? 'bg-muted/50 text-foreground'
+							: 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'}"
+						data-testid="pinned-map"
+						title={map.name}
+					>
+						<MapIcon class="size-3.5 shrink-0" />
+						<span class="truncate">{map.name}</span>
+					</a>
+				{/each}
+				{#if overflow.length > 0}
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger
+							class="px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+							data-testid="pinned-overflow"
+						>
+							+{overflow.length}
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="start" class="w-56">
+							{#each overflow as map (map.id)}
+								<DropdownMenu.Item>
+									{#snippet child({ props })}
+										<a href="/maps/{map.id}" {...props}>
+											<MapIcon />
+											<span class="truncate">{map.name}</span>
+										</a>
+									{/snippet}
+								</DropdownMenu.Item>
+							{/each}
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+				{/if}
+			</span>
 		</div>
 
 		<span class="hidden justify-self-center md:block">

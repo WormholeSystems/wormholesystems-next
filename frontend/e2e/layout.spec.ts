@@ -18,7 +18,7 @@ async function box(page: import('@playwright/test').Page, panel: string) {
 		x: Number(await el.getAttribute('data-x')),
 		y: Number(await el.getAttribute('data-y')),
 		w: Number(await el.getAttribute('data-w')),
-		h: Number(await el.getAttribute('data-h'))
+		h: Number(await el.getAttribute('data-h')),
 	};
 }
 
@@ -27,7 +27,7 @@ async function dragTile(
 	page: import('@playwright/test').Page,
 	panel: string,
 	dx: number,
-	dy: number
+	dy: number,
 ) {
 	const shield = page.locator(`[data-testid="tile-shield"][data-panel="${panel}"]`);
 	// The grid is taller than the window, so a tile can start below the fold; mouse
@@ -86,14 +86,11 @@ test('dragging a tile moves it and the move survives a reload', async ({ page, a
 	// once can catch the built-in arrangement before the stored one lands.
 	await expect(page.locator('[data-testid="panel-tile"][data-panel="notes"]')).toHaveAttribute(
 		'data-x',
-		String(after.x)
+		String(after.x),
 	);
 });
 
-test('a held tile follows the cursor while a ghost shows where it lands', async ({
-	page,
-	api
-}) => {
+test('a held tile follows the cursor while a ghost shows where it lands', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Float');
 	await page.setViewportSize({ width: 1700, height: 1300 });
 	await gotoApp(page, `/maps/${mapId}`);
@@ -120,7 +117,7 @@ test('a held tile follows the cursor while a ghost shows where it lands', async 
 	// The cell the ghost is claiming, in grid units, which does not depend on any animation.
 	const cell = {
 		x: await ghost.getAttribute('data-x'),
-		y: await ghost.getAttribute('data-y')
+		y: await ghost.getAttribute('data-y'),
 	};
 
 	// Releasing drops the tile into exactly that cell.
@@ -164,7 +161,7 @@ test('arranging never gives the window a horizontal scrollbar', async ({ page, a
 
 	const overflows = () =>
 		page.evaluate(
-			() => document.documentElement.scrollWidth > document.documentElement.clientWidth
+			() => document.documentElement.scrollWidth > document.documentElement.clientWidth,
 		);
 	expect(await overflows()).toBe(false);
 
@@ -201,7 +198,7 @@ test('a tile is not a containing block for the map context menu', async ({ page,
 	// the map's context menus off by the tile's own offset.
 	const mapId = await createMap(api, 'E2E Fixed');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null },
 	});
 	await page.setViewportSize({ width: 1700, height: 1000 });
 	await gotoApp(page, `/maps/${mapId}`);
@@ -303,9 +300,10 @@ test('hiding a panel in the middle closes the hole it leaves', async ({ page, ap
 	await page.locator('[data-testid="tile-hide"][data-panel="navigation"]').click();
 
 	// Signatures rises into the space navigation was occupying rather than leaving a gap.
-	await expect(
-		page.locator('[data-testid="panel-tile"][data-panel="signatures"]')
-	).toHaveAttribute('data-y', '0');
+	await expect(page.locator('[data-testid="panel-tile"][data-panel="signatures"]')).toHaveAttribute(
+		'data-y',
+		'0',
+	);
 
 	// Putting it back restores the original arrangement, so the position was remembered.
 	await page.getByTestId('card-library').click();
@@ -313,10 +311,7 @@ test('hiding a panel in the middle closes the hole it leaves', async ({ page, ap
 	await expect(page.locator('[data-testid="panel-tile"][data-panel="navigation"]')).toBeVisible();
 });
 
-test('leaving with unsaved changes offers to save, from either control', async ({
-	page,
-	api
-}) => {
+test('leaving with unsaved changes offers to save, from either control', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E ExitPrompt');
 	await page.setViewportSize({ width: 1700, height: 1000 });
 	await gotoApp(page, `/maps/${mapId}`);
@@ -405,7 +400,7 @@ test('each breakpoint keeps its own arrangement', async ({ page, api }) => {
 test('the canvas still pans after the map tile is resized', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Pan');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null },
 	});
 	await page.setViewportSize({ width: 1700, height: 1000 });
 	await gotoApp(page, `/maps/${mapId}`);
@@ -424,7 +419,7 @@ test('the canvas still pans after the map tile is resized', async ({ page, api }
 	await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
 	await page.mouse.down({ button: 'middle' });
 	await page.mouse.move(canvas.x + canvas.width / 2 - 120, canvas.y + canvas.height / 2, {
-		steps: 8
+		steps: 8,
 	});
 	await page.mouse.up({ button: 'middle' });
 
@@ -439,7 +434,7 @@ test('the canvas still pans after the map tile is resized', async ({ page, api }
 test('tiles are painted in place rather than gliding there', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E FirstPaint');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 200, alias: null },
 	});
 
 	await page.addInitScript(() => {

@@ -7,7 +7,7 @@ export async function load(event) {
 		reference: await referenceCounts(event),
 		seo: {
 			description:
-				"Wormhole mapping and tracking for EVE Online. One live chain map for your corp, open source and self-hosted: signatures, connection mass and lifetime, and everyone's position from ESI."
-		}
+				"Wormhole mapping and tracking for EVE Online. One live chain map for your corp, open source and self-hosted: signatures, connection mass and lifetime, and everyone's position from ESI.",
+		},
 	};
 }

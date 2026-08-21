@@ -34,7 +34,7 @@ const EVE_SCOUT = [
 		wh_type: 'J377',
 		max_ship_size: 'medium',
 		remaining_hours: 9,
-		updated_at: '2026-08-18T09:00:00.000Z'
+		updated_at: '2026-08-18T09:00:00.000Z',
 	},
 	{
 		in_system_id: 30000142, // Jita
@@ -45,7 +45,7 @@ const EVE_SCOUT = [
 		max_ship_size: 'large',
 		life: 'eol',
 		remaining_hours: 0.5,
-		updated_at: '2026-08-18T08:00:00.000Z'
+		updated_at: '2026-08-18T08:00:00.000Z',
 	},
 	{
 		in_system_id: 30002187, // Amarr
@@ -54,15 +54,15 @@ const EVE_SCOUT = [
 		out_signature: 'TUR-001',
 		mass: 'destab',
 		remaining_hours: 14,
-		updated_at: '2026-08-18T07:00:00.000Z'
-	}
+		updated_at: '2026-08-18T07:00:00.000Z',
+	},
 ];
 
 function json(res, status, body) {
 	const payload = JSON.stringify(body);
 	res.writeHead(status, {
 		'content-type': 'application/json',
-		'content-length': Buffer.byteLength(payload)
+		'content-length': Buffer.byteLength(payload),
 	});
 	res.end(payload);
 }
@@ -97,8 +97,8 @@ async function proxy(req, res, url) {
 			method: req.method,
 			headers: {
 				authorization: req.headers.authorization ?? '',
-				'x-compatibility-date': req.headers['x-compatibility-date'] ?? ''
-			}
+				'x-compatibility-date': req.headers['x-compatibility-date'] ?? '',
+			},
 		});
 		return { status: upstream.status, body: await upstream.text() };
 	};
@@ -158,7 +158,7 @@ const server = createServer(async (req, res) => {
 			return {
 				planet_id: s.planet_id,
 				solar_system_id: s.solar_system_id,
-				theft_vulnerability: { start: start.toISOString(), end: end.toISOString() }
+				theft_vulnerability: { start: start.toISOString(), end: end.toISOString() },
 			};
 		});
 		return json(res, 200, { ok: true });
@@ -176,7 +176,7 @@ const server = createServer(async (req, res) => {
 			online: body.online ?? true,
 			solar_system_id: body.solar_system_id ?? null,
 			ship_type_id: body.ship_type_id ?? 587,
-			ship_name: body.ship_name ?? "Someone's Rifter"
+			ship_name: body.ship_name ?? "Someone's Rifter",
 		});
 		return json(res, 200, { ok: true });
 	}
@@ -201,7 +201,7 @@ const server = createServer(async (req, res) => {
 			players: tranquility.players ?? 0,
 			server_version: tranquility.server_version ?? '2500000',
 			start_time: tranquility.start_time ?? '2026-08-17T11:00:00Z',
-			vip: tranquility.vip ?? false
+			vip: tranquility.vip ?? false,
 		});
 	}
 
@@ -230,7 +230,7 @@ const server = createServer(async (req, res) => {
 				online: pilot.online,
 				last_login: null,
 				last_logout: null,
-				logins: 1
+				logins: 1,
 			});
 		}
 		// A pilot who has logged off has no location to report, which is what ESI does too.
@@ -239,12 +239,12 @@ const server = createServer(async (req, res) => {
 			return json(res, 200, {
 				solar_system_id: pilot.solar_system_id,
 				station_id: null,
-				structure_id: null
+				structure_id: null,
 			});
 		}
 		return json(res, 200, {
 			ship_name: pilot.ship_name,
-			ship_type_id: pilot.ship_type_id
+			ship_type_id: pilot.ship_type_id,
 		});
 	}
 

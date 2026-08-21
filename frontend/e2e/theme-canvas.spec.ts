@@ -14,7 +14,7 @@ test('the canvas and its grid follow the theme', async ({ page, api }) => {
 			const world = el.querySelector<HTMLElement>('[style*="background-image"]');
 			return {
 				canvas: getComputedStyle(el).backgroundColor,
-				grid: getComputedStyle(world).backgroundImage
+				grid: getComputedStyle(world).backgroundImage,
 			};
 		});
 

@@ -17,7 +17,7 @@ export function timeAgo(iso: string, now: Date = new Date()): string {
 const ISK = new Intl.NumberFormat('en-US', {
 	notation: 'compact',
 	compactDisplay: 'short',
-	maximumFractionDigits: 1
+	maximumFractionDigits: 1,
 });
 
 /** An ISK figure as it reads on a killboard: `340M`, `1.2B`. */

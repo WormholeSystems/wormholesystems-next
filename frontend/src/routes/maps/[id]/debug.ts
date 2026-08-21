@@ -82,7 +82,7 @@ export async function seedStressChain(map: MapState): Promise<void> {
 			solar_system_id: systems[node.slot],
 			x: 200 + node.depth * 260,
 			y: 100 + node.row * 80,
-			alias: null
+			alias: null,
 		});
 		return spot.id;
 	});
@@ -90,7 +90,7 @@ export async function seedStressChain(map: MapState): Promise<void> {
 	await Promise.all(
 		placed
 			.slice(0, ROOTS)
-			.map((id) => api.setPinned({ map_id: map.mapId, map_solar_system_id: id, value: true }))
+			.map((id) => api.setPinned({ map_id: map.mapId, map_solar_system_id: id, value: true })),
 	);
 
 	const edges: [number, number][] = nodes
@@ -110,8 +110,8 @@ export async function seedStressChain(map: MapState): Promise<void> {
 			map_id: map.mapId,
 			from_system: from,
 			to_system: to,
-			kind: 'wormhole'
-		})
+			kind: 'wormhole',
+		}),
 	);
 
 	await map.refetch();

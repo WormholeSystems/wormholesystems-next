@@ -37,7 +37,7 @@
 		source,
 		target,
 		physics,
-		canWrite
+		canWrite,
 	}: {
 		map: MapState;
 		connection: MapConnection;
@@ -53,7 +53,7 @@
 		return Math.max(0, 100 - (connection.jumps_mass_sum / totalMass) * 100);
 	});
 	const remainingMassKg = $derived(
-		totalMass === null ? null : Math.max(0, totalMass - connection.jumps_mass_sum)
+		totalMass === null ? null : Math.max(0, totalMass - connection.jumps_mass_sum),
 	);
 	let logOpen = $state(false);
 	let jumps = $state<ConnectionJump[]>([]);
@@ -95,7 +95,7 @@
 			hour: '2-digit',
 			minute: '2-digit',
 			hour12: false,
-			timeZone: 'UTC'
+			timeZone: 'UTC',
 		});
 	}
 
@@ -112,7 +112,7 @@
 	const directionLabel = $derived(
 		direction === 'outbound'
 			? `${systemLabel(source)} → ${systemLabel(target)}`
-			: `${systemLabel(target)} → ${systemLabel(source)}`
+			: `${systemLabel(target)} → ${systemLabel(source)}`,
 	);
 
 	function openAdd() {
@@ -163,9 +163,9 @@
 						jump_pk: editing.id,
 						direction,
 						ship_type_id: shipTypeId,
-						...(massKg !== undefined ? { mass: massKg } : {})
+						...(massKg !== undefined ? { mass: massKg } : {}),
 					})
-					.then(done)
+					.then(done),
 			);
 		} else {
 			map.run(
@@ -176,9 +176,9 @@
 						connection_id: connection.id,
 						direction,
 						...(shipTypeId !== null ? { ship_type_id: shipTypeId } : {}),
-						...(massKg !== undefined ? { mass: massKg } : {})
+						...(massKg !== undefined ? { mass: massKg } : {}),
 					})
-					.then(done)
+					.then(done),
 			);
 		}
 	}
@@ -186,7 +186,7 @@
 	function deleteJump(jump: ConnectionJump) {
 		map.run(
 			'removeJump',
-			api.removeConnectionJump({ map_id: map.mapId, jump_pk: jump.id }).then(refreshLog)
+			api.removeConnectionJump({ map_id: map.mapId, jump_pk: jump.id }).then(refreshLog),
 		);
 	}
 </script>
@@ -210,9 +210,7 @@
 			</Popover.Trigger>
 			<Popover.Content class="w-96 p-0" side="right" align="start" data-testid="jump-log">
 				<div class="max-h-64 overflow-y-auto px-3">
-					<div
-						class="grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto] divide-y divide-border/40"
-					>
+					<div class="grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto] divide-y divide-border/40">
 						<div
 							class="sticky top-0 z-10 col-span-full grid grid-cols-subgrid gap-x-3 bg-popover py-1.5 text-[10px] font-medium tracking-wider text-muted-foreground uppercase"
 						>
@@ -349,7 +347,9 @@
 							}}
 						>
 							<div class="flex items-center justify-between">
-								<span class="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
+								<span
+									class="text-[10px] font-medium tracking-wider text-muted-foreground uppercase"
+								>
 									{editing ? 'Edit jump' : 'Log jump'}
 								</span>
 								<Tooltip.Root>

@@ -5,11 +5,8 @@
 	import { destClassMeta } from '$lib/map/classes';
 	import { typeById } from '$lib/map/signatures';
 
-	let {
-		title,
-		sig,
-		catalog
-	}: { title: string; sig: Signature; catalog: SignatureCatalog } = $props();
+	let { title, sig, catalog }: { title: string; sig: Signature; catalog: SignatureCatalog } =
+		$props();
 
 	const type = $derived(typeById(catalog, sig.signature_type_id));
 	const dest = $derived(type?.target_class == null ? null : destClassMeta(type.target_class));

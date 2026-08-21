@@ -29,21 +29,70 @@ export interface CategoryMeta {
 
 /** Legacy category vocabulary, in the legacy filter order. `unknown` = uncategorized. */
 export const CATEGORIES: CategoryMeta[] = [
-	{ group: 'wormhole', categoryId: 1, label: 'Wormhole', abbrev: 'WH', icon: FanIcon, color: 'text-sky-400' },
-	{ group: 'data', categoryId: 2, label: 'Data Site', abbrev: 'Data', icon: DatabaseIcon, color: 'text-cyan-400' },
-	{ group: 'relic', categoryId: 3, label: 'Relic Site', abbrev: 'Relic', icon: LandmarkIcon, color: 'text-amber-400' },
-	{ group: 'ore', categoryId: 6, label: 'Ore Site', abbrev: 'Ore', icon: GemIcon, color: 'text-yellow-400' },
-	{ group: 'gas', categoryId: 5, label: 'Gas Site', abbrev: 'Gas', icon: CloudIcon, color: 'text-orange-400' },
-	{ group: 'combat', categoryId: 4, label: 'Combat Site', abbrev: 'Combat', icon: SwordsIcon, color: 'text-green-400' },
-	{ group: 'homefront', categoryId: 7, label: 'Homefront Operations', abbrev: 'HF', icon: ShieldIcon, color: 'text-rose-400' },
+	{
+		group: 'wormhole',
+		categoryId: 1,
+		label: 'Wormhole',
+		abbrev: 'WH',
+		icon: FanIcon,
+		color: 'text-sky-400',
+	},
+	{
+		group: 'data',
+		categoryId: 2,
+		label: 'Data Site',
+		abbrev: 'Data',
+		icon: DatabaseIcon,
+		color: 'text-cyan-400',
+	},
+	{
+		group: 'relic',
+		categoryId: 3,
+		label: 'Relic Site',
+		abbrev: 'Relic',
+		icon: LandmarkIcon,
+		color: 'text-amber-400',
+	},
+	{
+		group: 'ore',
+		categoryId: 6,
+		label: 'Ore Site',
+		abbrev: 'Ore',
+		icon: GemIcon,
+		color: 'text-yellow-400',
+	},
+	{
+		group: 'gas',
+		categoryId: 5,
+		label: 'Gas Site',
+		abbrev: 'Gas',
+		icon: CloudIcon,
+		color: 'text-orange-400',
+	},
+	{
+		group: 'combat',
+		categoryId: 4,
+		label: 'Combat Site',
+		abbrev: 'Combat',
+		icon: SwordsIcon,
+		color: 'text-green-400',
+	},
+	{
+		group: 'homefront',
+		categoryId: 7,
+		label: 'Homefront Operations',
+		abbrev: 'HF',
+		icon: ShieldIcon,
+		color: 'text-rose-400',
+	},
 	{
 		group: 'unknown',
 		categoryId: null,
 		label: 'Uncategorized',
 		abbrev: '—',
 		icon: CircleHelpIcon,
-		color: 'text-muted-foreground'
-	}
+		color: 'text-muted-foreground',
+	},
 ];
 
 export function categoryMeta(group: SignatureGroup): CategoryMeta {
@@ -69,16 +118,16 @@ export function loadCatalog(): Promise<SignatureCatalog> {
 export function typesForCategory(
 	catalog: SignatureCatalog,
 	categoryId: number,
-	systemClassId: number | null
+	systemClassId: number | null,
 ): SignatureTypeInfo[] {
 	return catalog.types
 		.filter(
 			(t) =>
 				t.signature_category_id === categoryId &&
-				(systemClassId === null || t.spawn_areas.includes(systemClassId))
+				(systemClassId === null || t.spawn_areas.includes(systemClassId)),
 		)
 		.toSorted(
-			(a, b) => destClassMeta(a.target_class).sortWeight - destClassMeta(b.target_class).sortWeight
+			(a, b) => destClassMeta(a.target_class).sortWeight - destClassMeta(b.target_class).sortWeight,
 		);
 }
 
@@ -113,7 +162,7 @@ export function parseScan(text: string, catalog: SignatureCatalog): PastedSignat
 			signature_id: sid,
 			group: category === null ? undefined : groupForCategoryId(category),
 			signature_type_id: typeId ?? undefined,
-			name: category !== null && typeId === null && typeName ? typeName : undefined
+			name: category !== null && typeId === null && typeName ? typeName : undefined,
 		});
 	}
 	return out;

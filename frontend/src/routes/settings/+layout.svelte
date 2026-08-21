@@ -13,14 +13,14 @@
 			href: '/settings/characters',
 			label: 'Characters',
 			description: 'Who you fly, and what they let WormholeSystems see',
-			icon: IdCardIcon
+			icon: IdCardIcon,
 		},
 		{
 			href: '/settings/discord',
 			label: 'Discord',
 			description: 'Linking, and what the bot answers',
-			icon: MessageCircleIcon
-		}
+			icon: MessageCircleIcon,
+		},
 	];
 </script>
 

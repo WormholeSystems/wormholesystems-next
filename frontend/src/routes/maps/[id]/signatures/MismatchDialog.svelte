@@ -8,7 +8,7 @@
 		targetLabel,
 		characterSystem,
 		onconfirm,
-		oncancel
+		oncancel,
 	}: {
 		open: boolean;
 		targetLabel: string;
@@ -41,8 +41,8 @@
 		</Dialog.Header>
 		<div class="rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-4">
 			<p class="text-sm text-foreground">
-				Are you sure you want to paste signatures into a different system than where your
-				character is located?
+				Are you sure you want to paste signatures into a different system than where your character
+				is located?
 			</p>
 		</div>
 		<Dialog.Footer class="gap-2">

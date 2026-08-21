@@ -15,7 +15,7 @@
 	let {
 		destinationId,
 		class: cls = 'contents',
-		children
+		children,
 	}: {
 		/** An ESI destination id: station, structure, or system. */
 		destinationId: number;
@@ -33,15 +33,15 @@
 			api.setWaypoint({
 				character_id: characterId,
 				destination_id: destinationId,
-				clear_other_waypoints: clearOthers
-			})
+				clear_other_waypoints: clearOthers,
+			}),
 		);
 	}
 
 	function waypointAll(clearOthers: boolean) {
 		map?.run(
 			'setWaypoint',
-			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers })
+			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers }),
 		);
 	}
 </script>

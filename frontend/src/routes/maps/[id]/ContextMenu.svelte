@@ -53,7 +53,7 @@
 		{ value: 'small', label: 'Frigate', letter: 'S' },
 		{ value: 'medium', label: 'Medium', letter: 'M' },
 		{ value: 'large', label: 'Large', letter: 'L' },
-		{ value: 'xl', label: 'Extra Large', letter: 'XL' }
+		{ value: 'xl', label: 'Extra Large', letter: 'XL' },
 	];
 
 	function close() {
@@ -86,8 +86,8 @@
 			{
 				loading: 'Building a stress-test chain…',
 				success: 'Stress-test chain built',
-				error: (err) => `debug: ${errorMessage(err)}`
-			}
+				error: (err) => `debug: ${errorMessage(err)}`,
+			},
 		);
 	}
 
@@ -159,8 +159,8 @@
 			api.setWaypoint({
 				character_id: characterId,
 				destination_id: destinationId,
-				clear_other_waypoints: clearOthers
-			})
+				clear_other_waypoints: clearOthers,
+			}),
 		);
 		close();
 	}
@@ -168,7 +168,7 @@
 	function waypointAll(destinationId: number, clearOthers: boolean) {
 		map.run(
 			'setWaypoint',
-			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers })
+			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers }),
 		);
 		close();
 	}
@@ -176,18 +176,21 @@
 	const connection = $derived(
 		menu.target.kind === 'connection'
 			? (map.connections.find((c) => c.id === (menu.target as { id: number }).id) ?? null)
-			: null
+			: null,
 	);
 
 	function setKind(cid: number, kind: ConnectionType) {
-		map.run('setConnectionType', api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, kind }));
+		map.run(
+			'setConnectionType',
+			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, kind }),
+		);
 		close();
 	}
 
 	function setMass(cid: number, mass: MassStatus) {
 		map.run(
 			'setConnectionMass',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, mass_status: mass })
+			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, mass_status: mass }),
 		);
 		close();
 	}
@@ -195,7 +198,7 @@
 	function setLifetime(cid: number, time: TimeStatus) {
 		map.run(
 			'setConnectionLifetime',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, time_status: time })
+			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, time_status: time }),
 		);
 		close();
 	}
@@ -203,7 +206,7 @@
 	function setSize(cid: number, size: WormholeSize) {
 		map.run(
 			'setConnectionSize',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, size })
+			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, size }),
 		);
 		close();
 	}
@@ -321,135 +324,135 @@
 		{/if}
 
 		{#if s.kind === 'system'}
-		<div class={sub} data-testid="status-subtrigger">
-			<MapIcon class="size-4" />
-			Status
-			<ChevronRightIcon class="ml-auto size-3" />
-			<div class={panel} data-testid="status-submenu">
-				{#each STATUS_OPTIONS as st (st)}
-					{@const Icon = STATUS_ICONS[st]}
-					<button class={item} onclick={() => setStatus(s.id, st)}>
-						{statusLabel(st)}
-						<Icon class="ml-auto size-3.5" style="color: {statusColor(st)}" />
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<div class="my-0.5 border-t border-border"></div>
-
-		<div class={sub} data-testid="external-subtrigger">
-			<ExternalLinkIcon class="size-4" />
-			External
-			<ChevronRightIcon class="ml-auto size-3" />
-			<div class={panel} data-testid="external-submenu">
-				<div
-					class="px-3 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-				>
-					Dotlan
+			<div class={sub} data-testid="status-subtrigger">
+				<MapIcon class="size-4" />
+				Status
+				<ChevronRightIcon class="ml-auto size-3" />
+				<div class={panel} data-testid="status-submenu">
+					{#each STATUS_OPTIONS as st (st)}
+						{@const Icon = STATUS_ICONS[st]}
+						<button class={item} onclick={() => setStatus(s.id, st)}>
+							{statusLabel(st)}
+							<Icon class="ml-auto size-3.5" style="color: {statusColor(st)}" />
+						</button>
+					{/each}
 				</div>
-				<a
-					class={item}
-					href="https://evemaps.dotlan.net/system/{underscore(s.name)}"
-					target="_blank"
-					rel="noopener"
-				>
-					<GlobeIcon class="size-4" /> System
-				</a>
-				<a
-					class={item}
-					href="https://evemaps.dotlan.net/map/{underscore(s.region)}/{underscore(s.name)}"
-					target="_blank"
-					rel="noopener"
-				>
-					<MapIcon class="size-4" /> Region Map
-				</a>
-				{#if !isWormholeClass(s.wormhole_class_id)}
+			</div>
+
+			<div class="my-0.5 border-t border-border"></div>
+
+			<div class={sub} data-testid="external-subtrigger">
+				<ExternalLinkIcon class="size-4" />
+				External
+				<ChevronRightIcon class="ml-auto size-3" />
+				<div class={panel} data-testid="external-submenu">
+					<div
+						class="px-3 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+					>
+						Dotlan
+					</div>
 					<a
 						class={item}
-						href="https://evemaps.dotlan.net/range/Revelation,5/{underscore(s.name)}"
+						href="https://evemaps.dotlan.net/system/{underscore(s.name)}"
 						target="_blank"
 						rel="noopener"
 					>
-						<CompassIcon class="size-4" /> Jump Range
+						<GlobeIcon class="size-4" /> System
 					</a>
-				{/if}
-				<div class="my-0.5 border-t border-border"></div>
-				<div
-					class="px-3 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-				>
-					zKillboard
+					<a
+						class={item}
+						href="https://evemaps.dotlan.net/map/{underscore(s.region)}/{underscore(s.name)}"
+						target="_blank"
+						rel="noopener"
+					>
+						<MapIcon class="size-4" /> Region Map
+					</a>
+					{#if !isWormholeClass(s.wormhole_class_id)}
+						<a
+							class={item}
+							href="https://evemaps.dotlan.net/range/Revelation,5/{underscore(s.name)}"
+							target="_blank"
+							rel="noopener"
+						>
+							<CompassIcon class="size-4" /> Jump Range
+						</a>
+					{/if}
+					<div class="my-0.5 border-t border-border"></div>
+					<div
+						class="px-3 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+					>
+						zKillboard
+					</div>
+					<a
+						class={item}
+						href="https://zkillboard.com/system/{s.solar_system_id}/"
+						target="_blank"
+						rel="noopener"
+					>
+						<GlobeIcon class="size-4" /> System
+					</a>
+					<a
+						class={item}
+						href="https://zkillboard.com/constellation/{s.constellation_id}/"
+						target="_blank"
+						rel="noopener"
+					>
+						<CompassIcon class="size-4" /> Constellation
+					</a>
+					<a
+						class={item}
+						href="https://zkillboard.com/region/{s.region_id}/"
+						target="_blank"
+						rel="noopener"
+					>
+						<MapIcon class="size-4" /> Region
+					</a>
 				</div>
-				<a
-					class={item}
-					href="https://zkillboard.com/system/{s.solar_system_id}/"
-					target="_blank"
-					rel="noopener"
-				>
-					<GlobeIcon class="size-4" /> System
-				</a>
-				<a
-					class={item}
-					href="https://zkillboard.com/constellation/{s.constellation_id}/"
-					target="_blank"
-					rel="noopener"
-				>
-					<CompassIcon class="size-4" /> Constellation
-				</a>
-				<a
-					class={item}
-					href="https://zkillboard.com/region/{s.region_id}/"
-					target="_blank"
-					rel="noopener"
-				>
-					<MapIcon class="size-4" /> Region
-				</a>
 			</div>
-		</div>
 
-		{#if !isWormholeClass(s.wormhole_class_id)}
-			{@render waypointSubmenu('Set destination', s.solar_system_id, true)}
-			{@render waypointSubmenu('Add waypoint', s.solar_system_id, false)}
-		{/if}
+			{#if !isWormholeClass(s.wormhole_class_id)}
+				{@render waypointSubmenu('Set destination', s.solar_system_id, true)}
+				{@render waypointSubmenu('Add waypoint', s.solar_system_id, false)}
+			{/if}
 
-		<div class={sub} data-testid="route-subtrigger">
-			<RouteIcon class="size-4" />
-			Route planner
-			<ChevronRightIcon class="ml-auto size-3" />
-			<div class={panel} data-testid="route-submenu">
-				<button
-					class={item}
-					onclick={() => {
-						map.routeFromId = s.solar_system_id;
-						close();
-					}}
-				>
-					<CompassIcon class="size-4" />
-					Set as origin
-				</button>
-				<button
-					class={item}
-					onclick={() => {
-						map.routeToId = s.solar_system_id;
-						close();
-					}}
-				>
-					<NavigationIcon class="size-4" />
-					Set as destination
-				</button>
+			<div class={sub} data-testid="route-subtrigger">
+				<RouteIcon class="size-4" />
+				Route planner
+				<ChevronRightIcon class="ml-auto size-3" />
+				<div class={panel} data-testid="route-submenu">
+					<button
+						class={item}
+						onclick={() => {
+							map.routeFromId = s.solar_system_id;
+							close();
+						}}
+					>
+						<CompassIcon class="size-4" />
+						Set as origin
+					</button>
+					<button
+						class={item}
+						onclick={() => {
+							map.routeToId = s.solar_system_id;
+							close();
+						}}
+					>
+						<NavigationIcon class="size-4" />
+						Set as destination
+					</button>
+				</div>
 			</div>
-		</div>
 
-		<div class="my-0.5 border-t border-border"></div>
+			<div class="my-0.5 border-t border-border"></div>
 
-		<button class={item} onclick={() => toggleHome(s.id, !s.is_home)}>
-			<HomeIcon class="size-4" />
-			{s.is_home ? 'Unset Home System' : 'Set as Home System'}
-		</button>
-		<button class={item} onclick={() => toggleRally(s.id, !s.is_rally)}>
-			<FlagIcon class="size-4" />
-			{s.is_rally ? 'Clear Rally Point' : 'Set as Rally Point'}
-		</button>
+			<button class={item} onclick={() => toggleHome(s.id, !s.is_home)}>
+				<HomeIcon class="size-4" />
+				{s.is_home ? 'Unset Home System' : 'Set as Home System'}
+			</button>
+			<button class={item} onclick={() => toggleRally(s.id, !s.is_rally)}>
+				<FlagIcon class="size-4" />
+				{s.is_rally ? 'Clear Rally Point' : 'Set as Rally Point'}
+			</button>
 		{/if}
 
 		{#if !s.is_pinned && !s.is_home}
@@ -523,7 +526,9 @@
 			<div class={panel} data-testid="size-submenu">
 				{#each SIZE_OPTIONS as o (o.value)}
 					<button class={item} onclick={() => setSize(cid, o.value)}>
-						<span class="inline-flex w-6 justify-center font-mono text-[10px] text-muted-foreground">
+						<span
+							class="inline-flex w-6 justify-center font-mono text-[10px] text-muted-foreground"
+						>
 							{o.letter}
 						</span>
 						{o.label}

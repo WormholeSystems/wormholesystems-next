@@ -7,7 +7,11 @@
 	let { remainingPercent }: { remainingPercent: number } = $props();
 
 	const color = $derived(
-		remainingPercent <= 10 ? 'bg-red-500' : remainingPercent <= 50 ? 'bg-amber-500' : 'bg-green-500'
+		remainingPercent <= 10
+			? 'bg-red-500'
+			: remainingPercent <= 50
+				? 'bg-amber-500'
+				: 'bg-green-500',
 	);
 </script>
 

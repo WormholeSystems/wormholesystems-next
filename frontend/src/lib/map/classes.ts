@@ -19,7 +19,7 @@ function meta(
 	token: string,
 	sortWeight: number,
 	kind: 'wormhole' | 'known' | 'other',
-	isDrifter = false
+	isDrifter = false,
 ): ClassMeta {
 	return {
 		short,
@@ -27,7 +27,7 @@ function meta(
 		sortWeight,
 		isWormholeSpace: kind === 'wormhole',
 		isKnownSpace: kind === 'known',
-		isDrifter
+		isDrifter,
 	};
 }
 
@@ -53,7 +53,7 @@ const CLASSES = new Map<number, ClassMeta>([
 	[21, meta('C21', 'unknown', 31, 'other')],
 	[22, meta('C22', 'unknown', 32, 'other')],
 	[23, meta('C23', 'unknown', 33, 'other')],
-	[25, meta('P', 'pochven', 3, 'other')]
+	[25, meta('P', 'pochven', 3, 'other')],
 ]);
 
 const UNKNOWN: ClassMeta = meta('?', 'unknown', 99, 'other');

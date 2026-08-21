@@ -31,7 +31,7 @@
 		gridBackground,
 		heuristicSize,
 		nodeAt,
-		sizeLetter
+		sizeLetter,
 	} from '$lib/map/helpers';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { isWormholeClass } from '$lib/map/classes';
@@ -53,9 +53,7 @@
 	import { atLeast } from '$lib/map/roles';
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	let {
-		data
-	}: { data: { view: MapView | null; settings: MapUserSettings | null } } = $props();
+	let { data }: { data: { view: MapView | null; settings: MapUserSettings | null } } = $props();
 
 	const map = $derived(new MapState(mapId, page.data.me != null, data));
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
@@ -98,7 +96,6 @@
 	const HYSTERESIS = 4;
 	let pendingDrag: { cx: number; cy: number; drag: Drag } | null = null;
 	let pendingBand: { cx: number; cy: number } | null = null;
-
 
 	$effect(() => {
 		map.viewportEl = viewportEl;
@@ -144,7 +141,7 @@
 				(event) => {
 					if (event?.type !== 'characters_changed') s.refetch();
 				},
-				(state) => (s.socket = state)
+				(state) => (s.socket = state),
 			);
 			return () => closeShared();
 		}
@@ -172,7 +169,7 @@
 				else if (event?.type === 'killmail_received') s.killmailTick += 1;
 				else s.refetch();
 			},
-			(state) => (s.socket = state)
+			(state) => (s.socket = state),
 		);
 		return () => {
 			clearInterval(presence);
@@ -284,7 +281,7 @@
 			const moves = d.members.map((m) => ({
 				map_solar_system_id: m.id,
 				x: m.sx + dx,
-				y: m.sy + dy
+				y: m.sy + dy,
 			}));
 			// Seed the optimistic override before the refetch so nodes stay put.
 			const pending = { ...map.pending };
@@ -308,8 +305,8 @@
 						from_system: l.from,
 						to_system: target,
 						kind: 'wormhole',
-						size: heuristicSize(map.systems, l.from, target)
-					})
+						size: heuristicSize(map.systems, l.from, target),
+					}),
 				);
 			}
 		}
@@ -353,7 +350,7 @@
 				map.selected = new Set();
 				map.run(
 					'removeSystems',
-					api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids })
+					api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }),
 				);
 			}
 		}
@@ -398,8 +395,8 @@
 				y: cur.y,
 				offX: w.x - cur.x,
 				offY: w.y - cur.y,
-				members
-			}
+				members,
+			},
 		};
 	}
 
@@ -458,7 +455,6 @@
 		}
 		map.run('setAlias', Promise.all(writes));
 	}
-
 </script>
 
 <svelte:window
@@ -514,7 +510,7 @@
 				// Above the dialog layer: the introduction belongs to the map, so it waits for it.
 				'fixed inset-x-0 bottom-0 z-60 overflow-hidden bg-card',
 				'flex items-center justify-center',
-				map.ready && 'pointer-events-none'
+				map.ready && 'pointer-events-none',
 			)}
 			style:top="{coverTop}px"
 			data-testid="map-loading"
@@ -522,7 +518,14 @@
 		>
 			<div class="flex flex-col items-center gap-5">
 				<svg class="size-9 animate-spin text-muted-foreground" viewBox="0 0 36 36" fill="none">
-					<circle cx="18" cy="18" r="16" stroke="currentColor" stroke-opacity="0.15" stroke-width="1.5" />
+					<circle
+						cx="18"
+						cy="18"
+						r="16"
+						stroke="currentColor"
+						stroke-opacity="0.15"
+						stroke-width="1.5"
+					/>
 					<path
 						d="M34 18A16 16 0 0 0 18 2"
 						stroke="currentColor"
@@ -541,274 +544,272 @@
 	{/if}
 {/if}
 
-
 {#snippet canvas()}
-<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
-<div
-	bind:this={viewportEl}
-	data-testid="map-canvas"
-	tabindex="0"
-	class="group relative h-full w-full overflow-hidden bg-canvas ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
-	onpointerdown={onBackgroundDown}
-	onpointerenter={() => map.wakeScrollbars()}
-	onpointermove={onPointerMove}
-	onpointerup={onPointerUp}
-	onkeydown={onKey}
-	oncontextmenu={(ev) => {
-		ev.preventDefault();
-		map.openMenu(ev.clientX, ev.clientY, { kind: 'map' });
-	}}
->
-	<IntroductionDialog {map} />
-
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
 	<div
-		class="absolute top-0 left-0 origin-top-left"
-		style:width="{map.grid.world_width}px"
-		style:height="{map.grid.world_height}px"
-		style:background-image={map.layoutLocked ? undefined : gridBackground()}
-		style:background-size="{map.grid.cell_size}px {map.grid.cell_size}px"
-		style:transform="translate({map.pan.x}px, {map.pan.y}px) scale({map.zoom})"
+		bind:this={viewportEl}
+		data-testid="map-canvas"
+		tabindex="0"
+		class="group relative h-full w-full overflow-hidden bg-canvas ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
+		onpointerdown={onBackgroundDown}
+		onpointerenter={() => map.wakeScrollbars()}
+		onpointermove={onPointerMove}
+		onpointerup={onPointerUp}
+		onkeydown={onKey}
+		oncontextmenu={(ev) => {
+			ev.preventDefault();
+			map.openMenu(ev.clientX, ev.clientY, { kind: 'map' });
+		}}
 	>
-		<svg
-			class="absolute top-0 left-0 overflow-visible"
+		<IntroductionDialog {map} />
+
+		<div
+			class="absolute top-0 left-0 origin-top-left"
 			style:width="{map.grid.world_width}px"
 			style:height="{map.grid.world_height}px"
+			style:background-image={map.layoutLocked ? undefined : gridBackground()}
+			style:background-size="{map.grid.cell_size}px {map.grid.cell_size}px"
+			style:transform="translate({map.pan.x}px, {map.pan.y}px) scale({map.zoom})"
 		>
-			{#each map.connections as c (c.id)}
-				{@const geometry = map.edgeGeometry.get(c.id)}
-				{#if geometry}
-					{@const { x: sx, y: sy } = geometry.from}
-					{@const { x: ex, y: ey } = geometry.to}
-					{@const d = geometry.d}
-					{@const elbow = geometry.kind === 'elbow'}
-					{@const onRoute = map.routeConnectionIds.has(c.id)}
-					{@const stroke = edgeColor(c.kind, c.mass_status, c.time_status, onRoute)}
-					{@const dashed =
-						c.kind === 'wormhole' &&
-						(c.mass_status === 'reduced' ||
-							c.mass_status === 'critical' ||
-							c.time_status === 'eol' ||
-							c.time_status === 'critical')}
-					{@const massColor =
-						c.mass_status === 'reduced'
-							? '#f59e0b'
-							: c.mass_status === 'critical'
-								? '#ef4444'
-								: null}
-					{@const timeColor =
-						c.time_status === 'eol' ? '#a855f7' : c.time_status === 'critical' ? '#ef4444' : null}
-					{@const sizeLabel = c.size !== null && c.size !== 'large' ? sizeLetter(c.size) : null}
-					{@const badgeCount =
-						(c.kind === 'stargate' ? 1 : 0) +
-						(sizeLabel ? 1 : 0) +
-						(massColor ? 1 : 0) +
-						(timeColor ? 1 : 0)}
-					{@const badgeWidth = badgeCount * 18 + 8}
-					<g class="group/edge">
-						<path
-							{d}
-							fill="none"
-							{stroke}
-							stroke-width={elbow ? 1.5 : 4}
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-dasharray={dashed ? '2 6' : '0'}
-							class="transition-opacity group-hover/edge:opacity-70"
-							data-on-route={onRoute}
-						/>
-						<!-- The curve stops short of the node on its rail; an elbow already lands on
+			<svg
+				class="absolute top-0 left-0 overflow-visible"
+				style:width="{map.grid.world_width}px"
+				style:height="{map.grid.world_height}px"
+			>
+				{#each map.connections as c (c.id)}
+					{@const geometry = map.edgeGeometry.get(c.id)}
+					{#if geometry}
+						{@const { x: sx, y: sy } = geometry.from}
+						{@const { x: ex, y: ey } = geometry.to}
+						{@const d = geometry.d}
+						{@const elbow = geometry.kind === 'elbow'}
+						{@const onRoute = map.routeConnectionIds.has(c.id)}
+						{@const stroke = edgeColor(c.kind, c.mass_status, c.time_status, onRoute)}
+						{@const dashed =
+							c.kind === 'wormhole' &&
+							(c.mass_status === 'reduced' ||
+								c.mass_status === 'critical' ||
+								c.time_status === 'eol' ||
+								c.time_status === 'critical')}
+						{@const massColor =
+							c.mass_status === 'reduced'
+								? '#f59e0b'
+								: c.mass_status === 'critical'
+									? '#ef4444'
+									: null}
+						{@const timeColor =
+							c.time_status === 'eol' ? '#a855f7' : c.time_status === 'critical' ? '#ef4444' : null}
+						{@const sizeLabel = c.size !== null && c.size !== 'large' ? sizeLetter(c.size) : null}
+						{@const badgeCount =
+							(c.kind === 'stargate' ? 1 : 0) +
+							(sizeLabel ? 1 : 0) +
+							(massColor ? 1 : 0) +
+							(timeColor ? 1 : 0)}
+						{@const badgeWidth = badgeCount * 18 + 8}
+						<g class="group/edge">
+							<path
+								{d}
+								fill="none"
+								{stroke}
+								stroke-width={elbow ? 1.5 : 4}
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-dasharray={dashed ? '2 6' : '0'}
+								class="transition-opacity group-hover/edge:opacity-70"
+								data-on-route={onRoute}
+							/>
+							<!-- The curve stops short of the node on its rail; an elbow already lands on
 						     the node's edge. -->
-						{#if !elbow}
-							<circle cx={sx} cy={sy} r="4" fill={stroke} />
-							<circle cx={ex} cy={ey} r="4" fill={stroke} />
-						{/if}
-						{#if badgeCount > 0}
-							<foreignObject
-								x={geometry.center.x - badgeWidth / 2}
-								y={geometry.center.y - 10}
-								width={badgeWidth}
-								height="20"
-								class="pointer-events-none"
-							>
-								<div
-									class="flex h-full items-center justify-center gap-0.5 rounded-full border border-neutral-300 bg-white px-1 dark:border-neutral-700 dark:bg-neutral-900"
+							{#if !elbow}
+								<circle cx={sx} cy={sy} r="4" fill={stroke} />
+								<circle cx={ex} cy={ey} r="4" fill={stroke} />
+							{/if}
+							{#if badgeCount > 0}
+								<foreignObject
+									x={geometry.center.x - badgeWidth / 2}
+									y={geometry.center.y - 10}
+									width={badgeWidth}
+									height="20"
+									class="pointer-events-none"
 								>
-									{#if c.kind === 'stargate'}
-										<OrbitIcon class="size-3.5" style="color: #0ea5e9" />
-									{/if}
-									{#if sizeLabel}
-										<span class="text-[13px] leading-none font-bold text-neutral-500">
-											{sizeLabel}
-										</span>
-									{/if}
-									{#if massColor}
-										<WeightIcon class="size-3.5" style="color: {massColor}" />
-									{/if}
-									{#if timeColor}
-										<ClockIcon class="size-3.5" style="color: {timeColor}" />
-									{/if}
-								</div>
-							</foreignObject>
-						{/if}
-						<!-- Wide invisible hit area, drawn last so it sits on top. -->
-						<path
-							{d}
-							fill="none"
-							stroke="transparent"
-							stroke-width="24"
-							style="cursor:pointer"
-							role="presentation"
-							data-testid="edge-hit"
-							data-connection-id={c.id}
-							onpointerdown={(ev) => ev.stopPropagation()}
-							onclick={(ev) => {
-								ev.stopPropagation();
-								map.closeMenu();
-								map.connectionPopover = { id: c.id, x: ev.clientX, y: ev.clientY };
-							}}
-							oncontextmenu={(ev) => {
-								ev.preventDefault();
-								ev.stopPropagation();
-								map.connectionPopover = null;
-								map.openMenu(ev.clientX, ev.clientY, { kind: 'connection', id: c.id });
-							}}
-						/>
-					</g>
-				{/if}
-			{/each}
+									<div
+										class="flex h-full items-center justify-center gap-0.5 rounded-full border border-neutral-300 bg-white px-1 dark:border-neutral-700 dark:bg-neutral-900"
+									>
+										{#if c.kind === 'stargate'}
+											<OrbitIcon class="size-3.5" style="color: #0ea5e9" />
+										{/if}
+										{#if sizeLabel}
+											<span class="text-[13px] leading-none font-bold text-neutral-500">
+												{sizeLabel}
+											</span>
+										{/if}
+										{#if massColor}
+											<WeightIcon class="size-3.5" style="color: {massColor}" />
+										{/if}
+										{#if timeColor}
+											<ClockIcon class="size-3.5" style="color: {timeColor}" />
+										{/if}
+									</div>
+								</foreignObject>
+							{/if}
+							<!-- Wide invisible hit area, drawn last so it sits on top. -->
+							<path
+								{d}
+								fill="none"
+								stroke="transparent"
+								stroke-width="24"
+								style="cursor:pointer"
+								role="presentation"
+								data-testid="edge-hit"
+								data-connection-id={c.id}
+								onpointerdown={(ev) => ev.stopPropagation()}
+								onclick={(ev) => {
+									ev.stopPropagation();
+									map.closeMenu();
+									map.connectionPopover = { id: c.id, x: ev.clientX, y: ev.clientY };
+								}}
+								oncontextmenu={(ev) => {
+									ev.preventDefault();
+									ev.stopPropagation();
+									map.connectionPopover = null;
+									map.openMenu(ev.clientX, ev.clientY, { kind: 'connection', id: c.id });
+								}}
+							/>
+						</g>
+					{/if}
+				{/each}
 
-			{#if map.linking}
-				{@const from = map.positions.get(map.linking.from)}
-				{#if from}
-					{@const start = railEndpoint(
-						from.x,
-						from.x + NODE_W,
-						from.y + map.nodeH / 2,
-						map.linking.x
-					)}
-					<path
-						d={curveBetween(start, { x: map.linking.x, y: map.linking.y })}
-						fill="none"
-						stroke="var(--color-edge)"
-						stroke-width="4"
-						stroke-linecap="round"
-						stroke-dasharray="2 6"
+				{#if map.linking}
+					{@const from = map.positions.get(map.linking.from)}
+					{#if from}
+						{@const start = railEndpoint(
+							from.x,
+							from.x + NODE_W,
+							from.y + map.nodeH / 2,
+							map.linking.x,
+						)}
+						<path
+							d={curveBetween(start, { x: map.linking.x, y: map.linking.y })}
+							fill="none"
+							stroke="var(--color-edge)"
+							stroke-width="4"
+							stroke-linecap="round"
+							stroke-dasharray="2 6"
+						/>
+					{/if}
+				{/if}
+
+				{#if map.band}
+					{@const b = map.band}
+					<rect
+						x={Math.min(b.x0, b.x1)}
+						y={Math.min(b.y0, b.y1)}
+						width={Math.abs(b.x1 - b.x0)}
+						height={Math.abs(b.y1 - b.y0)}
+						fill="rgba(99,102,241,0.12)"
+						stroke="#6366f1"
+						stroke-width="1"
 					/>
 				{/if}
-			{/if}
+			</svg>
 
-			{#if map.band}
-				{@const b = map.band}
-				<rect
-					x={Math.min(b.x0, b.x1)}
-					y={Math.min(b.y0, b.y1)}
-					width={Math.abs(b.x1 - b.x0)}
-					height={Math.abs(b.y1 - b.y0)}
-					fill="rgba(99,102,241,0.12)"
-					stroke="#6366f1"
-					stroke-width="1"
+			<!-- Keyed by id so a refetch diffs in place. -->
+			{#each map.systems as s (s.id)}
+				<SystemNode
+					node={s}
+					nodeH={map.nodeH}
+					selected={map.selected.has(s.id)}
+					highlighted={map.hoveredSystemId === s.id}
+					pos={map.positions.get(s.id) ?? { x: 0, y: 0 }}
+					sigCounts={sigCountsBySystem.get(solarSystemId(s) ?? -1) ?? {
+						total: 0,
+						uncategorized: 0,
+						wormholes: 0,
+					}}
+					connectionCount={connCountByPlacement.get(s.id) ?? 0}
+					pilots={pilotsBySystem.get(solarSystemId(s) ?? -1) ?? []}
+					showThreat={map.userSettings?.show_threat_level ?? true}
+					draggable={!map.layoutLocked && canWrite}
+					linkable={canWrite}
+					editable={canWrite}
+					signatureId={map.ghostSignatures.get(s.id) ?? null}
+					onsavealias={(alias, occupier) => saveAlias(s, alias, occupier)}
+					active={map.activeId === s.id}
+					onselect={(ev) => handleNodeSelect(ev, s)}
+					ondown={(ev) => handleNodeDown(ev, s)}
+					onlink={(ev) => handleLinkDown(ev, s.id)}
+					onmenu={(ev) => {
+						ev.preventDefault();
+						ev.stopPropagation();
+						map.openMenu(ev.clientX, ev.clientY, { kind: 'node', system: s });
+					}}
 				/>
-			{/if}
-		</svg>
-
-		<!-- Keyed by id so a refetch diffs in place. -->
-		{#each map.systems as s (s.id)}
-			<SystemNode
-				node={s}
-				nodeH={map.nodeH}
-				selected={map.selected.has(s.id)}
-				highlighted={map.hoveredSystemId === s.id}
-				pos={map.positions.get(s.id) ?? { x: 0, y: 0 }}
-				sigCounts={sigCountsBySystem.get(solarSystemId(s) ?? -1) ?? {
-					total: 0,
-					uncategorized: 0,
-					wormholes: 0
-				}}
-				connectionCount={connCountByPlacement.get(s.id) ?? 0}
-				pilots={pilotsBySystem.get(solarSystemId(s) ?? -1) ?? []}
-				showThreat={map.userSettings?.show_threat_level ?? true}
-				draggable={!map.layoutLocked && canWrite}
-				linkable={canWrite}
-				editable={canWrite}
-				signatureId={map.ghostSignatures.get(s.id) ?? null}
-				onsavealias={(alias, occupier) => saveAlias(s, alias, occupier)}
-				active={map.activeId === s.id}
-				onselect={(ev) => handleNodeSelect(ev, s)}
-				ondown={(ev) => handleNodeDown(ev, s)}
-				onlink={(ev) => handleLinkDown(ev, s.id)}
-				onmenu={(ev) => {
-					ev.preventDefault();
-					ev.stopPropagation();
-					map.openMenu(ev.clientX, ev.clientY, { kind: 'node', system: s });
-				}}
-			/>
-		{/each}
-	</div>
-
-	<Scrollbars {map} />
-
-	<!-- Picking the map's own mode clears the override, so a later change to the map still
-	     reaches this viewer. -->
-	{#if map.data?.map.allow_layout_override}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="absolute bottom-3 left-3 flex items-center overflow-hidden border border-border bg-card"
-			data-testid="placement-controls"
-			onpointerdown={(ev) => ev.stopPropagation()}
-		>
-			{#each [{ mode: 'manual', label: 'Custom placement', icon: WaypointsIcon }, { mode: 'tree', label: 'Automatic placement', icon: WorkflowIcon }] as option (option.mode)}
-				{@const Icon = option.icon}
-				<button
-					class="px-2 py-1 {map.layout === option.mode
-						? 'bg-accent text-foreground'
-						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-					aria-label={option.label}
-					title={option.label}
-					aria-pressed={map.layout === option.mode}
-					data-testid="placement-{option.mode}"
-					onclick={() => map.setLayoutOverride(option.mode as 'manual' | 'tree')}
-				>
-					<Icon class="size-4" />
-				</button>
 			{/each}
 		</div>
-	{/if}
 
-	<!-- The press is stopped here, like the scrollbars do: the canvas captures the pointer on
+		<Scrollbars {map} />
+
+		<!-- Picking the map's own mode clears the override, so a later change to the map still
+	     reaches this viewer. -->
+		{#if map.data?.map.allow_layout_override}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="absolute bottom-3 left-3 flex items-center overflow-hidden border border-border bg-card"
+				data-testid="placement-controls"
+				onpointerdown={(ev) => ev.stopPropagation()}
+			>
+				{#each [{ mode: 'manual', label: 'Custom placement', icon: WaypointsIcon }, { mode: 'tree', label: 'Automatic placement', icon: WorkflowIcon }] as option (option.mode)}
+					{@const Icon = option.icon}
+					<button
+						class="px-2 py-1 {map.layout === option.mode
+							? 'bg-accent text-foreground'
+							: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
+						aria-label={option.label}
+						title={option.label}
+						aria-pressed={map.layout === option.mode}
+						data-testid="placement-{option.mode}"
+						onclick={() => map.setLayoutOverride(option.mode as 'manual' | 'tree')}
+					>
+						<Icon class="size-4" />
+					</button>
+				{/each}
+			</div>
+		{/if}
+
+		<!-- The press is stopped here, like the scrollbars do: the canvas captures the pointer on
 	     background press, which retargets the click onto the canvas and never reaches the
 	     button. -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="absolute right-3 bottom-3 flex items-center overflow-hidden border border-border bg-card"
-		data-testid="zoom-controls"
-		onpointerdown={(ev) => ev.stopPropagation()}
-	>
-		<button
-			class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-			aria-label="Zoom out"
-			onclick={() => map.zoomBy(-1)}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="absolute right-3 bottom-3 flex items-center overflow-hidden border border-border bg-card"
+			data-testid="zoom-controls"
+			onpointerdown={(ev) => ev.stopPropagation()}
 		>
-			−
-		</button>
-		<span
-			class="border-x border-border px-2 py-1 text-xs tabular-nums text-muted-foreground"
-			data-testid="zoom-level"
-		>
-			{Math.round(map.zoom * 100)}%
-		</span>
-		<button
-			class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-			aria-label="Zoom in"
-			onclick={() => map.zoomBy(1)}
-		>
-			+
-		</button>
+			<button
+				class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+				aria-label="Zoom out"
+				onclick={() => map.zoomBy(-1)}
+			>
+				−
+			</button>
+			<span
+				class="border-x border-border px-2 py-1 text-xs tabular-nums text-muted-foreground"
+				data-testid="zoom-level"
+			>
+				{Math.round(map.zoom * 100)}%
+			</span>
+			<button
+				class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+				aria-label="Zoom in"
+				onclick={() => map.zoomBy(1)}
+			>
+				+
+			</button>
+		</div>
+
+		{#if map.menu}
+			<ContextMenu {map} menu={map.menu} />
+		{/if}
+		<ConnectionPopover {map} />
 	</div>
-
-	{#if map.menu}
-		<ContextMenu {map} menu={map.menu} />
-	{/if}
-	<ConnectionPopover {map} />
-</div>
 {/snippet}
-

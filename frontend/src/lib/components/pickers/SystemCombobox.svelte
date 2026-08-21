@@ -19,7 +19,7 @@
 		placeholder,
 		value,
 		suggestions = [],
-		onpick
+		onpick,
 	}: {
 		placeholder: string;
 		value: number | null;
@@ -109,7 +109,10 @@
 				<Command.Input placeholder="Search…" bind:value={query} />
 				{#if !searching && offered.length > 0}
 					<!-- Chips, not rows, so shortcuts do not read as search results. -->
-					<div class="flex flex-wrap gap-1.5 border-b border-border/50 p-2" data-testid="picker-suggestions">
+					<div
+						class="flex flex-wrap gap-1.5 border-b border-border/50 p-2"
+						data-testid="picker-suggestions"
+					>
 						{#each offered as s (s.system.id)}
 							<button
 								type="button"

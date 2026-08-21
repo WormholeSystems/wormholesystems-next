@@ -54,7 +54,7 @@
 	});
 
 	const all = $derived(
-		prompt ? [...prompt.groups.likely, ...prompt.groups.connected, ...prompt.groups.unlikely] : []
+		prompt ? [...prompt.groups.likely, ...prompt.groups.connected, ...prompt.groups.unlikely] : [],
 	);
 	const chosen = $derived(all.find((s) => s.id === selected) ?? null);
 
@@ -89,20 +89,20 @@
 		return groupSignatures(
 			all.filter(hit),
 			new Map(prompt.catalog.types.map((t) => [t.id, t])),
-			prompt.targetClassId
+			prompt.targetClassId,
 		);
 	});
 
 	const sections = $derived([
 		{ key: 'likely', label: null, options: matching.likely },
 		{ key: 'connected', label: 'Already connected', options: matching.connected },
-		{ key: 'unlikely', label: 'Unlikely · leads elsewhere', options: matching.unlikely }
+		{ key: 'unlikely', label: 'Unlikely · leads elsewhere', options: matching.unlikely },
 	]);
 
 	/** Every selectable row in visual order, starting with Unknown. */
 	const orderedIds = $derived<(number | null)[]>([
 		null,
-		...sections.flatMap((s) => s.options.map((o) => o.id))
+		...sections.flatMap((s) => s.options.map((o) => o.id)),
 	]);
 
 	let listEl = $state<HTMLElement | null>(null);
@@ -115,7 +115,7 @@
 			listEl
 				?.querySelector('[data-state="checked"]')
 				?.closest('label')
-				?.scrollIntoView({ block: 'nearest' })
+				?.scrollIntoView({ block: 'nearest' }),
 		);
 	}
 
@@ -145,7 +145,7 @@
 			at: prompt.at,
 			size: lockedSize ?? (size === 'auto' ? null : size),
 			massStatus: mass,
-			timeStatus: time
+			timeStatus: time,
 		});
 		tracker.dismiss();
 	}
@@ -162,22 +162,22 @@
 				region: prompt.existing?.region ?? null,
 				wormholeClassId: prompt.targetClassId,
 				security: prompt.targetSecurity,
-				occupier: prompt.existing?.occupying_group ?? null
+				occupier: prompt.existing?.occupying_group ?? null,
 			},
 			{
 				signatureId: chosen?.signature_id ?? null,
 				size: lockedSize ?? (size === 'auto' ? null : size),
 				massStatus: mass,
 				timeStatus: time,
-				wormholeCode: type?.signature ?? null
+				wormholeCode: type?.signature ?? null,
 			},
 			{
 				wormhole: naming?.bookmark_wormhole,
 				kspace: naming?.bookmark_kspace,
 				return: naming?.bookmark_return,
-				ignoredAlias: naming?.ignored_alias
+				ignoredAlias: naming?.ignored_alias,
 			},
-			prompt.origin.alias
+			prompt.origin.alias,
 		);
 		navigator.clipboard?.writeText(text).catch(() => {});
 		toast.success('Bookmark copied', { description: text });
@@ -192,25 +192,27 @@
 	const LIFETIMES: { value: TimeStatus; label: string; dot: string; hint?: string }[] = [
 		{ value: 'stable', label: 'Healthy', dot: 'bg-neutral-500' },
 		{ value: 'eol', label: 'End of Life', dot: 'bg-purple-500', hint: '< 4h' },
-		{ value: 'critical', label: 'Critical', dot: 'bg-red-500', hint: '< 1h' }
+		{ value: 'critical', label: 'Critical', dot: 'bg-red-500', hint: '< 1h' },
 	];
 	const MASSES: { value: MassStatus; label: string; dot: string; hint?: string }[] = [
 		{ value: 'stable', label: 'Fresh', dot: 'bg-neutral-500', hint: '≥ 50%' },
 		{ value: 'reduced', label: 'Reduced', dot: 'bg-amber-500', hint: '< 50%' },
-		{ value: 'critical', label: 'Critical', dot: 'bg-red-500', hint: '≤ 15%' }
+		{ value: 'critical', label: 'Critical', dot: 'bg-red-500', hint: '≤ 15%' },
 	];
 	const SIZES: { value: WormholeSize | 'auto'; label: string; letter: string }[] = [
 		{ value: 'auto', label: 'Auto', letter: '·' },
 		{ value: 'small', label: 'Frigate', letter: 'S' },
 		{ value: 'medium', label: 'Medium', letter: 'M' },
 		{ value: 'large', label: 'Large', letter: 'L' },
-		{ value: 'xl', label: 'Extra Large', letter: 'XL' }
+		{ value: 'xl', label: 'Extra Large', letter: 'XL' },
 	];
 
 	const effectiveSize = $derived(lockedSize ?? size);
 	const sizeOption = $derived(SIZES.find((o) => o.value === effectiveSize) ?? SIZES[0]);
 	const originLabel = $derived(
-		prompt?.origin.alias ? `${prompt.origin.alias} · ${prompt.origin.name}` : (prompt?.origin.name ?? '')
+		prompt?.origin.alias
+			? `${prompt.origin.alias} · ${prompt.origin.name}`
+			: (prompt?.origin.name ?? ''),
 	);
 </script>
 
@@ -260,7 +262,9 @@
 							>
 								<Select.Trigger class="w-full" data-testid="tracking-size">
 									<span class="flex items-center gap-2">
-										<span class="inline-flex w-6 justify-center font-mono text-[10px] text-muted-foreground">
+										<span
+											class="inline-flex w-6 justify-center font-mono text-[10px] text-muted-foreground"
+										>
 											{sizeOption.letter}
 										</span>
 										{sizeOption.label}
@@ -292,7 +296,7 @@
 							options: { value: string; label: string; dot: string; hint?: string }[],
 							current: string,
 							onchange: (value: string) => void,
-							testid: string
+							testid: string,
 						)}
 							<div class="grid gap-1.5">
 								<Label class="text-xs">{label}</Label>
@@ -302,7 +306,7 @@
 											<span
 												class={cn(
 													'inline-block size-2 rounded-full',
-													options.find((o) => o.value === current)?.dot
+													options.find((o) => o.value === current)?.dot,
 												)}
 											></span>
 											{options.find((o) => o.value === current)?.label}
@@ -331,14 +335,14 @@
 							LIFETIMES,
 							time,
 							(v) => (time = v as TimeStatus),
-							'tracking-lifetime'
+							'tracking-lifetime',
 						)}
 						{@render statuses(
 							'Mass',
 							MASSES,
 							mass,
 							(v) => (mass = v as MassStatus),
-							'tracking-mass'
+							'tracking-mass',
 						)}
 					</div>
 				</div>
@@ -395,7 +399,7 @@
 									<label
 										class={cn(
 											'col-span-4 grid cursor-pointer grid-cols-subgrid items-center rounded-sm p-2 text-left text-xs hover:bg-muted/40 has-data-[state=checked]:bg-muted/60 has-data-[state=checked]:opacity-100',
-											section.key !== 'likely' && 'opacity-60'
+											section.key !== 'likely' && 'opacity-60',
 										)}
 										data-testid="tracking-option"
 										data-sig={option.signature_id}
@@ -434,9 +438,7 @@
 					</div>
 				</div>
 
-				<Dialog.Footer
-					class="border-t border-border/50 bg-muted/30 px-6 py-4 sm:justify-between"
-				>
+				<Dialog.Footer class="border-t border-border/50 bg-muted/30 px-6 py-4 sm:justify-between">
 					<Tooltip.Provider>
 						<Tooltip.Root>
 							<Tooltip.Trigger>

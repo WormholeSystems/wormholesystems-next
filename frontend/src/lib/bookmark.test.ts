@@ -7,7 +7,7 @@ import {
 	renderBookmark,
 	shortSignatureId,
 	type BookmarkContext,
-	type BookmarkSystem
+	type BookmarkSystem,
 } from './bookmark';
 
 const wormhole: BookmarkSystem = {
@@ -16,7 +16,7 @@ const wormhole: BookmarkSystem = {
 	region: 'E-R00024',
 	wormholeClassId: 5,
 	security: -0.99,
-	occupier: null
+	occupier: null,
 };
 
 const kspace: BookmarkSystem = {
@@ -25,7 +25,7 @@ const kspace: BookmarkSystem = {
 	region: 'The Forge',
 	wormholeClassId: null,
 	security: 0.95,
-	occupier: null
+	occupier: null,
 };
 
 const context: BookmarkContext = {
@@ -33,7 +33,7 @@ const context: BookmarkContext = {
 	size: null,
 	massStatus: null,
 	timeStatus: null,
-	wormholeCode: null
+	wormholeCode: null,
 };
 
 describe('bookmarkClass', () => {
@@ -63,7 +63,7 @@ describe('renderBookmark', () => {
 		size: '',
 		wh: '',
 		mass: '',
-		life: ''
+		life: '',
 	};
 
 	it('drops empty tokens and closes the gap they leave', () => {
@@ -86,7 +86,7 @@ describe('formatBookmark', () => {
 
 	it('honours a format the map has set', () => {
 		expect(formatBookmark(wormhole, context, { wormhole: '{class} {alias} [{sig}]' })).toBe(
-			'C5 D2 [ABC]'
+			'C5 D2 [ABC]',
 		);
 	});
 
@@ -129,7 +129,7 @@ describe('an unmapped hole', () => {
 			region: null,
 			wormholeClassId: null,
 			security: null,
-			occupier: null
+			occupier: null,
 		};
 		// Nothing is known beyond the scanner id, so the class token drops out entirely
 		// rather than resolving to a confident "LS".

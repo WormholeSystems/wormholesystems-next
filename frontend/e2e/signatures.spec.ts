@@ -18,10 +18,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	x: number,
-	y: number
+	y: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -35,13 +35,13 @@ async function addSystem(
 async function openAsMember(
 	browser: import('@playwright/test').Browser,
 	mapId: number,
-	query: string
+	query: string,
 ) {
 	const member = await createIdentity(6);
 	await grantAccess(mapId, member.characterId, 'member');
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}${query}`);
@@ -61,7 +61,7 @@ async function pasteViaEvent(page: import('@playwright/test').Page, text: string
 
 test('wormhole type select: statics first, K162 group, chosen type survives repaste', async ({
 	browser,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E SigTypes');
 	await addSystem(api, mapId, J122515, 200, 200);
@@ -90,17 +90,17 @@ test('wormhole type select: statics first, K162 group, chosen type survives repa
 
 test('paste diff tints and lazy delete cascade to connection and orphan endpoint', async ({
 	browser,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E SigDiff');
 	const near = await addSystem(api, mapId, J122515, 200, 200);
 	const far = await addSystem(api, mapId, JITA, 500, 200);
 	// Keep the scanned system: only the far endpoint is orphan-eligible.
 	await api.post(`/api/maps/${mapId}/systems/set-pinned`, {
-		data: { map_id: mapId, map_solar_system_id: near, value: true }
+		data: { map_id: mapId, map_solar_system_id: near, value: true },
 	});
 	const connRes = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' },
 	});
 	const connId = await createdId(connRes);
 
@@ -108,7 +108,7 @@ test('paste diff tints and lazy delete cascade to connection and orphan endpoint
 	await pasteViaEvent(
 		page,
 		'WHX-201\tCosmic Signature\tWormhole\tUnstable Wormhole\t100%\t1 AU\n' +
-			'DAT-201\tCosmic Signature\tData Site\tUnsecured Frontier Receiver\t100%\t1 AU'
+			'DAT-201\tCosmic Signature\tData Site\tUnsecured Frontier Receiver\t100%\t1 AU',
 	);
 	const whRow = page.getByTestId('sig-row').filter({ hasText: 'WHX-201' });
 	await expect(whRow).toHaveAttribute('data-status', 'new');
@@ -121,11 +121,11 @@ test('paste diff tints and lazy delete cascade to connection and orphan endpoint
 	// Second paste without the wormhole row: updated vs missing tints.
 	await pasteViaEvent(
 		page,
-		'DAT-201\tCosmic Signature\tData Site\tUnsecured Frontier Receiver\t100%\t1 AU'
+		'DAT-201\tCosmic Signature\tData Site\tUnsecured Frontier Receiver\t100%\t1 AU',
 	);
 	await expect(page.getByTestId('sig-row').filter({ hasText: 'DAT-201' })).toHaveAttribute(
 		'data-status',
-		'updated'
+		'updated',
 	);
 	await expect(whRow).toHaveAttribute('data-status', 'deleted');
 
@@ -145,7 +145,7 @@ test('category change clears the connection link', async ({ browser, api }) => {
 	const near = await addSystem(api, mapId, J122515, 200, 200);
 	const far = await addSystem(api, mapId, JITA, 500, 200);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' },
 	});
 
 	const { page, ctx } = await openAsMember(browser, mapId, `?system=${J122515}`);
@@ -170,7 +170,7 @@ test('wormhole type and connection can be unset back to Unknown', async ({ brows
 	const near = await addSystem(api, mapId, J122515, 200, 200);
 	const far = await addSystem(api, mapId, JITA, 500, 200);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' },
 	});
 
 	const { page, ctx } = await openAsMember(browser, mapId, `?system=${J122515}`);
@@ -213,9 +213,9 @@ test('sorting and category filters with hidden count', async ({ page, api }) => 
 			signatures: [
 				{ signature_id: 'AAA-111', group: 'wormhole' },
 				{ signature_id: 'BBB-222', group: 'data' },
-				{ signature_id: 'CCC-333', group: 'combat' }
-			]
-		}
+				{ signature_id: 'CCC-333', group: 'combat' },
+			],
+		},
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -245,13 +245,13 @@ test('compact toggle persists via map user settings', async ({ page, api }) => {
 	await page.getByTestId('compact-toggle').click();
 	await expect(page.getByTestId('compact-toggle')).toHaveAttribute(
 		'title',
-		'Switch to comfortable signature list'
+		'Switch to comfortable signature list',
 	);
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
 	await expect(page.getByTestId('compact-toggle')).toHaveAttribute(
 		'title',
-		'Switch to comfortable signature list'
+		'Switch to comfortable signature list',
 	);
 });
 
@@ -260,7 +260,7 @@ test('row actions: EOL color, preserve mass, copy bookmark', async ({ browser, a
 	const near = await addSystem(api, mapId, J122515, 200, 200);
 	const far = await addSystem(api, mapId, JITA, 500, 200);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: near, to_system: far, kind: 'wormhole' },
 	});
 
 	const { page, ctx } = await openAsMember(browser, mapId, `?system=${J122515}`);
@@ -290,7 +290,7 @@ test('row actions: EOL color, preserve mass, copy bookmark', async ({ browser, a
 	await row.getByLabel('Signature menu').click();
 	await expect(page.getByRole('menuitemcheckbox', { name: 'Preserve mass' })).toHaveAttribute(
 		'aria-checked',
-		'true'
+		'true',
 	);
 	await page.keyboard.press('Escape');
 
@@ -310,15 +310,15 @@ test('viewer sees a read-only panel', async ({ page, api, browser }) => {
 		data: {
 			map_id: mapId,
 			solar_system_id: J122515,
-			signatures: [{ signature_id: 'VWR-101', group: 'wormhole' }]
-		}
+			signatures: [{ signature_id: 'VWR-101', group: 'wormhole' }],
+		},
 	});
 	const viewer = await createIdentity(4);
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 
 	const viewerCtx = await browser.newContext();
 	await viewerCtx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await viewerCtx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);
@@ -346,7 +346,7 @@ test('pasting into a system the character is not in warns first', async ({ api, 
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' },
 	]);
 	const memberPage = await ctx.newPage();
 	await memberPage.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);

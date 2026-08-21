@@ -27,7 +27,7 @@
 		webhooks,
 		roles,
 		onsave,
-		oncancel
+		oncancel,
 	}: {
 		alert: MapAlert | null;
 		webhooks: MapWebhook[];
@@ -58,20 +58,20 @@
 		{
 			value: 'killmail',
 			label: 'Kills near the chain',
-			blurb: 'Every kill within reach, optionally narrowed to who is involved.'
+			blurb: 'Every kill within reach, optionally narrowed to who is involved.',
 		},
 		{
 			value: 'proximity',
 			label: 'System near the chain',
-			blurb: 'Fires when the chain comes within gate range of a system you name.'
+			blurb: 'Fires when the chain comes within gate range of a system you name.',
 		},
 		{
 			value: 'jump_range',
 			label: 'Capital jump range',
 			blurb:
 				'Fires when a k-space exit lands within a capital jump of a system you name. ' +
-				'Measured in light years for the hull you pick, not in gates.'
-		}
+				'Measured in light years for the hull you pick, not in gates.',
+		},
 	];
 	const SHIPS: { value: JumpShip; label: string; base: number }[] = [
 		{ value: 'dreadnought', label: 'Dreadnought', base: 3.5 },
@@ -81,31 +81,31 @@
 		{ value: 'titan', label: 'Titan', base: 3.0 },
 		{ value: 'jump_freighter', label: 'Jump Freighter', base: 5.0 },
 		{ value: 'rorqual', label: 'Rorqual', base: 5.0 },
-		{ value: 'black_ops', label: 'Black Ops', base: 4.0 }
+		{ value: 'black_ops', label: 'Black Ops', base: 4.0 },
 	];
 	// The same arithmetic the server does: "JDC 5" means nothing until it is light years.
 	const range = $derived(
-		((SHIPS.find((s) => s.value === shipType)?.base ?? 3.5) * (1 + 0.2 * jdcLevel)).toFixed(1)
+		((SHIPS.find((s) => s.value === shipType)?.base ?? 3.5) * (1 + 0.2 * jdcLevel)).toFixed(1),
 	);
 	const DELIVERIES: { value: AlertDelivery; label: string }[] = [
-		{ value: 'webhook', label: 'Channel webhook' }
+		{ value: 'webhook', label: 'Channel webhook' },
 	];
 	const MENTIONS: { value: AlertMention; label: string }[] = [
 		{ value: 'none', label: 'No ping' },
 		{ value: 'role', label: 'Ping a role' },
-		{ value: 'everyone', label: 'Ping everyone' }
+		{ value: 'everyone', label: 'Ping everyone' },
 	];
 	const SUBJECTS: { value: Subject; label: string }[] = [
 		{ value: 'alliance', label: 'Alliance' },
 		{ value: 'corporation', label: 'Corporation' },
 		{ value: 'character', label: 'Character' },
 		{ value: 'ship_type', label: 'Ship type' },
-		{ value: 'ship_group', label: 'Ship group' }
+		{ value: 'ship_group', label: 'Ship group' },
 	];
 	const SIDES: { value: Side; label: string }[] = [
 		{ value: 'either', label: 'either side' },
 		{ value: 'victim', label: 'the victim' },
-		{ value: 'attacker', label: 'the killer' }
+		{ value: 'attacker', label: 'the killer' },
 	];
 
 	// The picker wants a resolved system for its label; the alert only stores the id.
@@ -146,7 +146,7 @@
 		name.trim().length > 0 &&
 			(kind === 'killmail' || target !== null) &&
 			(delivery !== 'webhook' || webhookId !== null) &&
-			(mention !== 'role' || roleRef !== null)
+			(mention !== 'role' || roleRef !== null),
 	);
 
 	function submit() {
@@ -163,7 +163,7 @@
 			ship_type: kind === 'jump_range' ? shipType : undefined,
 			jdc_level: kind === 'jump_range' ? jdcLevel : undefined,
 			filters: kind === 'killmail' ? filters.filter((r) => r.ids.length > 0) : [],
-			filter_match: filterMatch
+			filter_match: filterMatch,
 		});
 	}
 </script>
@@ -199,11 +199,7 @@
 	{#if kind !== 'killmail'}
 		<div class="flex flex-col gap-1.5">
 			<span class="text-sm font-medium">System to watch</span>
-			<SystemCombobox
-				placeholder="Pick a system"
-				value={target}
-				onpick={(id) => (target = id)}
-			/>
+			<SystemCombobox placeholder="Pick a system" value={target} onpick={(id) => (target = id)} />
 			{#if targetSystem}
 				<p class="text-xs text-muted-foreground">
 					{targetSystem.name} · {targetSystem.region}
@@ -302,7 +298,7 @@
 						value={rule.mode}
 						onValueChange={(value) =>
 							(filters = filters.map((r, i) =>
-								i === index ? { ...r, mode: value as Rule['mode'] } : r
+								i === index ? { ...r, mode: value as Rule['mode'] } : r,
 							))}
 					>
 						<Select.Trigger class="h-8 w-28">{rule.mode}</Select.Trigger>
@@ -318,7 +314,7 @@
 						value={rule.subject}
 						onValueChange={(value) =>
 							(filters = filters.map((r, i) =>
-								i === index ? { ...r, subject: value as Subject } : r
+								i === index ? { ...r, subject: value as Subject } : r,
 							))}
 					>
 						<Select.Trigger class="h-8 w-36">
@@ -327,7 +323,8 @@
 						<Select.Content>
 							<Select.Group>
 								{#each SUBJECTS as option (option.value)}
-									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item
+									>
 								{/each}
 							</Select.Group>
 						</Select.Content>
@@ -344,7 +341,8 @@
 						<Select.Content>
 							<Select.Group>
 								{#each SIDES as option (option.value)}
-									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item
+									>
 								{/each}
 							</Select.Group>
 						</Select.Content>

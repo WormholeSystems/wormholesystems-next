@@ -35,7 +35,6 @@
 	const canManage = $derived(atLeast(data.view.role, 'manager'));
 	const ghosting = $derived(data.view.map.ghost_unlinked_wormholes);
 
-
 	function updateMap(ghost: boolean) {
 		api
 			.updateMap({ map_id: mapId, ghost_unlinked_wormholes: ghost })
@@ -45,88 +44,88 @@
 </script>
 
 <div class="flex flex-col gap-6">
-<Card.Root>
-	<Card.Header>
-		<Card.Title>Scanning</Card.Title>
-		<Card.Description>What a pasted scan puts on the map, for everyone on it.</Card.Description>
-	</Card.Header>
-	<Card.Content class="flex flex-col py-0">
-		<SettingRow
-			id="ghost-unlinked-wormholes"
-			label="Put unmapped wormholes on the map"
-			description="A pasted wormhole signature that is not on the map yet gets a node hanging off the system it was scanned in, with no system behind it. Lay the chain out and name it before anyone flies it; assign the system from the node's menu once someone has."
-			disabled={!canManage}
-			blocked={canManage ? undefined : 'Only a manager can change this.'}
-		>
-			{#snippet control()}
-				<Switch
-					checked={ghosting}
-					disabled={!canManage}
-					aria-label="Put unmapped wormholes on the map"
-					onCheckedChange={(v) => updateMap(v)}
-				/>
-			{/snippet}
-		</SettingRow>
-	</Card.Content>
-</Card.Root>
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Scanning</Card.Title>
+			<Card.Description>What a pasted scan puts on the map, for everyone on it.</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col py-0">
+			<SettingRow
+				id="ghost-unlinked-wormholes"
+				label="Put unmapped wormholes on the map"
+				description="A pasted wormhole signature that is not on the map yet gets a node hanging off the system it was scanned in, with no system behind it. Lay the chain out and name it before anyone flies it; assign the system from the node's menu once someone has."
+				disabled={!canManage}
+				blocked={canManage ? undefined : 'Only a manager can change this.'}
+			>
+				{#snippet control()}
+					<Switch
+						checked={ghosting}
+						disabled={!canManage}
+						aria-label="Put unmapped wormholes on the map"
+						onCheckedChange={(v) => updateMap(v)}
+					/>
+				{/snippet}
+			</SettingRow>
+		</Card.Content>
+	</Card.Root>
 
-<Card.Root>
-	<Card.Header>
-		<Card.Title>Mapping</Card.Title>
-		<Card.Description>
-			What happens automatically as you fly the chain. Yours alone, per map.
-		</Card.Description>
-	</Card.Header>
-	<Card.Content class="flex flex-col py-0">
-		<SettingRow
-			id="tracking-allowed"
-			label="Share my location on this map"
-			description="Puts you on your system for everyone here, measures distances from where you actually are, and lets the map build the chain as you jump. Revocable at any time."
-			blocked={hasLocation ? undefined : 'Needs the character location permission from EVE.'}
-		>
-			{#snippet control()}
-				<Switch
-					checked={tracking && hasLocation}
-					disabled={!hasLocation}
-					aria-label="Share my location on this map"
-					onCheckedChange={(v) => saveUserSettings(mapId, { tracking_allowed: v })}
-				/>
-			{/snippet}
-		</SettingRow>
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Mapping</Card.Title>
+			<Card.Description>
+				What happens automatically as you fly the chain. Yours alone, per map.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col py-0">
+			<SettingRow
+				id="tracking-allowed"
+				label="Share my location on this map"
+				description="Puts you on your system for everyone here, measures distances from where you actually are, and lets the map build the chain as you jump. Revocable at any time."
+				blocked={hasLocation ? undefined : 'Needs the character location permission from EVE.'}
+			>
+				{#snippet control()}
+					<Switch
+						checked={tracking && hasLocation}
+						disabled={!hasLocation}
+						aria-label="Share my location on this map"
+						onCheckedChange={(v) => saveUserSettings(mapId, { tracking_allowed: v })}
+					/>
+				{/snippet}
+			</SettingRow>
 
-		<SettingRow
-			id="prompt-for-signature"
-			label="Ask which signature I jumped"
-			description="On arriving somewhere new, the map asks which signature the hole was and links it. Without this the connection is still drawn, just unnamed."
-			disabled={!tracking}
-			blocked={tracking ? undefined : 'Needs location sharing.'}
-		>
-			{#snippet control()}
-				<Switch
-					checked={(data.settings?.prompt_for_signature ?? true) && tracking}
-					disabled={!tracking}
-					aria-label="Ask which signature I jumped"
-					onCheckedChange={(v) => saveUserSettings(mapId, { prompt_for_signature: v })}
-				/>
-			{/snippet}
-		</SettingRow>
+			<SettingRow
+				id="prompt-for-signature"
+				label="Ask which signature I jumped"
+				description="On arriving somewhere new, the map asks which signature the hole was and links it. Without this the connection is still drawn, just unnamed."
+				disabled={!tracking}
+				blocked={tracking ? undefined : 'Needs location sharing.'}
+			>
+				{#snippet control()}
+					<Switch
+						checked={(data.settings?.prompt_for_signature ?? true) && tracking}
+						disabled={!tracking}
+						aria-label="Ask which signature I jumped"
+						onCheckedChange={(v) => saveUserSettings(mapId, { prompt_for_signature: v })}
+					/>
+				{/snippet}
+			</SettingRow>
 
-		<SettingRow
-			id="suggest-alias"
-			label="Name new systems for me"
-			description="Fills in the next alias from the chain's naming scheme, so holes are named the same way by everyone on the map."
-			disabled={!tracking}
-			blocked={tracking ? undefined : 'Needs location sharing.'}
-		>
-			{#snippet control()}
-				<Switch
-					checked={(data.settings?.suggest_alias ?? true) && tracking}
-					disabled={!tracking}
-					aria-label="Name new systems for me"
-					onCheckedChange={(v) => saveUserSettings(mapId, { suggest_alias: v })}
-				/>
-			{/snippet}
-		</SettingRow>
-	</Card.Content>
-</Card.Root>
+			<SettingRow
+				id="suggest-alias"
+				label="Name new systems for me"
+				description="Fills in the next alias from the chain's naming scheme, so holes are named the same way by everyone on the map."
+				disabled={!tracking}
+				blocked={tracking ? undefined : 'Needs location sharing.'}
+			>
+				{#snippet control()}
+					<Switch
+						checked={(data.settings?.suggest_alias ?? true) && tracking}
+						disabled={!tracking}
+						aria-label="Name new systems for me"
+						onCheckedChange={(v) => saveUserSettings(mapId, { suggest_alias: v })}
+					/>
+				{/snippet}
+			</SettingRow>
+		</Card.Content>
+	</Card.Root>
 </div>

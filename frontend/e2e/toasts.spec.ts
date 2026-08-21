@@ -9,7 +9,7 @@ test('a failed action says why, and a silent one confirms itself', async ({ page
 	const res = await api.post('/api/maps', { data: { name: 'E2E Toasts' } });
 	const mapId = await createdId(res);
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 300, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 300, alias: null },
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -37,7 +37,7 @@ test('undo says what it undid, not just that it undid something', async ({ page,
 	const res = await api.post('/api/maps', { data: { name: 'E2E UndoToast' } });
 	const mapId = await createdId(res);
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 300, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 300, y: 300, alias: null },
 	});
 	await gotoApp(page, `/maps/${mapId}`);
 	await expect(page.getByTestId('system-node')).toHaveCount(1);

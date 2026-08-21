@@ -29,7 +29,8 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString
 
 function system(
 	id: number,
-	fields: Partial<MappedSystem> & Pick<MappedSystem, 'position_x' | 'position_y' | 'name' | 'region'>
+	fields: Partial<MappedSystem> &
+		Pick<MappedSystem, 'position_x' | 'position_y' | 'name' | 'region'>,
 ): MappedSystem {
 	return {
 		kind: 'system',
@@ -53,7 +54,7 @@ function system(
 		threat_level: null,
 		statics: [],
 		sovereignty: null,
-		...fields
+		...fields,
 	};
 }
 
@@ -64,7 +65,7 @@ function statik(name: string, destClass: number): MappedSystem['statics'][number
 		max_jump_mass: null,
 		total_mass: null,
 		signature_strength: null,
-		lifetime_hours: null
+		lifetime_hours: null,
 	} satisfies MappedSystem['statics'][number];
 }
 
@@ -78,7 +79,7 @@ export const HOME_SYSTEM = system(HOME, {
 	region: 'Metropolis',
 	security_status: 0.35,
 	is_home: true,
-	status: 'friendly'
+	status: 'friendly',
 });
 
 export const DEMO_SYSTEMS: MappedSystem[] = [
@@ -90,7 +91,7 @@ export const DEMO_SYSTEMS: MappedSystem[] = [
 		region: 'B-R00004',
 		wormhole_class_id: 2,
 		status: 'empty',
-		statics: [statik('D382', 7), statik('Z647', 1)]
+		statics: [statik('D382', 7), statik('Z647', 1)],
 	}),
 	system(3, {
 		position_x: 260,
@@ -101,7 +102,7 @@ export const DEMO_SYSTEMS: MappedSystem[] = [
 		status: 'hostile',
 		threat_level: 'high',
 		occupying_group: 'OWL.',
-		statics: [statik('H296', 5), statik('C140', 8)]
+		statics: [statik('H296', 5), statik('C140', 8)],
 	}),
 	system(4, {
 		position_x: 260,
@@ -109,7 +110,7 @@ export const DEMO_SYSTEMS: MappedSystem[] = [
 		name: 'Korasen',
 		region: 'Black Rise',
 		security_status: 0.28,
-		status: 'active'
+		status: 'active',
 	}),
 	system(5, {
 		position_x: 520,
@@ -118,7 +119,7 @@ export const DEMO_SYSTEMS: MappedSystem[] = [
 		region: 'D-R00016',
 		wormhole_class_id: 3,
 		status: 'unscanned',
-		statics: [statik('X702', 7)]
+		statics: [statik('X702', 7)],
 	}),
 	system(6, {
 		position_x: 520,
@@ -126,8 +127,8 @@ export const DEMO_SYSTEMS: MappedSystem[] = [
 		name: 'Q-XEB3',
 		region: 'Fountain',
 		security_status: -0.42,
-		status: 'unknown'
-	})
+		status: 'unknown',
+	}),
 ];
 
 function connection(id: number, from: number, to: number, fields: Partial<MapConnection> = {}) {
@@ -146,7 +147,7 @@ function connection(id: number, from: number, to: number, fields: Partial<MapCon
 		time_status_updated_at: null,
 		created_at: hoursAgo(4),
 		updated_at: hoursAgo(1),
-		...fields
+		...fields,
 	} satisfies MapConnection;
 }
 
@@ -155,7 +156,7 @@ export const DEMO_CONNECTIONS: MapConnection[] = [
 	connection(12, HOME, 3, { mass_status: 'reduced', jumps_count: 14, jumps_mass_sum: 620_000_000 }),
 	connection(13, HOME, 4, { time_status: 'critical', jumps_count: 3 }),
 	connection(14, 3, 5),
-	connection(15, 3, 6, { mass_status: 'critical', jumps_count: 22 })
+	connection(15, 3, 6, { mass_status: 'critical', jumps_count: 22 }),
 ];
 
 export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
@@ -170,8 +171,8 @@ export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
 			ship_type: 'Buzzard',
 			ship_group_id: null,
 			is_docked: false,
-			is_mine: true
-		} satisfies MapCharacter
+			is_mine: true,
+		} satisfies MapCharacter,
 	],
 	3: [
 		{
@@ -184,9 +185,9 @@ export const DEMO_PILOTS: Record<number, MapCharacter[]> = {
 			ship_type: 'Machariel',
 			ship_group_id: null,
 			is_docked: false,
-			is_mine: false
-		} satisfies MapCharacter
-	]
+			is_mine: false,
+		} satisfies MapCharacter,
+	],
 };
 
 /** Signatures scanned in Turnur, in the states the panel colours differently. */
@@ -205,7 +206,7 @@ export const DEMO_SIGNATURES: Signature[] = [
 		connection_id: 12,
 		time_status_updated_at: null,
 		created_at: hoursAgo(3),
-		updated_at: hoursAgo(3)
+		updated_at: hoursAgo(3),
 	} satisfies Signature,
 	{
 		id: 102,
@@ -221,7 +222,7 @@ export const DEMO_SIGNATURES: Signature[] = [
 		connection_id: 13,
 		time_status_updated_at: null,
 		created_at: hoursAgo(15),
-		updated_at: hoursAgo(2)
+		updated_at: hoursAgo(2),
 	} satisfies Signature,
 	{
 		id: 103,
@@ -237,7 +238,7 @@ export const DEMO_SIGNATURES: Signature[] = [
 		connection_id: null,
 		time_status_updated_at: null,
 		created_at: hoursAgo(0.2),
-		updated_at: hoursAgo(0.2)
+		updated_at: hoursAgo(0.2),
 	} satisfies Signature,
 	{
 		id: 104,
@@ -253,8 +254,8 @@ export const DEMO_SIGNATURES: Signature[] = [
 		connection_id: null,
 		time_status_updated_at: null,
 		created_at: hoursAgo(6),
-		updated_at: hoursAgo(6)
-	} satisfies Signature
+		updated_at: hoursAgo(6),
+	} satisfies Signature,
 ];
 
 /**
@@ -270,6 +271,6 @@ export const DEMO_ACCESS: AccessEntry[] = [
 		subject_id: 95042605,
 		name: 'Tovan Khev',
 		role: 'viewer',
-		expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString()
-	}
+		expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+	},
 ];

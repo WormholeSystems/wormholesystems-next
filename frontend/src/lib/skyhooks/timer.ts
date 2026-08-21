@@ -70,14 +70,14 @@ const DOT = {
 	upcoming: 'bg-amber-400',
 	open: 'bg-emerald-400 animate-pulse',
 	closing: 'bg-red-400 animate-pulse',
-	closed: 'bg-muted-foreground/40'
+	closed: 'bg-muted-foreground/40',
 } satisfies Record<SkyhookStatus, string>;
 
 const TEXT = {
 	upcoming: 'text-amber-400',
 	open: 'text-emerald-400',
 	closing: 'text-red-400 animate-pulse',
-	closed: 'text-muted-foreground/60'
+	closed: 'text-muted-foreground/60',
 } satisfies Record<SkyhookStatus, string>;
 
 export function statusDot(status: SkyhookStatus): string {

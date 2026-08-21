@@ -18,10 +18,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	x: number,
-	y: number
+	y: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -55,15 +55,12 @@ test('gate route between adjacent systems via the context menu', async ({ page, 
 	await expect(list.getByText('Perimeter')).toBeVisible();
 });
 
-test('wormhole connection shortcuts the route and highlights the edge', async ({
-	page,
-	api
-}) => {
+test('wormhole connection shortcuts the route and highlights the edge', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E WH Route');
 	const a = await addSystem(api, mapId, JITA, 200, 200);
 	const b = await addSystem(api, mapId, AMARR, 600, 200);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);

@@ -15,7 +15,7 @@
 	let {
 		map,
 		steps,
-		children
+		children,
 	}: {
 		map: MapState;
 		steps: RouteStep[];
@@ -53,7 +53,12 @@
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}
-							<Button {...props} variant="secondary" size="sm" class="h-6 shrink-0 gap-1 px-2 text-[10px]">
+							<Button
+								{...props}
+								variant="secondary"
+								size="sm"
+								class="h-6 shrink-0 gap-1 px-2 text-[10px]"
+							>
 								<NavigationIcon class="size-3" />
 								Set Destination
 							</Button>
@@ -69,11 +74,16 @@
 										api.setWaypoint({
 											character_id: c.character_id,
 											destination_id: destinationId,
-											clear_other_waypoints: true
-										})
+											clear_other_waypoints: true,
+										}),
 									)}
 							>
-								<EveImage kind="character" id={c.character_id} size={32} class="size-5 rounded-lg" />
+								<EveImage
+									kind="character"
+									id={c.character_id}
+									size={32}
+									class="size-5 rounded-lg"
+								/>
 								{c.name}
 							</DropdownMenu.Item>
 						{/each}
@@ -86,8 +96,8 @@
 										'setWaypoint',
 										api.setWaypointAll({
 											destination_id: destinationId,
-											clear_other_waypoints: true
-										})
+											clear_other_waypoints: true,
+										}),
 									)}
 							>
 								<UsersIcon class="size-4" />

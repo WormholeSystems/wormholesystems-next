@@ -29,10 +29,18 @@
 	const threats = $derived(results.filter((h) => h.threat));
 	/** One section per organisation, so the name is not repeated on every row. */
 	const threatGroups = $derived.by(() => {
-		const groups = new Map<number, { name: string; kind: string; total: number; hits: MapSearchHit[] }>();
+		const groups = new Map<
+			number,
+			{ name: string; kind: string; total: number; hits: MapSearchHit[] }
+		>();
 		for (const hit of threats) {
 			const t = hit.threat!;
-			const group = groups.get(t.entity_id) ?? { name: t.name, kind: t.entity_type, total: 0, hits: [] };
+			const group = groups.get(t.entity_id) ?? {
+				name: t.name,
+				kind: t.entity_type,
+				total: 0,
+				hits: [],
+			};
 			group.total += t.kills;
 			group.hits.push(hit);
 			groups.set(t.entity_id, group);
@@ -108,7 +116,7 @@
 		const r = map.viewportRect();
 		map.pan = {
 			x: r.width / 2 - (system.position_x + NODE_W / 2) * map.zoom,
-			y: r.height / 2 - (system.position_y + map.nodeH / 2) * map.zoom
+			y: r.height / 2 - (system.position_y + map.nodeH / 2) * map.zoom,
 		};
 	}
 
@@ -124,8 +132,8 @@
 				from_system: from,
 				to_system: target,
 				kind: 'wormhole',
-				size: heuristicSize(map.systems, from, target)
-			})
+				size: heuristicSize(map.systems, from, target),
+			}),
 		);
 	}
 
@@ -140,8 +148,8 @@
 			api.resolveGhostSystem({
 				map_id: map.mapId,
 				map_solar_system_id: ghost,
-				solar_system_id: solarSystemId
-			})
+				solar_system_id: solarSystemId,
+			}),
 		);
 	}
 
@@ -175,7 +183,7 @@
 					solar_system_id: hit.system.id,
 					x: at.x,
 					y: at.y,
-					alias: null
+					alias: null,
 				});
 				if (from !== null && from !== placed.id) {
 					await api.addConnection({
@@ -183,10 +191,10 @@
 						from_system: from,
 						to_system: placed.id,
 						kind: 'wormhole',
-						size: heuristicSize(map.systems, from, placed.id)
+						size: heuristicSize(map.systems, from, placed.id),
 					});
 				}
-			})()
+			})(),
 		);
 	}
 </script>
@@ -238,7 +246,9 @@
 				<span class="min-w-0 truncate text-foreground" title="{group.name} ({group.kind})">
 					{group.name}
 				</span>
-				<span class="ml-auto shrink-0 font-mono whitespace-nowrap tabular-nums text-muted-foreground/60">
+				<span
+					class="ml-auto shrink-0 font-mono whitespace-nowrap tabular-nums text-muted-foreground/60"
+				>
 					{group.hits.length} × {group.total.toLocaleString()} kills
 				</span>
 			</div>

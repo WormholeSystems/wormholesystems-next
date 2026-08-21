@@ -29,7 +29,7 @@
 	let {
 		system,
 		class: cls = 'contents',
-		children
+		children,
 	}: {
 		system: SystemSearchResult;
 		/** Trigger element class; `contents` keeps the wrapped fragments in their row layout. */
@@ -45,13 +45,9 @@
 	const underscore = (s: string) => s.replaceAll(' ', '_');
 
 	const canWrite = $derived(map !== undefined && atLeast(map.data?.role, 'member'));
-	const placement = $derived(
-		map?.systems.find((s) => solarSystemId(s) === system.id) ?? null
-	);
+	const placement = $derived(map?.systems.find((s) => solarSystemId(s) === system.id) ?? null);
 	const onlineCharacters = $derived(map?.myCharacters.filter((c) => c.online) ?? []);
-	const watched = $derived(
-		map?.watchlist.some((w) => w.solar_system_id === system.id) ?? false
-	);
+	const watched = $derived(map?.watchlist.some((w) => w.solar_system_id === system.id) ?? false);
 
 	const LABEL = 'text-[0.65rem] font-semibold tracking-wider text-muted-foreground uppercase';
 
@@ -66,16 +62,13 @@
 				solar_system_id: system.id,
 				x: spot.x,
 				y: spot.y,
-				alias: null
-			})
+				alias: null,
+			}),
 		);
 	}
 
 	function addToWatchlist() {
-		map?.run(
-			'watch',
-			api.addWatchlistEntry({ map_id: map.mapId, solar_system_id: system.id })
-		);
+		map?.run('watch', api.addWatchlistEntry({ map_id: map.mapId, solar_system_id: system.id }));
 	}
 
 	function waypoint(characterId: number, clearOthers: boolean) {
@@ -84,15 +77,15 @@
 			api.setWaypoint({
 				character_id: characterId,
 				destination_id: system.id,
-				clear_other_waypoints: clearOthers
-			})
+				clear_other_waypoints: clearOthers,
+			}),
 		);
 	}
 
 	function waypointAll(clearOthers: boolean) {
 		map?.run(
 			'setWaypoint',
-			api.setWaypointAll({ destination_id: system.id, clear_other_waypoints: clearOthers })
+			api.setWaypointAll({ destination_id: system.id, clear_other_waypoints: clearOthers }),
 		);
 	}
 
@@ -103,8 +96,8 @@
 			api.setRally({
 				map_id: map.mapId,
 				map_solar_system_id: placement.id,
-				value: !placement.is_rally
-			})
+				value: !placement.is_rally,
+			}),
 		);
 	}
 </script>
@@ -180,7 +173,7 @@
 							target="_blank"
 							rel="noopener"
 							href="https://evemaps.dotlan.net/map/{underscore(system.region)}/{underscore(
-								system.name
+								system.name,
 							)}"
 						>
 							<MapIcon class="size-4" />

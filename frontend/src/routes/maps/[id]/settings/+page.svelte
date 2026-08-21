@@ -40,7 +40,7 @@
 	const canManage = $derived(atLeast(view.role, 'manager'));
 	const isOwner = $derived(view.role === 'owner');
 	const dirty = $derived(
-		name.trim() !== view.map.name || description.trim() !== (view.map.description ?? '')
+		name.trim() !== view.map.name || description.trim() !== (view.map.description ?? ''),
 	);
 
 	async function act(work: Promise<unknown>) {
@@ -55,7 +55,7 @@
 
 	const PLACEMENTS = [
 		{ value: 'manual', label: 'Custom placement', hint: 'Everyone drags the chain into shape' },
-		{ value: 'tree', label: 'Automatic placement', hint: 'Drawn as a tree from the connections' }
+		{ value: 'tree', label: 'Automatic placement', hint: 'Drawn as a tree from the connections' },
 	];
 	const placement = $derived(view.map.layout);
 	const allowOverride = $derived(view.map.allow_layout_override);
@@ -66,8 +66,8 @@
 			api.updateMap({
 				map_id: mapId,
 				name: name.trim(),
-				description: description.trim() || null
-			})
+				description: description.trim() || null,
+			}),
 		);
 	}
 
@@ -75,7 +75,7 @@
 	let access = $state<AccessEntry[]>([]);
 	let heir = $state('');
 	const candidates = $derived(
-		access.filter((e) => e.subject_type === 'character' && e.role !== 'owner')
+		access.filter((e) => e.subject_type === 'character' && e.role !== 'owner'),
 	);
 
 	$effect(() => {
@@ -159,9 +159,7 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Placement</Card.Title>
-			<Card.Description>
-				How the chain is laid out for everyone on this map.
-			</Card.Description>
+			<Card.Description>How the chain is laid out for everyone on this map.</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex flex-col py-0">
 			<SettingRow
@@ -209,8 +207,7 @@
 						checked={allowOverride}
 						disabled={!canManage}
 						aria-label="Let people choose their own placement"
-						onCheckedChange={(v) =>
-							act(api.updateMap({ map_id: mapId, allow_layout_override: v }))}
+						onCheckedChange={(v) => act(api.updateMap({ map_id: mapId, allow_layout_override: v }))}
 					/>
 				{/snippet}
 			</SettingRow>
@@ -229,9 +226,7 @@
 					id="transfer-ownership"
 					label="Hand the map to someone else"
 					description="The map becomes theirs: only they can transfer it again or delete it. You stay on as a manager. Pick anyone already granted access as a character."
-					blocked={candidates.length === 0
-						? 'Nobody else has access to this map yet.'
-						: undefined}
+					blocked={candidates.length === 0 ? 'Nobody else has access to this map yet.' : undefined}
 				>
 					{#snippet control()}
 						<span class="flex items-center gap-2">
@@ -242,7 +237,10 @@
 								<Select.Content>
 									<Select.Group>
 										{#each candidates as c (c.subject_id)}
-											<Select.Item value={String(c.subject_id)} label={c.name ?? String(c.subject_id)}>
+											<Select.Item
+												value={String(c.subject_id)}
+												label={c.name ?? String(c.subject_id)}
+											>
 												{c.name ?? c.subject_id}
 											</Select.Item>
 										{/each}

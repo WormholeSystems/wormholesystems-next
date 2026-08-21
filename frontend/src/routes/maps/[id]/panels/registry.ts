@@ -36,7 +36,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'The chain itself.',
 		minW: 2,
 		minH: 4,
-		removable: false
+		removable: false,
 	},
 	{
 		id: 'navigation',
@@ -44,7 +44,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Route planner, watchlist and the Find tools.',
 		minW: 2,
 		minH: 3,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'system-info',
@@ -52,7 +52,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Class, effect, statics and external links for the active system.',
 		minW: 2,
 		minH: 2,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'threat',
@@ -60,7 +60,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Recent kill activity around the active wormhole system.',
 		minW: 2,
 		minH: 2,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'signatures',
@@ -68,7 +68,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Scanned signatures for the active system, with paste import.',
 		minW: 2,
 		minH: 3,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'notes',
@@ -76,7 +76,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Free-text intel on the active system.',
 		minW: 2,
 		minH: 2,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'characters',
@@ -84,7 +84,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Everyone sharing their location on this map, and how far away they are.',
 		minW: 2,
 		minH: 3,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'skyhooks',
@@ -92,7 +92,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'Skyhook theft windows across New Eden, nearest first.',
 		minW: 2,
 		minH: 3,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'killmails',
@@ -100,7 +100,7 @@ export const PANELS: PanelMeta[] = [
 		description: 'What has died in the mapped systems in the last week.',
 		minW: 2,
 		minH: 3,
-		removable: true
+		removable: true,
 	},
 	{
 		id: 'evescout',
@@ -108,8 +108,8 @@ export const PANELS: PanelMeta[] = [
 		description: 'Public wormholes out of Thera and Turnur, by how far away they are.',
 		minW: 2,
 		minH: 3,
-		removable: true
-	}
+		removable: true,
+	},
 ];
 
 export const PANEL_IDS = PANELS.map((p) => p.id);
@@ -135,7 +135,7 @@ export const BREAKPOINTS: BreakpointMeta[] = [
 	{ key: 'xs', label: 'Phone', minWidth: 0 },
 	{ key: 'sm', label: 'Tablet', minWidth: 640 },
 	{ key: 'md', label: 'Laptop', minWidth: 1024 },
-	{ key: 'lg', label: 'Desktop', minWidth: 1536 }
+	{ key: 'lg', label: 'Desktop', minWidth: 1536 },
 ];
 
 export interface BreakpointLayout {
@@ -151,7 +151,7 @@ const item = (i: PanelId, x: number, y: number, w: number, h: number): GridItem 
 	x,
 	y,
 	w,
-	h
+	h,
 });
 
 /** The arrangement a map starts from, per breakpoint. */
@@ -169,8 +169,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('characters', 0, 23, 1, 3),
 			item('skyhooks', 0, 26, 1, 3),
 			item('killmails', 0, 29, 1, 3),
-				item('evescout', 0, 32, 1, 3)
-		]
+			item('evescout', 0, 32, 1, 3),
+		],
 	},
 	sm: {
 		cols: 2,
@@ -185,8 +185,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('characters', 0, 16, 2, 3),
 			item('skyhooks', 0, 19, 2, 3),
 			item('killmails', 0, 22, 2, 3),
-				item('evescout', 0, 25, 2, 3)
-		]
+			item('evescout', 0, 25, 2, 3),
+		],
 	},
 	md: {
 		cols: 4,
@@ -201,8 +201,8 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('characters', 2, 15, 2, 3),
 			item('skyhooks', 0, 17, 2, 3),
 			item('killmails', 2, 18, 2, 3),
-				item('evescout', 0, 21, 2, 3)
-		]
+			item('evescout', 0, 21, 2, 3),
+		],
 	},
 	lg: {
 		cols: 10,
@@ -217,9 +217,9 @@ export const DEFAULT_LAYOUTS: PanelLayouts = {
 			item('characters', 0, 12, 5, 3),
 			item('skyhooks', 5, 12, 5, 3),
 			item('killmails', 0, 15, 5, 3),
-				item('evescout', 5, 15, 5, 3)
-		]
-	}
+			item('evescout', 5, 15, 5, 3),
+		],
+	},
 };
 
 /** The breakpoint that applies at a given window width. */
@@ -255,7 +255,7 @@ export function resolveLayouts(stored: PanelLayouts | null): PanelLayouts {
 		out[bp.key] = {
 			cols,
 			row_height: saved.row_height || fallback.row_height,
-			items: compact(items, cols)
+			items: compact(items, cols),
 		};
 	}
 	return out;
@@ -271,7 +271,7 @@ export function placeAtBottom(layout: BreakpointLayout, id: PanelId): Breakpoint
 		x: 0,
 		y: bottom(others),
 		w: existing?.w ?? Math.min(meta.minW, layout.cols),
-		h: existing?.h ?? meta.minH
+		h: existing?.h ?? meta.minH,
 	};
 	return { ...layout, items: compact([...others, placed], layout.cols) };
 }

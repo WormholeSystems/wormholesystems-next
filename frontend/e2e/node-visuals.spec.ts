@@ -19,10 +19,10 @@ async function addSystem(
 	solarSystemId: number,
 	x: number,
 	y: number,
-	alias: string | null = null
+	alias: string | null = null,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -30,14 +30,14 @@ async function addSystem(
 
 test('node shows class, alias, occupier, statics, effect, and region per space kind', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E Visuals');
 	const wh = await addSystem(api, mapId, J122515, 200, 200, 'Home');
 	await addSystem(api, mapId, JITA, 200, 400);
 	await addSystem(api, mapId, THERA, 200, 600);
 	await api.post(`/api/maps/${mapId}/systems/set-occupier`, {
-		data: { map_id: mapId, map_solar_system_id: wh, occupier: 'LZHX' }
+		data: { map_id: mapId, map_solar_system_id: wh, occupier: 'LZHX' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -83,12 +83,12 @@ test('node shows class, alias, occupier, statics, effect, and region per space k
 
 test('icon cluster: shattered, signatures, unmapped wormholes, home, pin', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E Icons');
 	const shattered = await addSystem(api, mapId, J005482, 200, 200);
 	await api.post(`/api/maps/${mapId}/systems/set-home`, {
-		data: { map_id: mapId, map_solar_system_id: shattered, value: true }
+		data: { map_id: mapId, map_solar_system_id: shattered, value: true },
 	});
 	// One categorized wormhole sig (drives the fan icon: 1 wormhole sig, 0 connections)
 	// and one uncategorized sig (turns the satellite rose).
@@ -98,9 +98,9 @@ test('icon cluster: shattered, signatures, unmapped wormholes, home, pin', async
 			solar_system_id: J005482,
 			signatures: [
 				{ signature_id: 'ABC-123', group: 'wormhole', name: 'K162' },
-				{ signature_id: 'DEF-456', group: 'unknown', name: null }
-			]
-		}
+				{ signature_id: 'DEF-456', group: 'unknown', name: null },
+			],
+		},
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -119,7 +119,7 @@ test('icon cluster: shattered, signatures, unmapped wormholes, home, pin', async
 	// Home icon present; pin the system and the drag handle disappears.
 	await expect(node.locator('.text-amber-400')).toBeVisible();
 	await api.post(`/api/maps/${mapId}/systems/set-pinned`, {
-		data: { map_id: mapId, map_solar_system_id: shattered, value: true }
+		data: { map_id: mapId, map_solar_system_id: shattered, value: true },
 	});
 	await node.hover();
 	await expect(node.getByTestId('drag-handle')).toHaveCount(0);

@@ -91,7 +91,7 @@ const MASS_RANK = { stable: 0, reduced: 1, critical: 2 } satisfies Record<MassSt
 function edgeAllowed(
 	settings: RoutingSettings,
 	mass: MassStatus | null,
-	time: TimeStatus | null
+	time: TimeStatus | null,
 ): boolean {
 	return (
 		TIME_RANK[time ?? 'stable'] <= TIME_RANK[settings.allowTimeStatus] &&
@@ -169,7 +169,7 @@ function relax(
 	settings: RoutingSettings,
 	ignored: ReadonlySet<number>,
 	endpoints: ReadonlySet<number>,
-	onSettle?: (id: number) => boolean
+	onSettle?: (id: number) => boolean,
 ): Relaxation {
 	const isIgnored = (id: number) =>
 		!endpoints.has(id) && (id === ZARZAKH_SYSTEM_ID || ignored.has(id));
@@ -225,7 +225,7 @@ export function findRoute(
 	from: number,
 	to: number,
 	settings: RoutingSettings,
-	ignored: ReadonlySet<number> = new Set()
+	ignored: ReadonlySet<number> = new Set(),
 ): RouteResult | null {
 	if (from === to) return { route: [{ id: from, via: null }], jumps: 0, cost: 0 };
 	const relaxation = relax(graph, from, settings, ignored, new Set([from, to]), (id) => id !== to);
@@ -238,21 +238,14 @@ export function findRoutes(
 	from: number,
 	targets: number[],
 	settings: RoutingSettings,
-	ignored: ReadonlySet<number> = new Set()
+	ignored: ReadonlySet<number> = new Set(),
 ): Map<number, RouteResult> {
 	const wanted = new Set(targets);
 	const remaining = new Set(targets);
-	const relaxation = relax(
-		graph,
-		from,
-		settings,
-		ignored,
-		new Set([from, ...targets]),
-		(id) => {
-			remaining.delete(id);
-			return remaining.size > 0;
-		}
-	);
+	const relaxation = relax(graph, from, settings, ignored, new Set([from, ...targets]), (id) => {
+		remaining.delete(id);
+		return remaining.size > 0;
+	});
 	const out = new Map<number, RouteResult>();
 	for (const target of wanted) {
 		const result = reconstruct(relaxation, from, target);
@@ -281,7 +274,7 @@ export function findClosestSystems(
 	matches: (id: number) => boolean,
 	limit: number,
 	settings: RoutingSettings,
-	ignored: ReadonlySet<number> = new Set()
+	ignored: ReadonlySet<number> = new Set(),
 ): ClosestSystem[] {
 	const hits: number[] = [];
 	const relaxation = relax(graph, from, settings, ignored, new Set([from]), (id) => {

@@ -16,21 +16,20 @@
 	const mapId = $derived(Number(page.params.id) || 0);
 	const settings = $derived(data.settings);
 
-
 	const PREFERENCES = [
 		{ value: 'shorter', label: 'Shortest', hint: 'Fewest jumps, whatever the security' },
 		{ value: 'safer', label: 'Safer', hint: 'Prefers high security' },
-		{ value: 'less_secure', label: 'Less secure', hint: 'Prefers low and null' }
+		{ value: 'less_secure', label: 'Less secure', hint: 'Prefers low and null' },
 	];
 	const LIFETIMES = [
 		{ value: 'critical', label: 'Anything', hint: 'Including holes about to collapse' },
 		{ value: 'eol', label: 'Not critical', hint: 'Avoids the last hour' },
-		{ value: 'stable', label: 'Healthy only', hint: 'Avoids end-of-life holes' }
+		{ value: 'stable', label: 'Healthy only', hint: 'Avoids end-of-life holes' },
 	];
 	const MASSES = [
 		{ value: 'critical', label: 'Anything', hint: 'Including nearly-collapsed holes' },
 		{ value: 'reduced', label: 'Not critical', hint: 'Avoids the last 10%' },
-		{ value: 'stable', label: 'Fresh only', hint: 'Avoids reduced holes' }
+		{ value: 'stable', label: 'Fresh only', hint: 'Avoids reduced holes' },
 	];
 
 	const preference = $derived(settings?.route_preference ?? 'shorter');
@@ -43,9 +42,13 @@
 	options: { value: string; label: string; hint: string }[],
 	current: string,
 	key: string,
-	testid: string
+	testid: string,
 )}
-	<Select.Root type="single" value={current} onValueChange={(v) => v && saveUserSettings(mapId, { [key]: v })}>
+	<Select.Root
+		type="single"
+		value={current}
+		onValueChange={(v) => v && saveUserSettings(mapId, { [key]: v })}
+	>
 		<Select.Trigger class="w-56" data-testid={testid}>
 			{options.find((o) => o.value === current)?.label}
 		</Select.Trigger>

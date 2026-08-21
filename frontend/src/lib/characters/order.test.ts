@@ -15,7 +15,7 @@ function pilot(name: string, overrides: Partial<MapCharacter> = {}): MapCharacte
 		ship_group_id: 27,
 		is_docked: false,
 		is_mine: false,
-		...overrides
+		...overrides,
 	};
 }
 
@@ -32,10 +32,7 @@ describe('orderPilots', () => {
 	});
 
 	it('breaks ties by name', () => {
-		expect(orderPilots([ready, alsoReady]).map((p) => p.name)).toEqual([
-			'Able Abe',
-			'Ready Rita'
-		]);
+		expect(orderPilots([ready, alsoReady]).map((p) => p.name)).toEqual(['Able Abe', 'Ready Rita']);
 	});
 
 	it('hides nobody: a docked alt is still on the list', () => {

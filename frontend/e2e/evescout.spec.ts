@@ -28,13 +28,13 @@ test.beforeEach(async ({ api }) => {
 	const rows = (await (await api.get('/api/evescout')).json()) as { hub_signature: string }[];
 	test.skip(
 		!rows.some((r) => r.hub_signature === 'THE-001'),
-		'API server is not using the EVE Scout stub (started outside the e2e suite)'
+		'API server is not using the EVE Scout stub (started outside the e2e suite)',
 	);
 });
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, x: number) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -71,7 +71,7 @@ test('the card lists a hub at a time, resolved and sorted', async ({ page, api }
 
 test('jumps are measured through the map, and the row opens the system menu', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E ScoutJumps');
 	await addSystem(api, mapId, JITA, 200);

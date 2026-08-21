@@ -14,7 +14,7 @@ async function createMap(api: import('@playwright/test').APIRequestContext, name
 test('clicking a node activates it: ring, URL, and System Info', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Active');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: 'Staging' }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: 'Staging' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -34,11 +34,11 @@ test('clicking a node activates it: ring, URL, and System Info', async ({ page, 
 	await expect(info.getByText('Wolf-Rayet Star')).toBeVisible();
 	await expect(info.getByRole('link', { name: 'zKill' })).toHaveAttribute(
 		'href',
-		`https://zkillboard.com/system/${J122515}/`
+		`https://zkillboard.com/system/${J122515}/`,
 	);
 	await expect(info.getByRole('link', { name: 'Anoik' })).toHaveAttribute(
 		'href',
-		'https://anoik.is/systems/J122515'
+		'https://anoik.is/systems/J122515',
 	);
 	await expect(info.getByText('H296')).toBeVisible();
 
@@ -49,7 +49,7 @@ test('clicking a node activates it: ring, URL, and System Info', async ({ page, 
 test('deep link ?system= restores the active system on load', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E DeepLink');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null },
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -61,7 +61,7 @@ test('deep link ?system= restores the active system on load', async ({ page, api
 test('notes round-trip with markdown rendering', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Notes');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null },
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -73,7 +73,7 @@ test('notes round-trip with markdown rendering', async ({ page, api }) => {
 	// The card renders the new notes optimistically, so wait for the write itself before
 	// reloading; otherwise the navigation can abort the request in flight.
 	const saved = page.waitForResponse(
-		(r) => r.url().includes('/systems/set-notes') && r.request().method() === 'POST'
+		(r) => r.url().includes('/systems/set-notes') && r.request().method() === 'POST',
 	);
 	await card.getByRole('button', { name: 'Save' }).click();
 	await expect(card.locator('strong', { hasText: 'Danger' })).toBeVisible();
@@ -87,7 +87,7 @@ test('notes round-trip with markdown rendering', async ({ page, api }) => {
 test('viewers cannot see notes', async ({ page, api, browser }) => {
 	const mapId = await createMap(api, 'E2E ViewerNotes');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null },
 	});
 	const viewer = await createIdentity(1);
 	await grantAccess(mapId, viewer.characterId, 'viewer');
@@ -95,7 +95,7 @@ test('viewers cannot see notes', async ({ page, api, browser }) => {
 	// The details endpoint refuses viewers outright.
 	const viewerCtx = await browser.newContext();
 	await viewerCtx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await viewerCtx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);

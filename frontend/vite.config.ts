@@ -15,22 +15,22 @@ export default defineConfig({
 			compilerOptions: {
 				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
 				runes: ({ filename }) =>
-					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
+					filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
 			},
-			adapter: adapter()
-		})
+			adapter: adapter(),
+		}),
 	],
 	server: {
 		proxy: {
 			'/api': backend,
 			'/auth': backend,
 			'/discord': backend,
-			'/ws': { target: backend, ws: true }
-		}
+			'/ws': { target: backend, ws: true },
+		},
 	},
 	test: {
 		// Unit tests cover pure logic only. `e2e/` is Playwright's and must stay out of
 		// vitest's reach, or it collects those specs and fails on the wrong runner.
-		include: ['src/**/*.test.ts']
-	}
+		include: ['src/**/*.test.ts'],
+	},
 });

@@ -52,7 +52,7 @@ test('the page does not scroll sideways on a phone', async ({ page }) => {
 	await page.getByTestId('landing-stat').first().waitFor();
 
 	const overflows = await page.evaluate(
-		() => document.documentElement.scrollWidth > document.documentElement.clientWidth
+		() => document.documentElement.scrollWidth > document.documentElement.clientWidth,
 	);
 	expect(overflows).toBe(false);
 });

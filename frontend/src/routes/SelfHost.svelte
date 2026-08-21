@@ -27,7 +27,7 @@
 		'there is disk for the static data',
 		'the domain actually resolves to this machine',
 		'ports 80 and 443 are free',
-		'the checkout is not behind origin'
+		'the checkout is not behind origin',
 	];
 
 	// The rest of wsctl, so the story is the whole life of the install, not day one.
@@ -36,13 +36,25 @@
 		{ cmd: 'update', body: 'Pulls, rebuilds, restarts, and says what changed.' },
 		{ cmd: 'status', body: 'What is running, which SDE build is loaded, whether the URL answers.' },
 		{ cmd: 'sde-update', body: 'Takes a newer static data export when CCP publishes one.' },
-		{ cmd: 'discord-register', body: 'Uploads the slash command to your Discord application.' }
+		{ cmd: 'discord-register', body: 'Uploads the slash command to your Discord application.' },
 	];
 
 	const owns = [
-		{ icon: ServerIcon, title: 'Your machine', body: 'One box, four containers, no account with anybody.' },
-		{ icon: DatabaseIcon, title: 'Your database', body: 'The chain lives in your Postgres. Nothing phones home.' },
-		{ icon: LockIcon, title: 'Your keys', body: 'Your own EVE application, so ESI tokens never leave the host.' }
+		{
+			icon: ServerIcon,
+			title: 'Your machine',
+			body: 'One box, four containers, no account with anybody.',
+		},
+		{
+			icon: DatabaseIcon,
+			title: 'Your database',
+			body: 'The chain lives in your Postgres. Nothing phones home.',
+		},
+		{
+			icon: LockIcon,
+			title: 'Your keys',
+			body: 'Your own EVE application, so ESI tokens never leave the host.',
+		},
 	];
 </script>
 

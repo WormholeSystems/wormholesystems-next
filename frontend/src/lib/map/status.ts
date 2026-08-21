@@ -14,7 +14,7 @@ export const STATUS_ICONS = {
 	active: ActivityIcon,
 	unscanned: RadarIcon,
 	empty: CircleDashedIcon,
-	unknown: CircleHelpIcon
+	unknown: CircleHelpIcon,
 } satisfies Record<SystemStatus, typeof ShieldCheckIcon>;
 
 export const STATUS_OPTIONS: SystemStatus[] = [
@@ -23,7 +23,7 @@ export const STATUS_OPTIONS: SystemStatus[] = [
 	'hostile',
 	'active',
 	'unscanned',
-	'empty'
+	'empty',
 ];
 
 export function statusLabel(status: SystemStatus): string {

@@ -7,14 +7,14 @@
 		corporation: 'corporations',
 		alliance: 'alliances',
 		faction: 'corporations',
-		type: 'types'
+		type: 'types',
 	} as const;
 	const variants = {
 		character: 'portrait',
 		corporation: 'logo',
 		alliance: 'logo',
 		faction: 'logo',
-		type: 'icon'
+		type: 'icon',
 	} as const;
 
 	let {
@@ -22,7 +22,7 @@
 		id,
 		class: cls = '',
 		title,
-		size = 64
+		size = 64,
 	}: {
 		kind: keyof typeof paths;
 		id: number;

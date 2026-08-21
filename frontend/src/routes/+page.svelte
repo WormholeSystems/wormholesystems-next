@@ -30,49 +30,48 @@
 		{ value: data.reference.solar_systems, label: 'Solar systems' },
 		{ value: data.reference.wormhole_systems, label: 'Wormhole systems' },
 		{ value: data.reference.stargates, label: 'Stargates' },
-		{ value: data.reference.wormhole_types, label: 'Wormhole types' }
+		{ value: data.reference.wormhole_types, label: 'Wormhole types' },
 	]);
 
 	// The same numbers the connection panel shows, in the states it colours differently.
 	const holes = [
 		{ name: 'K162 → J123746', remaining: 82, jumps: 4, status: 'fresh' },
 		{ name: 'C247 → J104351', remaining: 38, jumps: 14, status: 'reduced' },
-		{ name: 'B274 → Korasen', remaining: 7, jumps: 22, status: 'critical' }
+		{ name: 'B274 → Korasen', remaining: 7, jumps: 22, status: 'critical' },
 	];
 
 	const rest = [
 		{
 			icon: RouteIcon,
 			title: 'Smart routing',
-			body: 'The shortest way home through the chain and the gates together, weighted by security and by how much lifetime and mass you will trust.'
+			body: 'The shortest way home through the chain and the gates together, weighted by security and by how much lifetime and mass you will trust.',
 		},
 		{
 			icon: CrosshairIcon,
 			title: 'Threat analysis',
-			body: 'Recent kills surface against the systems they happened in, so you know what you are jumping into.'
+			body: 'Recent kills surface against the systems they happened in, so you know what you are jumping into.',
 		},
 		{
 			icon: BellIcon,
 			title: 'Discord alerts',
-			body: 'Watch a system, a jump range, or the whole chain. Slash commands answer from the same map.'
+			body: 'Watch a system, a jump range, or the whole chain. Slash commands answer from the same map.',
 		},
 		{
 			icon: TelescopeIcon,
 			title: 'EVE Scout',
-			body: 'Thera and Turnur connections pulled in and kept current, so routing can use them too.'
+			body: 'Thera and Turnur connections pulled in and kept current, so routing can use them too.',
 		},
 		{
 			icon: LayoutGridIcon,
 			title: 'Your own layout',
-			body: 'Drag the panels where you want them. Phone, tablet, laptop and desktop each remember their own arrangement.'
+			body: 'Drag the panels where you want them. Phone, tablet, laptop and desktop each remember their own arrangement.',
 		},
 		{
 			icon: UndoIcon,
 			title: 'Undo anything',
-			body: 'Every change is a command with an inverse, so a mis-pasted scan or a wrong signature is one keystroke back.'
-		}
+			body: 'Every change is a command with an inverse, so a mis-pasted scan or a wrong signature is one keystroke back.',
+		},
 	];
-
 </script>
 
 <Tooltip.Provider delayDuration={300}>
@@ -117,12 +116,12 @@
 					home.map · Turnur
 					{#snippet actions()}
 						<span class="flex items-center gap-1.5">
-							<span
-								class="size-2 rounded-full"
-								style="background: var(--color-status-hostile)"
+							<span class="size-2 rounded-full" style="background: var(--color-status-hostile)"
 							></span>
-							<span class="size-2 rounded-full" style="background: var(--color-status-active)"></span>
-							<span class="size-2 rounded-full" style="background: var(--color-status-empty)"></span>
+							<span class="size-2 rounded-full" style="background: var(--color-status-active)"
+							></span>
+							<span class="size-2 rounded-full" style="background: var(--color-status-empty)"
+							></span>
 						</span>
 					{/snippet}
 				</MapPanelHeader>
@@ -228,7 +227,11 @@
 						<MapIcon data-icon="inline-start" />
 						Open your maps
 					</Button>
-					<Button href="https://github.com/WormholeSystems/wormholesystems-next" size="lg" variant="outline">
+					<Button
+						href="https://github.com/WormholeSystems/wormholesystems-next"
+						size="lg"
+						variant="outline"
+					>
 						<GitForkIcon data-icon="inline-start" />
 						Source on GitHub
 					</Button>

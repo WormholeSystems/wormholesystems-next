@@ -7,7 +7,7 @@ import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
 
 function sig(
 	signature_id: string,
-	overrides: Partial<Signature> & { group?: SignatureGroup } = {}
+	overrides: Partial<Signature> & { group?: SignatureGroup } = {},
 ): Signature {
 	return {
 		id: 1,
@@ -24,7 +24,7 @@ function sig(
 		connection_id: null,
 		created_at: '',
 		updated_at: '',
-		...overrides
+		...overrides,
 	};
 }
 
@@ -40,7 +40,7 @@ function type(id: number, target_class: number | null): SignatureTypeInfo {
 		total_mass: null,
 		max_jump_mass: null,
 		lifetime_hours: null,
-		signature_strength: null
+		signature_strength: null,
 	};
 }
 
@@ -52,7 +52,7 @@ const TO_NULLSEC = type(3, 9);
 const types = new Map([
 	[K162.id, K162],
 	[TO_C5.id, TO_C5],
-	[TO_NULLSEC.id, TO_NULLSEC]
+	[TO_NULLSEC.id, TO_NULLSEC],
 ]);
 
 describe('canBeConnection', () => {
@@ -93,10 +93,10 @@ describe('groupSignatures', () => {
 				sig('DEF-200', { id: 2, group: 'gas' }),
 				sig('ABC-300', { id: 3, signature_type_id: TO_NULLSEC.id }),
 				sig('GHI-400', { id: 4, connection_id: 7 }),
-				sig('BCD-500', { id: 5, group: 'unknown' })
+				sig('BCD-500', { id: 5, group: 'unknown' }),
 			],
 			types,
-			5
+			5,
 		);
 
 		expect(groups.likely.map((s) => s.signature_id)).toEqual(['BCD-500', 'XYZ-100']);

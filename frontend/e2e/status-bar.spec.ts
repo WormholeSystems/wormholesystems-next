@@ -48,7 +48,7 @@ test('undo and redo settle instead of toggling for ever', async ({ page, api }) 
 	await expect(redo).toBeDisabled();
 
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null },
 	});
 	const node = page.getByTestId('system-node').filter({ hasText: 'J122515' });
 	await expect(node).toBeVisible();
@@ -77,7 +77,7 @@ test('a change after an undo branches, and the branch can be re-entered', async 
 	const mapId = await createMap(api, 'E2E Branch');
 	const add = (sys: number, x: number) =>
 		api.post(`/api/maps/${mapId}/systems/add`, {
-			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null },
 		});
 	await add(J122515, 200);
 	await add(JITA, 500);
@@ -108,7 +108,7 @@ test('a change after an undo branches, and the branch can be re-entered', async 
 	// Newest first, so the most recent work is at the top without scrolling.
 	const order = await page.getByTestId('history-row').allTextContents();
 	expect(order.findIndex((t) => t.includes('Amarr'))).toBeLessThan(
-		order.findIndex((t) => t.includes('J122515'))
+		order.findIndex((t) => t.includes('J122515')),
 	);
 
 	// Jumping to the abandoned step swaps branches.
@@ -121,7 +121,7 @@ test('rewinding a straight history keeps it straight', async ({ page, api }) => 
 	const mapId = await createMap(api, 'E2E Straight');
 	const add = (sys: number, x: number) =>
 		api.post(`/api/maps/${mapId}/systems/add`, {
-			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null },
 		});
 	await add(J122515, 200);
 	await add(JITA, 500);
@@ -139,7 +139,7 @@ test('rewinding a straight history keeps it straight', async ({ page, api }) => 
 	const rows = page.getByTestId('history-row');
 	await expect(rows).toHaveCount(3);
 	for (const depth of await rows.evaluateAll((els) =>
-		els.map((e) => e.getAttribute('data-depth'))
+		els.map((e) => e.getAttribute('data-depth')),
 	)) {
 		expect(depth).toBe('0');
 	}
@@ -148,14 +148,11 @@ test('rewinding a straight history keeps it straight', async ({ page, api }) => 
 	await expect(rows.filter({ hasText: 'J122515' })).toHaveAttribute('data-applied', 'true');
 });
 
-test('only the first row of a branch connects back to the line it left', async ({
-	page,
-	api
-}) => {
+test('only the first row of a branch connects back to the line it left', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Connectors');
 	const add = (sys: number, x: number) =>
 		api.post(`/api/maps/${mapId}/systems/add`, {
-			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null },
 		});
 	await add(J122515, 200);
 	await add(JITA, 500);
@@ -184,7 +181,7 @@ test('only the first row of a branch connects back to the line it left', async (
 test('history lists what happened and who did it', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E History');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 100, y: 100, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 100, y: 100, alias: null },
 	});
 	await gotoApp(page, `/maps/${mapId}`);
 
@@ -198,14 +195,14 @@ test('history lists what happened and who did it', async ({ page, api }) => {
 test('a viewer cannot move the history but can read it', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E ViewerBar');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 100, y: 100, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 100, y: 100, alias: null },
 	});
 
 	const viewer = await createIdentity(1);
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 	const viewerCtx = await page.context().browser()!.newContext();
 	await viewerCtx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await viewerCtx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);
@@ -230,18 +227,18 @@ test('stale connections are offered for a one-click sweep', async ({ page, api }
 	const mapId = await createMap(api, 'E2E Stale');
 	const add = async (sys: number, x: number) => {
 		const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null }
+			data: { map_id: mapId, solar_system_id: sys, x, y: 200, alias: null },
 		});
 		return await createdId(res);
 	};
 	const a = await add(J122515, 200);
 	const b = await add(JITA, 500);
 	const conn = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' },
 	});
 	const connId = await createdId(conn);
 	await api.post(`/api/maps/${mapId}/connections/set-status`, {
-		data: { map_id: mapId, connection_id: connId, time_status: 'critical' }
+		data: { map_id: mapId, connection_id: connId, time_status: 'critical' },
 	});
 	await ageStaleConnections(mapId);
 

@@ -16,7 +16,11 @@
 	const sov = $derived(system.sovereignty);
 </script>
 
-<ClassBadge classId={system.wormhole_class_id} security={system.security} class="truncate text-xs" />
+<ClassBadge
+	classId={system.wormhole_class_id}
+	security={system.security}
+	class="truncate text-xs"
+/>
 <span class="min-w-0 truncate text-foreground">{system.name}</span>
 <span class="min-w-0 truncate text-xs text-muted-foreground">{system.region}</span>
 {#if system.statics.length > 0 || system.effect_name}

@@ -18,7 +18,7 @@
 	const typeMeta = $derived(
 		connection.kind === 'stargate'
 			? { label: 'Stargate', text: 'text-sky-500', dot: 'bg-sky-500' }
-			: { label: 'Wormhole', text: 'text-foreground', dot: 'bg-neutral-500' }
+			: { label: 'Wormhole', text: 'text-foreground', dot: 'bg-neutral-500' },
 	);
 	const lifetimeMeta = $derived.by(() => {
 		switch (connection.time_status) {
@@ -46,10 +46,10 @@
 	});
 
 	const createdMs = $derived(
-		Math.min(Date.parse(connection.created_at), ...sigs.map((s) => Date.parse(s.created_at)))
+		Math.min(Date.parse(connection.created_at), ...sigs.map((s) => Date.parse(s.created_at))),
 	);
 	const updatedMs = $derived(
-		Math.max(Date.parse(connection.updated_at), ...sigs.map((s) => Date.parse(s.updated_at)))
+		Math.max(Date.parse(connection.updated_at), ...sigs.map((s) => Date.parse(s.updated_at))),
 	);
 
 	function fmt(ms: number): string {
@@ -59,7 +59,7 @@
 			hour: '2-digit',
 			minute: '2-digit',
 			hour12: false,
-			timeZone: 'UTC'
+			timeZone: 'UTC',
 		});
 	}
 
@@ -73,12 +73,12 @@
 	}
 
 	const degraded = $derived(
-		connection.time_status === 'eol' || connection.time_status === 'critical'
+		connection.time_status === 'eol' || connection.time_status === 'critical',
 	);
 	const lifetimeSince = $derived(
 		connection.time_status_updated_at === null
 			? null
-			: Date.parse(connection.time_status_updated_at)
+			: Date.parse(connection.time_status_updated_at),
 	);
 </script>
 

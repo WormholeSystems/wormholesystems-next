@@ -31,7 +31,7 @@ async function createMap(api: Api, name: string) {
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, x: number) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -52,7 +52,7 @@ test('recent kills in mapped systems are listed, and nothing else is', async ({ 
 		victimShipTypeId: LOKI,
 		totalValue: 2_400_000_000,
 		attackerCount: 4,
-		finalBlowShipTypeId: SLASHER
+		finalBlowShipTypeId: SLASHER,
 	});
 	// Older than the card's week-long window.
 	await seedKillmail({
@@ -61,7 +61,7 @@ test('recent kills in mapped systems are listed, and nothing else is', async ({ 
 		minutesAgo: 60 * 24 * 9,
 		victimShipTypeId: SLASHER,
 		totalValue: 5_000_000,
-		attackerCount: 1
+		attackerCount: 1,
 	});
 	// A system nobody put on this map.
 	await seedKillmail({
@@ -70,7 +70,7 @@ test('recent kills in mapped systems are listed, and nothing else is', async ({ 
 		minutesAgo: 10,
 		victimShipTypeId: SLASHER,
 		totalValue: 5_000_000,
-		attackerCount: 1
+		attackerCount: 1,
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -92,7 +92,7 @@ test('recent kills in mapped systems are listed, and nothing else is', async ({ 
 
 test('a solo kill is marked, and the filter narrows to one half of the chain', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E KillsFilter');
 	await addSystem(api, mapId, J122515, 200);
@@ -105,7 +105,7 @@ test('a solo kill is marked, and the filter narrows to one half of the chain', a
 		victimShipTypeId: SLASHER,
 		totalValue: 12_000_000,
 		attackerCount: 1,
-		isSolo: true
+		isSolo: true,
 	});
 	await seedKillmail({
 		id: KSPACE,
@@ -113,7 +113,7 @@ test('a solo kill is marked, and the filter narrows to one half of the chain', a
 		minutesAgo: 6,
 		victimShipTypeId: SLASHER,
 		totalValue: 8_000_000,
-		attackerCount: 3
+		attackerCount: 3,
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -123,7 +123,7 @@ test('a solo kill is marked, and the filter narrows to one half of the chain', a
 
 	// One attacker: a hunter, not a fleet, and coloured to say so.
 	await expect(
-		card.locator(`[data-kill="${RECENT}"]`).getByTestId('killmail-attackers')
+		card.locator(`[data-kill="${RECENT}"]`).getByTestId('killmail-attackers'),
 	).toHaveClass(/amber/);
 
 	// Wormhole space only drops the Jita kill.
@@ -155,7 +155,7 @@ test('adding a system pulls in its kills straight away', async ({ page, api }) =
 		minutesAgo: 4,
 		victimShipTypeId: SLASHER,
 		totalValue: 9_000_000,
-		attackerCount: 2
+		attackerCount: 2,
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -178,7 +178,7 @@ test('a killmail row right-clicks to the system menu', async ({ page, api }) => 
 		minutesAgo: 3,
 		victimShipTypeId: SLASHER,
 		totalValue: 1_000_000,
-		attackerCount: 2
+		attackerCount: 2,
 	});
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
@@ -207,7 +207,7 @@ test('a wide card names the aggressor, a narrow one keeps the count', async ({ p
 		corporationTicker: 'HKRAB',
 		allianceId: HUNTER_ALLIANCE,
 		allianceName: 'Hard Knocks Citizens',
-		allianceTicker: 'HKC'
+		allianceTicker: 'HKC',
 	});
 	await seedKillmail({
 		id: RECENT,
@@ -219,7 +219,7 @@ test('a wide card names the aggressor, a narrow one keeps the count', async ({ p
 		finalBlowShipTypeId: SLASHER,
 		finalBlowCharacterId: HUNTER,
 		finalBlowCorporationId: HUNTER_CORP,
-		finalBlowAllianceId: HUNTER_ALLIANCE
+		finalBlowAllianceId: HUNTER_ALLIANCE,
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);

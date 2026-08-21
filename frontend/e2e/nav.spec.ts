@@ -31,7 +31,7 @@ test('a pinned map shows in the top bar and takes you to it', async ({ page, api
 
 test('the pilot readout is gone from the bar, and the server status is not', async ({
 	page,
-	api
+	api,
 }) => {
 	const res = await api.post('/api/maps', { data: { name: 'E2E NavStatus' } });
 	const mapId = await createdId(res);

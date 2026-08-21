@@ -13,7 +13,7 @@ const item = (i: string, x: number, y: number, w: number, h: number): GridItem =
 	x,
 	y,
 	w,
-	h
+	h,
 });
 
 const MIN = { minW: 1, minH: 1 };
@@ -159,13 +159,13 @@ describe('tileBox', () => {
 			left: '0%',
 			top: '0px',
 			width: '50%',
-			height: '400px'
+			height: '400px',
 		});
 		expect(tileBox({ i: 'notes', x: 9, y: 2, w: 3, h: 1 }, 12, 100)).toEqual({
 			left: '75%',
 			top: '200px',
 			width: '25%',
-			height: '100px'
+			height: '100px',
 		});
 	});
 });

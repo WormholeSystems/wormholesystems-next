@@ -37,14 +37,14 @@
 		xs: SmartphoneIcon,
 		sm: TabletIcon,
 		md: LaptopIcon,
-		lg: MonitorIcon
+		lg: MonitorIcon,
 	} as const;
 
 	/** The layout as a string you can hand to someone else. */
 	async function copy() {
 		const payload = {
 			breakpoints: resolveLayouts(map.layoutDraft),
-			hidden: map.userSettings?.hidden_panels ?? []
+			hidden: map.userSettings?.hidden_panels ?? [],
 		};
 		// The clipboard is the whole result here, so a refused write has to say so rather
 		// than look like nothing happened.
@@ -76,10 +76,7 @@
 </script>
 
 <Tooltip.Provider delayDuration={300}>
-	<div
-		class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
-		data-testid="layout-toolbar"
-	>
+	<div class="fixed bottom-6 left-1/2 z-50 -translate-x-1/2" data-testid="layout-toolbar">
 		<div
 			class="flex items-center gap-2 rounded-2xl border border-border/60 bg-card/95 p-1.5 shadow-xl backdrop-blur-md"
 		>
@@ -120,7 +117,7 @@
 										'flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors',
 										active
 											? 'bg-background font-medium text-foreground shadow-sm'
-											: 'text-muted-foreground hover:text-foreground'
+											: 'text-muted-foreground hover:text-foreground',
 									)}
 									data-testid="breakpoint-{bp.key}"
 									aria-pressed={active}
@@ -266,8 +263,8 @@
 		<Dialog.Header>
 			<Dialog.Title>Save your layout changes?</Dialog.Title>
 			<Dialog.Description>
-				You have rearranged panels without saving. Discarding puts the arrangement back to
-				the last one you saved.
+				You have rearranged panels without saving. Discarding puts the arrangement back to the last
+				one you saved.
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-between">

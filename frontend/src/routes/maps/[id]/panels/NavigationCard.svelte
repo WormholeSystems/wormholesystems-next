@@ -43,7 +43,7 @@
 		type DynamicEdge,
 		type RouteGraph,
 		type RouteResult,
-		type RoutingSettings
+		type RoutingSettings,
 	} from '$lib/routing/algorithm';
 	import * as Select from '$lib/components/ui/select';
 	import type { MapState } from '../map-state.svelte';
@@ -56,7 +56,7 @@
 	const PREF_LABELS: Record<string, string> = {
 		shorter: 'Shortest',
 		safer: 'Safer',
-		less_secure: 'Less Secure'
+		less_secure: 'Less Secure',
 	};
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 
@@ -109,7 +109,10 @@
 			picks.push({ id: active.solar_system_id, reason: 'Selected system', icon: 'selected' });
 		}
 		const character = map.myCharacters.find((c) => c.online && c.solar_system_id !== null);
-		if (character?.solar_system_id != null && !picks.some((p) => p.id === character.solar_system_id)) {
+		if (
+			character?.solar_system_id != null &&
+			!picks.some((p) => p.id === character.solar_system_id)
+		) {
 			picks.push({ id: character.solar_system_id, reason: 'Where you are', icon: 'location' });
 		}
 		for (const entry of map.watchlist.filter((w) => w.is_pinned).slice(0, 5)) {
@@ -127,8 +130,8 @@
 			.map((p) => ({ system: resolved.get(p.id), reason: p.reason, icon: p.icon }))
 			.filter(
 				(p): p is { system: SystemSearchResult; reason: string; icon: typeof p.icon } =>
-					p.system !== undefined
-			)
+					p.system !== undefined,
+			),
 	);
 
 	const origin = $derived(map.routeOrigin);
@@ -136,7 +139,7 @@
 	$effect(() => {
 		needResolve([
 			...(origin === null ? [] : [origin]),
-			...map.watchlist.map((w) => w.solar_system_id)
+			...map.watchlist.map((w) => w.solar_system_id),
 		]);
 	});
 
@@ -147,7 +150,7 @@
 			origin,
 			map.watchlist.map((w) => w.solar_system_id),
 			routingSettings,
-			map.ignoredSystems
+			map.ignoredSystems,
 		);
 	});
 
@@ -155,8 +158,8 @@
 	let sort = $state<{ column: SortColumn; direction: 'asc' | 'desc' }>(
 		(browser && JSON.parse(localStorage.getItem('watchlist-sort') ?? 'null')) || {
 			column: 'system',
-			direction: 'asc'
-		}
+			direction: 'asc',
+		},
 	);
 	$effect(() => {
 		localStorage.setItem('watchlist-sort', JSON.stringify(sort));
@@ -225,17 +228,17 @@
 		{ value: 'npc_stations', label: 'NPC Stations' },
 		{ value: 'highsec', label: 'High Security' },
 		{ value: 'lowsec', label: 'Low Security' },
-		{ value: 'nullsec', label: 'Null Security' }
+		{ value: 'nullsec', label: 'Null Security' },
 	];
 	let condition = $state('observatories');
 	let findLimit = $state('15');
 	const conditionLabel = $derived(
 		CONDITIONS.find((c) => c.value === condition)?.label ??
 			serviceOptions.find((svc) => `service_${svc.id}` === condition)?.name ??
-			'Pick one'
+			'Pick one',
 	);
 	const activeService = $derived(
-		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null
+		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null,
 	);
 	// Station lists collapse by default: a service can match a dozen stations per system,
 	// which would bury the jump-ordered results.
@@ -259,7 +262,7 @@
 			npc_stations: (id) => stationSystems.has(id),
 			highsec: (id) => sec(id) >= 0.5,
 			lowsec: (id) => sec(id) >= 0.1 && sec(id) <= 0.4,
-			nullsec: (id) => sec(id) <= 0
+			nullsec: (id) => sec(id) <= 0,
 		};
 		for (const svc of serviceOptions) {
 			matchers[`service_${svc.id}`] = (id) => svc.systems.has(id);
@@ -270,7 +273,7 @@
 			matchers[condition] ?? (() => false),
 			Number(findLimit),
 			routingSettings,
-			map.ignoredSystems
+			map.ignoredSystems,
 		);
 	});
 	$effect(() => {
@@ -358,7 +361,9 @@
 				<p class="text-muted-foreground" data-testid="no-route">No route found</p>
 			{:else if abResult}
 				<div class="flex items-center justify-between font-medium">
-					<span class={badgeTone(abResult.jumps)} data-testid="route-jumps">{abResult.jumps} jumps</span>
+					<span class={badgeTone(abResult.jumps)} data-testid="route-jumps"
+						>{abResult.jumps} jumps</span
+					>
 					<span class="flex items-center gap-2">
 						{#if map.ignoredSystems.size > 0}
 							<button
@@ -382,7 +387,10 @@
 						</Button>
 					</span>
 				</div>
-				<RouteList steps={map.withSignatures(abResult.route)} onignore={(id) => map.ignoreSystem(id)} />
+				<RouteList
+					steps={map.withSignatures(abResult.route)}
+					onignore={(id) => map.ignoreSystem(id)}
+				/>
 			{:else if map.ignoredSystems.size > 0}
 				<button
 					class="self-start text-[11px] text-muted-foreground underline-offset-2 hover:underline"
@@ -395,7 +403,9 @@
 		</div>
 
 		<!-- One grid owns the tracks so every row and the header share column widths. -->
-		<div class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2">
+		<div
+			class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2"
+		>
 			<div
 				class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
 			>
@@ -467,9 +477,7 @@
 					{:else}
 						<!-- `nowrap` because a hyphen is a line-break opportunity: with every row
 						     unreachable, the dashes wrap and every row grows a line. -->
-						<span class="text-[10px] whitespace-nowrap text-muted-foreground/60">
-							--
-						</span>
+						<span class="text-[10px] whitespace-nowrap text-muted-foreground/60"> -- </span>
 					{/if}
 					{#if canWrite}
 						<span class="flex items-center justify-end gap-1">
@@ -485,8 +493,8 @@
 										api.setWatchlistPinned({
 											map_id: map.mapId,
 											entry_id: entry.id,
-											value: !entry.is_pinned
-										})
+											value: !entry.is_pinned,
+										}),
 									)}
 							>
 								<PinIcon class="size-3" />
@@ -498,7 +506,7 @@
 								onclick={() =>
 									map.run(
 										'unwatch',
-										api.removeWatchlistEntry({ map_id: map.mapId, entry_id: entry.id })
+										api.removeWatchlistEntry({ map_id: map.mapId, entry_id: entry.id }),
 									)}
 							>
 								<Trash2Icon class="size-3" />
@@ -525,134 +533,139 @@
 				Find
 			</button>
 			{#if findOpen}
-				<div class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2">
-				<div class="col-span-full flex items-center gap-1.5 border-b border-border/30 p-2">
-					<Select.Root type="single" bind:value={condition}>
-						<Select.Trigger class="h-7 flex-1 text-xs" data-testid="find-condition">
-							{conditionLabel}
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Group>
-								<Select.GroupHeading>Features</Select.GroupHeading>
-								{#each CONDITIONS.slice(0, 2) as c (c.value)}
-									<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
-								{/each}
-							</Select.Group>
-							<Select.Group>
-								<Select.GroupHeading>Security</Select.GroupHeading>
-								{#each CONDITIONS.slice(2) as c (c.value)}
-									<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
-								{/each}
-							</Select.Group>
-							{#if serviceOptions.length > 0}
+				<div
+					class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2"
+				>
+					<div class="col-span-full flex items-center gap-1.5 border-b border-border/30 p-2">
+						<Select.Root type="single" bind:value={condition}>
+							<Select.Trigger class="h-7 flex-1 text-xs" data-testid="find-condition">
+								{conditionLabel}
+							</Select.Trigger>
+							<Select.Content>
 								<Select.Group>
-									<Select.GroupHeading>Station services</Select.GroupHeading>
-									{#each serviceOptions as svc (svc.id)}
-										<Select.Item value="service_{svc.id}" label={svc.name}>
-											{svc.name}
-										</Select.Item>
+									<Select.GroupHeading>Features</Select.GroupHeading>
+									{#each CONDITIONS.slice(0, 2) as c (c.value)}
+										<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
 									{/each}
 								</Select.Group>
-							{/if}
-						</Select.Content>
-					</Select.Root>
-					<Select.Root type="single" bind:value={findLimit}>
-						<Select.Trigger class="h-7 w-16 text-xs" data-testid="find-limit">
-							{findLimit}
-						</Select.Trigger>
-						<Select.Content>
-							<Select.Group>
-								{#each ['5', '10', '15', '25', '50'] as n (n)}
-									<Select.Item value={n} label={n}>{n}</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
-					</Select.Root>
-				</div>
-				{#if origin === null}
-					<p
-						class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
-					>
-						Select an origin
-					</p>
-				{:else if findResults.length === 0}
-					<p
-						class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
-					>
-						No systems found
-					</p>
-				{/if}
-				{#each findResults as result (result.id)}
-					{@const r = resolved.get(result.id)}
-					{@const stations = activeService?.stationsBySystem.get(result.id) ?? []}
-					{@const expandable = stations.length > 0}
-					<!-- The role/tabindex pair is conditional (button only when there is something
-					     to expand), which the static a11y check cannot follow. -->
-					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-					<div
-						class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30 {expandable
-							? 'cursor-pointer'
-							: ''}"
-						data-testid="find-row"
-						role={expandable ? 'button' : 'listitem'}
-						tabindex={expandable ? 0 : undefined}
-						aria-expanded={expandable ? expandedFind.has(result.id) : undefined}
-						onclick={() => expandable && toggleFindRow(result.id)}
-						onkeydown={(ev) => {
-							if (expandable && (ev.key === 'Enter' || ev.key === ' ')) {
-								ev.preventDefault();
-								toggleFindRow(result.id);
-							}
-						}}
-						onmouseenter={() => (map.hoverPath = result.route.map((s) => s.id))}
-						onmouseleave={() => (map.hoverPath = null)}
-					>
-						{#if r}
-							<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
-								<SystemRow system={r} />
-							</SystemMenu>
-						{:else}
-							<span class="col-span-4 truncate text-muted-foreground">{result.id}</span>
-						{/if}
-						<RoutePopover {map} steps={result.route}>
-							<span class="cursor-pointer text-xs font-medium {badgeTone(result.jumps)}">
-								{result.jumps}j
-							</span>
-						</RoutePopover>
-						{#if expandable}
-							<span
-								class="flex items-center gap-0.5 text-[10px] text-muted-foreground"
-								data-testid="find-stations-indicator"
-							>
-								{#if expandedFind.has(result.id)}
-									<ChevronDownIcon class="size-3" />
-								{:else}
-									<ChevronRightIcon class="size-3" />
+								<Select.Group>
+									<Select.GroupHeading>Security</Select.GroupHeading>
+									{#each CONDITIONS.slice(2) as c (c.value)}
+										<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
+									{/each}
+								</Select.Group>
+								{#if serviceOptions.length > 0}
+									<Select.Group>
+										<Select.GroupHeading>Station services</Select.GroupHeading>
+										{#each serviceOptions as svc (svc.id)}
+											<Select.Item value="service_{svc.id}" label={svc.name}>
+												{svc.name}
+											</Select.Item>
+										{/each}
+									</Select.Group>
 								{/if}
-								{stations.length}
-							</span>
-						{:else}
-							<span></span>
-						{/if}
+							</Select.Content>
+						</Select.Root>
+						<Select.Root type="single" bind:value={findLimit}>
+							<Select.Trigger class="h-7 w-16 text-xs" data-testid="find-limit">
+								{findLimit}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Group>
+									{#each ['5', '10', '15', '25', '50'] as n (n)}
+										<Select.Item value={n} label={n}>{n}</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
 					</div>
-					{#if expandedFind.has(result.id)}
-						{#each stations as station (station.id)}
-							<DestinationMenu destinationId={station.id} class="col-span-full">
-								<!-- Hovering a station keeps its system's route highlighted. -->
-								<div
-									class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
-									data-testid="find-station"
-									role="listitem"
-									onmouseenter={() => (map.hoverPath = result.route.map((step) => step.id))}
-									onmouseleave={() => (map.hoverPath = null)}
-								>
-									<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
-									<span class="truncate" title={station.name}>{station.name}</span>
-								</div>
-							</DestinationMenu>
-						{/each}
+					{#if origin === null}
+						<p
+							class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
+						>
+							Select an origin
+						</p>
+					{:else if findResults.length === 0}
+						<p
+							class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
+						>
+							No systems found
+						</p>
 					{/if}
-				{/each}
+					{#each findResults as result (result.id)}
+						{@const r = resolved.get(result.id)}
+						{@const stations = activeService?.stationsBySystem.get(result.id) ?? []}
+						{@const expandable = stations.length > 0}
+						<!-- The role/tabindex pair is conditional (button only when there is something
+					     to expand), which the static a11y check cannot follow. -->
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<div
+							class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30 {expandable
+								? 'cursor-pointer'
+								: ''}"
+							data-testid="find-row"
+							role={expandable ? 'button' : 'listitem'}
+							tabindex={expandable ? 0 : undefined}
+							aria-expanded={expandable ? expandedFind.has(result.id) : undefined}
+							onclick={() => expandable && toggleFindRow(result.id)}
+							onkeydown={(ev) => {
+								if (expandable && (ev.key === 'Enter' || ev.key === ' ')) {
+									ev.preventDefault();
+									toggleFindRow(result.id);
+								}
+							}}
+							onmouseenter={() => (map.hoverPath = result.route.map((s) => s.id))}
+							onmouseleave={() => (map.hoverPath = null)}
+						>
+							{#if r}
+								<SystemMenu
+									system={r}
+									class="col-span-4 grid grid-cols-subgrid items-center gap-x-2"
+								>
+									<SystemRow system={r} />
+								</SystemMenu>
+							{:else}
+								<span class="col-span-4 truncate text-muted-foreground">{result.id}</span>
+							{/if}
+							<RoutePopover {map} steps={result.route}>
+								<span class="cursor-pointer text-xs font-medium {badgeTone(result.jumps)}">
+									{result.jumps}j
+								</span>
+							</RoutePopover>
+							{#if expandable}
+								<span
+									class="flex items-center gap-0.5 text-[10px] text-muted-foreground"
+									data-testid="find-stations-indicator"
+								>
+									{#if expandedFind.has(result.id)}
+										<ChevronDownIcon class="size-3" />
+									{:else}
+										<ChevronRightIcon class="size-3" />
+									{/if}
+									{stations.length}
+								</span>
+							{:else}
+								<span></span>
+							{/if}
+						</div>
+						{#if expandedFind.has(result.id)}
+							{#each stations as station (station.id)}
+								<DestinationMenu destinationId={station.id} class="col-span-full">
+									<!-- Hovering a station keeps its system's route highlighted. -->
+									<div
+										class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
+										data-testid="find-station"
+										role="listitem"
+										onmouseenter={() => (map.hoverPath = result.route.map((step) => step.id))}
+										onmouseleave={() => (map.hoverPath = null)}
+									>
+										<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
+										<span class="truncate" title={station.name}>{station.name}</span>
+									</div>
+								</DestinationMenu>
+							{/each}
+						{/if}
+					{/each}
 				</div>
 			{/if}
 		</div>

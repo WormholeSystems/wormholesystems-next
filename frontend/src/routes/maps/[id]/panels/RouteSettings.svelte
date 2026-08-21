@@ -16,17 +16,17 @@
 	const PREFS = [
 		{ value: 'shorter', label: 'Shortest', hint: 'Min jumps' },
 		{ value: 'safer', label: 'Safer', hint: 'High-sec' },
-		{ value: 'less_secure', label: 'Less Secure', hint: 'Low-sec' }
+		{ value: 'less_secure', label: 'Less Secure', hint: 'Low-sec' },
 	];
 	const LIFETIMES = [
 		{ value: 'critical', label: 'Critical', hint: '< 1 hour' },
 		{ value: 'eol', label: 'End of Life', hint: '< 4 hours' },
-		{ value: 'stable', label: 'Healthy Only', hint: '> 4 hours' }
+		{ value: 'stable', label: 'Healthy Only', hint: '> 4 hours' },
 	];
 	const MASSES = [
 		{ value: 'critical', label: 'Critical Mass', hint: '< 10%' },
 		{ value: 'reduced', label: 'Reduced Mass', hint: '< 50%' },
-		{ value: 'stable', label: 'High Mass', hint: '> 50%' }
+		{ value: 'stable', label: 'High Mass', hint: '> 50%' },
 	];
 
 	function update(patch: Record<string, unknown>) {
@@ -38,7 +38,7 @@
 	title: string,
 	items: { value: string; label: string; hint: string }[],
 	current: string,
-	key: string
+	key: string,
 )}
 	<div class="flex flex-col gap-1">
 		<span class="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
@@ -95,13 +95,13 @@
 			'Wormhole Lifetime',
 			LIFETIMES,
 			settings?.route_allow_time_status ?? 'critical',
-			'route_allow_time_status'
+			'route_allow_time_status',
 		)}
 		{@render options(
 			'Wormhole Mass',
 			MASSES,
 			settings?.route_allow_mass_status ?? 'reduced',
-			'route_allow_mass_status'
+			'route_allow_mass_status',
 		)}
 		<label class="flex items-center justify-between gap-2 text-xs">
 			Use EVE Scout

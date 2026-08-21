@@ -7,17 +7,20 @@ const AMARR = 30002187;
 // The route popover: a header over a list of hops, each with the holder of the system it
 // passes through.
 
-async function openRoute(page: import('@playwright/test').Page, api: import('@playwright/test').APIRequestContext) {
+async function openRoute(
+	page: import('@playwright/test').Page,
+	api: import('@playwright/test').APIRequestContext,
+) {
 	const res = await api.post('/api/maps', { data: { name: 'E2E RoutePopover' } });
 	const mapId = await createdId(res);
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null },
 	});
 	const me = await (await api.get('/api/me')).json();
 	await setCharacterPresence(me.character_id ?? me.id, JITA);
 	await api.post(`/api/maps/${mapId}/settings/user`, { data: { tracking_allowed: true } });
 	await api.post(`/api/maps/${mapId}/watchlist/add`, {
-		data: { map_id: mapId, solar_system_id: AMARR }
+		data: { map_id: mapId, solar_system_id: AMARR },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);

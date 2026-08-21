@@ -9,14 +9,14 @@ const ALT_ID = 91999981;
 async function seedAlt() {
 	await withDb(async (db) => {
 		const owner = await db.query('select user_id from characters where id = $1', [
-			E2E_CHARACTER_ID
+			E2E_CHARACTER_ID,
 		]);
 		const userId = owner.rows[0].user_id;
 		await db.query(
 			`insert into characters (id, user_id, name, owner_hash, corporation_id)
 			 values ($1, $2, 'E2E Star Alt', 'e2e-star-alt-hash', $3)
 			 on conflict (id) do update set user_id = excluded.user_id`,
-			[ALT_ID, userId, E2E_CORPORATION_ID]
+			[ALT_ID, userId, E2E_CORPORATION_ID],
 		);
 		// Two statements rather than one: at most one preferred character per user is a
 		// unique index, and a single update would trip over it mid-statement.

@@ -20,15 +20,14 @@
 	const PLACEMENTS = [
 		{ value: 'map', label: 'Follow the map' },
 		{ value: 'manual', label: 'Custom placement' },
-		{ value: 'tree', label: 'Automatic placement' }
+		{ value: 'tree', label: 'Automatic placement' },
 	];
 	const placement = $derived(settings?.layout_override ?? 'map');
-
 
 	const FILTERS = [
 		{ value: 'all', label: 'Everything' },
 		{ value: 'jspace', label: 'Wormhole space only' },
-		{ value: 'kspace', label: 'Known space only' }
+		{ value: 'kspace', label: 'Known space only' },
 	];
 	const filter = $derived(settings?.killmail_filter ?? 'all');
 </script>

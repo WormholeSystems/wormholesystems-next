@@ -19,7 +19,7 @@
 		subtitle,
 		back,
 		sections,
-		children
+		children,
 	}: {
 		title: string;
 		subtitle?: string;
@@ -67,7 +67,7 @@
 						'flex items-start gap-2.5 border border-transparent px-3 py-2 text-sm whitespace-nowrap transition-colors md:whitespace-normal',
 						section.href === active
 							? 'border-border/60 bg-muted/40 text-foreground'
-							: 'text-muted-foreground hover:bg-muted/20 hover:text-foreground'
+							: 'text-muted-foreground hover:bg-muted/20 hover:text-foreground',
 					)}
 					data-testid="settings-section"
 					data-active={section.href === active}

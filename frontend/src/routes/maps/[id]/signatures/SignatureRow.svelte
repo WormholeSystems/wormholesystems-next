@@ -32,7 +32,7 @@
 		compact,
 		canWrite,
 		showStaticsFirst,
-		status
+		status,
 	}: {
 		ctx: SignatureContext;
 		system: MappedSystem;
@@ -50,7 +50,7 @@
 	const connection = $derived(
 		sig.connection_id === null
 			? null
-			: (ctx.connections.find((c) => c.id === sig.connection_id) ?? null)
+			: (ctx.connections.find((c) => c.id === sig.connection_id) ?? null),
 	);
 	// The linked connection's far end, for type narrowing and the bookmark class.
 	const linkedTarget = $derived.by(() => {
@@ -113,17 +113,17 @@
 				region: far?.region ?? null,
 				wormholeClassId: far?.wormhole_class_id ?? type?.target_class ?? null,
 				security: far?.security_status ?? null,
-				occupier: far?.occupying_group ?? null
+				occupier: far?.occupying_group ?? null,
 			},
 			{
 				signatureId: sig.signature_id,
 				size: sig.size,
 				massStatus: sig.mass_status,
 				timeStatus: sig.time_status,
-				wormholeCode: type?.signature ?? null
+				wormholeCode: type?.signature ?? null,
 			},
 			null,
-			system.alias
+			system.alias,
 		);
 		navigator.clipboard?.writeText(text);
 		toast.success('Bookmark copied', { description: text });
@@ -151,12 +151,12 @@
 	const MASS_OPTIONS = [
 		{ value: 'unknown', label: 'Fresh Mass', dot: 'bg-neutral-500' },
 		{ value: 'reduced', label: 'Reduced Mass', dot: 'bg-amber-500' },
-		{ value: 'critical', label: 'Critical Mass', dot: 'bg-red-500' }
+		{ value: 'critical', label: 'Critical Mass', dot: 'bg-red-500' },
 	];
 	const LIFETIME_OPTIONS = [
 		{ value: 'stable', label: 'Healthy', dot: 'bg-neutral-500' },
 		{ value: 'eol', label: 'End of Life', dot: 'bg-purple-500' },
-		{ value: 'critical', label: 'Critical', dot: 'bg-red-500' }
+		{ value: 'critical', label: 'Critical', dot: 'bg-red-500' },
 	];
 </script>
 
@@ -204,7 +204,10 @@
 			onValueChange={pickCategory}
 			disabled={!canWrite}
 		>
-			<Select.Trigger class="w-full min-w-0 overflow-hidden text-xs {compact ? '!h-5 !py-0' : ''}" data-testid="sig-category">
+			<Select.Trigger
+				class="w-full min-w-0 overflow-hidden text-xs {compact ? '!h-5 !py-0' : ''}"
+				data-testid="sig-category"
+			>
 				{#if sig.group === 'unknown'}
 					<span class="text-muted-foreground">Category</span>
 				{:else}

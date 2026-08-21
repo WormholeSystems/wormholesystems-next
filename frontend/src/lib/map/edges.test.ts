@@ -14,7 +14,7 @@ describe('freeEdges', () => {
 	it('pulls each endpoint along its node toward the other one', () => {
 		const positions = new Map([
 			[1, { x: 0, y: 0 }],
-			[2, { x: 600, y: 0 }]
+			[2, { x: 600, y: 0 }],
 		]);
 		const g = freeEdges([connection(10, 1, 2)], positions, NODE_H).get(10)!;
 
@@ -35,7 +35,7 @@ describe('treeEdges', () => {
 	it('leaves the facing sides when the nodes are in different columns', () => {
 		const positions = new Map([
 			[1, { x: 60, y: 40 }],
-			[2, { x: 380, y: 40 }]
+			[2, { x: 380, y: 40 }],
 		]);
 		const g = treeEdges([connection(10, 1, 2)], positions, NODE_H).get(10)!;
 
@@ -48,7 +48,7 @@ describe('treeEdges', () => {
 		const positions = new Map([
 			[1, { x: 60, y: 200 }],
 			[2, { x: 380, y: 40 }],
-			[3, { x: 380, y: 360 }]
+			[3, { x: 380, y: 360 }],
 		]);
 		const routed = treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H);
 
@@ -66,12 +66,12 @@ describe('treeEdges', () => {
 			[1, { x: 60, y: 200 }],
 			[2, { x: 380, y: 40 }],
 			[3, { x: 380, y: 120 }],
-			[4, { x: 380, y: 360 }]
+			[4, { x: 380, y: 360 }],
 		]);
 		const routed = treeEdges(
 			[connection(10, 1, 2), connection(11, 1, 3), connection(12, 1, 4)],
 			positions,
-			NODE_H
+			NODE_H,
 		);
 
 		// The bend is the x of the vertical run; three edges off one node, three lanes.
@@ -91,7 +91,7 @@ describe('treeEdges', () => {
 			[1, { x: 60, y: 40 }],
 			[2, { x: 60, y: 160 }],
 			[3, { x: 60, y: 280 }],
-			[4, { x: 60, y: 400 }]
+			[4, { x: 60, y: 400 }],
 		]);
 		const g = treeEdges([connection(10, 1, 4)], positions, NODE_H).get(10)!;
 
@@ -107,7 +107,7 @@ describe('treeEdges', () => {
 	it('keeps a straight run when the column between them is clear', () => {
 		const positions = new Map([
 			[1, { x: 60, y: 40 }],
-			[2, { x: 60, y: 400 }]
+			[2, { x: 60, y: 400 }],
 		]);
 		const g = treeEdges([connection(10, 1, 2)], positions, NODE_H).get(10)!;
 
@@ -122,7 +122,7 @@ describe('treeEdges', () => {
 		const positions = new Map([
 			[1, { x: 60, y: 40 }],
 			[2, { x: 380, y: 300 }],
-			[3, { x: 700, y: 40 }]
+			[3, { x: 700, y: 40 }],
 		]);
 		const g = treeEdges([connection(10, 1, 3)], positions, NODE_H).get(10)!;
 
@@ -134,7 +134,7 @@ describe('treeEdges', () => {
 	it('goes out of the top or bottom when the nodes share a column', () => {
 		const positions = new Map([
 			[1, { x: 60, y: 40 }],
-			[2, { x: 60, y: 400 }]
+			[2, { x: 60, y: 400 }],
 		]);
 		const g = treeEdges([connection(10, 1, 2)], positions, NODE_H).get(10)!;
 
@@ -154,7 +154,7 @@ describe('a hub with many children in the next column', () => {
 		for (const e of edges.values()) {
 			const pts = [...e.d.matchAll(/[MLQ] (-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
 				x: Number(m[1]),
-				y: Number(m[2])
+				y: Number(m[2]),
 			}));
 			for (let i = 1; i < pts.length; i++) {
 				const a = pts[i - 1];
@@ -173,7 +173,7 @@ describe('a hub with many children in the next column', () => {
 		return treeEdges(
 			ys.map((_, i) => connection(10 + i, 1, i + 2)),
 			positions,
-			NODE_H2
+			NODE_H2,
 		);
 	}
 
@@ -217,7 +217,7 @@ describe('runs share a lane where they can', () => {
 	// on one lane look like two lanes.
 	function bendsOf(edges: ReturnType<typeof treeEdges>) {
 		return [...edges.values()].map((e) =>
-			Math.round(Number([...e.d.matchAll(/Q (-?[\d.]+) /g)][0][1]))
+			Math.round(Number([...e.d.matchAll(/Q (-?[\d.]+) /g)][0][1])),
 		);
 	}
 
@@ -228,9 +228,11 @@ describe('runs share a lane where they can', () => {
 		const positions = new Map([
 			[1, { x: 0, y: 300 }],
 			[2, { x: COL, y: 180 }],
-			[3, { x: COL, y: 420 }]
+			[3, { x: COL, y: 420 }],
 		]);
-		const bends = bendsOf(treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2));
+		const bends = bendsOf(
+			treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2),
+		);
 		expect(new Set(bends).size).toBe(1);
 	});
 
@@ -239,9 +241,11 @@ describe('runs share a lane where they can', () => {
 		const positions = new Map([
 			[1, { x: 0, y: 300 }],
 			[2, { x: COL, y: 60 }],
-			[3, { x: COL, y: 180 }]
+			[3, { x: COL, y: 180 }],
 		]);
-		const bends = bendsOf(treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2));
+		const bends = bendsOf(
+			treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2),
+		);
 		expect(new Set(bends).size).toBe(2);
 	});
 
@@ -276,7 +280,7 @@ describe('a level run stays straight', () => {
 		const positions = new Map([
 			[1, { x: 0, y: 300 }],
 			[2, { x: 400, y: 300 }],
-			[3, { x: 400, y: 460 }]
+			[3, { x: 400, y: 460 }],
 		]);
 		const g = treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2);
 		const level = g.get(10)!;
@@ -291,7 +295,7 @@ describe('a level run stays straight', () => {
 		const positions = new Map([
 			[1, { x: 0, y: 300 }],
 			[2, { x: 400, y: 340 }],
-			[3, { x: 400, y: 460 }]
+			[3, { x: 400, y: 460 }],
 		]);
 		const g = treeEdges([connection(10, 1, 2), connection(11, 1, 3)], positions, NODE_H2);
 		expect(g.get(10)!.to.y).toBe(340 + NODE_H2 / 2);

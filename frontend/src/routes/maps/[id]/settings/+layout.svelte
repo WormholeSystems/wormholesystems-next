@@ -19,10 +19,8 @@
 	import type { Section } from '$lib/components/settings/SettingsShell.svelte';
 	import { atLeast } from '$lib/map/roles';
 
-	let {
-		children,
-		data
-	}: { children: import('svelte').Snippet; data: { view: MapView } } = $props();
+	let { children, data }: { children: import('svelte').Snippet; data: { view: MapView } } =
+		$props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const canManage = $derived(atLeast(data.view.role, 'manager'));
@@ -34,26 +32,26 @@
 				href: `${base}/display`,
 				label: 'Display',
 				description: 'What the map shows you',
-				icon: EyeIcon
+				icon: EyeIcon,
 			},
 			{
 				href: `${base}/mapping`,
 				label: 'Mapping',
 				description: 'Tracking and scanning',
-				icon: CrosshairIcon
+				icon: CrosshairIcon,
 			},
 			{
 				href: `${base}/naming`,
 				label: 'Naming',
 				description: 'Aliases and bookmarks',
-				icon: TagIcon
+				icon: TagIcon,
 			},
 			{
 				href: `${base}/routing`,
 				label: 'Routing',
 				description: 'How routes are chosen',
-				icon: RouteIcon
-			}
+				icon: RouteIcon,
+			},
 		];
 		if (!canManage) return everyone;
 		return [
@@ -61,21 +59,21 @@
 				href: base,
 				label: 'General',
 				description: 'Name, description, deletion',
-				icon: SettingsIcon
+				icon: SettingsIcon,
 			},
 			...everyone,
 			{
 				href: `${base}/access`,
 				label: 'Access',
 				description: 'Who can see and edit',
-				icon: UsersIcon
+				icon: UsersIcon,
 			},
 			{
 				href: `${base}/alerts`,
 				label: 'Discord alerts',
 				description: 'What gets announced',
-				icon: BellIcon
-			}
+				icon: BellIcon,
+			},
 		];
 	});
 </script>

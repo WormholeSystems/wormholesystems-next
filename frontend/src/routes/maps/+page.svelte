@@ -53,8 +53,7 @@
 		const q = query.trim().toLowerCase();
 		if (!q) return rows;
 		return rows.filter(
-			(m) =>
-				m.name.toLowerCase().includes(q) || (m.description ?? '').toLowerCase().includes(q)
+			(m) => m.name.toLowerCase().includes(q) || (m.description ?? '').toLowerCase().includes(q),
 		);
 	});
 
@@ -71,7 +70,7 @@
 	const totals = $derived({
 		maps: active.length,
 		systems: active.reduce((n, m) => n + m.system_count, 0),
-		pilots: active.reduce((n, m) => n + m.pilots_online, 0)
+		pilots: active.reduce((n, m) => n + m.pilots_online, 0),
 	});
 
 	async function create() {
@@ -127,16 +126,15 @@
 		owner: 'text-amber-500',
 		manager: 'text-purple-400',
 		member: 'text-emerald-500',
-		viewer: 'text-muted-foreground'
+		viewer: 'text-muted-foreground',
 	};
 </script>
-
 
 {#snippet card(map: MapEntry)}
 	<div
 		class={cn(
 			'group relative flex flex-col border border-border bg-card transition-colors hover:border-foreground/25',
-			map.is_archived && 'opacity-60'
+			map.is_archived && 'opacity-60',
 		)}
 		data-testid="map-card"
 		data-map={map.name}
@@ -158,7 +156,9 @@
 			>
 				<span class="tabular-nums">{map.system_count} sys</span>
 				<span class="tabular-nums">{map.connection_count} conn</span>
-				<span class="tabular-nums">{map.member_count} member{map.member_count === 1 ? '' : 's'}</span>
+				<span class="tabular-nums"
+					>{map.member_count} member{map.member_count === 1 ? '' : 's'}</span
+				>
 			</span>
 		</a>
 
@@ -269,9 +269,7 @@
 			{#each [{ label: 'Maps', value: totals.maps }, { label: 'Systems', value: totals.systems }, { label: 'Pilots online', value: totals.pilots }] as stat (stat.label)}
 				<div class="min-w-28 px-4 py-2">
 					<div class="font-mono text-lg tabular-nums">{stat.value}</div>
-					<div
-						class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
-					>
+					<div class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
 						{stat.label}
 					</div>
 				</div>
@@ -281,12 +279,7 @@
 		<div class="flex flex-wrap items-center gap-2">
 			<div class="relative max-w-md flex-1">
 				<SearchIcon class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					bind:value={query}
-					placeholder="Search maps"
-					class="pl-9"
-					data-testid="map-search"
-				/>
+				<Input bind:value={query} placeholder="Search maps" class="pl-9" data-testid="map-search" />
 			</div>
 			{#if archived.length > 0}
 				<Button
@@ -398,8 +391,7 @@
 		<Dialog.Header>
 			<Dialog.Title>Delete “{deleting?.name}”?</Dialog.Title>
 			<Dialog.Description>
-				This removes the map and everything on it for everyone who can see it. There is no
-				undo.
+				This removes the map and everything on it for everyone who can see it. There is no undo.
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer>

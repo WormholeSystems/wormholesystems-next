@@ -42,9 +42,7 @@
 </script>
 
 <MapPanel testid="system-info">
-	<MapPanelHeader>
-		System
-	</MapPanelHeader>
+	<MapPanelHeader>System</MapPanelHeader>
 	<MapPanelContent>
 		<div class="border-b border-border/50 px-3 py-3">
 			<div class="flex items-center gap-2">
@@ -77,32 +75,35 @@
 			{/if}
 			{#if !mapped}
 				<div class="mt-1 text-[11px] text-muted-foreground">
-					Nobody has been through this hole yet. Assign a system from the node's menu once
-					someone has.
+					Nobody has been through this hole yet. Assign a system from the node's menu once someone
+					has.
 				</div>
 			{:else}
-			<div class="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-				<span>{mapped.region}</span>
-				<span>· {mapped.constellation}</span>
-				<span class="text-border">·</span>
-				<a
-					class="transition-colors hover:text-foreground"
-					href="https://zkillboard.com/system/{mapped.solar_system_id}/"
-					target="_blank"
-					rel="noopener">zKill</a
-				>
-				<a class="transition-colors hover:text-foreground" href={dotlanUrl} target="_blank" rel="noopener"
-					>Dotlan</a
-				>
-				{#if isWormhole}
+				<div class="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+					<span>{mapped.region}</span>
+					<span>· {mapped.constellation}</span>
+					<span class="text-border">·</span>
 					<a
 						class="transition-colors hover:text-foreground"
-						href="https://anoik.is/systems/{mapped.name}"
+						href="https://zkillboard.com/system/{mapped.solar_system_id}/"
 						target="_blank"
-						rel="noopener">Anoik</a
+						rel="noopener">zKill</a
 					>
-				{/if}
-			</div>
+					<a
+						class="transition-colors hover:text-foreground"
+						href={dotlanUrl}
+						target="_blank"
+						rel="noopener">Dotlan</a
+					>
+					{#if isWormhole}
+						<a
+							class="transition-colors hover:text-foreground"
+							href="https://anoik.is/systems/{mapped.name}"
+							target="_blank"
+							rel="noopener">Anoik</a
+						>
+					{/if}
+				</div>
 			{/if}
 		</div>
 
@@ -149,7 +150,8 @@
 		{#if mapped?.sovereignty}
 			<div class="px-3 py-2">
 				<div class="flex flex-col gap-1.5">
-					<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Sovereignty</span>
+					<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Sovereignty</span
+					>
 					<div class="flex items-center gap-2">
 						<EveImage
 							kind={mapped.sovereignty.kind}

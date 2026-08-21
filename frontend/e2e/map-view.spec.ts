@@ -31,7 +31,7 @@ test('search dialog adds a system to the map', async ({ page, api }) => {
 	await expect(node.getByText('The Forge')).toBeVisible();
 	const pos = await node.evaluate((el: HTMLElement) => ({
 		left: parseFloat(el.style.left),
-		top: parseFloat(el.style.top)
+		top: parseFloat(el.style.top),
 	}));
 	// Click at (500, 500), node 180 wide / 40 tall → top-left near (410, 480).
 	expect(Math.abs(pos.left - 410)).toBeLessThanOrEqual(40);
@@ -70,7 +70,7 @@ test('search rows show class letters, statics and the effect badge', async ({ pa
 test('node context menu sets the system status', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Status Map');
 	const add = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: 30000142, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: 30000142, x: 200, y: 200, alias: null },
 	});
 	expect(add.ok()).toBe(true);
 

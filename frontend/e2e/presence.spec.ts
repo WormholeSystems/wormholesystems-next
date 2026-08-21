@@ -12,13 +12,10 @@ async function createMap(api: import('@playwright/test').APIRequestContext, name
 	return await createdId(res);
 }
 
-test('pilots row shows opted-in online characters and hides on opt-out', async ({
-	page,
-	api
-}) => {
+test('pilots row shows opted-in online characters and hides on opt-out', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Presence');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null },
 	});
 
 	const pilot = await createIdentity(3);
@@ -43,14 +40,10 @@ test('pilots row shows opted-in online characters and hides on opt-out', async (
 	await expect(node.getByTestId('pilots-row')).toHaveCount(0);
 });
 
-test('viewers see no pilots and offline characters stay hidden', async ({
-	page,
-	api,
-	browser
-}) => {
+test('viewers see no pilots and offline characters stay hidden', async ({ page, api, browser }) => {
 	const mapId = await createMap(api, 'E2E PresenceGate');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null },
 	});
 
 	const pilot = await createIdentity(4);
@@ -63,14 +56,12 @@ test('viewers see no pilots and offline characters stay hidden', async ({
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 	const viewerCtx = await browser.newContext();
 	await viewerCtx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await viewerCtx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);
 	await viewerPage.waitForSelector('html[data-hydrated="true"]');
-	await expect(
-		viewerPage.getByTestId('system-node').filter({ hasText: 'Jita' })
-	).toBeVisible();
+	await expect(viewerPage.getByTestId('system-node').filter({ hasText: 'Jita' })).toBeVisible();
 	await expect(viewerPage.getByTestId('pilots-row')).toHaveCount(0);
 	await viewerCtx.close();
 

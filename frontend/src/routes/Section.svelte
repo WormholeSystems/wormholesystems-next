@@ -13,7 +13,7 @@
 		tone = 'plain',
 		reverse = false,
 		wide = false,
-		children
+		children,
 	}: {
 		id?: string;
 		label: string;

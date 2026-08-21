@@ -16,7 +16,7 @@ async function createMap(api: import('@playwright/test').APIRequestContext, name
 test('Cmd+K opens the palette and jumps to a placed system', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Palette');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: 'Staging' }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: 'Staging' },
 	});
 	await gotoApp(page, `/maps/${mapId}`);
 
@@ -49,15 +49,15 @@ test('an off-map system can be added straight from the palette', async ({ page, 
 test('notes match for members and stay hidden from viewers', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E PaletteNotes');
 	const added = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: JITA, x: 200, y: 200, alias: null },
 	});
 	const placementId = await createdId(added);
 	const noted = await api.post(`/api/maps/${mapId}/systems/set-notes`, {
 		data: {
 			map_id: mapId,
 			map_solar_system_id: placementId,
-			notes: 'Bookmarked the hauler perch here'
-		}
+			notes: 'Bookmarked the hauler perch here',
+		},
 	});
 	expect(noted.ok()).toBe(true);
 
@@ -71,7 +71,7 @@ test('notes match for members and stay hidden from viewers', async ({ page, api 
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 	const ctx = await page.context().browser()!.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);
@@ -85,7 +85,7 @@ test('notes match for members and stay hidden from viewers', async ({ page, api 
 test('columns line up across both groups, not just within a row', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E PaletteGrid');
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: AMARR, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: AMARR, x: 200, y: 200, alias: null },
 	});
 	await gotoApp(page, `/maps/${mapId}`);
 
@@ -102,8 +102,8 @@ test('columns line up across both groups, not just within a row', async ({ page,
 			[...row.querySelectorAll(':scope > * > *')]
 				.slice(0, 4)
 				.map((cell) => Math.round(cell.getBoundingClientRect().left))
-				.join(',')
-		)
+				.join(','),
+		),
 	);
 	expect(columns.length).toBeGreaterThan(1);
 	expect(new Set(columns).size).toBe(1);
@@ -126,14 +126,14 @@ test('an organisation finds the wormholes it is a threat in', async ({ page, api
 		entityId: ORG_ID,
 		entityType: 'alliance',
 		name: 'E2E Threat Syndicate',
-		kills: 240
+		kills: 240,
 	});
 	await seedThreat({
 		solarSystemId: J155207,
 		entityId: ORG_ID,
 		entityType: 'alliance',
 		name: 'E2E Threat Syndicate',
-		kills: 31
+		kills: 31,
 	});
 	await gotoApp(page, `/maps/${mapId}`);
 

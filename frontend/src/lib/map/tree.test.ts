@@ -18,9 +18,9 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2, 3],
 			edges: [
 				{ from: 1, to: 2 },
-				{ from: 2, to: 3 }
+				{ from: 2, to: 3 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		expect(positions.get(1)).toEqual({ x: 20, y: 20 });
@@ -33,7 +33,7 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2],
 			edges: [{ from: 1, to: 2 }],
 			rootIds: [],
-			homeId: 2
+			homeId: 2,
 		});
 
 		expect(positions.get(2)!.x).toBe(20);
@@ -48,10 +48,10 @@ describe('computeTreeLayout', () => {
 			edges: [
 				{ from: 1, to: 2 },
 				{ from: 2, to: 3 },
-				{ from: 3, to: 9 }
+				{ from: 3, to: 9 },
 			],
 			rootIds: [1],
-			homeId: 9
+			homeId: 9,
 		});
 
 		expect(positions.get(9)!.x).toBe(20);
@@ -63,12 +63,12 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2, 9],
 			edges: [
 				{ from: 1, to: 2 },
-				{ from: 2, to: 9 }
+				{ from: 2, to: 9 },
 			],
 			rootIds: [1],
 			homeId: 9,
 			// Sorts the pinned system first, which must not lift it above home.
-			compareNodes: (a, b) => a - b
+			compareNodes: (a, b) => a - b,
 		});
 
 		expect(positions.get(9)!.y).toBeLessThan(positions.get(1)!.y);
@@ -79,7 +79,7 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2],
 			edges: [{ from: 1, to: 2 }],
 			rootIds: [1],
-			homeId: 1
+			homeId: 1,
 		});
 
 		expect(positions.size).toBe(2);
@@ -92,9 +92,9 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2, 3],
 			edges: [
 				{ from: 1, to: 2 },
-				{ from: 1, to: 3 }
+				{ from: 1, to: 3 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		const parent = positions.get(1)!;
@@ -118,9 +118,9 @@ describe('computeTreeLayout', () => {
 				{ from: 1, to: 2 },
 				{ from: 1, to: 3 },
 				{ from: 1, to: 4 },
-				{ from: 1, to: 5 }
+				{ from: 1, to: 5 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 		const ys = [2, 3, 4, 5].map((id) => positions.get(id)!.y).sort((a, b) => a - b);
 		expect(positions.get(1)!.y).toBe((ys[0] + ys[ys.length - 1]) / 2);
@@ -135,9 +135,9 @@ describe('computeTreeLayout', () => {
 				{ from: 1, to: 2 },
 				{ from: 2, to: 4 },
 				{ from: 2, to: 5 },
-				{ from: 1, to: 3 }
+				{ from: 1, to: 3 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		const deepest = Math.max(positions.get(4)!.y, positions.get(5)!.y);
@@ -155,9 +155,9 @@ describe('computeTreeLayout', () => {
 				{ from: 2, to: 4 },
 				{ from: 2, to: 5 },
 				{ from: 3, to: 6 },
-				{ from: 3, to: 7 }
+				{ from: 3, to: 7 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		for (const { x, y } of positions.values()) {
@@ -171,10 +171,10 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2, 3],
 			edges: [
 				{ from: 1, to: 2 },
-				{ from: 1, to: 3 }
+				{ from: 1, to: 3 },
 			],
 			rootIds: [1],
-			compareNodes: (a, b) => b - a
+			compareNodes: (a, b) => b - a,
 		});
 
 		expect(positions.get(3)!.y).toBeLessThan(positions.get(2)!.y);
@@ -187,7 +187,7 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2, 9],
 			edges: [{ from: 1, to: 2 }],
 			rootIds: [1],
-			compareNodes: (a, b) => (a === 9 ? -1 : b === 9 ? 1 : a - b)
+			compareNodes: (a, b) => (a === 9 ? -1 : b === 9 ? 1 : a - b),
 		});
 
 		expect(positions.get(1)!.x).toBe(20);
@@ -200,9 +200,9 @@ describe('computeTreeLayout', () => {
 			nodeIds: [1, 2, 3, 9],
 			edges: [
 				{ from: 1, to: 2 },
-				{ from: 1, to: 3 }
+				{ from: 1, to: 3 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		const chain = [1, 2, 3].map((id) => positions.get(id)!.y);
@@ -213,7 +213,7 @@ describe('computeTreeLayout', () => {
 		const positions = layout({
 			nodeIds: [1, 2, 10],
 			edges: [{ from: 1, to: 2 }],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		expect(positions.get(10)!.x).toBe(20);
@@ -226,9 +226,9 @@ describe('computeTreeLayout', () => {
 			edges: [
 				{ from: 1, to: 1 },
 				{ from: 1, to: 99 },
-				{ from: 1, to: 2 }
+				{ from: 1, to: 2 },
 			],
-			rootIds: [1]
+			rootIds: [1],
 		});
 
 		expect(positions.size).toBe(2);
@@ -241,9 +241,9 @@ describe('computeTreeLayout', () => {
 			edges: [
 				{ from: 1, to: 3 },
 				{ from: 2, to: 4 },
-				{ from: 3, to: 4 }
+				{ from: 3, to: 4 },
 			],
-			rootIds: [1, 2]
+			rootIds: [1, 2],
 		});
 
 		// Both roots in the first column; the 3-4 edge must not drag either deeper.

@@ -8,18 +8,18 @@ import { E2E_SESSION } from './db';
 export const test = base.extend<{ api: import('@playwright/test').APIRequestContext }>({
 	context: async ({ context }, use) => {
 		await context.addCookies([
-			{ name: 'ws_session', value: E2E_SESSION, domain: 'localhost', path: '/' }
+			{ name: 'ws_session', value: E2E_SESSION, domain: 'localhost', path: '/' },
 		]);
 		await use(context);
 	},
 	api: async ({ playwright }, use) => {
 		const api = await playwright.request.newContext({
 			baseURL: 'http://127.0.0.1:3000',
-			extraHTTPHeaders: { cookie: `ws_session=${E2E_SESSION}` }
+			extraHTTPHeaders: { cookie: `ws_session=${E2E_SESSION}` },
 		});
 		await use(api);
 		await api.dispose();
-	}
+	},
 });
 
 export { expect } from '@playwright/test';
@@ -34,14 +34,14 @@ export { expect } from '@playwright/test';
 export async function gotoApp(
 	page: import('@playwright/test').Page,
 	path: string,
-	options: { introduction?: boolean } = {}
+	options: { introduction?: boolean } = {},
 ) {
 	const map = /\/maps\/(\d+)(\?|$)/.exec(path);
 	if (map && !options.introduction) {
 		// The API is a different host from the app, so the context cookie is not sent with it.
 		await page.request.post(`http://127.0.0.1:3000/api/maps/${map[1]}/settings/user`, {
 			headers: { cookie: `ws_session=${E2E_SESSION}` },
-			data: { introduction_confirmed: true }
+			data: { introduction_confirmed: true },
 		});
 	}
 	await page.goto(path);

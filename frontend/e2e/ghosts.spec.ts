@@ -15,22 +15,19 @@ async function createMap(api: import('@playwright/test').APIRequestContext, name
 async function addSystem(
 	api: import('@playwright/test').APIRequestContext,
 	mapId: number,
-	solarSystemId: number
+	solarSystemId: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
 }
 
 /** Turn on the map-wide setting that makes a pasted wormhole a node. */
-async function enableGhosting(
-	api: import('@playwright/test').APIRequestContext,
-	mapId: number
-) {
+async function enableGhosting(api: import('@playwright/test').APIRequestContext, mapId: number) {
 	const res = await api.post(`/api/maps/${mapId}/update`, {
-		data: { map_id: mapId, ghost_unlinked_wormholes: true }
+		data: { map_id: mapId, ghost_unlinked_wormholes: true },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -44,10 +41,7 @@ async function pasteViaEvent(page: import('@playwright/test').Page, text: string
 	}, text);
 }
 
-test('a pasted wormhole becomes a node, and assigning a system names it', async ({
-	page,
-	api
-}) => {
+test('a pasted wormhole becomes a node, and assigning a system names it', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Ghosts');
 	await addSystem(api, mapId, J122515);
 	await enableGhosting(api, mapId);
@@ -75,13 +69,13 @@ test('a pasted wormhole becomes a node, and assigning a system names it', async 
 	// And the API says the same, whichever end the connection is asked for.
 	const view = await (await api.get(`/api/maps/${mapId}`)).json();
 	const ghostId = view.systems.find(
-		(s: { solar_system_id: number | null }) => s.solar_system_id === null
+		(s: { solar_system_id: number | null }) => s.solar_system_id === null,
 	).id;
 	const scanned = view.systems.find(
-		(s: { solar_system_id: number | null }) => s.solar_system_id === J122515
+		(s: { solar_system_id: number | null }) => s.solar_system_id === J122515,
 	).id;
 	const refused = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: scanned, to_system: ghostId, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: scanned, to_system: ghostId, kind: 'wormhole' },
 	});
 	expect(refused.status()).toBe(400);
 
@@ -104,10 +98,7 @@ test('a pasted wormhole becomes a node, and assigning a system names it', async 
 	await expect(named).toContainText('1a');
 });
 
-test('a ghost that turns out to be on the map already is merged into it', async ({
-	page,
-	api
-}) => {
+test('a ghost that turns out to be on the map already is merged into it', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E GhostMerge');
 	await addSystem(api, mapId, J122515);
 	await addSystem(api, mapId, JITA);

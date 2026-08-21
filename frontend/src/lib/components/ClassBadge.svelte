@@ -9,7 +9,7 @@
 		classId,
 		security,
 		class: className,
-		title
+		title,
 	}: {
 		classId: number | null;
 		/** Security status, used for the k-space classes that have no class id. */

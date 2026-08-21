@@ -8,7 +8,7 @@
 	let {
 		sig,
 		connection,
-		compact
+		compact,
 	}: { sig: Signature; connection: MapConnection | null; compact: boolean } = $props();
 
 	let now = $state(Date.now());
@@ -40,11 +40,11 @@
 	const lifetime = $derived(
 		sig.time_status && sig.time_status !== 'stable'
 			? sig.time_status
-			: (connection?.time_status ?? sig.time_status)
+			: (connection?.time_status ?? sig.time_status),
 	);
 	const mass = $derived(connection?.mass_status ?? sig.mass_status);
 	const lifetimeSince = $derived(
-		sig.time_status_updated_at ?? connection?.time_status_updated_at ?? null
+		sig.time_status_updated_at ?? connection?.time_status_updated_at ?? null,
 	);
 
 	function fmt(ms: number): string {
@@ -54,7 +54,7 @@
 			hour: '2-digit',
 			minute: '2-digit',
 			hour12: false,
-			timeZone: 'UTC'
+			timeZone: 'UTC',
 		});
 	}
 

@@ -20,10 +20,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	x: number,
-	y: number
+	y: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -34,7 +34,7 @@ test('route rows open the system menu with external links', async ({ page, api }
 	const a = await addSystem(api, mapId, JITA, 200, 200);
 	const b = await addSystem(api, mapId, PERIMETER, 560, 200);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: a, to_system: b, kind: 'wormhole' },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);
@@ -63,15 +63,15 @@ test('route rows open the system menu with external links', async ({ page, api }
 	await menu.getByTestId('menu-external').hover();
 	await expect(page.getByRole('menuitem', { name: 'Jump Range' })).toHaveAttribute(
 		'href',
-		'https://evemaps.dotlan.net/range/Revelation,5/Jita'
+		'https://evemaps.dotlan.net/range/Revelation,5/Jita',
 	);
 	await expect(page.getByRole('menuitem', { name: 'Constellation' })).toHaveAttribute(
 		'href',
-		/zkillboard\.com\/constellation\/\d+\//
+		/zkillboard\.com\/constellation\/\d+\//,
 	);
 	await expect(page.getByRole('menuitem', { name: 'Region', exact: true })).toHaveAttribute(
 		'href',
-		/zkillboard\.com\/region\/\d+\//
+		/zkillboard\.com\/region\/\d+\//,
 	);
 	await page.keyboard.press('Escape');
 });
@@ -140,13 +140,15 @@ test('waypoint submenu is disabled without online characters', async ({ api, bro
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: member.session, domain: 'localhost', path: '/' },
 	]);
 	const memberPage = await ctx.newPage();
 	await memberPage.goto(`http://localhost:5173/maps/${mapId}`);
 	await memberPage.waitForSelector('html[data-hydrated="true"]');
 
-	await memberPage.getByTestId('map-canvas').click({ button: 'right', position: { x: 500, y: 400 } });
+	await memberPage
+		.getByTestId('map-canvas')
+		.click({ button: 'right', position: { x: 500, y: 400 } });
 	await memberPage.getByRole('button', { name: 'Add solar system' }).click();
 	await memberPage.getByPlaceholder('System, alias, occupier or notes…').fill('perimeter');
 	const row = memberPage.locator('[data-slot="command-item"]', { hasText: 'Perimeter' }).first();
@@ -164,7 +166,7 @@ test('viewers get no write items', async ({ page, api, browser }) => {
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);

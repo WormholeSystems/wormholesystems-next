@@ -11,7 +11,7 @@
 		DEFAULT_FORMAT_RETURN,
 		DEFAULT_FORMAT_WORMHOLE,
 		DEFAULT_IGNORED_ALIAS,
-		renderBookmark
+		renderBookmark,
 	} from '$lib/bookmark';
 	import type { BookmarkToken } from '$lib/bookmark';
 	import type { MapNaming } from '$lib/api/types/MapNaming';
@@ -24,7 +24,7 @@
 	let {
 		naming,
 		disabled = false,
-		onsave
+		onsave,
 	}: {
 		naming: MapNaming;
 		disabled?: boolean;
@@ -69,7 +69,7 @@
 		size: 'MD',
 		wh: 'H296',
 		mass: 'crit',
-		life: 'EOL'
+		life: 'EOL',
 	} satisfies Record<BookmarkToken, string>;
 
 	const KSPACE_EXAMPLE = {
@@ -79,7 +79,7 @@
 		name: 'Jita',
 		region: 'The Forge',
 		occupier: '',
-		wh: 'B041'
+		wh: 'B041',
 	} satisfies Record<BookmarkToken, string>;
 
 	const FORMATS = [
@@ -88,22 +88,22 @@
 			label: 'Wormhole',
 			help: 'A hole leading further into wormhole space.',
 			fallback: DEFAULT_FORMAT_WORMHOLE,
-			example: EXAMPLE
+			example: EXAMPLE,
 		},
 		{
 			key: 'bookmark_kspace' as const,
 			label: 'K-space',
 			help: 'A hole leading out to known space.',
 			fallback: DEFAULT_FORMAT_KSPACE,
-			example: KSPACE_EXAMPLE
+			example: KSPACE_EXAMPLE,
 		},
 		{
 			key: 'bookmark_return' as const,
 			label: 'Return',
 			help: 'The hole back the way you came.',
 			fallback: DEFAULT_FORMAT_RETURN,
-			example: EXAMPLE
-		}
+			example: EXAMPLE,
+		},
 	];
 </script>
 
@@ -147,8 +147,8 @@
 					data-testid="ignored-alias"
 				/>
 				<Field.FieldDescription>
-					Sits outside the chain: its holes start a fresh sequence, and anything pointing back
-					at it is bookmarked as a way home.
+					Sits outside the chain: its holes start a fresh sequence, and anything pointing back at it
+					is bookmarked as a way home.
 				</Field.FieldDescription>
 			</Field.Field>
 

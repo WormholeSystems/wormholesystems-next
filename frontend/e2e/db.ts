@@ -8,8 +8,7 @@ export const E2E_SESSION = 'e2e-session';
 
 export async function withDb<T>(f: (client: Client) => Promise<T>): Promise<T> {
 	const client = new Client({
-		connectionString:
-			process.env.DATABASE_URL ?? 'postgres://vector:vector@localhost:5432/vector'
+		connectionString: process.env.DATABASE_URL ?? 'postgres://vector:vector@localhost:5432/vector',
 	});
 	await client.connect();
 	try {
@@ -35,7 +34,7 @@ export async function createIdentity(slot: number): Promise<{
 		await db.query(
 			`insert into corporations (id, name, ticker) values ($1, 'E2E Corp', 'E2E')
 			 on conflict do nothing`,
-			[E2E_CORPORATION_ID]
+			[E2E_CORPORATION_ID],
 		);
 		const existing = await db.query('select user_id from characters where id = $1', [characterId]);
 		let userId: number = existing.rows[0]?.user_id;
@@ -45,14 +44,14 @@ export async function createIdentity(slot: number): Promise<{
 			await db.query(
 				`insert into characters (id, user_id, name, owner_hash, corporation_id)
 				 values ($1, $2, $3, $4, $5)`,
-				[characterId, userId, `E2E Extra ${slot}`, `e2e-extra-hash-${slot}`, E2E_CORPORATION_ID]
+				[characterId, userId, `E2E Extra ${slot}`, `e2e-extra-hash-${slot}`, E2E_CORPORATION_ID],
 			);
 		}
 		await db.query(
 			`insert into sessions (id, user_id, active_character_id, expires_at)
 			 values ($1, $2, $3, now() + interval '2 hours')
 			 on conflict (id) do update set expires_at = now() + interval '2 hours'`,
-			[session, userId, characterId]
+			[session, userId, characterId],
 		);
 		return userId;
 	});
@@ -63,14 +62,14 @@ export async function createIdentity(slot: number): Promise<{
 export async function grantAccess(
 	mapId: number,
 	characterId: number,
-	role: 'viewer' | 'member' | 'manager' | 'owner'
+	role: 'viewer' | 'member' | 'manager' | 'owner',
 ) {
 	await withDb(async (db) => {
 		await db.query(
 			`insert into map_access (map_id, subject_type, subject_id, role)
 			 values ($1, 'character', $2, $3)
 			 on conflict (map_id, subject_id) do update set role = excluded.role`,
-			[mapId, characterId, role]
+			[mapId, characterId, role],
 		);
 	});
 	await skipIntroduction(mapId, characterId);
@@ -89,7 +88,7 @@ export async function skipIntroduction(mapId: number, characterId: number) {
 			`insert into map_user_settings (map_id, user_id, introduction_confirmed_at)
 			 select $1, c.user_id, now() from characters c where c.id = $2 and c.user_id is not null
 			 on conflict (map_id, user_id) do update set introduction_confirmed_at = now()`,
-			[mapId, characterId]
+			[mapId, characterId],
 		);
 	});
 }
@@ -98,22 +97,22 @@ export async function skipIntroduction(mapId: number, characterId: number) {
 export async function setCharacterPresence(
 	characterId: number,
 	solarSystemId: number,
-	online = true
+	online = true,
 ) {
 	await withDb(async (db) => {
 		const scope = await db.query(
 			`insert into esi_scopes (name) values ('esi-location.read_location.v1')
-			 on conflict (name) do update set name = excluded.name returning id`
+			 on conflict (name) do update set name = excluded.name returning id`,
 		);
 		const token = await db.query(
 			`insert into esi_tokens (character_id, refresh_token) values ($1, 'e2e-token')
 			 returning id`,
-			[characterId]
+			[characterId],
 		);
 		await db.query(
 			`insert into esi_token_scopes (token_id, scope_id) values ($1, $2)
 			 on conflict do nothing`,
-			[token.rows[0].id, scope.rows[0].id]
+			[token.rows[0].id, scope.rows[0].id],
 		);
 		await db.query(
 			`insert into character_status (character_id, online, solar_system_id, last_online_at)
@@ -121,7 +120,7 @@ export async function setCharacterPresence(
 			 on conflict (character_id) do update set
 			     online = excluded.online, solar_system_id = excluded.solar_system_id,
 			     updated_at = now()`,
-			[characterId, online, solarSystemId]
+			[characterId, online, solarSystemId],
 		);
 	});
 }
@@ -133,7 +132,7 @@ export async function setTrackingAllowed(mapId: number, userId: number, allowed:
 			`insert into map_user_settings (map_id, user_id, tracking_allowed)
 			 values ($1, $2, $3)
 			 on conflict (map_id, user_id) do update set tracking_allowed = excluded.tracking_allowed`,
-			[mapId, userId, allowed]
+			[mapId, userId, allowed],
 		);
 	});
 }
@@ -142,22 +141,22 @@ export async function setTrackingAllowed(mapId: number, userId: number, allowed:
 export async function setThreat(
 	solarSystemId: number,
 	level: 'unknown' | 'high' | 'critical',
-	entities: { id: number; type: 'alliance' | 'corporation'; name: string; kills: number }[]
+	entities: { id: number; type: 'alliance' | 'corporation'; name: string; kills: number }[],
 ) {
 	await withDb(async (db) => {
 		await db.query(
 			`update wormhole_systems set threat_level = $2, threat_analyzed_at = now()
 			 where solar_system_id = $1`,
-			[solarSystemId, level]
+			[solarSystemId, level],
 		);
 		await db.query('delete from wormhole_system_threats where solar_system_id = $1', [
-			solarSystemId
+			solarSystemId,
 		]);
 		for (const e of entities) {
 			await db.query(
 				`insert into wormhole_system_threats (solar_system_id, entity_id, entity_type, name, kills)
 				 values ($1, $2, $3, $4, $5)`,
-				[solarSystemId, e.id, e.type, e.name, e.kills]
+				[solarSystemId, e.id, e.type, e.name, e.kills],
 			);
 		}
 	});
@@ -169,7 +168,7 @@ export async function ageStaleConnections(mapId: number) {
 		await db.query(
 			`update map_connections set time_status_updated_at = now() - interval '2 hours'
 			 where map_id = $1 and time_status = 'critical'`,
-			[mapId]
+			[mapId],
 		);
 	});
 }
@@ -177,14 +176,14 @@ export async function ageStaleConnections(mapId: number) {
 /** Make one of a user's characters the acting one, as the character switcher would. */
 export async function setActiveCharacter(characterId: number, session = E2E_SESSION) {
 	await withDb((db) =>
-		db.query('update sessions set active_character_id = $1 where id = $2', [characterId, session])
+		db.query('update sessions set active_character_id = $1 where id = $2', [characterId, session]),
 	);
 }
 
 const LOCATION_SCOPES = [
 	'esi-location.read_location.v1',
 	'esi-location.read_ship_type.v1',
-	'esi-location.read_online.v1'
+	'esi-location.read_online.v1',
 ];
 
 /**
@@ -204,14 +203,14 @@ export async function seedThreat(threat: {
 		db.query(
 			`insert into wormhole_system_threats (solar_system_id, entity_id, entity_type, name, kills)
 			 values ($1, $2, $3, $4, $5)`,
-			[threat.solarSystemId, threat.entityId, threat.entityType, threat.name, threat.kills]
-		)
+			[threat.solarSystemId, threat.entityId, threat.entityType, threat.name, threat.kills],
+		),
 	);
 }
 
 export async function clearThreats(entityIds: number[]) {
 	await withDb((db) =>
-		db.query('delete from wormhole_system_threats where entity_id = any($1)', [entityIds])
+		db.query('delete from wormhole_system_threats where entity_id = any($1)', [entityIds]),
 	);
 }
 
@@ -222,18 +221,18 @@ export async function setScopes(characterId: number, names: string[]) {
 		const token = await db.query(
 			`insert into esi_tokens (character_id, refresh_token) values ($1, 'e2e-token')
 			 returning id`,
-			[characterId]
+			[characterId],
 		);
 		for (const name of names) {
 			const scope = await db.query(
 				`insert into esi_scopes (name) values ($1)
 				 on conflict (name) do update set name = excluded.name returning id`,
-				[name]
+				[name],
 			);
 			await db.query(
 				`insert into esi_token_scopes (token_id, scope_id) values ($1, $2)
 				 on conflict do nothing`,
-				[token.rows[0].id, scope.rows[0].id]
+				[token.rows[0].id, scope.rows[0].id],
 			);
 		}
 	});
@@ -246,7 +245,7 @@ export async function showIntroduction(mapId: number, characterId: number) {
 			`update map_user_settings set introduction_confirmed_at = null
 			 where map_id = $1
 			   and user_id = (select user_id from characters where id = $2)`,
-			[mapId, characterId]
+			[mapId, characterId],
 		);
 	});
 }
@@ -263,17 +262,17 @@ export async function grantLocationScopes(characterId: number) {
 			`insert into esi_tokens (character_id, access_token, token_expires_at, refresh_token)
 			 values ($1, 'e2e-access-token', now() + interval '1 day', 'e2e-refresh-token')
 			 returning id`,
-			[characterId]
+			[characterId],
 		);
 		for (const name of LOCATION_SCOPES) {
 			const scope = await db.query(
 				`insert into esi_scopes (name) values ($1)
 				 on conflict (name) do update set name = excluded.name returning id`,
-				[name]
+				[name],
 			);
 			await db.query(
 				'insert into esi_token_scopes (token_id, scope_id) values ($1, $2) on conflict do nothing',
-				[token.rows[0].id, scope.rows[0].id]
+				[token.rows[0].id, scope.rows[0].id],
 			);
 		}
 	});
@@ -291,8 +290,8 @@ export async function setCharacterOnline(characterId: number) {
 			 values ($1, true, null, now())
 			 on conflict (character_id) do update set
 			     online = true, solar_system_id = null, last_online_at = now(), updated_at = now()`,
-			[characterId]
-		)
+			[characterId],
+		),
 	);
 }
 
@@ -356,9 +355,9 @@ export async function seedKillmail(kill: {
 				kill.finalBlowShipTypeId ?? null,
 				kill.finalBlowCharacterId ?? null,
 				kill.finalBlowCorporationId ?? null,
-				kill.finalBlowAllianceId ?? null
-			]
-		)
+				kill.finalBlowAllianceId ?? null,
+			],
+		),
 	);
 }
 
@@ -380,18 +379,18 @@ export async function seedAggressor(who: {
 		await db.query(
 			`insert into alliances (id, name, ticker) values ($1, $2, $3)
 			 on conflict (id) do update set name = excluded.name, ticker = excluded.ticker`,
-			[who.allianceId, who.allianceName, who.allianceTicker]
+			[who.allianceId, who.allianceName, who.allianceTicker],
 		);
 		await db.query(
 			`insert into corporations (id, name, ticker, alliance_id) values ($1, $2, $3, $4)
 			 on conflict (id) do update set name = excluded.name, ticker = excluded.ticker`,
-			[who.corporationId, who.corporationName, who.corporationTicker, who.allianceId]
+			[who.corporationId, who.corporationName, who.corporationTicker, who.allianceId],
 		);
 		await db.query(
 			`insert into characters (id, name, corporation_id, alliance_id)
 			 values ($1, $2, $3, $4)
 			 on conflict (id) do update set name = excluded.name`,
-			[who.characterId, who.name, who.corporationId, who.allianceId]
+			[who.characterId, who.name, who.corporationId, who.allianceId],
 		);
 	});
 }

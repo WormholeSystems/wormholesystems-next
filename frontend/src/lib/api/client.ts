@@ -122,7 +122,7 @@ function post<T>(path: string, body: unknown): Promise<T> {
 	return request<T>(path, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(body)
+		body: JSON.stringify(body),
 	});
 }
 
@@ -130,7 +130,7 @@ function put<T>(path: string, body: unknown): Promise<T> {
 	return request<T>(path, {
 		method: 'PUT',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify(body)
+		body: JSON.stringify(body),
 	});
 }
 
@@ -158,15 +158,12 @@ export const api = {
 	// Config / reference data
 	gridConfig: () => get<GridConfig>('/api/grid-config'),
 	effectModifiers: (name: string, wormholeClassId: number) =>
-		get<EffectModifier[]>(
-			`/api/effects?name=${encodeURIComponent(name)}&class=${wormholeClassId}`
-		),
+		get<EffectModifier[]>(`/api/effects?name=${encodeURIComponent(name)}&class=${wormholeClassId}`),
 	searchSystems: (query: string) =>
 		get<SystemSearchResult[]>(`/api/systems/search?q=${encodeURIComponent(query)}`),
 	resolveSystems: (ids: number[]) =>
 		get<SystemSearchResult[]>(`/api/systems/resolve?ids=${ids.join(',')}`),
-	threatAnalysis: (solarSystemId: number) =>
-		get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
+	threatAnalysis: (solarSystemId: number) => get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
 	// Cached for a day; bump the version param when the payload shape changes.
 	routingGraph: () =>
 		get<{
@@ -183,8 +180,7 @@ export const api = {
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),
-	createMap: (name: string, description?: string) =>
-		post<Map>('/api/maps', { name, description }),
+	createMap: (name: string, description?: string) => post<Map>('/api/maps', { name, description }),
 	deleteMap: (mapId: number) => del<null>(`/api/maps/${mapId}`),
 	fetchMap: (mapId: number) => get<MapView>(`/api/maps/${mapId}`),
 	listSignatures: (mapId: number) => get<Signature[]>(`/api/maps/${mapId}/signatures`),
@@ -194,13 +190,11 @@ export const api = {
 		post<MapUserSettings>(`/api/maps/${mapId}/settings/user`, update),
 
 	// Systems
-	addSystem: (cmd: AddSystem) =>
-		post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/add`, cmd),
+	addSystem: (cmd: AddSystem) => post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/add`, cmd),
 	resolveGhostSystem: (cmd: ResolveGhostSystem) =>
 		post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/resolve-ghost`, cmd),
 	moveSystems: (cmd: MoveSystems) => post<null>(`/api/maps/${cmd.map_id}/systems/move`, cmd),
-	removeSystems: (cmd: RemoveSystems) =>
-		post<null>(`/api/maps/${cmd.map_id}/systems/remove`, cmd),
+	removeSystems: (cmd: RemoveSystems) => post<null>(`/api/maps/${cmd.map_id}/systems/remove`, cmd),
 	clearMap: (cmd: ClearMap) => post<null>(`/api/maps/${cmd.map_id}/clear`, cmd),
 	setAlias: (cmd: SetAlias) => post<null>(`/api/maps/${cmd.map_id}/systems/set-alias`, cmd),
 	setStatus: (cmd: SetStatus) => post<null>(`/api/maps/${cmd.map_id}/systems/set-status`, cmd),
@@ -311,5 +305,5 @@ export const api = {
 	unlinkSignature: (cmd: UnlinkSignature) =>
 		post<Signature>(`/api/maps/${cmd.map_id}/signatures/unlink`, cmd),
 	removeSignature: (cmd: RemoveSignature) =>
-		post<null>(`/api/maps/${cmd.map_id}/signatures/remove`, cmd)
+		post<null>(`/api/maps/${cmd.map_id}/signatures/remove`, cmd),
 };

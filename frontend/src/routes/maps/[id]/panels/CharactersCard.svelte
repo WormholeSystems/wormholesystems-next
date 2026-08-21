@@ -20,8 +20,7 @@
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import { solarSystemId as solarSystemIdOf } from '$lib/map/system';
 
-	let { map }: { map: MapState } =
-		$props();
+	let { map }: { map: MapState } = $props();
 
 	const pilots = $derived(map.characters);
 	const sorted = $derived(orderPilots(pilots));
@@ -29,7 +28,7 @@
 	// A pilot outside the mapped chain should still read as a name rather than an id.
 	$effect(() => {
 		map.ensureResolved(
-			pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null)
+			pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null),
 		);
 	});
 
@@ -45,7 +44,7 @@
 			region: info.region,
 			classId: info.wormhole_class_id,
 			security: info.security,
-			info
+			info,
 		};
 	}
 
@@ -55,7 +54,7 @@
 		const origin = map.routeOrigin;
 		if (!graph || origin === null) return new Map();
 		const targets = [
-			...new Set(pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null))
+			...new Set(pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null)),
 		];
 		if (targets.length === 0) return new Map();
 		return findRoutes(graph, origin, targets, map.routingSettings, map.ignoredSystems);
@@ -94,22 +93,25 @@
 				<div class="flex flex-col">
 					{#each sorted as pilot (pilot.character_id)}
 						{@const where = place(pilot.solar_system_id)}
-						{@const route = pilot.solar_system_id === null
-							? undefined
-							: routes.get(pilot.solar_system_id)}
+						{@const route =
+							pilot.solar_system_id === null ? undefined : routes.get(pilot.solar_system_id)}
 						{#snippet row()}
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
 								class={cn(
 									'flex items-center gap-2 border-b border-border/30 px-3 py-1 text-xs last:border-b-0 hover:bg-muted/30',
-									isIdle(pilot) && 'opacity-50'
+									isIdle(pilot) && 'opacity-50',
 								)}
 								data-testid="pilot-row"
 								data-pilot={pilot.name}
 								onmouseenter={() => hover(pilot, true)}
 								onmouseleave={() => hover(pilot, false)}
 							>
-								<EveImage kind="character" id={pilot.character_id} class="size-5 shrink-0 rounded" />
+								<EveImage
+									kind="character"
+									id={pilot.character_id}
+									class="size-5 shrink-0 rounded"
+								/>
 
 								<span class="flex min-w-0 shrink-0 basis-28 items-center gap-1">
 									<span
@@ -125,7 +127,9 @@
 										</Tooltip.Root>
 									{:else if isScanner(pilot)}
 										<Tooltip.Root>
-											<Tooltip.Trigger class="shrink-0 text-[10px] text-amber-400">(S)</Tooltip.Trigger>
+											<Tooltip.Trigger class="shrink-0 text-[10px] text-amber-400"
+												>(S)</Tooltip.Trigger
+											>
 											<Tooltip.Content>Scanner</Tooltip.Content>
 										</Tooltip.Root>
 									{/if}
@@ -136,7 +140,9 @@
 										<EveImage kind="type" id={pilot.ship_type_id} class="size-4 shrink-0" />
 									{/if}
 									<Tooltip.Root>
-										<Tooltip.Trigger class="min-w-0 truncate font-mono text-[10px] text-muted-foreground">
+										<Tooltip.Trigger
+											class="min-w-0 truncate font-mono text-[10px] text-muted-foreground"
+										>
 											{pilot.ship_type ?? 'Unknown ship'}
 										</Tooltip.Trigger>
 										<Tooltip.Content>{pilot.ship_name ?? 'Unnamed'}</Tooltip.Content>
@@ -156,7 +162,8 @@
 											disabled={where.id === null}
 											onclick={() => where.id !== null && (map.activeId = where.id)}
 										>
-											{#if where.alias}<span class="font-medium">{where.alias}</span> · {/if}{where.name}
+											{#if where.alias}<span class="font-medium">{where.alias}</span> ·
+											{/if}{where.name}
 										</button>
 									{:else}
 										<span class="text-muted-foreground/60">Unknown</span>

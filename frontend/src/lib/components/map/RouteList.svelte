@@ -11,7 +11,7 @@
 
 	let {
 		steps,
-		onignore
+		onignore,
 	}: {
 		steps: {
 			id: number;
@@ -36,7 +36,6 @@
 			})
 			.catch(() => {});
 	});
-
 </script>
 
 <!-- Tracks: index, hop marker, the four shared system columns, then the ignore slot. -->
@@ -62,7 +61,9 @@
 										WH
 									</Tooltip.Trigger>
 									<Tooltip.Content>
-										{step.signature ? `Take wormhole ${step.signature}` : 'Take a wormhole (not scanned)'}
+										{step.signature
+											? `Take wormhole ${step.signature}`
+											: 'Take a wormhole (not scanned)'}
 									</Tooltip.Content>
 								</Tooltip.Root>
 							{:else if step.via === 'evescout'}

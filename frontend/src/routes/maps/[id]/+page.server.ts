@@ -8,7 +8,7 @@ export const load: PageServerLoad = async (event) => {
 	const id = Number(event.params.id);
 	const [view, settings] = await Promise.all([
 		mapView(event, id).catch(() => null),
-		mapUserSettings(event, id).catch(() => null)
+		mapUserSettings(event, id).catch(() => null),
 	]);
 	// A map link is the one people actually paste at each other, so it says which map.
 	return { view, settings, seo: { title: view?.map.name } };

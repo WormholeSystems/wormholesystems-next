@@ -49,9 +49,7 @@
 	const thumb = 'absolute rounded-full bg-muted-foreground/50';
 	// The hit area goes with the thumb: a track that still catches clicks while invisible
 	// would be misleading.
-	const track = $derived(
-		map.scrollbarsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
-	);
+	const track = $derived(map.scrollbarsVisible ? 'opacity-100' : 'pointer-events-none opacity-0');
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

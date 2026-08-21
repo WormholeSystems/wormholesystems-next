@@ -6,7 +6,7 @@ import {
 	setCharacterOnline,
 	markUserActive,
 	setCharacterPresence,
-	withDb
+	withDb,
 } from './db';
 
 // Everything that needs the API's own ESI poller to run: Tranquility's status, the gate it
@@ -29,7 +29,7 @@ type Api = import('@playwright/test').APIRequestContext;
 
 async function setServer(
 	playwright: Playwright,
-	state: { players?: number; vip?: boolean; unreachable?: boolean } | null
+	state: { players?: number; vip?: boolean; unreachable?: boolean } | null,
 ) {
 	const ctx = await playwright.request.newContext();
 	const res = state
@@ -82,16 +82,14 @@ test.afterEach(async ({ playwright }) => {
 test('the header reports the server, and says so when it is down', async ({
 	page,
 	api,
-	playwright
+	playwright,
 }) => {
 	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
 
 	await setServer(playwright, { players: 24_512 });
 	// Wait for the count, not just the state: the guard above already left it `online`, so
 	// polling on the state alone would pass before the new figure had landed.
-	await expect
-		.poll(async () => (await apiStatus(api)).players, { timeout: 15_000 })
-		.toBe(24_512);
+	await expect.poll(async () => (await apiStatus(api)).players, { timeout: 15_000 }).toBe(24_512);
 
 	await gotoApp(page, '/maps');
 	const indicator = page.getByTestId('server-status');
@@ -118,7 +116,7 @@ test('the header reports the server, and says so when it is down', async ({
 test('nothing is polled while the server is down, and it resumes when it returns', async ({
 	api,
 	browser,
-	playwright
+	playwright,
 }) => {
 	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
 
@@ -127,7 +125,7 @@ test('nothing is polled while the server is down, and it resumes when it returns
 		return await createdId(res);
 	})();
 	await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null },
 	});
 
 	const identity = await createIdentity(13);
@@ -137,10 +135,10 @@ test('nothing is polled while the server is down, and it resumes when it returns
 
 	const pilotApi = await playwright.request.newContext({
 		baseURL: 'http://127.0.0.1:3000',
-		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` }
+		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` },
 	});
 	await pilotApi.post(`/api/maps/${mapId}/settings/user`, {
-		data: { tracking_allowed: true, prompt_for_signature: false }
+		data: { tracking_allowed: true, prompt_for_signature: false },
 	});
 
 	const position = async () => {
@@ -153,14 +151,14 @@ test('nothing is polled while the server is down, and it resumes when it returns
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 
 	try {
 		const stubCtx = await playwright.request.newContext();
 		await stubCtx.put(`${STUB}/_stub/characters/${identity.characterId}`, {
-			data: { online: true, solar_system_id: J122515 }
+			data: { online: true, solar_system_id: J122515 },
 		});
 
 		// The page holds the socket open, which is what marks the user active enough to poll.
@@ -174,7 +172,7 @@ test('nothing is polled while the server is down, and it resumes when it returns
 		await setServer(playwright, { players: 0 });
 		await expect.poll(() => apiState(api), { timeout: 20_000 }).toBe('offline');
 		await stubCtx.put(`${STUB}/_stub/characters/${identity.characterId}`, {
-			data: { online: true, solar_system_id: J005482 }
+			data: { online: true, solar_system_id: J005482 },
 		});
 		await page.waitForTimeout(8_000);
 		expect(await position()).toBe(J122515);
@@ -199,7 +197,7 @@ test('nothing is polled while the server is down, and it resumes when it returns
 async function stubPilot(
 	playwright: Playwright,
 	characterId: number,
-	patch: { online?: boolean; solar_system_id?: number }
+	patch: { online?: boolean; solar_system_id?: number },
 ) {
 	const ctx = await playwright.request.newContext();
 	const res = await ctx.put(`${STUB}/_stub/characters/${characterId}`, { data: patch });
@@ -219,7 +217,7 @@ async function stubHits(playwright: Playwright, characterId: number) {
 async function pollUntil<T>(
 	read: () => Promise<T>,
 	done: (value: T) => boolean,
-	timeoutMs: number
+	timeoutMs: number,
 ): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
@@ -246,7 +244,7 @@ async function createMap(api: Api, name: string) {
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, x = 200) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -271,7 +269,7 @@ async function graph(api: Api, mapId: number) {
 test('a pilot moving shows up on everyone else\u2019s map, not just their own', async ({
 	api,
 	browser,
-	playwright
+	playwright,
 }) => {
 	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
 
@@ -288,8 +286,8 @@ test('a pilot moving shows up on everyone else\u2019s map, not just their own', 
 		db.query(
 			`insert into map_user_settings (map_id, user_id, tracking_allowed) values ($1, $2, true)
 			 on conflict (map_id, user_id) do update set tracking_allowed = true`,
-			[mapId, flyer.userId]
-		)
+			[mapId, flyer.userId],
+		),
 	);
 	await stubPilot(playwright, flyer.characterId, { online: true, solar_system_id: J122515 });
 	// The flyer has their own tab open somewhere; without recent activity the poller would
@@ -300,7 +298,7 @@ test('a pilot moving shows up on everyone else\u2019s map, not just their own', 
 	await grantAccess(mapId, watcher.characterId, 'member');
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: watcher.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: watcher.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 
@@ -332,7 +330,7 @@ const KAZNA = 30000018;
 
 async function setSkyhooks(
 	playwright: Playwright,
-	rows: { planet_id: number; solar_system_id: number; opens_in_min: number; hours?: number }[]
+	rows: { planet_id: number; solar_system_id: number; opens_in_min: number; hours?: number }[],
 ) {
 	const ctx = await playwright.request.newContext();
 	const res = await ctx.put(`${STUB}/_stub/skyhooks`, { data: { skyhooks: rows } });
@@ -340,18 +338,14 @@ async function setSkyhooks(
 	await ctx.dispose();
 }
 
-test('skyhook windows are read the way a raider reads them', async ({
-	page,
-	api,
-	playwright
-}) => {
+test('skyhook windows are read the way a raider reads them', async ({ page, api, playwright }) => {
 	test.skip(!(await stubIsWired(api, playwright)), SKIP_REASON);
 
 	// One open with hours to run, one about to close, one not open yet, and one ice so the
 	// tabs have something to separate.
 	await setSkyhooks(playwright, [
 		{ planet_id: JITA_LAVA, solar_system_id: JITA, opens_in_min: -30, hours: 2 },
-		{ planet_id: KAZNA_ICE, solar_system_id: KAZNA, opens_in_min: -115, hours: 2 }
+		{ planet_id: KAZNA_ICE, solar_system_id: KAZNA, opens_in_min: -115, hours: 2 },
 	]);
 
 	const mapId = await createMap(api, 'E2E Skyhooks');
@@ -359,7 +353,7 @@ test('skyhook windows are read the way a raider reads them', async ({
 
 	await expect
 		.poll(async () => ((await (await api.get('/api/skyhooks')).json()) as unknown[]).length, {
-			timeout: 20_000
+			timeout: 20_000,
 		})
 		.toBe(2);
 
@@ -395,14 +389,14 @@ test('skyhook windows are read the way a raider reads them', async ({
 
 	// A window that has already run out stops being listed at all.
 	await setSkyhooks(playwright, [
-		{ planet_id: JITA_LAVA, solar_system_id: JITA, opens_in_min: -180, hours: 2 }
+		{ planet_id: JITA_LAVA, solar_system_id: JITA, opens_in_min: -180, hours: 2 },
 	]);
 	// Wait for the server to have mirrored it before reloading: the card refetches on mount
 	// and then only every five minutes, so reloading too early would just re-read the old
 	// list and sit there.
 	await expect
 		.poll(async () => ((await (await api.get('/api/skyhooks')).json()) as unknown[]).length, {
-			timeout: 20_000
+			timeout: 20_000,
 		})
 		.toBe(0);
 	await page.reload();
@@ -413,7 +407,7 @@ test('skyhook windows are read the way a raider reads them', async ({
 test('the poller drives the whole jump, from ESI to the prompt', async ({
 	api,
 	browser,
-	playwright
+	playwright,
 }) => {
 	const mapId = await createMap(api, 'E2E TrackingLive');
 	await addSystem(api, mapId, J122515);
@@ -426,20 +420,20 @@ test('the poller drives the whole jump, from ESI to the prompt', async ({
 	await setCharacterOnline(identity.characterId);
 	await stubPilot(playwright, identity.characterId, {
 		online: true,
-		solar_system_id: J122515
+		solar_system_id: J122515,
 	});
 
 	const pilotApi = await playwright.request.newContext({
 		baseURL: 'http://127.0.0.1:3000',
-		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` }
+		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` },
 	});
 	await pilotApi.post(`/api/maps/${mapId}/settings/user`, {
-		data: { tracking_allowed: true, prompt_for_signature: true }
+		data: { tracking_allowed: true, prompt_for_signature: true },
 	});
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 	// Opening the map is also what marks the user active: the poller ignores anyone whose
@@ -454,11 +448,11 @@ test('the poller drives the whole jump, from ESI to the prompt', async ({
 		const polled = await pollUntil(
 			() => stubHits(playwright, identity.characterId),
 			(hits) => hits > 0,
-			15_000
+			15_000,
 		);
 		test.skip(
 			!polled,
-			'the API is not pointed at the ESI stub — restart it with ESI_BASE_URL=http://127.0.0.1:3999'
+			'the API is not pointed at the ESI stub — restart it with ESI_BASE_URL=http://127.0.0.1:3999',
 		);
 
 		// Wait for the poller's answer rather than assuming a tick has landed: the position
@@ -474,7 +468,7 @@ test('the poller drives the whole jump, from ESI to the prompt', async ({
 		// socket pushes it, and the map works out that a jump happened.
 		await stubPilot(playwright, identity.characterId, {
 			online: true,
-			solar_system_id: J005482
+			solar_system_id: J005482,
 		});
 
 		const dialog = page.getByTestId('tracking-dialog');

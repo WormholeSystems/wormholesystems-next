@@ -19,12 +19,7 @@ import type { SocketState } from '$lib/ws';
 import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
 import { DEFAULT_LAYOUTS, placeAtBottom, resolveLayouts } from './panels/registry';
 import type { GridItem } from '$lib/layout/grid';
-import type {
-	DynamicEdge,
-	RouteGraph,
-	RouteStep,
-	RoutingSettings
-} from '$lib/routing/algorithm';
+import type { DynamicEdge, RouteGraph, RouteStep, RoutingSettings } from '$lib/routing/algorithm';
 import { buildDynamicAdjacency } from '$lib/routing/algorithm';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
@@ -69,9 +64,7 @@ export interface Linking {
 }
 
 export type MenuTarget =
-	| { kind: 'map' }
-	| { kind: 'node'; system: MapSystemView }
-	| { kind: 'connection'; id: number };
+	{ kind: 'map' } | { kind: 'node'; system: MapSystemView } | { kind: 'connection'; id: number };
 
 /** An open right-click menu, positioned at screen `(x, y)`. */
 export interface Menu {
@@ -84,7 +77,7 @@ const defaultGrid: GridConfig = {
 	cell_size: 20,
 	world_width: 4000,
 	world_height: 2000,
-	viewport_height: 1400
+	viewport_height: 1400,
 };
 
 /** Where the canvas sits on screen, and how big it is. */
@@ -107,7 +100,6 @@ export class MapState {
 	characters = $state<MapCharacter[]>([]);
 	myCharacters = $state<CharacterRef[]>([]);
 	userSettings = $state<MapUserSettings | null>(null);
-
 
 	pan = $state({ x: 0, y: 0 });
 	zoom = $state(1);
@@ -205,15 +197,14 @@ export class MapState {
 			(this.activeSystem ? solarSystemId(this.activeSystem) : null) ??
 			this.myCharacters.find((c) => c.is_active && c.online)?.solar_system_id ??
 			this.myCharacters.find((c) => c.online && c.solar_system_id !== null)?.solar_system_id ??
-			null
+			null,
 	);
 
 	routingSettings = $derived<RoutingSettings>({
-		preference: (this.userSettings?.route_preference ??
-			'shorter') as RoutingSettings['preference'],
+		preference: (this.userSettings?.route_preference ?? 'shorter') as RoutingSettings['preference'],
 		securityPenalty: this.userSettings?.security_penalty ?? 50,
 		allowTimeStatus: (this.userSettings?.route_allow_time_status ?? 'critical') as TimeStatus,
-		allowMassStatus: (this.userSettings?.route_allow_mass_status ?? 'reduced') as MassStatus
+		allowMassStatus: (this.userSettings?.route_allow_mass_status ?? 'reduced') as MassStatus,
 	});
 	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
 
@@ -242,7 +233,7 @@ export class MapState {
 					b: e.solar_system_id,
 					via: 'evescout',
 					mass: e.mass_status as MassStatus,
-					time: e.time_status as TimeStatus
+					time: e.time_status as TimeStatus,
 				});
 			}
 		}
@@ -337,9 +328,9 @@ export class MapState {
 				rootIds: this.systems.filter((s) => s.is_pinned).map((s) => s.id),
 				homeId: this.systems.find((s) => s.is_home)?.id ?? null,
 				fallbackRootId: null,
-				compareNodes: compareForTree(systems)
+				compareNodes: compareForTree(systems),
 			},
-			{ gridSize: this.grid.cell_size }
+			{ gridSize: this.grid.cell_size },
 		);
 	});
 
@@ -352,7 +343,7 @@ export class MapState {
 		const ghosts = new Set(this.systems.filter((s) => s.kind === 'ghost').map((s) => s.id));
 		if (ghosts.size === 0) return out;
 		const byConnection = new Map(
-			this.sigs.filter((s) => s.connection_id !== null).map((s) => [s.connection_id!, s])
+			this.sigs.filter((s) => s.connection_id !== null).map((s) => [s.connection_id!, s]),
 		);
 		for (const c of this.connections) {
 			const sig = byConnection.get(c.id);
@@ -367,7 +358,7 @@ export class MapState {
 	edgeGeometry = $derived.by<Map<number, EdgeGeometry>>(() =>
 		this.layout === 'tree'
 			? treeEdges(this.connections, this.positions, this.nodeH)
-			: freeEdges(this.connections, this.positions, this.nodeH)
+			: freeEdges(this.connections, this.positions, this.nodeH),
 	);
 
 	// Position lookup: the automatic layout when one is active; else live drag, then an
@@ -387,7 +378,7 @@ export class MapState {
 		for (const s of this.systems) {
 			out.set(
 				s.id,
-				dragged.get(s.id) ?? this.pending[s.id] ?? { x: s.position_x, y: s.position_y }
+				dragged.get(s.id) ?? this.pending[s.id] ?? { x: s.position_x, y: s.position_y },
 			);
 		}
 		return out;
@@ -407,8 +398,8 @@ export class MapState {
 		signedIn = true,
 		seed: { view: MapView | null; settings: MapUserSettings | null } = {
 			view: null,
-			settings: null
-		}
+			settings: null,
+		},
 	) {
 		this.mapId = mapId;
 		this.signedIn = signedIn;
@@ -428,9 +419,7 @@ export class MapState {
 	}
 
 	/** Panels there is nobody to fill in: both of these are about the account, not the map. */
-	unavailablePanels = $derived(
-		new Set<PanelId>(this.signedIn ? [] : ['characters', 'skyhooks'])
-	);
+	unavailablePanels = $derived(new Set<PanelId>(this.signedIn ? [] : ['characters', 'skyhooks']));
 
 	/** Presence: fails silently for viewers (403) and anonymous races. */
 	async fetchCharacters() {
@@ -468,7 +457,7 @@ export class MapState {
 				wormhole_class_id: placed.wormhole_class_id,
 				effect_name: placed.effect_name,
 				sovereignty: placed.sovereignty,
-				statics: placed.statics
+				statics: placed.statics,
 			};
 		}
 		return this.resolvedSystems.get(id) ?? null;
@@ -478,7 +467,7 @@ export class MapState {
 	ensureResolved(ids: number[]) {
 		const placed = new Set(this.systems.map(solarSystemId).filter((id) => id !== null));
 		const missing = [
-			...new Set(ids.filter((id) => !placed.has(id) && !this.resolvedSystems.has(id)))
+			...new Set(ids.filter((id) => !placed.has(id) && !this.resolvedSystems.has(id))),
 		];
 		if (missing.length === 0) return;
 		api
@@ -512,7 +501,7 @@ export class MapState {
 		try {
 			const g = await api.routingGraph();
 			this.stargates = new Map(
-				Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]])
+				Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]]),
 			);
 			this.security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
 			this.joveSystems = new Set(g.jove ?? []);
@@ -528,7 +517,7 @@ export class MapState {
 					id: svc.id,
 					name: svc.name,
 					systems: new Set(stationsBySystem.keys()),
-					stationsBySystem
+					stationsBySystem,
 				};
 			});
 		} catch {
@@ -565,7 +554,7 @@ export class MapState {
 
 	private hiddenDirty = $state(false);
 	layoutDirty = $derived(
-		JSON.stringify(this.layoutDraft) !== JSON.stringify(this.layoutSaved) || this.hiddenDirty
+		JSON.stringify(this.layoutDraft) !== JSON.stringify(this.layoutSaved) || this.hiddenDirty,
 	);
 
 	/**
@@ -587,7 +576,7 @@ export class MapState {
 		if (!this.userSettings || this.userSettings.hidden_panels.includes(id)) return;
 		this.userSettings = {
 			...this.userSettings,
-			hidden_panels: [...this.userSettings.hidden_panels, id]
+			hidden_panels: [...this.userSettings.hidden_panels, id],
 		};
 		this.hiddenDirty = true;
 	}
@@ -603,7 +592,7 @@ export class MapState {
 		this.layoutDraft = base;
 		this.userSettings = {
 			...this.userSettings,
-			hidden_panels: this.userSettings.hidden_panels.filter((p) => p !== id)
+			hidden_panels: this.userSettings.hidden_panels.filter((p) => p !== id),
 		};
 		this.hiddenDirty = true;
 	}
@@ -614,13 +603,13 @@ export class MapState {
 			'saveLayout',
 			this.patchUserSettings({
 				layout_breakpoints: layouts,
-				hidden_panels: this.userSettings?.hidden_panels ?? []
+				hidden_panels: this.userSettings?.hidden_panels ?? [],
 			}).then((saved) => {
 				this.layoutSaved = saved.layout_breakpoints ?? null;
 				this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
 				this.hiddenDirty = false;
 				this.editingLayout = false;
-			})
+			}),
 		);
 	}
 
@@ -650,7 +639,7 @@ export class MapState {
 		if (this.userSettings) {
 			this.userSettings = {
 				...this.userSettings,
-				hidden_panels: this.layoutSavedHidden
+				hidden_panels: this.layoutSavedHidden,
 			};
 		}
 		this.hiddenDirty = false;
@@ -716,7 +705,7 @@ export class MapState {
 		this.run(
 			'goToEvent',
 			api.gotoMapEvent({ map_id: this.mapId, event_id: eventId }),
-			eventId === null ? 'Back to the empty map' : this.stepDetail(target)
+			eventId === null ? 'Back to the empty map' : this.stepDetail(target),
 		);
 	}
 
@@ -806,7 +795,7 @@ export class MapState {
 		return steps.map((step, i) => ({
 			...step,
 			signature:
-				step.via === 'wormhole' && i > 0 ? this.wormholeSignature(steps[i - 1].id, step.id) : null
+				step.via === 'wormhole' && i > 0 ? this.wormholeSignature(steps[i - 1].id, step.id) : null,
 		}));
 	}
 
@@ -823,7 +812,7 @@ export class MapState {
 			// reactive: anything derived from it (the scrollbar thumbs) would keep the
 			// value it had when the canvas was first measured.
 			width: this.viewportSize.width,
-			height: this.viewportSize.height
+			height: this.viewportSize.height,
 		};
 	}
 
@@ -832,7 +821,7 @@ export class MapState {
 		const r = this.viewportRect();
 		return {
 			x: (clientX - r.left - this.pan.x) / this.zoom,
-			y: (clientY - r.top - this.pan.y) / this.zoom
+			y: (clientY - r.top - this.pan.y) / this.zoom,
 		};
 	}
 
@@ -846,7 +835,7 @@ export class MapState {
 			this.userSettings = { ...this.userSettings, layout_override: own ?? undefined };
 		}
 		this.patchUserSettings({ layout_override: own }).catch((err) =>
-			toast.error(`placement: ${errorMessage(err)}`)
+			toast.error(`placement: ${errorMessage(err)}`),
 		);
 	}
 
@@ -870,7 +859,7 @@ export class MapState {
 		this.run(
 			'cleanMap',
 			api.removeSystems({ map_id: this.mapId, map_solar_system_ids: ids }),
-			`${ids.length} ${ids.length === 1 ? 'system' : 'systems'}`
+			`${ids.length} ${ids.length === 1 ? 'system' : 'systems'}`,
 		);
 	}
 

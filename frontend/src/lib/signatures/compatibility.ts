@@ -16,7 +16,7 @@ export function canBeConnection(signature: Signature): boolean {
  */
 export function canLeadToClass(
 	type: SignatureTypeInfo | null | undefined,
-	targetClass: number | null | undefined
+	targetClass: number | null | undefined,
 ): boolean {
 	const destination = type?.target_class;
 	if (destination === null || destination === undefined) return true;
@@ -42,12 +42,12 @@ export function groupSignatures(
 	types: Map<number, SignatureTypeInfo>,
 	targetClass: number | null | undefined,
 	/** Connections whose far side is still a ghost, so their signatures stay candidates. */
-	unflown?: Set<number>
+	unflown?: Set<number>,
 ): SignatureGroups {
 	const groups: SignatureGroups = { likely: [], connected: [], unlikely: [] };
 
 	for (const signature of [...signatures].sort((a, b) =>
-		a.signature_id.localeCompare(b.signature_id)
+		a.signature_id.localeCompare(b.signature_id),
 	)) {
 		if (!canBeConnection(signature)) continue;
 
@@ -55,10 +55,8 @@ export function groupSignatures(
 			groups.connected.push(signature);
 		} else if (
 			canLeadToClass(
-				signature.signature_type_id === null
-					? null
-					: types.get(signature.signature_type_id),
-				targetClass
+				signature.signature_type_id === null ? null : types.get(signature.signature_type_id),
+				targetClass,
 			)
 		) {
 			groups.likely.push(signature);

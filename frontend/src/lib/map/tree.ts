@@ -62,7 +62,7 @@ interface LayoutNode {
  */
 export function computeTreeLayout(
 	input: TreeInput,
-	options: TreeOptions = {}
+	options: TreeOptions = {},
 ): Map<number, { x: number; y: number }> {
 	const gridSize = options.gridSize ?? 20;
 	const snap = (value: number) => Math.round(value / gridSize) * gridSize;
@@ -126,9 +126,13 @@ export function computeTreeLayout(
 	const home = input.homeId != null && adjacency.has(input.homeId) ? input.homeId : null;
 	const candidates = [
 		...(home === null ? [] : [home]),
-		...input.rootIds.filter((id) => adjacency.has(id) && id !== home)
+		...input.rootIds.filter((id) => adjacency.has(id) && id !== home),
 	];
-	if (candidates.length === 0 && input.fallbackRootId != null && adjacency.has(input.fallbackRootId)) {
+	if (
+		candidates.length === 0 &&
+		input.fallbackRootId != null &&
+		adjacency.has(input.fallbackRootId)
+	) {
 		candidates.push(input.fallbackRootId);
 	}
 	// All roots seeded before the walk, so each system attaches to the nearest one.
@@ -172,7 +176,7 @@ export function computeTreeLayout(
 			shift: 0,
 			thread: null,
 			ancestor: null,
-			cross: 0
+			cross: 0,
 		};
 		nodes.set(id, node);
 	}
@@ -308,7 +312,7 @@ export function computeTreeLayout(
 		shift: 0,
 		thread: null,
 		ancestor: null,
-		cross: 0
+		cross: 0,
 	};
 	superRoot.children.forEach((child, index) => {
 		child.parent = superRoot;
@@ -326,7 +330,7 @@ export function computeTreeLayout(
 	for (const node of nodes.values()) {
 		positions.set(node.id, {
 			x: snap(marginX + node.depth * levelGap),
-			y: snapCross(marginY + node.cross - minCross)
+			y: snapCross(marginY + node.cross - minCross),
 		});
 	}
 	return positions;

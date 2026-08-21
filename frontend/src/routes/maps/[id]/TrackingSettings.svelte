@@ -19,18 +19,18 @@
 		{
 			key: 'prompt_for_signature' as const,
 			label: 'Ask which signature',
-			hint: 'Otherwise the hole is mapped without a signature linked.'
+			hint: 'Otherwise the hole is mapped without a signature linked.',
 		},
 		{
 			key: 'suggest_alias' as const,
 			label: 'Suggest an alias',
-			hint: "Prefills the next name in the chain's sequence."
+			hint: "Prefills the next name in the chain's sequence.",
 		},
 		{
 			key: 'copy_bookmark' as const,
 			label: 'Copy the bookmark',
-			hint: 'Puts the new bookmark on your clipboard once the jump is mapped.'
-		}
+			hint: 'Puts the new bookmark on your clipboard once the jump is mapped.',
+		},
 	];
 
 	function update(key: string, value: boolean) {

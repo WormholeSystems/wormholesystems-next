@@ -14,7 +14,7 @@ const ALL_SCOPES = [
 	LOCATION,
 	'esi-location.read_online.v1',
 	'esi-location.read_ship_type.v1',
-	WAYPOINT
+	WAYPOINT,
 ];
 
 type Api = import('@playwright/test').APIRequestContext;
@@ -23,7 +23,7 @@ type Browser = import('@playwright/test').Browser;
 /** The settings write the dialog makes on its way out; a reload would cancel it in flight. */
 function saved(page: import('@playwright/test').Page) {
 	return page.waitForResponse(
-		(r) => r.url().includes('/settings/user') && r.request().method() === 'POST'
+		(r) => r.url().includes('/settings/user') && r.request().method() === 'POST',
 	);
 }
 
@@ -39,7 +39,7 @@ async function openAsNewcomer(
 	api: Api,
 	name: string,
 	slot: number,
-	scopes: string[]
+	scopes: string[],
 ) {
 	const mapId = await createMap(api, name);
 	// A slot per test: `setScopes` replaces the character's tokens outright, and the specs
@@ -51,7 +51,7 @@ async function openAsNewcomer(
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}`);
@@ -100,7 +100,7 @@ test('a new map walks you through permissions and preferences, once', async ({ b
 
 test('missing permissions are offered, and the settings that need them are held back', async ({
 	browser,
-	api
+	api,
 }) => {
 	// Everything except the waypoint scope, which nothing on the settings step depends on.
 	const scopes = ALL_SCOPES.filter((s) => s !== WAYPOINT);

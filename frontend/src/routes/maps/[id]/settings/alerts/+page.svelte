@@ -43,7 +43,7 @@
 				api.listAlerts(mapId),
 				api.alertEvents(mapId),
 				api.listWebhooks(mapId),
-				api.listAlertRoles(mapId)
+				api.listAlertRoles(mapId),
 			]);
 			error = null;
 			canManage = true;
@@ -83,25 +83,25 @@
 	const KIND_LABEL = {
 		killmail: 'Kills near the chain',
 		proximity: 'System near the chain',
-		jump_range: 'Capital jump range'
+		jump_range: 'Capital jump range',
 	} satisfies Record<AlertKind, string>;
 	const DELIVERY_LABEL = {
 		webhook: 'Channel webhook',
 		discord_dm: 'Direct message',
-		discord_channel: 'Bot channel'
+		discord_channel: 'Bot channel',
 	} satisfies Record<AlertDelivery, string>;
 	const MENTION_LABEL = {
 		none: 'No ping',
 		creator: 'Pings the creator',
 		role: 'Pings a role',
-		everyone: 'Pings everyone'
+		everyone: 'Pings everyone',
 	} satisfies Record<AlertMention, string>;
 	const REASON: Record<string, string> = {
 		manual: 'Turned off by hand',
 		discord_unlinked: 'The creator unlinked their Discord account',
 		access_revoked: 'The creator lost access to this map',
 		destination_gone: 'Discord rejected the destination: the webhook or channel is gone',
-		delivery_failed: 'Too many failed deliveries'
+		delivery_failed: 'Too many failed deliveries',
 	};
 
 	const SHIP_LABEL: Record<string, string> = {
@@ -112,7 +112,7 @@
 		titan: 'Titan',
 		jump_freighter: 'Jump Freighter',
 		rorqual: 'Rorqual',
-		black_ops: 'Black Ops'
+		black_ops: 'Black Ops',
 	};
 
 	function summary(alert: MapAlert): string {
@@ -140,29 +140,29 @@
 	<Card.Root>
 		<Card.Header>
 			<div class="flex items-start justify-between gap-3">
-			<div class="flex flex-col gap-1.5">
-				<Card.Title class="flex items-center gap-2">
-					<BellIcon class="size-4" />
-					Discord alerts
-				</Card.Title>
-				<Card.Description>
-					Standing questions about the chain, answered into a Discord channel.
-				</Card.Description>
+				<div class="flex flex-col gap-1.5">
+					<Card.Title class="flex items-center gap-2">
+						<BellIcon class="size-4" />
+						Discord alerts
+					</Card.Title>
+					<Card.Description>
+						Standing questions about the chain, answered into a Discord channel.
+					</Card.Description>
+				</div>
+				{#if canManage && !creating && !editing}
+					<Button
+						size="sm"
+						onclick={() => {
+							creating = true;
+							editing = null;
+						}}
+						data-testid="alert-new"
+					>
+						<PlusIcon data-icon="inline-start" />
+						New alert
+					</Button>
+				{/if}
 			</div>
-			{#if canManage && !creating && !editing}
-				<Button
-					size="sm"
-					onclick={() => {
-						creating = true;
-						editing = null;
-					}}
-					data-testid="alert-new"
-				>
-					<PlusIcon data-icon="inline-start" />
-					New alert
-				</Button>
-			{/if}
-		</div>
 		</Card.Header>
 		<Card.Content class="flex flex-col gap-3">
 			{#if creating || editing}
@@ -183,8 +183,8 @@
 
 			{#if canManage && alerts.length === 0 && !creating}
 				<p class="py-6 text-center text-sm text-muted-foreground" data-testid="alerts-empty">
-					No alerts yet. A channel webhook is the quickest way to start: Discord's channel
-					settings, Integrations, New Webhook.
+					No alerts yet. A channel webhook is the quickest way to start: Discord's channel settings,
+					Integrations, New Webhook.
 				</p>
 			{/if}
 
@@ -192,7 +192,7 @@
 				<div
 					class={cn(
 						'flex flex-col gap-2 border border-border/60 p-3',
-						!alert.is_active && 'opacity-60'
+						!alert.is_active && 'opacity-60',
 					)}
 					data-testid="alert-row"
 					data-alert={alert.id}
@@ -204,7 +204,9 @@
 								<Badge variant="outline" class="shrink-0">{KIND_LABEL[alert.kind]}</Badge>
 							</span>
 							<span class="text-xs text-muted-foreground">{summary(alert)}</span>
-							<span class="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/70">
+							<span
+								class="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground/70"
+							>
 								<span>{DELIVERY_LABEL[alert.delivery]}</span>
 								{#if alert.webhook_name}
 									<span>→ {alert.webhook_name}</span>
@@ -263,7 +265,8 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>History</Card.Title>
-			<Card.Description>Who changed what, and every time an alert fired or failed.</Card.Description>
+			<Card.Description>Who changed what, and every time an alert fired or failed.</Card.Description
+			>
 		</Card.Header>
 		<Card.Content>
 			{#if events.length === 0}

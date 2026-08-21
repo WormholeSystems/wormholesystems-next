@@ -30,7 +30,7 @@
 		canManage = false,
 		sort,
 		onsort,
-		actions
+		actions,
 	}: {
 		/** Already filtered and sorted; this only draws them. */
 		entries: AccessEntry[];
@@ -45,7 +45,7 @@
 		{ key: 'name', label: 'Who' },
 		{ key: 'subject_type', label: 'Kind' },
 		{ key: 'role', label: 'Role' },
-		{ key: 'expires_at', label: 'Ends' }
+		{ key: 'expires_at', label: 'Ends' },
 	];
 
 	// Owner is not offered: it moves by transfer, not by picking it from a list.
@@ -129,7 +129,7 @@
 							{new Date(entry.expires_at).toLocaleDateString(undefined, {
 								day: 'numeric',
 								month: 'short',
-								year: 'numeric'
+								year: 'numeric',
 							})}
 						</button>
 					{:else}

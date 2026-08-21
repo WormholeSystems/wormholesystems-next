@@ -7,7 +7,7 @@ import {
 	setCharacterOnline,
 	setActiveCharacter,
 	setCharacterPresence,
-	withDb
+	withDb,
 } from './db';
 
 // Jump tracking: flying through an unmapped hole builds it on the map, and the prompt
@@ -33,7 +33,7 @@ async function createMap(api: Api, name: string) {
 
 async function addSystem(api: Api, mapId: number, solarSystemId: number, alias: string | null) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x: 200, y: 200, alias },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -46,7 +46,7 @@ async function openAsPilot(
 	slot: number,
 	mapId: number,
 	startSystem: number,
-	settings: Record<string, boolean> = {}
+	settings: Record<string, boolean> = {},
 ) {
 	const identity = await createIdentity(slot);
 	await grantAccess(mapId, identity.characterId, 'member');
@@ -54,16 +54,16 @@ async function openAsPilot(
 
 	const api = await playwright.request.newContext({
 		baseURL: 'http://127.0.0.1:3000',
-		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` }
+		extraHTTPHeaders: { cookie: `ws_session=${identity.session}` },
 	});
 	const res = await api.post(`/api/maps/${mapId}/settings/user`, {
-		data: { tracking_allowed: true, prompt_for_signature: true, ...settings }
+		data: { tracking_allowed: true, prompt_for_signature: true, ...settings },
 	});
 	expect(res.ok()).toBe(true);
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: identity.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}?system=${startSystem}`);
@@ -110,7 +110,7 @@ async function graph(api: Api, mapId: number) {
 test('a jump through a scanned hole places the system, connects it and links the signature', async ({
 	api,
 	browser,
-	playwright
+	playwright,
 }) => {
 	const mapId = await createMap(api, 'E2E Tracking');
 	await addSystem(api, mapId, J122515, null);
@@ -200,8 +200,8 @@ test('switching character is not a jump', async ({ api, browser, playwright }) =
 			`insert into characters (id, user_id, name, owner_hash, corporation_id)
 			 values ($1, $2, 'E2E Alt', 'e2e-alt-hash', $3)
 			 on conflict (id) do nothing`,
-			[altId, pilot.identity.userId, E2E_CORPORATION_ID]
-		)
+			[altId, pilot.identity.userId, E2E_CORPORATION_ID],
+		),
 	);
 	await setCharacterPresence(altId, JITA);
 

@@ -25,10 +25,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	alias: string | null,
-	x = 200
+	x = 200,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 200, alias },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -40,7 +40,7 @@ async function addPilot(
 	mapId: number,
 	slot: number,
 	system: number,
-	ship: { typeId: number; docked?: boolean }
+	ship: { typeId: number; docked?: boolean },
 ) {
 	const identity = await createIdentity(slot);
 	await grantAccess(mapId, identity.characterId, 'member');
@@ -49,16 +49,16 @@ async function addPilot(
 		db.query(
 			`insert into map_user_settings (map_id, user_id, tracking_allowed) values ($1, $2, true)
 			 on conflict (map_id, user_id) do update set tracking_allowed = true`,
-			[mapId, identity.userId]
-		)
+			[mapId, identity.userId],
+		),
 	);
 	await withDb((db) =>
 		db.query(
 			`update character_status set ship_type_id = $2, ship_name = 'A ship',
 			     station_id = $3
 			 where character_id = $1`,
-			[identity.characterId, ship.typeId, ship.docked ? 60003760 : null]
-		)
+			[identity.characterId, ship.typeId, ship.docked ? 60003760 : null],
+		),
 	);
 	return identity;
 }
@@ -77,23 +77,21 @@ test('pilots are listed with the ones who can act first', async ({ page, api }) 
 	await expect(card).toBeVisible();
 
 	// Ready first, then the scanner, then the docked pilot, then the pod.
-	await expect
-		.poll(async () => card.getByTestId('pilot-row').count(), { timeout: 10_000 })
-		.toBe(4);
-	const order = await card.getByTestId('pilot-row').evaluateAll((rows) =>
-		rows.map((r: HTMLElement) => r.dataset.pilot)
-	);
+	await expect.poll(async () => card.getByTestId('pilot-row').count(), { timeout: 10_000 }).toBe(4);
+	const order = await card
+		.getByTestId('pilot-row')
+		.evaluateAll((rows) => rows.map((r: HTMLElement) => r.dataset.pilot));
 	expect(order).toEqual([
 		'E2E Extra 23', // flying something
 		'E2E Extra 22', // scanner
 		'E2E Extra 21', // docked
-		'E2E Extra 20' // pod
+		'E2E Extra 20', // pod
 	]);
 
 	// Nobody is hidden, and the ones who cannot act are dimmed rather than dropped.
-	const dimmed = await card.getByTestId('pilot-row').evaluateAll((rows) =>
-		rows.map((r: HTMLElement) => r.className.includes('opacity-50'))
-	);
+	const dimmed = await card
+		.getByTestId('pilot-row')
+		.evaluateAll((rows) => rows.map((r: HTMLElement) => r.className.includes('opacity-50')));
 	expect(dimmed).toEqual([false, false, true, true]);
 });
 
@@ -102,7 +100,7 @@ test('distance is measured from the system you are looking at', async ({ page, a
 	const home = await addSystem(api, mapId, J122515, 'HOME');
 	const next = await addSystem(api, mapId, J005482, '1', 500);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: home, to_system: next, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: home, to_system: next, kind: 'wormhole' },
 	});
 
 	await addPilot(api, mapId, 24, J005482, { typeId: MACHARIEL });
@@ -161,7 +159,7 @@ test('viewers do not get a pilot list at all', async ({ api, browser }) => {
 	await grantAccess(mapId, viewer.characterId, 'viewer');
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const page = await ctx.newPage();
 	await page.goto(`http://localhost:5173/maps/${mapId}?system=${J122515}`);

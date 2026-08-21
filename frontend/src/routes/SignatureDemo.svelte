@@ -13,7 +13,7 @@
 	const ctx: SignatureContext = {
 		systems: DEMO_SYSTEMS,
 		connections: DEMO_CONNECTIONS,
-		sigs: DEMO_SIGNATURES
+		sigs: DEMO_SIGNATURES,
 	};
 	const system = HOME_SYSTEM;
 

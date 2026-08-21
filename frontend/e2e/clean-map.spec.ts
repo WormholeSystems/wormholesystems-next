@@ -16,27 +16,27 @@ async function addSystem(
 	api: import('@playwright/test').APIRequestContext,
 	mapId: number,
 	solarSystemId: number,
-	x: number
+	x: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 300, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y: 300, alias: null },
 	});
 	return await createdId(res);
 }
 
 test('the map says when a branch is adrift, and says what cleaning takes', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E Clean');
 	const home = await addSystem(api, mapId, J122515, 200);
 	const attached = await addSystem(api, mapId, JITA, 500);
 	await addSystem(api, mapId, PERIMETER, 800);
 	await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: home, to_system: attached, kind: 'wormhole' }
+		data: { map_id: mapId, from_system: home, to_system: attached, kind: 'wormhole' },
 	});
 	await api.post(`/api/maps/${mapId}/systems/set-home`, {
-		data: { map_id: mapId, map_solar_system_id: home, value: true }
+		data: { map_id: mapId, map_solar_system_id: home, value: true },
 	});
 
 	await gotoApp(page, `/maps/${mapId}`);

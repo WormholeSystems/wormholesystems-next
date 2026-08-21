@@ -12,7 +12,7 @@
 	const going = $derived(map.orphaned);
 	const anchors = $derived(map.systems.filter((s) => s.is_pinned || s.is_home));
 	const signatures = $derived(
-		map.sigs.filter((sig) => going.some((s) => solarSystemId(s) === sig.solar_system_id)).length
+		map.sigs.filter((sig) => going.some((s) => solarSystemId(s) === sig.solar_system_id)).length,
 	);
 
 	function clean() {
@@ -26,16 +26,18 @@
 		<Dialog.Header>
 			<Dialog.Title>Clean the map?</Dialog.Title>
 			<Dialog.Description>
-				{going.length === 1 ? 'One system' : `${going.length} systems`} nothing reaches any more,
-				from {anchors.length === 1 ? 'the one anchor' : `the ${anchors.length} anchors`} on this
-				map. Everything still hanging off a pinned or home system stays.
+				{going.length === 1 ? 'One system' : `${going.length} systems`} nothing reaches any more, from
+				{anchors.length === 1 ? 'the one anchor' : `the ${anchors.length} anchors`} on this map. Everything
+				still hanging off a pinned or home system stays.
 			</Dialog.Description>
 		</Dialog.Header>
 
 		<ul class="max-h-64 overflow-y-auto border border-border/60" data-testid="clean-list">
 			{#each going as node (node.id)}
 				{@const mapped = node.kind === 'system' ? node : null}
-				<li class="flex items-center gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-b-0">
+				<li
+					class="flex items-center gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-b-0"
+				>
 					<ClassBadge
 						classId={mapped?.wormhole_class_id ?? null}
 						security={mapped?.security_status ?? null}
@@ -46,7 +48,8 @@
 					<span class="truncate {node.alias ? 'text-muted-foreground' : 'font-medium'}">
 						{mapped?.name ?? 'Unmapped'}
 					</span>
-					<span class="ml-auto shrink-0 truncate text-muted-foreground">{mapped?.region ?? ''}</span>
+					<span class="ml-auto shrink-0 truncate text-muted-foreground">{mapped?.region ?? ''}</span
+					>
 				</li>
 			{/each}
 		</ul>
@@ -54,8 +57,8 @@
 		<p class="text-xs text-muted-foreground">
 			Their connections go with them{signatures > 0
 				? `, along with ${signatures === 1 ? 'the signature' : `${signatures} signatures`} scanned in them`
-				: ''}. Notes, status and occupier are kept, and come back if the system is placed
-			again. One undo puts all of it back.
+				: ''}. Notes, status and occupier are kept, and come back if the system is placed again. One
+			undo puts all of it back.
 		</p>
 
 		<Dialog.Footer>

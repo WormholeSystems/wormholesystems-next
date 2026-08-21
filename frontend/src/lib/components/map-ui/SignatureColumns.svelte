@@ -9,7 +9,7 @@
 	let {
 		compact = false,
 		sort,
-		onsort
+		onsort,
 	}: {
 		compact?: boolean;
 		sort?: { column: SortColumn; direction: 'asc' | 'desc' };

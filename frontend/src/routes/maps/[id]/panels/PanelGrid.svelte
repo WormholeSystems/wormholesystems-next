@@ -26,7 +26,7 @@
 		type PanelId,
 		breakpointFor,
 		panelMeta,
-		resolveLayouts
+		resolveLayouts,
 	} from './registry';
 	import type { MapState } from '../map-state.svelte';
 	import type { Snippet } from 'svelte';
@@ -52,7 +52,7 @@
 
 	// While editing you pick a breakpoint; otherwise it follows the window.
 	const activeKey = $derived<BreakpointKey>(
-		map.editingLayout ? map.layoutBreakpoint : breakpointFor(windowWidth)
+		map.editingLayout ? map.layoutBreakpoint : breakpointFor(windowWidth),
 	);
 	const layouts = $derived(resolveLayouts(map.layoutDraft));
 	const layout = $derived(layouts[activeKey]);
@@ -61,11 +61,9 @@
 	// The stored positions are untouched, so an unhidden panel returns where it was.
 	const items = $derived(
 		compact(
-			layout.items.filter(
-				(i) => !hidden.has(i.i) && !map.unavailablePanels.has(i.i as PanelId)
-			),
-			layout.cols
-		)
+			layout.items.filter((i) => !hidden.has(i.i) && !map.unavailablePanels.has(i.i as PanelId)),
+			layout.cols,
+		),
 	);
 
 	const colWidth = $derived(gridWidth / layout.cols);
@@ -78,7 +76,7 @@
 	 *  shrinking under the pointer as tiles reflow, which would jump the scroll position. */
 	let gestureFloor = $state(0);
 	const gridRows = $derived(
-		map.editingLayout ? Math.max(rows, gestureFloor) + EDIT_SLACK_ROWS : rows
+		map.editingLayout ? Math.max(rows, gestureFloor) + EDIT_SLACK_ROWS : rows,
 	);
 
 	/**
@@ -99,12 +97,10 @@
 
 	// Rendered in a fixed order, never the layout's: tiles are positioned with left/top, and
 	// reordering a keyed `each` detaches the focused tile, so a second arrow key goes nowhere.
-	const shown = $derived(
-		[...(gesture?.live ?? items)].sort((a, b) => a.i.localeCompare(b.i))
-	);
+	const shown = $derived([...(gesture?.live ?? items)].sort((a, b) => a.i.localeCompare(b.i)));
 
 	const placeholder = $derived(
-		gesture?.live ? (gesture.live.find((i) => i.i === gesture!.id) ?? null) : null
+		gesture?.live ? (gesture.live.find((i) => i.i === gesture!.id) ?? null) : null,
 	);
 
 	/** The dragged tile's free pixel box, following the pointer. */
@@ -122,7 +118,7 @@
 				left: clamp(left + g.dx, 0, Math.max(0, gridWidth - width)),
 				top: Math.max(0, top + g.dy),
 				width,
-				height: g.origin.h * layout.row_height
+				height: g.origin.h * layout.row_height,
 			};
 		}
 		return {
@@ -131,9 +127,9 @@
 			width: clamp(
 				g.origin.w * colWidth + g.dx,
 				meta.minW * colWidth,
-				(layout.cols - g.origin.x) * colWidth
+				(layout.cols - g.origin.x) * colWidth,
 			),
-			height: Math.max(g.origin.h * layout.row_height + g.dy, meta.minH * layout.row_height)
+			height: Math.max(g.origin.h * layout.row_height + g.dy, meta.minH * layout.row_height),
 		};
 	});
 
@@ -148,7 +144,7 @@
 	function onPointerDown(
 		ev: PointerEvent & { currentTarget: HTMLElement },
 		id: PanelId,
-		kind: 'move' | 'resize'
+		kind: 'move' | 'resize',
 	) {
 		if (!map.editingLayout) return;
 		ev.preventDefault();
@@ -157,7 +153,16 @@
 		if (!origin) return;
 		ev.currentTarget.setPointerCapture(ev.pointerId);
 		gestureFloor = rows;
-		gesture = { id, kind, startX: ev.clientX, startY: ev.clientY, origin, dx: 0, dy: 0, live: null };
+		gesture = {
+			id,
+			kind,
+			startX: ev.clientX,
+			startY: ev.clientY,
+			origin,
+			dx: 0,
+			dy: 0,
+			live: null,
+		};
 	}
 
 	function onPointerMove(ev: PointerEvent) {
@@ -191,7 +196,7 @@
 			ArrowLeft: [-1, 0],
 			ArrowRight: [1, 0],
 			ArrowUp: [0, -1],
-			ArrowDown: [0, 1]
+			ArrowDown: [0, 1],
 		};
 		const delta = deltas[ev.key];
 		if (!delta) return;
@@ -202,7 +207,7 @@
 		commit(
 			ev.shiftKey
 				? resizeItem(items, id, current.w + dx, current.h + dy, layout.cols, panelMeta(id))
-				: moveItem(items, id, current.x + dx, current.y + dy, layout.cols)
+				: moveItem(items, id, current.x + dx, current.y + dy, layout.cols),
 		);
 	}
 
@@ -238,7 +243,7 @@
 			settled && 'transition-[left,top,width,height] duration-150',
 			// The held tile follows the pointer directly, so it must not animate. Releasing
 			// re-enables the transition and it glides into the placeholder's slot.
-			held && 'z-30 shadow-2xl duration-0'
+			held && 'z-30 shadow-2xl duration-0',
 		)}
 		style:width={held ? `${held.width}px` : box.width}
 		style:height={held ? `${held.height}px` : box.height}

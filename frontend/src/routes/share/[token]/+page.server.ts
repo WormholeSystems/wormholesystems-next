@@ -17,7 +17,7 @@ export const load: PageServerLoad = async (event) => {
 		path: '/',
 		httpOnly: true,
 		sameSite: 'lax',
-		maxAge: REMEMBER_FOR
+		maxAge: REMEMBER_FOR,
 	});
 	redirect(302, `/maps/${mapId}`);
 };

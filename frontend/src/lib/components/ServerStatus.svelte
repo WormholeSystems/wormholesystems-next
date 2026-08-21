@@ -10,10 +10,8 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { openUserSocket } from '$lib/ws';
 
-	let {
-		signedIn = false,
-		initial = null
-	}: { signedIn?: boolean; initial?: ServerStatus | null } = $props();
+	let { signedIn = false, initial = null }: { signedIn?: boolean; initial?: ServerStatus | null } =
+		$props();
 
 	// Seeded by the layout's load, so the headcount is there in the first frame rather than
 	// arriving after it. The poll and the socket take it from there.
@@ -29,8 +27,8 @@
 		unreachable: {
 			dot: 'bg-amber-500',
 			label: 'ESI is unreachable, so the server state is unknown',
-			short: 'ESI down'
-		}
+			short: 'ESI down',
+		},
 	} satisfies Record<ServerState, { dot: string; label: string; short: string | null }>;
 
 	const meta = $derived(STATES[status?.state ?? 'unknown']);
@@ -38,29 +36,27 @@
 	const degraded = $derived(meta.short !== null);
 	// Live tracking runs on ESI, so without it the map quietly stops updating. VIP does not
 	// count: the server is up and the pilots on it still move.
-	const trackingPaused = $derived(
-		status?.state === 'offline' || status?.state === 'unreachable'
-	);
+	const trackingPaused = $derived(status?.state === 'offline' || status?.state === 'unreachable');
 	/** A headcount only means something when there is a server behind it. */
 	const hasPopulation = $derived(status?.state === 'online' || status?.state === 'vip');
 
 	const eveTime = $derived(
-		`${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`
+		`${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`,
 	);
 	const eveDate = $derived(
 		now.toLocaleDateString('en-GB', {
 			timeZone: 'UTC',
 			day: 'numeric',
 			month: 'short',
-			year: 'numeric'
-		})
+			year: 'numeric',
+		}),
 	);
 
 	// One decimal: "24.5K" costs the same room as "25K" and says more.
 	const compact = new Intl.NumberFormat('en-US', {
 		notation: 'compact',
 		compactDisplay: 'short',
-		maximumFractionDigits: 1
+		maximumFractionDigits: 1,
 	});
 	const full = new Intl.NumberFormat('en-GB');
 

@@ -7,12 +7,11 @@
 
 	let {
 		sovereignty,
-		class: className = 'size-4 shrink-0 rounded-sm'
+		class: className = 'size-4 shrink-0 rounded-sm',
 	}: {
 		sovereignty: Sovereignty;
 		class?: string;
 	} = $props();
-
 </script>
 
 <Tooltip.Root>

@@ -18,10 +18,10 @@ async function addSystem(
 	mapId: number,
 	solarSystemId: number,
 	x: number,
-	y: number
+	y: number,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/systems/add`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null }
+		data: { map_id: mapId, solar_system_id: solarSystemId, x, y, alias: null },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -32,10 +32,10 @@ async function connect(
 	mapId: number,
 	from: number,
 	to: number,
-	kind: 'wormhole' | 'stargate' = 'wormhole'
+	kind: 'wormhole' | 'stargate' = 'wormhole',
 ) {
 	const res = await api.post(`/api/maps/${mapId}/connections/add`, {
-		data: { map_id: mapId, from_system: from, to_system: to, kind }
+		data: { map_id: mapId, from_system: from, to_system: to, kind },
 	});
 	expect(res.ok()).toBe(true);
 	return await createdId(res);
@@ -45,10 +45,10 @@ async function pasteSig(
 	api: import('@playwright/test').APIRequestContext,
 	mapId: number,
 	solarSystemId: number,
-	sig: Record<string, unknown>
+	sig: Record<string, unknown>,
 ) {
 	const res = await api.post(`/api/maps/${mapId}/signatures/paste`, {
-		data: { map_id: mapId, solar_system_id: solarSystemId, signatures: [sig] }
+		data: { map_id: mapId, solar_system_id: solarSystemId, signatures: [sig] },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -57,12 +57,12 @@ async function linkSig(
 	api: import('@playwright/test').APIRequestContext,
 	mapId: number,
 	signatureId: string,
-	connectionId: number
+	connectionId: number,
 ) {
 	const sigs = await (await api.get(`/api/maps/${mapId}/signatures`)).json();
 	const sig = sigs.find((s: { signature_id: string }) => s.signature_id === signatureId);
 	const res = await api.post(`/api/maps/${mapId}/signatures/link`, {
-		data: { map_id: mapId, signature_pk: sig.id, connection_id: connectionId }
+		data: { map_id: mapId, signature_pk: sig.id, connection_id: connectionId },
 	});
 	expect(res.ok()).toBe(true);
 }
@@ -76,7 +76,7 @@ async function openPopover(page: import('@playwright/test').Page) {
 
 test('click opens the popover: status, no signatures, empty mass section', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E ConnPopover');
 	const a = await addSystem(api, mapId, J122515, 200, 200);
@@ -114,7 +114,7 @@ test('click opens the popover: status, no signatures, empty mass section', async
 
 test('typed signatures drive Out/In sections, properties, and the mass bar', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E ConnPhysics');
 	const a = await addSystem(api, mapId, J122515, 200, 200);
@@ -129,13 +129,13 @@ test('typed signatures drive Out/In sections, properties, and the mass bar', asy
 	await pasteSig(api, mapId, J122515, {
 		signature_id: 'OUT-001',
 		group: 'wormhole',
-		signature_type_id: h296.id
+		signature_type_id: h296.id,
 	});
 	await linkSig(api, mapId, 'OUT-001', conn);
 	await pasteSig(api, mapId, JITA, {
 		signature_id: 'INN-001',
 		group: 'wormhole',
-		signature_type_id: k162.id
+		signature_type_id: k162.id,
 	});
 	await linkSig(api, mapId, 'INN-001', conn);
 
@@ -154,7 +154,9 @@ test('typed signatures drive Out/In sections, properties, and the mass bar', asy
 	const props = popover.getByTestId('popover-properties');
 	await expect(props).toBeVisible();
 	await expect(props.getByText('Total Mass')).toBeVisible();
-	await expect(props.getByText(`${(h296.total_mass / 1_000_000).toLocaleString('en-US')} kt`)).toBeVisible();
+	await expect(
+		props.getByText(`${(h296.total_mass / 1_000_000).toLocaleString('en-US')} kt`),
+	).toBeVisible();
 
 	// Fresh hole → full bar and ≈100% remaining.
 	await expect(popover.getByTestId('mass-bar')).toBeVisible();
@@ -179,7 +181,7 @@ test('EOL and preserve-mass surface in the status section', async ({ page, api }
 	const b = await addSystem(api, mapId, JITA, 560, 200);
 	const conn = await connect(api, mapId, a, b);
 	const res = await api.post(`/api/maps/${mapId}/connections/set-status`, {
-		data: { map_id: mapId, connection_id: conn, time_status: 'eol', preserve_mass: true }
+		data: { map_id: mapId, connection_id: conn, time_status: 'eol', preserve_mass: true },
 	});
 	expect(res.ok()).toBe(true);
 
@@ -220,9 +222,7 @@ test('manual jump flow: log, edit direction, delete', async ({ page, api }) => {
 	await expect(row.getByText('Rifter')).toBeVisible();
 	await expect(row.getByText('manual')).toBeVisible();
 	await expect(page.getByTestId('mass-jumped')).not.toHaveText('0');
-	const jumps = await (
-		await api.get(`/api/maps/${mapId}/connections/${conn}/jumps`)
-	).json();
+	const jumps = await (await api.get(`/api/maps/${mapId}/connections/${conn}/jumps`)).json();
 	expect(jumps).toHaveLength(1);
 	expect(jumps[0].is_manual).toBe(true);
 
@@ -232,10 +232,12 @@ test('manual jump flow: log, edit direction, delete', async ({ page, api }) => {
 	await expect(form).toBeVisible();
 	await form.getByTestId('jump-direction').click();
 	await form.getByRole('button', { name: 'Save' }).click();
-	await expect.poll(async () => {
-		const j = await (await api.get(`/api/maps/${mapId}/connections/${conn}/jumps`)).json();
-		return j[0].from_solar_system_id;
-	}).toBe(JITA);
+	await expect
+		.poll(async () => {
+			const j = await (await api.get(`/api/maps/${mapId}/connections/${conn}/jumps`)).json();
+			return j[0].from_solar_system_id;
+		})
+		.toBe(JITA);
 
 	// Delete: the log empties.
 	await row.getByLabel('Jump actions').click();
@@ -254,7 +256,7 @@ test('viewers get a read-only popover', async ({ page, api, browser }) => {
 
 	const ctx = await browser.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}`);

@@ -5,8 +5,8 @@
 	// Granting one permission asks for everything already consented to as well, because SSO
 	// reissues the token wholesale and a per-scope link would drop the rest. The settings step
 	// disables what the missing scopes cannot support rather than offering dead switches.
-import { api, errorMessage } from '$lib/api/client';
-		import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import { api, errorMessage } from '$lib/api/client';
+	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -36,14 +36,14 @@ import { api, errorMessage } from '$lib/api/client';
 	const STEPS = [
 		{
 			title: 'Welcome to the map',
-			blurb: 'A minute of setup, and it maps the chain as you fly it.'
+			blurb: 'A minute of setup, and it maps the chain as you fly it.',
 		},
 		{
 			title: 'Grant permissions',
-			blurb: 'What the map may read from your EVE client. All optional.'
+			blurb: 'What the map may read from your EVE client. All optional.',
 		},
 		{ title: 'Choose what it does', blurb: 'How much of the mapping you want done for you.' },
-		{ title: 'Ready to fly', blurb: 'Here is where everything ended up.' }
+		{ title: 'Ready to fly', blurb: 'Here is where everything ended up.' },
 	];
 
 	const SCOPES = [
@@ -53,7 +53,7 @@ import { api, errorMessage } from '$lib/api/client';
 			body:
 				'Where you are. Puts you on your system for everyone on the map, and measures ' +
 				'every distance from where you actually are.',
-			icon: MapPinIcon
+			icon: MapPinIcon,
 		},
 		{
 			scope: 'esi-location.read_online.v1',
@@ -61,7 +61,7 @@ import { api, errorMessage } from '$lib/api/client';
 			body:
 				'Whether you are logged in, so the map stops reporting you as somewhere you left ' +
 				'hours ago.',
-			icon: ZapIcon
+			icon: ZapIcon,
 		},
 		{
 			scope: 'esi-location.read_ship_type.v1',
@@ -69,7 +69,7 @@ import { api, errorMessage } from '$lib/api/client';
 			body:
 				'What you are flying. The difference between "someone is in the hole" and ' +
 				'"a Loki is in the hole".',
-			icon: ShieldIcon
+			icon: ShieldIcon,
 		},
 		{
 			scope: 'esi-ui.write_waypoint.v1',
@@ -77,8 +77,8 @@ import { api, errorMessage } from '$lib/api/client';
 			body:
 				'Lets the map put a destination straight into your client, instead of you retyping ' +
 				'system names.',
-			icon: RouteIcon
-		}
+			icon: RouteIcon,
+		},
 	];
 
 	let step = $state(1);
@@ -106,7 +106,7 @@ import { api, errorMessage } from '$lib/api/client';
 	function grantUrl(wanted: string[]) {
 		const params = new URLSearchParams({
 			scopes: wanted.join(','),
-			return_to: page.url.pathname + page.url.search
+			return_to: page.url.pathname + page.url.search,
 		});
 		return `/auth/login?${params}`;
 	}
@@ -119,14 +119,14 @@ import { api, errorMessage } from '$lib/api/client';
 			value: 'manual' as const,
 			name: 'Custom placement',
 			body: 'You drag the systems into shape, and they stay where you put them.',
-			icon: WaypointsIcon
+			icon: WaypointsIcon,
 		},
 		{
 			value: 'tree' as const,
 			name: 'Automatic placement',
 			body: 'The map draws the chain as a tree, and nobody has to tidy it.',
-			icon: WorkflowIcon
-		}
+			icon: WorkflowIcon,
+		},
 	];
 
 	function setPlacement(layout: 'manual' | 'tree') {
@@ -154,24 +154,24 @@ import { api, errorMessage } from '$lib/api/client';
 				missing.length === 0
 					? 'All granted'
 					: `${SCOPES.length - missing.length} of ${SCOPES.length} granted`,
-			good: missing.length === 0
+			good: missing.length === 0,
 		},
 		{
 			label: 'Location sharing',
 			value: settings?.tracking_allowed ? 'On' : 'Off',
-			good: settings?.tracking_allowed ?? false
+			good: settings?.tracking_allowed ?? false,
 		},
 		{
 			label: 'Signature prompt',
 			value: settings?.tracking_allowed && settings?.prompt_for_signature ? 'On' : 'Off',
-			good: (settings?.tracking_allowed && settings?.prompt_for_signature) ?? false
-		}
+			good: (settings?.tracking_allowed && settings?.prompt_for_signature) ?? false,
+		},
 	]);
 
 	const opening = [
 		{ icon: ShieldIcon, text: 'The EVE permissions the map can use' },
 		{ icon: EyeIcon, text: 'Whether it may follow you around' },
-		{ icon: RouteIcon, text: 'How much of the mapping it does for you' }
+		{ icon: RouteIcon, text: 'How much of the mapping it does for you' },
 	];
 
 	const toggles = $derived([
@@ -184,7 +184,7 @@ import { api, errorMessage } from '$lib/api/client';
 				'distances from where you are. Revocable at any time.',
 			value: settings?.tracking_allowed ?? false,
 			enabled: hasLocation,
-			blocked: 'Needs the character location permission.'
+			blocked: 'Needs the character location permission.',
 		},
 		{
 			key: 'prompt_for_signature',
@@ -195,7 +195,7 @@ import { api, errorMessage } from '$lib/api/client';
 				'it, instead of leaving an unnamed connection behind.',
 			value: settings?.prompt_for_signature ?? true,
 			enabled: settings?.tracking_allowed ?? false,
-			blocked: 'Needs location sharing.'
+			blocked: 'Needs location sharing.',
 		},
 		{
 			key: 'suggest_alias',
@@ -206,8 +206,8 @@ import { api, errorMessage } from '$lib/api/client';
 				'same way by everyone.',
 			value: settings?.suggest_alias ?? true,
 			enabled: settings?.tracking_allowed ?? false,
-			blocked: 'Needs location sharing.'
-		}
+			blocked: 'Needs location sharing.',
+		},
 	]);
 </script>
 
@@ -234,8 +234,8 @@ import { api, errorMessage } from '$lib/api/client';
 			<div class="flex flex-col gap-4 text-sm">
 				<p class="text-muted-foreground">
 					WormholeSystems keeps a wormhole chain that several people edit at once. It can also build
-					that chain from where your characters actually are, which is the part worth setting
-					up now.
+					that chain from where your characters actually are, which is the part worth setting up
+					now.
 				</p>
 				<div class="flex flex-col gap-2 border border-border/60 p-3">
 					{#each opening as row, i (i)}
@@ -247,8 +247,7 @@ import { api, errorMessage } from '$lib/api/client';
 					{/each}
 				</div>
 				<p class="text-xs text-muted-foreground">
-					Nothing here is permanent. Every one of these can be changed later in the map's
-					settings.
+					Nothing here is permanent. Every one of these can be changed later in the map's settings.
 				</p>
 			</div>
 		{:else if step === 2}
@@ -286,8 +285,8 @@ import { api, errorMessage } from '$lib/api/client';
 				{#if canManage}
 					<div class="flex flex-col gap-2" data-testid="setup-placement">
 						<span class="text-xs text-muted-foreground">
-							How the chain is laid out, for everyone on this map. Changeable later in the
-							map's settings.
+							How the chain is laid out, for everyone on this map. Changeable later in the map's
+							settings.
 						</span>
 						<div class="grid grid-cols-2 gap-2">
 							{#each PLACEMENTS as option (option.value)}
@@ -299,7 +298,7 @@ import { api, errorMessage } from '$lib/api/client';
 										'flex flex-col gap-1 border p-3 text-left transition-colors',
 										chosen
 											? 'border-primary/60 bg-accent/40'
-											: 'border-border/60 hover:bg-accent/20'
+											: 'border-border/60 hover:bg-accent/20',
 									)}
 									aria-pressed={chosen}
 									data-testid="setup-placement-{option.value}"
@@ -355,12 +354,12 @@ import { api, errorMessage } from '$lib/api/client';
 				</div>
 				<div class="flex flex-col gap-2 text-xs text-muted-foreground">
 					<p>
-						Paste a signature scan anywhere on the map to fill in a system. Right-click a
-						system for its menu, and drag between two to connect them.
+						Paste a signature scan anywhere on the map to fill in a system. Right-click a system for
+						its menu, and drag between two to connect them.
 					</p>
 					<p>
-						Everything here lives in the map's settings afterwards, along with access for the
-						rest of your corp.
+						Everything here lives in the map's settings afterwards, along with access for the rest
+						of your corp.
 					</p>
 				</div>
 			</div>

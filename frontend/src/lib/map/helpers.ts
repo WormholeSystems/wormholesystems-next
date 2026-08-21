@@ -46,11 +46,11 @@ export function sizeForJumpMass(kg: number | null | undefined): WormholeSize | n
 export function centerWorld(
 	pan: Vec2,
 	zoom: number,
-	viewport: { width: number; height: number }
+	viewport: { width: number; height: number },
 ): Vec2 {
 	return {
 		x: (viewport.width / 2 - pan.x) / zoom,
-		y: (viewport.height / 2 - pan.y) / zoom
+		y: (viewport.height / 2 - pan.y) / zoom,
 	};
 }
 
@@ -65,7 +65,7 @@ export const NODE_GAP_CELLS = 1;
 export function freePosition(
 	systems: { position_x: number; position_y: number }[],
 	base: Vec2,
-	g: GridConfig
+	g: GridConfig,
 ): Vec2 {
 	const nodeH = 2 * g.cell_size;
 	const gap = NODE_GAP_CELLS * g.cell_size;
@@ -75,9 +75,7 @@ export function freePosition(
 	const maxY = g.world_height - nodeH;
 	const snap = (v: number) => Math.round(v / g.cell_size) * g.cell_size;
 	const crowded = (x: number, y: number) =>
-		systems.some(
-			(s) => Math.abs(x - s.position_x) < stepX && Math.abs(y - s.position_y) < stepY
-		);
+		systems.some((s) => Math.abs(x - s.position_x) < stepX && Math.abs(y - s.position_y) < stepY);
 	const bx = snap(clamp(base.x, 0, maxX));
 	const by = snap(clamp(base.y, 0, maxY));
 
@@ -102,7 +100,7 @@ export function nodeAt(
 	wy: number,
 	g: GridConfig,
 	/** Where the nodes actually are: an automatic layout overrides the stored position. */
-	positions?: ReadonlyMap<number, { x: number; y: number }>
+	positions?: ReadonlyMap<number, { x: number; y: number }>,
 ): number | null {
 	const h = 2 * g.cell_size;
 	const hit = systems.find((s) => {
@@ -119,17 +117,10 @@ export const RAIL_PADDING = 40;
  * An endpoint sliding along a horizontal rail through the node's centre, pulled toward the
  * far node but never closer than RAIL_PADDING to the edge.
  */
-export function railEndpoint(
-	minX: number,
-	maxX: number,
-	centerY: number,
-	towardX: number
-): Vec2 {
+export function railEndpoint(minX: number, maxX: number, centerY: number, towardX: number): Vec2 {
 	const padding = Math.min(RAIL_PADDING, (maxX - minX) / 2);
 	return { x: clamp(towardX, minX + padding, maxX - padding), y: centerY };
 }
-
-
 
 export function gridBackground(): string {
 	return (
@@ -162,7 +153,7 @@ export function edgeColor(
 	kind: 'wormhole' | 'stargate',
 	mass: MassStatus | null,
 	time: TimeStatus | null,
-	onRoute: boolean
+	onRoute: boolean,
 ): string {
 	if (onRoute) return '#f59e0b'; // amber-500
 	if (kind === 'stargate') return '#0ea5e9'; // sky-500
@@ -183,7 +174,7 @@ export function clamp(v: number, lo: number, hi: number): number {
 export function heuristicSize(
 	systems: MapSystemView[],
 	fromId: number,
-	toId: number
+	toId: number,
 ): WormholeSize | undefined {
 	const a = systems.find((s) => s.id === fromId);
 	const b = systems.find((s) => s.id === toId);

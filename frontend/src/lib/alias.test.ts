@@ -72,15 +72,11 @@ describe('suggestAlias', () => {
 	const base = { aliases: ['1'], parentAlias: '1' };
 
 	it('names a wormhole reached from anywhere', () => {
-		expect(
-			suggestAlias({ ...base, targetIsWormhole: true, originIsWormhole: false })
-		).toBe('11');
+		expect(suggestAlias({ ...base, targetIsWormhole: true, originIsWormhole: false })).toBe('11');
 	});
 
 	it('continues the chain into k-space from an aliased hole', () => {
-		expect(
-			suggestAlias({ ...base, targetIsWormhole: false, originIsWormhole: true })
-		).toBe('11');
+		expect(suggestAlias({ ...base, targetIsWormhole: false, originIsWormhole: true })).toBe('11');
 	});
 
 	it('leaves plain travel unnamed', () => {
@@ -90,8 +86,8 @@ describe('suggestAlias', () => {
 				parentAlias: null,
 				aliases: [],
 				targetIsWormhole: false,
-				originIsWormhole: false
-			})
+				originIsWormhole: false,
+			}),
 		).toBeNull();
 	});
 });

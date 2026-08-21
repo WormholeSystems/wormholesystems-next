@@ -108,7 +108,7 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 				.map((above) => first.get(above)! < i && i < last.get(above)!),
 			railUp: first.get(line)! < i,
 			railDown: i < last.get(line)!,
-			forks: node.forks
+			forks: node.forks,
 		};
 	});
 }

@@ -16,7 +16,7 @@
 		mapId,
 		webhooks,
 		roles,
-		onchange
+		onchange,
 	}: {
 		mapId: number;
 		webhooks: MapWebhook[];
@@ -48,7 +48,7 @@
 
 	async function addRole() {
 		await act(
-			api.createAlertRole(mapId, { name: roleName.trim(), discord_role_id: roleId.trim() })
+			api.createAlertRole(mapId, { name: roleName.trim(), discord_role_id: roleId.trim() }),
 		);
 		roleName = '';
 		roleId = '';
@@ -133,8 +133,8 @@
 				</Button>
 			</div>
 			<p class="text-xs text-muted-foreground">
-				Discord: channel settings → Integrations → New Webhook. The URL is stored write-only
-				and never shown again.
+				Discord: channel settings → Integrations → New Webhook. The URL is stored write-only and
+				never shown again.
 			</p>
 		</div>
 

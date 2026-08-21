@@ -10,7 +10,7 @@ export default defineConfig({
 	// noise. Retried tests are reported as flaky, not silently passed.
 	retries: 1,
 	use: {
-		baseURL: 'http://localhost:5173'
+		baseURL: 'http://localhost:5173',
 	},
 	globalSetup: './e2e/global-setup',
 	globalTeardown: './e2e/global-teardown',
@@ -21,8 +21,8 @@ export default defineConfig({
 			// request the API makes, so these run on their own once the rest is finished.
 			name: 'esi-driven',
 			testMatch: /esi-driven\.spec\.ts/,
-			dependencies: ['app']
-		}
+			dependencies: ['app'],
+		},
 	],
 	webServer: [
 		{
@@ -32,7 +32,7 @@ export default defineConfig({
 			command: 'node e2e/esi-stub.mjs',
 			url: 'http://127.0.0.1:3999/_stub/hits/0',
 			reuseExistingServer: true,
-			timeout: 30_000
+			timeout: 30_000,
 		},
 		{
 			command: 'cargo run',
@@ -47,16 +47,16 @@ export default defineConfig({
 				// Tests seed the killmails they assert on; a real 90-day import would download
 				// several gigabytes before the first spec ran.
 				KILLMAIL_BACKFILL_DAYS: '0',
-				EVE_SCOUT_URL: 'http://127.0.0.1:3999/evescout'
+				EVE_SCOUT_URL: 'http://127.0.0.1:3999/evescout',
 			},
 			// First run compiles the API and may seed the SDE into a fresh database.
-			timeout: 300_000
+			timeout: 300_000,
 		},
 		{
 			command: 'npm run dev',
 			url: 'http://localhost:5173',
 			reuseExistingServer: true,
-			timeout: 60_000
-		}
-	]
+			timeout: 60_000,
+		},
+	],
 });

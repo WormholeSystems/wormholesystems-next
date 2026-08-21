@@ -20,8 +20,7 @@
 	import { cn } from '$lib/utils';
 	import type { MapState } from '../map-state.svelte';
 
-	let { map }: { map: MapState } =
-		$props();
+	let { map }: { map: MapState } = $props();
 
 	let kills = $state<MapKillmail[]>([]);
 	let now = $state(new Date());
@@ -30,7 +29,7 @@
 	const FILTERS = [
 		{ value: 'all', label: 'Everywhere on the map' },
 		{ value: 'jspace', label: 'Wormhole space only' },
-		{ value: 'kspace', label: 'Known space only' }
+		{ value: 'kspace', label: 'Known space only' },
 	];
 
 	function load() {
@@ -53,7 +52,7 @@
 			.map(solarSystemId)
 			.filter((id) => id !== null)
 			.sort((a, b) => a - b)
-			.join(',')
+			.join(','),
 	);
 
 	$effect(() => {
@@ -83,7 +82,7 @@
 			effect_name: null,
 			sovereignty: null,
 			// The row names a system it already knows; statics are not part of a kill.
-			statics: []
+			statics: [],
 		};
 	}
 
@@ -222,12 +221,15 @@
 
 								<span class="flex min-w-0 flex-1 items-center gap-1.5">
 									<ClassBadge
-										classId={kill.wormhole_class_id === null ? null : Number(kill.wormhole_class_id)}
+										classId={kill.wormhole_class_id === null
+											? null
+											: Number(kill.wormhole_class_id)}
 										security={kill.security_status}
 										class="shrink-0 text-[10px]"
 									/>
 									<span class="min-w-0 truncate" title="{kill.system_name} · {kill.region}">
-										{#if alias}<span class="font-medium">{alias}</span> · {/if}{kill.system_name}
+										{#if alias}<span class="font-medium">{alias}</span> ·
+										{/if}{kill.system_name}
 									</span>
 								</span>
 
@@ -282,7 +284,7 @@
 								<a
 									class={cn(
 										'hidden w-14 shrink-0 text-right font-mono text-[10px] tabular-nums hover:underline @min-[380px]:inline',
-										iskTone(kill.total_value)
+										iskTone(kill.total_value),
 									)}
 									href={zkill(kill.id)}
 									target="_blank"

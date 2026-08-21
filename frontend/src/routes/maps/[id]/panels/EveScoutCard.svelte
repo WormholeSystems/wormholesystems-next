@@ -29,8 +29,7 @@
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
-	let { map }: { map: MapState } =
-		$props();
+	let { map }: { map: MapState } = $props();
 
 	type Column = 'jumps' | 'system' | 'region' | 'signature' | 'type' | 'ttl';
 	type Hub = 'Thera' | 'Turnur';
@@ -65,7 +64,7 @@
 	// hub still renders.
 	let systems = $state<Map<number, SystemSearchResult>>(new Map());
 	const wanted = $derived(
-		[...new Set(connections.map((c) => c.solar_system_id))].sort((a, b) => a - b).join(',')
+		[...new Set(connections.map((c) => c.solar_system_id))].sort((a, b) => a - b).join(','),
 	);
 	$effect(() => {
 		const ids = wanted ? wanted.split(',').map(Number) : [];
@@ -98,7 +97,7 @@
 
 	const counts = $derived({
 		Thera: connections.filter((c) => c.hub === 'Thera').length,
-		Turnur: connections.filter((c) => c.hub === 'Turnur').length
+		Turnur: connections.filter((c) => c.hub === 'Turnur').length,
 	});
 
 	/** The most recent scout report in the active hub's list. */
@@ -108,7 +107,10 @@
 			.map((c) => c.updated_at)
 			.filter((s): s is string => !!s);
 		if (stamps.length === 0) return null;
-		return timeAgo(stamps.reduce((a, b) => (a > b ? a : b)), now);
+		return timeAgo(
+			stamps.reduce((a, b) => (a > b ? a : b)),
+			now,
+		);
 	});
 
 	/** Unreachable sorts last however the column is pointed: it is never the answer. */
@@ -139,7 +141,7 @@
 					connection,
 					system: systems.get(connection.solar_system_id),
 					route,
-					jumps: route?.jumps ?? null
+					jumps: route?.jumps ?? null,
 				};
 			});
 		const direction = ascending ? 1 : -1;
@@ -149,9 +151,10 @@
 			system: bySystem,
 			region: (a, b) => (a.system?.region ?? '').localeCompare(b.system?.region ?? ''),
 			signature: (a, b) => a.connection.hub_signature.localeCompare(b.connection.hub_signature),
-			type: (a, b) => (a.connection.wormhole_type ?? '').localeCompare(b.connection.wormhole_type ?? ''),
+			type: (a, b) =>
+				(a.connection.wormhole_type ?? '').localeCompare(b.connection.wormhole_type ?? ''),
 			// Soonest to collapse first: that is the one you might miss.
-			ttl: (a, b) => (a.connection.remaining_hours ?? 999) - (b.connection.remaining_hours ?? 999)
+			ttl: (a, b) => (a.connection.remaining_hours ?? 999) - (b.connection.remaining_hours ?? 999),
 		} satisfies Record<Column, (a: Row, b: Row) => number>;
 		return rows.sort((a, b) => {
 			const primary = compare[column](a, b) * direction;
@@ -216,7 +219,10 @@
 			<span class="inline-flex items-center gap-2">
 				EVE Scout
 				{#if updated}
-					<span class="font-mono text-[10px] text-muted-foreground/60" data-testid="evescout-updated">
+					<span
+						class="font-mono text-[10px] text-muted-foreground/60"
+						data-testid="evescout-updated"
+					>
 						{updated}
 					</span>
 				{/if}
@@ -321,7 +327,11 @@
 										{@const sov = row.system.sovereignty}
 										<Tooltip.Root>
 											<Tooltip.Trigger class="flex">
-												<EveImage kind={sovKind(sov)} id={sov.id} class="size-4 shrink-0 rounded-sm" />
+												<EveImage
+													kind={sovKind(sov)}
+													id={sov.id}
+													class="size-4 shrink-0 rounded-sm"
+												/>
 											</Tooltip.Trigger>
 											<Tooltip.Content class="flex items-center gap-2">
 												<EveImage kind={sovKind(sov)} id={sov.id} class="size-6 rounded-sm" />
@@ -367,7 +377,10 @@
 									{#if row.route}
 										<RoutePopover {map} steps={row.route.route}>
 											<span
-												class={cn('cursor-pointer font-medium tabular-nums', jumpTone(row.jumps ?? 0))}
+												class={cn(
+													'cursor-pointer font-medium tabular-nums',
+													jumpTone(row.jumps ?? 0),
+												)}
 												data-testid="evescout-jumps">{row.jumps}j</span
 											>
 										</RoutePopover>
@@ -379,7 +392,7 @@
 								<span
 									class={cn(
 										'w-10 shrink-0 text-right font-mono text-[10px] font-semibold tabular-nums',
-										ttlTone(c.remaining_hours)
+										ttlTone(c.remaining_hours),
 									)}
 									data-testid="evescout-ttl"
 								>

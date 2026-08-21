@@ -67,19 +67,22 @@ test('a grant can be given an end date, and taken back to permanent', async ({ p
 	// The row says when it runs out, rather than looking like any other grant.
 	await expect(page.getByTestId('access-expiry')).toHaveCount(1);
 	const stored = await (await api.get(`/api/maps/${mapId}/access`)).json();
-	expect(stored.find((e: { subject_id: number }) => e.subject_id === mate.characterId).expires_at)
-		.not.toBeNull();
+	expect(
+		stored.find((e: { subject_id: number }) => e.subject_id === mate.characterId).expires_at,
+	).not.toBeNull();
 
 	// Dropping the end date is confirmed first: it is a permission that stops expiring.
 	await page.getByTestId('access-expiry').click();
-	await expect(page.getByTestId('clear-expiry-dialog')).toContainText('until somebody takes it away');
+	await expect(page.getByTestId('clear-expiry-dialog')).toContainText(
+		'until somebody takes it away',
+	);
 	await page.getByTestId('clear-expiry-confirm').click();
 	await expect(page.getByTestId('access-expiry')).toHaveCount(0);
 });
 
 test('ownership is handed on from the danger zone, not granted from the list', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E Ownership');
 	const mate = await createIdentity(7);
@@ -168,7 +171,7 @@ test('a viewer sees the roles but cannot change them', async ({ page, api }) => 
 
 	const ctx = await page.context().browser()!.newContext();
 	await ctx.addCookies([
-		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' }
+		{ name: 'ws_session', value: viewer.session, domain: 'localhost', path: '/' },
 	]);
 	const viewerPage = await ctx.newPage();
 	await viewerPage.goto(`http://localhost:5173/maps/${mapId}/settings/access`);
@@ -207,7 +210,7 @@ test('chain naming previews as you type and survives a reload', async ({ page, a
 
 	await page.reload();
 	await expect(page.getByTestId('bookmark_wormhole')).toHaveValue(
-		'{alias} {sig} {class} {wh} {life}'
+		'{alias} {sig} {class} {wh} {life}',
 	);
 	await expect(page.getByTestId('alias-preview')).toHaveText('A, B, C, AA');
 
@@ -219,7 +222,7 @@ test('chain naming previews as you type and survives a reload', async ({ page, a
 
 test('settings are split into sections, and the per-user ones save themselves', async ({
 	page,
-	api
+	api,
 }) => {
 	const mapId = await createMap(api, 'E2E Sections');
 	await gotoApp(page, `/maps/${mapId}/settings`);
@@ -235,7 +238,10 @@ test('settings are split into sections, and the per-user ones save themselves', 
 	await page.getByTestId('route-preference').click();
 	await page.getByRole('option', { name: 'Safer' }).click();
 	await expect
-		.poll(async () => (await (await api.get(`/api/maps/${mapId}/settings/user`)).json()).route_preference)
+		.poll(
+			async () =>
+				(await (await api.get(`/api/maps/${mapId}/settings/user`)).json()).route_preference,
+		)
 		.toBe('safer');
 
 	// And it survives leaving and coming back, because it is stored per map, not per tab.

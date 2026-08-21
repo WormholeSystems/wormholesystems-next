@@ -21,7 +21,7 @@ describe('roles', () => {
 			'owner',
 			'manager',
 			'member',
-			'viewer'
+			'viewer',
 		]);
 	});
 });
