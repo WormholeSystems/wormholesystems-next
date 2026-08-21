@@ -660,7 +660,7 @@ pub(super) async fn apply_set_status(tx: &mut Tx<'_>, cmd: SetStatus) -> Result<
              do update set status = excluded.status, updated_at = now()",
         cmd.map_id,
         cmd.map_solar_system_id,
-        cmd.status.as_str(),
+        cmd.status,
     )
     .execute(&mut **tx)
     .await?;
@@ -1061,10 +1061,10 @@ pub(super) async fn capture_systems(
 
     let connections = sqlx::query_as!(
         RestoredConnection,
-        r#"select id, from_system, to_system, type as "kind: ConnectionType",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus",
-                  size as "size: WormholeSize", preserve_mass
+        r#"select id, from_system, to_system, type as kind,
+                  mass_status,
+                  time_status,
+                  size, preserve_mass
            from map_connections
            where map_id = $1 and (from_system = any($2) or to_system = any($2))"#,
         map_id,
@@ -1078,10 +1078,10 @@ pub(super) async fn capture_systems(
     let connection_ids: Vec<i64> = connections.iter().map(|c| c.id).collect();
     let signatures = sqlx::query_as!(
         RestoredSignature,
-        r#"select id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
-                  signature_type_id, name, size as "size: WormholeSize",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus", connection_id
+        r#"select id, solar_system_id, signature_id, "group",
+                  signature_type_id, name, size,
+                  mass_status,
+                  time_status, connection_id
            from signatures
            where map_id = $1
              and (solar_system_id = any($2) or connection_id = any($3))"#,
@@ -1137,10 +1137,10 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
             cmd.map_id,
             c.from_system,
             c.to_system,
-            c.kind.as_str(),
-            c.mass_status.map(|m| m.as_str()),
-            c.time_status.map(|t| t.as_str()),
-            c.size.map(|s| s.as_str()),
+            c.kind,
+            c.mass_status,
+            c.time_status,
+            c.size,
             c.preserve_mass,
         )
         .execute(&mut **tx)
@@ -1158,12 +1158,12 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
             cmd.map_id,
             s.solar_system_id,
             s.signature_id,
-            s.group.as_str(),
+            s.group,
             s.signature_type_id,
             s.name.as_deref(),
-            s.size.map(|w| w.as_str()),
-            s.mass_status.map(|m| m.as_str()),
-            s.time_status.map(|t| t.as_str()),
+            s.size,
+            s.mass_status,
+            s.time_status,
             s.connection_id,
         )
         .execute(&mut **tx)
@@ -1242,10 +1242,10 @@ pub(super) async fn capture_connection(
 ) -> Result<Option<RestoreSystems>> {
     let connection = sqlx::query_as!(
         RestoredConnection,
-        r#"select id, from_system, to_system, type as "kind: ConnectionType",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus",
-                  size as "size: WormholeSize", preserve_mass
+        r#"select id, from_system, to_system, type as kind,
+                  mass_status,
+                  time_status,
+                  size, preserve_mass
            from map_connections where id = $1 and map_id = $2"#,
         connection_id,
         map_id,

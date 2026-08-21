@@ -226,12 +226,15 @@ pub enum KillmailFilter {
     KnownSpace,
 }
 
-impl KillmailFilter {
-    pub fn from_db(value: &str) -> KillmailFilter {
-        match value {
-            "jspace" => KillmailFilter::Wormhole,
-            "kspace" => KillmailFilter::KnownSpace,
-            _ => KillmailFilter::All,
+/// The stored preference, as the query builder wants it. Two names for one idea, because
+/// the setting is a column and this is what the query does about it; the conversion is
+/// total, so a scope that grew a variant would stop compiling here.
+impl From<crate::maps::KillmailScope> for KillmailFilter {
+    fn from(scope: crate::maps::KillmailScope) -> Self {
+        match scope {
+            crate::maps::KillmailScope::All => KillmailFilter::All,
+            crate::maps::KillmailScope::Jspace => KillmailFilter::Wormhole,
+            crate::maps::KillmailScope::Kspace => KillmailFilter::KnownSpace,
         }
     }
 }
@@ -580,13 +583,14 @@ fn extract_orgs(esi: &EsiKillmail) -> Vec<Org> {
 }
 
 /// The legacy thresholds: summed top-org kills decide the level.
-pub fn threat_level(total_kills: i64) -> &'static str {
+pub fn threat_level(total_kills: i64) -> crate::maps::ThreatLevel {
+    use crate::maps::ThreatLevel;
     if total_kills >= HOSTILE_THRESHOLD {
-        "critical"
+        ThreatLevel::Critical
     } else if total_kills >= ACTIVE_THRESHOLD {
-        "high"
+        ThreatLevel::High
     } else {
-        "unknown"
+        ThreatLevel::Unknown
     }
 }
 
@@ -699,9 +703,12 @@ pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::
     sqlx::query("delete from wormhole_system_threats")
         .execute(&mut *tx)
         .await?;
-    sqlx::query("update wormhole_systems set threat_level = 'unknown', threat_analyzed_at = now()")
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "update wormhole_systems set threat_level = 'unknown'::threat_level,
+                threat_analyzed_at = now()",
+    )
+    .execute(&mut *tx)
+    .await?;
 
     let mut totals: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
     for s in &stats {
@@ -1020,11 +1027,12 @@ mod tests {
 
     #[test]
     fn thresholds_match_legacy() {
-        assert_eq!(threat_level(0), "unknown");
-        assert_eq!(threat_level(14), "unknown");
-        assert_eq!(threat_level(15), "high");
-        assert_eq!(threat_level(49), "high");
-        assert_eq!(threat_level(50), "critical");
+        use crate::maps::ThreatLevel;
+        assert_eq!(threat_level(0), ThreatLevel::Unknown);
+        assert_eq!(threat_level(14), ThreatLevel::Unknown);
+        assert_eq!(threat_level(15), ThreatLevel::High);
+        assert_eq!(threat_level(49), ThreatLevel::High);
+        assert_eq!(threat_level(50), ThreatLevel::Critical);
     }
 
     /// Tests state the payload as it arrives on the wire, then read it the way the code

@@ -5,6 +5,7 @@ mod common;
 
 use sqlx::PgPool;
 use wormholesystems::killmails::{Org, analyze};
+use wormholesystems::maps::ThreatLevel;
 
 const WH_SYSTEM: i64 = 31000099;
 
@@ -62,13 +63,13 @@ async fn threat_levels_follow_the_kill_thresholds(pool: PgPool) {
         .await
         .unwrap();
 
-    let level: String =
+    let level: ThreatLevel =
         sqlx::query_scalar("select threat_level from wormhole_systems where solar_system_id = $1")
             .bind(WH_SYSTEM)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(level, "critical");
+    assert_eq!(level, ThreatLevel::Critical);
 
     let (name, kills): (String, i32) = sqlx::query_as(
         "select name, kills from wormhole_system_threats where solar_system_id = $1",
@@ -95,13 +96,13 @@ async fn orgs_below_five_active_days_are_ignored(pool: PgPool) {
         .await
         .unwrap();
 
-    let level: String =
+    let level: ThreatLevel =
         sqlx::query_scalar("select threat_level from wormhole_systems where solar_system_id = $1")
             .bind(WH_SYSTEM)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(level, "unknown");
+    assert_eq!(level, ThreatLevel::Unknown);
     let count: i64 = sqlx::query_scalar(
         "select count(*) from wormhole_system_threats where solar_system_id = $1",
     )
@@ -129,11 +130,11 @@ async fn twenty_kills_across_a_week_is_high(pool: PgPool) {
     analyze(&pool, &wormholesystems::esi::EsiClient::new())
         .await
         .unwrap();
-    let level: String =
+    let level: ThreatLevel =
         sqlx::query_scalar("select threat_level from wormhole_systems where solar_system_id = $1")
             .bind(WH_SYSTEM)
             .fetch_one(&pool)
             .await
             .unwrap();
-    assert_eq!(level, "high");
+    assert_eq!(level, ThreatLevel::High);
 }

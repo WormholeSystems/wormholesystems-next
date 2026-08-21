@@ -452,7 +452,7 @@ pub async fn record_transit(
         .await?;
 
         let connection_id = match &connection {
-            Some(c) if c.kind == "wormhole" => Some(c.id),
+            Some(c) if c.kind == super::ConnectionType::Wormhole => Some(c.id),
             Some(_) => continue,
             None => {
                 // Unmapped hole: keep a pending row only if the origin is on the map,

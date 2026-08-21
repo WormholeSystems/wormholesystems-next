@@ -8,7 +8,23 @@
         "Int8",
         "Int8",
         "Text",
-        "Text",
+        {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
         "Int8",
         "Text"
       ]

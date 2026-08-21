@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select a.subject_type,\n                  a.subject_id,\n                  coalesce(c.name, corp.name, al.name) as \"name?\",\n                  a.role,\n                  a.expires_at\n           from map_access a\n           left join characters c\n             on a.subject_type = 'character' and c.id = a.subject_id\n           left join corporations corp\n             on a.subject_type = 'corporation' and corp.id = a.subject_id\n           left join alliances al\n             on a.subject_type = 'alliance' and al.id = a.subject_id\n           where a.map_id = $1\n             and (a.expires_at is null or a.expires_at > now())\n           order by\n             case a.role\n               when 'owner' then 0 when 'manager' then 1\n               when 'member' then 2 else 3\n             end,\n             coalesce(c.name, corp.name, al.name)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subject_type",
+        "type_info": {
+          "Custom": {
+            "name": "subject_type",
+            "kind": {
+              "Enum": [
+                "character",
+                "corporation",
+                "alliance"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_access",
+            "name": "subject_type"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "subject_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_access",
+            "name": "subject_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name?",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "role",
+        "type_info": {
+          "Custom": {
+            "name": "map_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "member",
+                "manager",
+                "owner"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_access",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_access",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      true
+    ]
+  },
+  "hash": "4877a1ebc766ed14e0cb6cedd98f264230f1e75e1bf535f6adde9da50298b358"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, \"group\" as \"group: SignatureGroup\", signature_type_id, name\n               from signatures\n               where map_id = $1 and solar_system_id = $2 and signature_id = $3\n               for update",
+  "query": "select id, \"group\", signature_type_id, name\n               from signatures\n               where map_id = $1 and solar_system_id = $2 and signature_id = $3\n               for update",
   "describe": {
     "columns": [
       {
@@ -16,8 +16,24 @@
       },
       {
         "ordinal": 1,
-        "name": "group: SignatureGroup",
-        "type_info": "Text",
+        "name": "group",
+        "type_info": {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "signatures",
@@ -62,5 +78,5 @@
       true
     ]
   },
-  "hash": "71c6ab5d524fefdddd89cdf76135eecd928df652ca26eed5722940eb1e9332f6"
+  "hash": "e754cb25e46eef68989df1e4d1e5d6903718faece36d6a64d56be498c10b4d73"
 }

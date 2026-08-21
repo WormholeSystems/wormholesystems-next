@@ -4,7 +4,7 @@
 # Debian, and a binary linked against its glibc will not start on bookworm.
 FROM rust:1.94-slim-bookworm AS build
 WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock sqlx.toml ./
 # The workspace names it, so cargo needs it present even though `default-members` keeps it
 # out of this build. Its manifest and sources are a few KB.
 COPY wsctl ./wsctl

@@ -10,7 +10,7 @@ use wormholesystems::maps::map::{
     CreateMap, DeleteMap, GetMap, UpdateMap, create_map, delete_map, get_map, list_maps, update_map,
 };
 use wormholesystems::maps::solar_system::{AddSystem, add_system};
-use wormholesystems::maps::{Actor, ConnectionType, MapError, Role};
+use wormholesystems::maps::{Actor, ConnectionType, MapError, Role, SubjectType};
 
 #[sqlx::test]
 async fn create_returns_fields_and_grants_owner(pool: PgPool) {
@@ -39,13 +39,13 @@ async fn create_returns_fields_and_grants_owner(pool: PgPool) {
     assert!(map.id > 0);
 
     // Exactly one access row: owner, for the acting character.
-    let grants: Vec<(String, i64, String)> =
+    let grants: Vec<(SubjectType, i64, Role)> =
         sqlx::query_as("select subject_type, subject_id, role from map_access where map_id = $1")
             .bind(map.id)
             .fetch_all(&pool)
             .await
             .unwrap();
-    assert_eq!(grants, vec![("character".into(), 1001, "owner".into())]);
+    assert_eq!(grants, vec![(SubjectType::Character, 1001, Role::Owner)]);
     assert_eq!(
         effective_role(&pool, map.id, user).await.unwrap(),
         Some(Role::Owner)

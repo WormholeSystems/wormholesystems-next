@@ -105,7 +105,21 @@
       {
         "ordinal": 9,
         "name": "status!: super::SystemStatus",
-        "type_info": "Text",
+        "type_info": {
+          "Custom": {
+            "name": "system_status",
+            "kind": {
+              "Enum": [
+                "unknown",
+                "friendly",
+                "hostile",
+                "active",
+                "unscanned",
+                "empty"
+              ]
+            }
+          }
+        },
         "origin": "Expression"
       },
       {
@@ -216,7 +230,18 @@
       {
         "ordinal": 20,
         "name": "threat_level?: super::ThreatLevel",
-        "type_info": "Text",
+        "type_info": {
+          "Custom": {
+            "name": "threat_level",
+            "kind": {
+              "Enum": [
+                "unknown",
+                "high",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "wormhole_systems",

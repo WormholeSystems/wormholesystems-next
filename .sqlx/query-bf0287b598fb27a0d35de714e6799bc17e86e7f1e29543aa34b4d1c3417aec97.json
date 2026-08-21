@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, solar_system_id, signature_id, \"group\" as \"group: SignatureGroup\",\n                  signature_type_id, name, size as \"size: WormholeSize\",\n                  mass_status as \"mass_status: MassStatus\",\n                  time_status as \"time_status: TimeStatus\", connection_id\n           from signatures\n           where map_id = $1\n             and (solar_system_id = any($2) or connection_id = any($3))",
+  "query": "select id, solar_system_id, signature_id, \"group\",\n                  signature_type_id, name, size,\n                  mass_status,\n                  time_status, connection_id\n           from signatures\n           where map_id = $1\n             and (solar_system_id = any($2) or connection_id = any($3))",
   "describe": {
     "columns": [
       {
@@ -38,8 +38,24 @@
       },
       {
         "ordinal": 3,
-        "name": "group: SignatureGroup",
-        "type_info": "Text",
+        "name": "group",
+        "type_info": {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "signatures",
@@ -71,8 +87,20 @@
       },
       {
         "ordinal": 6,
-        "name": "size: WormholeSize",
-        "type_info": "Text",
+        "name": "size",
+        "type_info": {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "signatures",
@@ -82,8 +110,19 @@
       },
       {
         "ordinal": 7,
-        "name": "mass_status: MassStatus",
-        "type_info": "Text",
+        "name": "mass_status",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "signatures",
@@ -93,8 +132,19 @@
       },
       {
         "ordinal": 8,
-        "name": "time_status: TimeStatus",
-        "type_info": "Text",
+        "name": "time_status",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "signatures",
@@ -134,5 +184,5 @@
       true
     ]
   },
-  "hash": "e6693d4a96b98557a031acf4b4bc729f8df0426e3cf9e92189f557679928b9ee"
+  "hash": "bf0287b598fb27a0d35de714e6799bc17e86e7f1e29543aa34b4d1c3417aec97"
 }

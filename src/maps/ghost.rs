@@ -167,7 +167,7 @@ async fn drop_ghosts(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<Vec<Ma
 /// Raise a ghost for every wormhole scanned on this map that has nowhere to lead yet.
 async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<i64>> {
     let holes = sqlx::query!(
-        r#"select s.id, s.size as "size: WormholeSize",
+        r#"select s.id, s.size,
                   p.id as "from_id!", p.position_x as "from_x!", p.position_y as "from_y!"
            from signatures s
            join map_solar_systems p

@@ -43,16 +43,19 @@ where
 /// Generates the variants, `as_str` / `from_db`, and the sqlx glue so the enum binds and
 /// decodes directly in queries. Variant order is the `Ord` order: used for `Role`.
 macro_rules! text_enum {
-    ($(#[$m:meta])* $vis:vis enum $name:ident { $($variant:ident => $s:literal),+ $(,)? }) => {
+    ($(#[$m:meta])* $vis:vis enum $name:ident as $pg:literal { $($variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS)]
         // snake_case rather than lowercase: it agrees with the string each variant maps to,
-        // which lowercase does not once a variant is two words (`LessSecure`).
+        // which lowercase does not once a variant is two words (`LessSecure`). serde and
+        // sqlx are told the same thing, so the wire and the database never disagree.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS, sqlx::Type)]
         #[serde(rename_all = "snake_case")]
+        #[sqlx(type_name = $pg, rename_all = "snake_case")]
         #[ts(export)]
         $vis enum $name { $($variant),+ }
 
         impl $name {
+            /// The label, for the places that are writing it out rather than binding it.
             pub fn as_str(self) -> &'static str {
                 match self { $(Self::$variant => $s),+ }
             }
@@ -60,31 +63,12 @@ macro_rules! text_enum {
                 match s { $($s => Some(Self::$variant),)+ _ => None }
             }
         }
-
-        // Only `Type` + `Decode`: queries bind via `as_str()` and read back through
-        // `as "col: Enum"` casts.
-        impl sqlx::Type<sqlx::Postgres> for $name {
-            fn type_info() -> sqlx::postgres::PgTypeInfo {
-                <str as sqlx::Type<sqlx::Postgres>>::type_info()
-            }
-            fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
-                <str as sqlx::Type<sqlx::Postgres>>::compatible(ty)
-            }
-        }
-        impl<'r> sqlx::Decode<'r, sqlx::Postgres> for $name {
-            fn decode(
-                value: sqlx::postgres::PgValueRef<'r>,
-            ) -> std::result::Result<Self, sqlx::error::BoxDynError> {
-                let s = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
-                Self::from_db(s).ok_or_else(|| format!("invalid {} value: {s}", stringify!($name)).into())
-            }
-        }
     };
 }
 
 text_enum! {
     /// A map access role, ordered `Viewer < Member < Manager < Owner`.
-    pub enum Role {
+    pub enum Role as "map_role" {
         Viewer => "viewer",
         Member => "member",
         Manager => "manager",
@@ -94,7 +78,7 @@ text_enum! {
 
 text_enum! {
     /// What an access grant targets. EVE ids are globally unique across the three.
-    pub enum SubjectType {
+    pub enum SubjectType as "subject_type" {
         Character => "character",
         Corporation => "corporation",
         Alliance => "alliance",
@@ -103,7 +87,7 @@ text_enum! {
 
 text_enum! {
     /// The kind of edge between two placed systems.
-    pub enum ConnectionType {
+    pub enum ConnectionType as "connection_type" {
         Wormhole => "wormhole",
         Stargate => "stargate",
     }
@@ -111,7 +95,7 @@ text_enum! {
 
 text_enum! {
     /// How a chain names itself: the sequence an alias suggestion walks.
-    pub enum AliasScheme {
+    pub enum AliasScheme as "alias_scheme" {
         Numeric => "numeric",
         Alphabetical => "alphabetical",
     }
@@ -120,7 +104,7 @@ text_enum! {
 text_enum! {
     /// Where the nodes get their positions. `Manual` keeps whatever they were dragged to;
     /// `Tree` derives them, and is the map's choice unless it hands it to each viewer.
-    pub enum MapLayout {
+    pub enum MapLayout as "map_layout" {
         Manual => "manual",
         Tree => "tree",
     }
@@ -128,7 +112,7 @@ text_enum! {
 
 text_enum! {
     /// What a route is optimised for.
-    pub enum RoutePreference {
+    pub enum RoutePreference as "route_preference" {
         Shorter => "shorter",
         Safer => "safer",
         LessSecure => "less_secure",
@@ -137,7 +121,7 @@ text_enum! {
 
 text_enum! {
     /// Which half of the chain the killmails card shows.
-    pub enum KillmailScope {
+    pub enum KillmailScope as "killmail_scope" {
         All => "all",
         Jspace => "jspace",
         Kspace => "kspace",
@@ -149,7 +133,7 @@ text_enum! {
     /// [reconcile-on-link merge](../../docs/database/mapping.md) relies on: `max` is the
     /// worst (= "massed"). Kept in lock-step across a connection and its signatures by the
     /// `map_*_sync` DB triggers (migration 0009).
-    pub enum MassStatus {
+    pub enum MassStatus as "mass_status" {
         Stable => "stable",
         Reduced => "reduced",
         Critical => "critical",
@@ -159,7 +143,7 @@ text_enum! {
 text_enum! {
     /// A wormhole's remaining lifetime, worst last. `Eol` ≈ "<4h"; `Critical` ≈ "<1h"
     /// (super-EOL). Same severity-ordering / merge semantics as [`MassStatus`].
-    pub enum TimeStatus {
+    pub enum TimeStatus as "time_status" {
         Stable => "stable",
         Eol => "eol",
         Critical => "critical",
@@ -170,7 +154,7 @@ text_enum! {
     /// Max ship-mass class that can transit a wormhole. Ordered most-permissive →
     /// most-restrictive, so `max` (= `Small`) is the "weakest"/worst: the conservative
     /// pick when two ends disagree (they shouldn't: both ends of a hole share a size).
-    pub enum WormholeSize {
+    pub enum WormholeSize as "wormhole_size" {
         Xl => "xl",
         Large => "large",
         Medium => "medium",
@@ -181,7 +165,7 @@ text_enum! {
 text_enum! {
     /// A cosmic-signature group, mirroring [`signature_categories`](../../docs/database/static.md).
     /// Only `Wormhole` signatures carry connection links and the wormhole life-cycle state.
-    pub enum SignatureGroup {
+    pub enum SignatureGroup as "signature_group" {
         Wormhole => "wormhole",
         Data => "data",
         Relic => "relic",
@@ -204,7 +188,7 @@ text_enum! {
     /// A placed system's intel status (`map_solar_system_details.status`), set by users.
     /// Matches the legacy vocabulary: `active` = recent activity seen, `empty` = scanned
     /// and found empty.
-    pub enum SystemStatus {
+    pub enum SystemStatus as "system_status" {
         Unknown => "unknown",
         Friendly => "friendly",
         Hostile => "hostile",
@@ -223,7 +207,7 @@ impl Default for SystemStatus {
 
 text_enum! {
     /// A wormhole system's kill-activity threat level, from the daily analysis.
-    pub enum ThreatLevel {
+    pub enum ThreatLevel as "threat_level" {
         Unknown => "unknown",
         High => "high",
         Critical => "critical",

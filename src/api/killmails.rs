@@ -32,15 +32,15 @@ pub async fn map_killmails(
         )
         .fetch_optional(&state.db)
         .await?
-        .unwrap_or_else(|| "all".into()),
-        None => "all".into(),
+        .unwrap_or(crate::maps::KillmailScope::All),
+        None => crate::maps::KillmailScope::All,
     };
 
     Ok(Json(
         crate::killmails::list_for_map(
             &state.db,
             map_id,
-            crate::killmails::KillmailFilter::from_db(&filter),
+            filter.into(),
             crate::killmails::CARD_LIMIT,
         )
         .await?,

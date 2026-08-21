@@ -17,7 +17,7 @@ where
     E: sqlx::PgExecutor<'e>,
 {
     let roles = sqlx::query_scalar!(
-        r#"select role as "role!: Role"
+        r#"select role
            from map_access
            where map_id = $1
              and (expires_at is null or expires_at > now())
@@ -159,10 +159,10 @@ pub async fn list_access(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec
     require_role(pool, map_id, actor.user_id, Role::Viewer).await?;
     let entries = sqlx::query_as!(
         AccessEntry,
-        r#"select a.subject_type as "subject_type!: SubjectType",
+        r#"select a.subject_type,
                   a.subject_id,
                   coalesce(c.name, corp.name, al.name) as "name?",
-                  a.role as "role!: Role",
+                  a.role,
                   a.expires_at
            from map_access a
            left join characters c
@@ -224,9 +224,9 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
              -- a value (null included) replaces it.
              expires_at = case when $6 then $5 else map_access.expires_at end",
         cmd.map_id,
-        cmd.subject_type.as_str(),
+        cmd.subject_type,
         cmd.subject_id,
-        cmd.role.as_str(),
+        cmd.role,
         cmd.expires_at.flatten(),
         cmd.expires_at.is_some(),
     )
@@ -288,8 +288,8 @@ pub async fn transfer_ownership(pool: &PgPool, actor: Actor, cmd: TransferOwners
     )
     .fetch_optional(&mut *tx)
     .await?;
-    match target.as_deref() {
-        Some("character") => {}
+    match target {
+        Some(SubjectType::Character) => {}
         Some(_) => {
             return Err(MapError::Validation(
                 "only a character can own a map".into(),

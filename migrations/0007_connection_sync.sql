@@ -18,25 +18,15 @@
 -- already match groupwide and the IS DISTINCT FROM guard skips them.
 --
 -- Severity order (worst last): mass stable<reduced<critical; time stable<eol<critical;
--- size xl<large<medium<small (smallest = most restrictive = "worst"). Mirrors the ordered
--- Rust enums in src/maps/mod.rs.
-
--- Severity rank of each enum value. NULL (unknown) ranks as NULL so it is ignored when
--- picking the worst non-null value, and a known value always wins over unknown.
-create or replace function map_mass_rank(s text) returns int immutable language sql as $$
-    select case s when 'stable' then 0 when 'reduced' then 1 when 'critical' then 2 end;
-$$;
-create or replace function map_time_rank(s text) returns int immutable language sql as $$
-    select case s when 'stable' then 0 when 'eol' then 1 when 'critical' then 2 end;
-$$;
-create or replace function map_size_rank(s text) returns int immutable language sql as $$
-    select case s when 'xl' then 0 when 'large' then 1 when 'medium' then 2 when 'small' then 3 end;
-$$;
+-- size xl<large<medium<small (smallest = most restrictive = "worst"). That order is the
+-- declaration order of the enum types in 0006, which is what Postgres compares them by, so
+-- picking the worst is a plain `order by ... desc`. NULL is skipped rather than ranked, so
+-- a known value always wins over unknown.
 
 -- Overwrite every member of a connection's group with the given state, but only rows that
 -- actually differ. The IS DISTINCT FROM guard is what makes the cascading triggers
 -- terminate: once everyone equals the target, the recursive updates find nothing to do.
-create or replace function map_sync_propagate(conn_id bigint, m text, t text, z text)
+create or replace function map_sync_propagate(conn_id bigint, m mass_status, t time_status, z wormhole_size)
 returns void language plpgsql as $$
 begin
     update map_connections
@@ -54,7 +44,7 @@ $$;
 create or replace function map_sync_merge(conn_id bigint)
 returns void language plpgsql as $$
 declare
-    m text; t text; z text;
+    m mass_status; t time_status; z wormhole_size;
 begin
     with members as (
         select mass_status, time_status, size from map_connections where id = conn_id
@@ -62,9 +52,9 @@ begin
         select mass_status, time_status, size from signatures where connection_id = conn_id
     )
     select
-        (select mass_status from members where mass_status is not null order by map_mass_rank(mass_status) desc limit 1),
-        (select time_status from members where time_status is not null order by map_time_rank(time_status) desc limit 1),
-        (select size        from members where size        is not null order by map_size_rank(size)        desc limit 1)
+        (select mass_status from members where mass_status is not null order by mass_status desc limit 1),
+        (select time_status from members where time_status is not null order by time_status desc limit 1),
+        (select size        from members where size        is not null order by size desc limit 1)
       into m, t, z;
     perform map_sync_propagate(conn_id, m, t, z);
 end;

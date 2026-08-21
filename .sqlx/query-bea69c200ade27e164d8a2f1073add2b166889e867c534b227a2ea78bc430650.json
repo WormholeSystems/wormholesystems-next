@@ -7,7 +7,21 @@
       "Left": [
         "Int8",
         "Int8",
-        "Text"
+        {
+          "Custom": {
+            "name": "system_status",
+            "kind": {
+              "Enum": [
+                "unknown",
+                "friendly",
+                "hostile",
+                "active",
+                "unscanned",
+                "empty"
+              ]
+            }
+          }
+        }
       ]
     },
     "nullable": []

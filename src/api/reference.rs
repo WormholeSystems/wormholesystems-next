@@ -235,12 +235,15 @@ pub async fn search_systems(
     let prefix = format!("{q}%");
     let rows = sqlx::query!(
         r#"
-        select s.id,
-               s.name,
+        -- `!` on the columns an inner join makes certain: sqlx reads nullability out of the
+        -- query plan, which changes shape on a table with no rows, so without these the
+        -- build depends on whether the universe happens to be seeded.
+        select s.id              as "id!",
+               s.name            as "name!",
                s.security_status as "security!",
                r.name            as "region!",
-               s.region_id,
-               s.constellation_id,
+               s.region_id       as "region_id!",
+               s.constellation_id as "constellation_id!",
                s.wormhole_class_id,
                ws.effect_name,
                case
@@ -463,12 +466,15 @@ pub(super) async fn systems_for(
 ) -> Result<Vec<SystemSearchResult>, ApiError> {
     let rows = sqlx::query!(
         r#"
-        select s.id,
-               s.name,
+        -- `!` on what the inner join makes certain: sqlx reads nullability out of the query
+        -- plan, which changes shape on a table with no rows, so without these the build
+        -- depends on whether the universe happens to be seeded yet.
+        select s.id              as "id!",
+               s.name            as "name!",
                s.security_status as "security!",
                r.name            as "region!",
-               s.region_id,
-               s.constellation_id,
+               s.region_id       as "region_id!",
+               s.constellation_id as "constellation_id!",
                s.wormhole_class_id,
                ws.effect_name,
                case

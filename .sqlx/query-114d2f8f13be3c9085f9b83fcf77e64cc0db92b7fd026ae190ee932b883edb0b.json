@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, map_id, from_system, to_system, type as \"kind: ConnectionType\",\n                  mass_status as \"mass_status: MassStatus\",\n                  time_status as \"time_status: TimeStatus\",\n                  size as \"size: WormholeSize\",\n                  (select count(*) from map_connection_jumps j\n                   where j.connection_id = map_connections.id) as \"jumps_count!\",\n                  coalesce((select sum(j.mass) from map_connection_jumps j\n                            where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                  preserve_mass, time_status_updated_at, created_at, updated_at\n           from map_connections where map_id = $1 order by id",
+  "query": "select id, map_id, from_system, to_system, type as kind,\n                  mass_status,\n                  time_status,\n                  size,\n                  (select count(*) from map_connection_jumps j\n                   where j.connection_id = map_connections.id) as \"jumps_count!\",\n                  coalesce((select sum(j.mass) from map_connection_jumps j\n                            where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                  preserve_mass, time_status_updated_at, created_at, updated_at\n           from map_connections where id = $1 and map_id = $2",
   "describe": {
     "columns": [
       {
@@ -49,8 +49,18 @@
       },
       {
         "ordinal": 4,
-        "name": "kind: ConnectionType",
-        "type_info": "Text",
+        "name": "kind",
+        "type_info": {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -60,8 +70,19 @@
       },
       {
         "ordinal": 5,
-        "name": "mass_status: MassStatus",
-        "type_info": "Text",
+        "name": "mass_status",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -71,8 +92,19 @@
       },
       {
         "ordinal": 6,
-        "name": "time_status: TimeStatus",
-        "type_info": "Text",
+        "name": "time_status",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -82,8 +114,20 @@
       },
       {
         "ordinal": 7,
-        "name": "size: WormholeSize",
-        "type_info": "Text",
+        "name": "size",
+        "type_info": {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -150,6 +194,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int8",
         "Int8"
       ]
     },
@@ -170,5 +215,5 @@
       false
     ]
   },
-  "hash": "41f3ae844e314aab9fe6607ef3dd58c98530a98a81aab014e8a8c8a32554ef6e"
+  "hash": "114d2f8f13be3c9085f9b83fcf77e64cc0db92b7fd026ae190ee932b883edb0b"
 }

@@ -34,6 +34,10 @@ create table wormhole_effect_modifiers (
     primary key (effect_name, kind, stat, wormhole_class_id)
 );
 
+-- How busy a wormhole is with other people's killmails. Declared worst-last, which is the
+-- order Postgres compares an enum in.
+create type threat_level as enum ('unknown', 'high', 'critical');
+
 -- `threat_level` and `threat_analyzed_at` are the output of the daily killmail analysis
 -- further down, cached here because every map node reads them.
 create table wormhole_systems (
@@ -41,7 +45,7 @@ create table wormhole_systems (
     wormhole_class_id  integer not null,
     effect_name        text references wormhole_effects (name),
     is_shattered       boolean not null default false,
-    threat_level       text not null default 'unknown',
+    threat_level       threat_level not null default 'unknown',
     threat_analyzed_at timestamptz
 );
 

@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select s.id,\n               s.name,\n               s.security_status as \"security!\",\n               r.name            as \"region!\",\n               s.region_id,\n               s.constellation_id,\n               s.wormhole_class_id,\n               ws.effect_name,\n               case\n                   when sov.alliance_id is not null then 'alliance'\n                   when sov.corporation_id is not null then 'corporation'\n                   when sov.faction_id is not null then 'faction'\n               end as \"sov_kind?\",\n               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n               coalesce(al.name, co.name, f.name) as \"sov_name?\",\n               coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n        from solar_systems s\n        join regions r on r.id = s.region_id\n        left join wormhole_systems ws on ws.solar_system_id = s.id\n        left join system_sovereignty sov on sov.solar_system_id = s.id\n        left join alliances al on al.id = sov.alliance_id\n        left join corporations co on co.id = sov.corporation_id\n        left join factions f on f.id = sov.faction_id\n        where s.id = any($1)",
+  "query": "\n        -- `!` on the columns an inner join makes certain: sqlx reads nullability out of the\n        -- query plan, which changes shape on a table with no rows, so without these the\n        -- build depends on whether the universe happens to be seeded.\n        select s.id              as \"id!\",\n               s.name            as \"name!\",\n               s.security_status as \"security!\",\n               r.name            as \"region!\",\n               s.region_id       as \"region_id!\",\n               s.constellation_id as \"constellation_id!\",\n               s.wormhole_class_id,\n               ws.effect_name,\n               case\n                   when sov.alliance_id is not null then 'alliance'\n                   when sov.corporation_id is not null then 'corporation'\n                   when sov.faction_id is not null then 'faction'\n               end as \"sov_kind?\",\n               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n               coalesce(al.name, co.name, f.name) as \"sov_name?\",\n               coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n        from solar_systems s\n        join regions r on r.id = s.region_id\n        left join wormhole_systems ws on ws.solar_system_id = s.id\n        left join system_sovereignty sov on sov.solar_system_id = s.id\n        left join alliances al on al.id = sov.alliance_id\n        left join corporations co on co.id = sov.corporation_id\n        left join factions f on f.id = sov.faction_id\n        where s.name ilike $1\n        order by (s.name ilike $2) desc, length(s.name), s.name\n        limit 30\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "id!",
         "type_info": "Int8",
         "origin": {
           "Table": {
@@ -16,7 +16,7 @@
       },
       {
         "ordinal": 1,
-        "name": "name",
+        "name": "name!",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 4,
-        "name": "region_id",
+        "name": "region_id!",
         "type_info": "Int8",
         "origin": {
           "Table": {
@@ -60,7 +60,7 @@
       },
       {
         "ordinal": 5,
-        "name": "constellation_id",
+        "name": "constellation_id!",
         "type_info": "Int8",
         "origin": {
           "Table": {
@@ -118,7 +118,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8Array"
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -136,5 +137,5 @@
       null
     ]
   },
-  "hash": "65b7610d729b29b58d42d14bc9fce3dcdc24f5e898bc5ba6edb267c0d5c25456"
+  "hash": "2816835ba2b4ca571465e11b19a999482e8d7e522dfc85164cd5178dcb8caaa5"
 }

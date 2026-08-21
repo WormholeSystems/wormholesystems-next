@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update map_connections\n           set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5\n           where id = $6 and map_id = $7\n           returning id, map_id, from_system, to_system, type as \"kind: ConnectionType\",\n                     mass_status as \"mass_status: MassStatus\",\n                     time_status as \"time_status: TimeStatus\",\n                     size as \"size: WormholeSize\",\n                     (select count(*) from map_connection_jumps j\n                      where j.connection_id = map_connections.id) as \"jumps_count!\",\n                     coalesce((select sum(j.mass) from map_connection_jumps j\n                               where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                     preserve_mass, time_status_updated_at, created_at, updated_at",
+  "query": "update map_connections\n           set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5\n           where id = $6 and map_id = $7\n           returning id, map_id, from_system, to_system, type as kind,\n                     mass_status,\n                     time_status,\n                     size,\n                     (select count(*) from map_connection_jumps j\n                      where j.connection_id = map_connections.id) as \"jumps_count!\",\n                     coalesce((select sum(j.mass) from map_connection_jumps j\n                               where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                     preserve_mass, time_status_updated_at, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -49,8 +49,18 @@
       },
       {
         "ordinal": 4,
-        "name": "kind: ConnectionType",
-        "type_info": "Text",
+        "name": "kind",
+        "type_info": {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -60,8 +70,19 @@
       },
       {
         "ordinal": 5,
-        "name": "mass_status: MassStatus",
-        "type_info": "Text",
+        "name": "mass_status",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -71,8 +92,19 @@
       },
       {
         "ordinal": 6,
-        "name": "time_status: TimeStatus",
-        "type_info": "Text",
+        "name": "time_status",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -82,8 +114,20 @@
       },
       {
         "ordinal": 7,
-        "name": "size: WormholeSize",
-        "type_info": "Text",
+        "name": "size",
+        "type_info": {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
@@ -150,10 +194,54 @@
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text",
-        "Text",
+        {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
         "Bool",
         "Int8",
         "Int8"
@@ -176,5 +264,5 @@
       false
     ]
   },
-  "hash": "5c947ef4b0351f34047604e92922c3602c8b3603d470dc1c00debbfabe199d4a"
+  "hash": "e2c09a3921b421ad359475c35fa7b700827e8cd07cfee7f8228b2085d8120f52"
 }

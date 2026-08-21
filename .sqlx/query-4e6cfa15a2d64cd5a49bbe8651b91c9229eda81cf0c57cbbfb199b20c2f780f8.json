@@ -5,7 +5,23 @@
     "columns": [],
     "parameters": {
       "Left": [
-        "Text",
+        {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
         "Int8",
         "Text",
         "Bool",

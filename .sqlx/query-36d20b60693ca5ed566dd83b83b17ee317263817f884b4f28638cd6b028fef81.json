@@ -6,7 +6,18 @@
       {
         "ordinal": 0,
         "name": "subject_type",
-        "type_info": "Text",
+        "type_info": {
+          "Custom": {
+            "name": "subject_type",
+            "kind": {
+              "Enum": [
+                "character",
+                "corporation",
+                "alliance"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_access",

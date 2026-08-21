@@ -1,0 +1,17 @@
+# Which Rust type each of the database's own enum types is. Without this every query
+# naming one of these columns has to repeat `as "col: Enum"`; with it, `query!` knows, and
+# a column whose type changes stops compiling instead of being read as the wrong thing.
+[macros.type-overrides]
+'map_role' = "crate::maps::Role"
+'subject_type' = "crate::maps::SubjectType"
+'connection_type' = "crate::maps::ConnectionType"
+'alias_scheme' = "crate::maps::AliasScheme"
+'map_layout' = "crate::maps::MapLayout"
+'route_preference' = "crate::maps::RoutePreference"
+'killmail_scope' = "crate::maps::KillmailScope"
+'system_status' = "crate::maps::SystemStatus"
+'signature_group' = "crate::maps::SignatureGroup"
+'mass_status' = "crate::maps::MassStatus"
+'time_status' = "crate::maps::TimeStatus"
+'wormhole_size' = "crate::maps::WormholeSize"
+'threat_level' = "crate::maps::ThreatLevel"

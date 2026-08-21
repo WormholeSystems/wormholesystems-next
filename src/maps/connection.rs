@@ -123,10 +123,10 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
         MapConnection,
         r#"insert into map_connections (map_id, from_system, to_system, type, size)
            values ($1, $2, $3, $4, $5)
-           returning id, map_id, from_system, to_system, type as "kind: ConnectionType",
-                     mass_status as "mass_status: MassStatus",
-                     time_status as "time_status: TimeStatus",
-                     size as "size: WormholeSize",
+           returning id, map_id, from_system, to_system, type as kind,
+                     mass_status,
+                     time_status,
+                     size,
                      (select count(*) from map_connection_jumps j
                       where j.connection_id = map_connections.id) as "jumps_count!",
                      coalesce((select sum(j.mass) from map_connection_jumps j
@@ -135,8 +135,8 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
         cmd.map_id,
         cmd.from_system,
         cmd.to_system,
-        cmd.kind.as_str(),
-        cmd.size.map(|s| s.as_str()),
+        cmd.kind,
+        cmd.size,
     )
     .fetch_one(&mut **tx)
     .await?;
@@ -216,10 +216,10 @@ pub(super) async fn apply_set_connection_status(
 ) -> Result<Effect> {
     let current = sqlx::query_as!(
         MapConnection,
-        r#"select id, map_id, from_system, to_system, type as "kind: ConnectionType",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus",
-                  size as "size: WormholeSize",
+        r#"select id, map_id, from_system, to_system, type as kind,
+                  mass_status,
+                  time_status,
+                  size,
                   (select count(*) from map_connection_jumps j
                    where j.connection_id = map_connections.id) as "jumps_count!",
                   coalesce((select sum(j.mass) from map_connection_jumps j
@@ -244,19 +244,19 @@ pub(super) async fn apply_set_connection_status(
         r#"update map_connections
            set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5
            where id = $6 and map_id = $7
-           returning id, map_id, from_system, to_system, type as "kind: ConnectionType",
-                     mass_status as "mass_status: MassStatus",
-                     time_status as "time_status: TimeStatus",
-                     size as "size: WormholeSize",
+           returning id, map_id, from_system, to_system, type as kind,
+                     mass_status,
+                     time_status,
+                     size,
                      (select count(*) from map_connection_jumps j
                       where j.connection_id = map_connections.id) as "jumps_count!",
                      coalesce((select sum(j.mass) from map_connection_jumps j
                                where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
                      preserve_mass, time_status_updated_at, created_at, updated_at"#,
-        kind.as_str(),
-        mass.map(|m| m.as_str()),
-        time.map(|t| t.as_str()),
-        size.map(|s| s.as_str()),
+        kind,
+        mass,
+        time,
+        size,
         preserve,
         cmd.connection_id,
         cmd.map_id,

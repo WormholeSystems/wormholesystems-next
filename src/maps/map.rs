@@ -13,10 +13,7 @@ use super::error::{MapError, Result};
 use std::collections::HashMap;
 
 use super::solar_system::{MapSystemView, Sovereignty, Static};
-use super::{
-    Actor, AliasScheme, ConnectionType, MapConnection, MapLayout, MapView, MassStatus, Role,
-    SubjectType, TimeStatus, WormholeSize,
-};
+use super::{Actor, AliasScheme, MapConnection, MapLayout, MapView, Role, SubjectType};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -131,8 +128,8 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     let map = map_from_row!(
         sqlx::query!(
             r#"insert into maps (name, description) values ($1, $2)
-             returning id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
-                 ghost_unlinked_wormholes, layout as "layout: MapLayout", allow_layout_override, is_public, share_token,
+             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 ghost_unlinked_wormholes, layout, allow_layout_override, is_public, share_token,
                  bookmark_wormhole, bookmark_kspace, bookmark_return"#,
             cmd.name.trim(),
             cmd.description.as_deref(),
@@ -144,9 +141,9 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
         "insert into map_access (map_id, subject_type, subject_id, role)
          values ($1, $2, $3, $4)",
         map.id,
-        SubjectType::Character.as_str(),
+        SubjectType::Character,
         actor.character_id,
-        Role::Owner.as_str(),
+        Role::Owner,
     )
     .execute(&mut *tx)
     .await?;
@@ -222,9 +219,9 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let mut tx = pool.begin().await?;
     let current = map_from_row!(
         sqlx::query!(
-            r#"select id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
+            r#"select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout as "layout: MapLayout", allow_layout_override, is_public, share_token
+                 layout, allow_layout_override, is_public, share_token
              from maps where id = $1"#,
             cmd.map_id,
         )
@@ -256,20 +253,20 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
                     bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10,
                     layout = $11, allow_layout_override = $12, is_public = $13
              where id = $4
-             returning id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
+             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout as "layout: MapLayout", allow_layout_override, is_public, share_token"#,
+                 layout, allow_layout_override, is_public, share_token"#,
             name,
             description,
             image_url,
             cmd.map_id,
-            naming.alias_scheme.as_str(),
+            naming.alias_scheme,
             naming.ignored_alias,
             naming.bookmark_wormhole,
             naming.bookmark_kspace,
             naming.bookmark_return,
             ghost_unlinked_wormholes,
-            layout.as_str(),
+            layout,
             allow_layout_override,
             is_public,
         )
@@ -303,11 +300,11 @@ pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<(
 /// Every map the user can access, paired with their effective role on it.
 pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> {
     let rows = sqlx::query!(
-        r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme as "alias_scheme: AliasScheme",
+        r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,
                   m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
-                  m.ghost_unlinked_wormholes, m.layout as "layout: MapLayout", m.allow_layout_override,
+                  m.ghost_unlinked_wormholes, m.layout, m.allow_layout_override,
                   m.is_public, m.share_token,
-                  ma.role as "role!: Role"
+                  ma.role
            from maps m
            join map_access ma on ma.map_id = m.id
            where ma.subject_id in (
@@ -371,9 +368,9 @@ pub async fn read_map(
 
     let map = map_from_row!(
         sqlx::query!(
-            r#"select id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
+            r#"select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout as "layout: MapLayout", allow_layout_override, is_public, share_token
+                 layout, allow_layout_override, is_public, share_token
              from maps where id = $1"#,
             cmd.map_id,
         )
@@ -518,10 +515,10 @@ pub async fn read_map(
 
     let connections = sqlx::query_as!(
         MapConnection,
-        r#"select id, map_id, from_system, to_system, type as "kind: ConnectionType",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus",
-                  size as "size: WormholeSize",
+        r#"select id, map_id, from_system, to_system, type as kind,
+                  mass_status,
+                  time_status,
+                  size,
                   (select count(*) from map_connection_jumps j
                    where j.connection_id = map_connections.id) as "jumps_count!",
                   coalesce((select sum(j.mass) from map_connection_jumps j

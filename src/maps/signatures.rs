@@ -176,21 +176,23 @@ pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> R
                (map_id, solar_system_id, signature_id, "group", signature_type_id, name,
                 size, mass_status, time_status, time_status_updated_at)
            values ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                   case when $9::text is not null then now() end)
-           returning id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
-                     signature_type_id, name, size as "size: WormholeSize",
-                     mass_status as "mass_status: MassStatus",
-                     time_status as "time_status: TimeStatus",
+                   -- $9 is the lifetime, whose type the parameter already fixes; naming it
+                   -- again as text is what made the two deductions disagree.
+                   case when $9::time_status is not null then now() end)
+           returning id, map_id, solar_system_id, signature_id, "group",
+                     signature_type_id, name, size,
+                     mass_status,
+                     time_status,
                      time_status_updated_at, connection_id, created_at, updated_at"#,
         cmd.map_id,
         cmd.solar_system_id,
         cmd.signature_id.trim(),
-        cmd.group.as_str(),
+        cmd.group,
         cmd.signature_type_id,
         cmd.name.as_deref(),
-        cmd.size.map(|s| s.as_str()),
-        cmd.mass_status.map(|m| m.as_str()),
-        cmd.time_status.map(|t| t.as_str()),
+        cmd.size,
+        cmd.mass_status,
+        cmd.time_status,
     )
     .fetch_one(&mut **tx)
     .await?;
@@ -322,18 +324,18 @@ pub(super) async fn apply_update_signature(
            set signature_id = $1, "group" = $2, signature_type_id = $3, name = $4, size = $5,
                mass_status = $6, time_status = $7, connection_id = $8, updated_at = now()
            where id = $9 and map_id = $10
-           returning id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
-                     signature_type_id, name, size as "size: WormholeSize",
-                     mass_status as "mass_status: MassStatus",
-                     time_status as "time_status: TimeStatus",
+           returning id, map_id, solar_system_id, signature_id, "group",
+                     signature_type_id, name, size,
+                     mass_status,
+                     time_status,
                      time_status_updated_at, connection_id, created_at, updated_at"#,
         signature_id,
-        group.as_str(),
+        group,
         type_id,
         name.as_deref(),
-        size.map(|s| s.as_str()),
-        mass.map(|m| m.as_str()),
-        time.map(|t| t.as_str()),
+        size,
+        mass,
+        time,
         connection_id,
         cmd.signature_pk,
         cmd.map_id,
@@ -811,7 +813,7 @@ pub(super) async fn apply_paste_signatures(
         }
 
         let existing = sqlx::query!(
-            r#"select id, "group" as "group: SignatureGroup", signature_type_id, name
+            r#"select id, "group", signature_type_id, name
                from signatures
                where map_id = $1 and solar_system_id = $2 and signature_id = $3
                for update"#,
@@ -830,7 +832,7 @@ pub(super) async fn apply_paste_signatures(
                 cmd.map_id,
                 cmd.solar_system_id,
                 sid,
-                s.group.unwrap_or_default().as_str(),
+                s.group.unwrap_or_default(),
                 pasted_type,
                 s.name.as_deref(),
             )
@@ -868,7 +870,7 @@ pub(super) async fn apply_paste_signatures(
                    connection_id = case when $4 then null else connection_id end,
                    updated_at = now()
                where id = $5"#,
-            group.as_str(),
+            group,
             type_id,
             name.as_deref(),
             clear_link,
@@ -908,10 +910,10 @@ pub async fn list_signatures(pool: &PgPool, actor: Actor, map_id: i64) -> Result
 pub async fn read_signatures(pool: &PgPool, map_id: i64) -> Result<Vec<Signature>> {
     let sigs = sqlx::query_as!(
         Signature,
-        r#"select id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
-                  signature_type_id, name, size as "size: WormholeSize",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus",
+        r#"select id, map_id, solar_system_id, signature_id, "group",
+                  signature_type_id, name, size,
+                  mass_status,
+                  time_status,
                   time_status_updated_at, connection_id, created_at, updated_at
            from signatures where map_id = $1 order by solar_system_id, signature_id"#,
         map_id,
@@ -939,10 +941,10 @@ pub(super) async fn capture_signatures(
 ) -> Result<RestoreSignatures> {
     let signatures = sqlx::query_as!(
         super::solar_system::RestoredSignature,
-        r#"select id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
-                  signature_type_id, name, size as "size: WormholeSize",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus", connection_id
+        r#"select id, solar_system_id, signature_id, "group",
+                  signature_type_id, name, size,
+                  mass_status,
+                  time_status, connection_id
            from signatures where map_id = $1 and id = any($2)"#,
         map_id,
         ids,
@@ -989,12 +991,12 @@ pub(super) async fn apply_restore_signatures(
             cmd.map_id,
             s.solar_system_id,
             s.signature_id,
-            s.group.as_str(),
+            s.group,
             s.signature_type_id,
             s.name.as_deref(),
-            s.size.map(|w| w.as_str()),
-            s.mass_status.map(|m| m.as_str()),
-            s.time_status.map(|t| t.as_str()),
+            s.size,
+            s.mass_status,
+            s.time_status,
             s.connection_id,
         )
         .execute(&mut **tx)
@@ -1017,10 +1019,10 @@ pub(super) async fn apply_restore_signatures(
 async fn fetch_signature_tx(tx: &mut Tx<'_>, map_id: i64, signature_pk: i64) -> Result<Signature> {
     sqlx::query_as!(
         Signature,
-        r#"select id, map_id, solar_system_id, signature_id, "group" as "group: SignatureGroup",
-                  signature_type_id, name, size as "size: WormholeSize",
-                  mass_status as "mass_status: MassStatus",
-                  time_status as "time_status: TimeStatus",
+        r#"select id, map_id, solar_system_id, signature_id, "group",
+                  signature_type_id, name, size,
+                  mass_status,
+                  time_status,
                   time_status_updated_at, connection_id, created_at, updated_at
            from signatures where id = $1 and map_id = $2"#,
         signature_pk,

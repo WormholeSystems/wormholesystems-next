@@ -6,9 +6,32 @@
     "parameters": {
       "Left": [
         "Int8",
-        "Text",
+        {
+          "Custom": {
+            "name": "subject_type",
+            "kind": {
+              "Enum": [
+                "character",
+                "corporation",
+                "alliance"
+              ]
+            }
+          }
+        },
         "Int8",
-        "Text",
+        {
+          "Custom": {
+            "name": "map_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "member",
+                "manager",
+                "owner"
+              ]
+            }
+          }
+        },
         "Timestamptz",
         "Bool"
       ]

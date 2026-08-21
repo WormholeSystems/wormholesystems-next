@@ -35,6 +35,8 @@ sqlx = { version = "0.9", default-features = false, features = [
     "postgres",
     "macros",
     "migrate",
+    # Reads `sqlx.toml`, which is where each Postgres enum type says which Rust type it is.
+    "sqlx-toml",
     "chrono",
 ] }
 serde = { version = "1.0", features = ["derive"] }

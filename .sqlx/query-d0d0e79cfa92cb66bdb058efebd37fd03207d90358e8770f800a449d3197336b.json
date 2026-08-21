@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference as \"route_preference: RoutePreference\", security_penalty,\n                  route_allow_time_status as \"route_allow_time_status: TimeStatus\",\n                  route_allow_mass_status as \"route_allow_mass_status: MassStatus\",\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark,\n                  killmail_filter as \"killmail_filter: KillmailScope\",\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override as \"layout_override: MapLayout\", is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference, security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark,\n                  killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
   "describe": {
     "columns": [
       {
@@ -49,8 +49,19 @@
       },
       {
         "ordinal": 4,
-        "name": "route_preference: RoutePreference",
-        "type_info": "Text",
+        "name": "route_preference",
+        "type_info": {
+          "Custom": {
+            "name": "route_preference",
+            "kind": {
+              "Enum": [
+                "shorter",
+                "safer",
+                "less_secure"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_user_settings",
@@ -71,8 +82,19 @@
       },
       {
         "ordinal": 6,
-        "name": "route_allow_time_status: TimeStatus",
-        "type_info": "Text",
+        "name": "route_allow_time_status",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_user_settings",
@@ -82,8 +104,19 @@
       },
       {
         "ordinal": 7,
-        "name": "route_allow_mass_status: MassStatus",
-        "type_info": "Text",
+        "name": "route_allow_mass_status",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_user_settings",
@@ -137,8 +170,19 @@
       },
       {
         "ordinal": 12,
-        "name": "killmail_filter: KillmailScope",
-        "type_info": "Text",
+        "name": "killmail_filter",
+        "type_info": {
+          "Custom": {
+            "name": "killmail_scope",
+            "kind": {
+              "Enum": [
+                "all",
+                "jspace",
+                "kspace"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_user_settings",
@@ -187,8 +231,18 @@
       },
       {
         "ordinal": 17,
-        "name": "layout_override: MapLayout",
-        "type_info": "Text",
+        "name": "layout_override",
+        "type_info": {
+          "Custom": {
+            "name": "map_layout",
+            "kind": {
+              "Enum": [
+                "manual",
+                "tree"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_user_settings",
@@ -236,5 +290,5 @@
       false
     ]
   },
-  "hash": "c1ebf4878baeda0d7f57e493c8c394956f27d5f2928c365f547a96df22831622"
+  "hash": "d0d0e79cfa92cb66bdb058efebd37fd03207d90358e8770f800a449d3197336b"
 }

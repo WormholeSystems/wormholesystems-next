@@ -256,7 +256,7 @@ pub(super) async fn signature_state(
     pk: i64,
 ) -> Result<SignatureState> {
     let row = sqlx::query!(
-        r#"select "group" as "group!: SignatureGroup", connection_id
+        r#"select "group", connection_id
            from signatures where id = $1 and map_id = $2"#,
         pk,
         map_id,
@@ -316,7 +316,7 @@ pub(super) async fn link(
     sqlx::query!(
         r#"update signatures set "group" = $1, updated_at = now()
            where id = $2 and map_id = $3 and "group" = 'unknown'"#,
-        SignatureGroup::Wormhole.as_str(),
+        SignatureGroup::Wormhole,
         signature_pk,
         map_id,
     )

@@ -17,7 +17,17 @@
       {
         "ordinal": 1,
         "name": "kind",
-        "type_info": "Text",
+        "type_info": {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
         "origin": {
           "Table": {
             "table": "map_connections",
