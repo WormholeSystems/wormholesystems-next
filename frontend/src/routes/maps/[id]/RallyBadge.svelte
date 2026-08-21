@@ -1,0 +1,73 @@
+<script lang="ts">
+	// Where the fleet is forming up, and how far it is from the staging system. A rally is
+	// called for everyone at once, so the count is the map's own: home to rally, the same
+	// number for whoever is looking at it.
+	import FlagIcon from '@lucide/svelte/icons/flag';
+	import * as Popover from '$lib/components/ui/popover';
+	import ClassBadge from '$lib/components/ClassBadge.svelte';
+	import RouteList from '$lib/components/map/RouteList.svelte';
+	import { findRoute } from '$lib/routing/algorithm';
+	import { solarSystemId } from '$lib/map/system';
+	import type { MapState } from './map-state.svelte';
+
+	let { map }: { map: MapState } = $props();
+
+	const rally = $derived(map.systems.find((s) => s.is_rally && s.kind === 'system') ?? null);
+	const homeId = $derived(
+		map.systems
+			.filter((s) => s.is_home)
+			.map(solarSystemId)
+			.find((id) => id !== null) ?? null,
+	);
+
+	const result = $derived.by(() => {
+		const to = rally?.kind === 'system' ? rally.solar_system_id : null;
+		if (!map.graph || homeId === null || to === null || homeId === to) return null;
+		return findRoute(map.graph, homeId, to, map.routingSettings, map.ignoredSystems);
+	});
+</script>
+
+{#if rally?.kind === 'system'}
+	<!-- Out of the way of the zoom and placement controls, which own the bottom corners. The
+	     press is stopped here like the other overlays do: the canvas captures the pointer to
+	     pan, and would swallow the click before the popover ever saw it. -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="absolute top-3 right-3 flex items-center gap-3 border border-border bg-card px-3 py-2"
+		data-testid="rally-badge"
+		onpointerdown={(ev) => ev.stopPropagation()}
+	>
+		<div class="flex flex-col gap-0.5">
+			<span class="text-[10px] tracking-wider text-muted-foreground uppercase">Rally point</span>
+			<div class="flex items-center gap-1.5 text-sm">
+				<ClassBadge
+					classId={rally.wormhole_class_id}
+					security={rally.security_status}
+					class="font-medium"
+				/>
+				{#if rally.alias}
+					<span class="font-medium">{rally.alias}</span>
+					<span class="text-muted-foreground">{rally.name}</span>
+				{:else}
+					<span class="font-medium">{rally.name}</span>
+				{/if}
+				<span class="text-xs text-muted-foreground">{rally.region}</span>
+			</div>
+		</div>
+
+		{#if result}
+			<Popover.Root>
+				<Popover.Trigger
+					class="flex h-8 items-center gap-1.5 border border-border px-2.5 font-mono text-sm hover:bg-accent"
+					data-testid="rally-jumps"
+				>
+					<FlagIcon class="size-3" />
+					{result.jumps}j
+				</Popover.Trigger>
+				<Popover.Content class="w-80 gap-0 p-0" align="end">
+					<RouteList steps={map.withSignatures(result.route)} />
+				</Popover.Content>
+			</Popover.Root>
+		{/if}
+	</div>
+{/if}

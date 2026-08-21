@@ -41,6 +41,7 @@
 	import ContextMenu from './ContextMenu.svelte';
 	import { MapState, type Drag } from './map-state.svelte';
 	import Scrollbars from './Scrollbars.svelte';
+	import RallyBadge from './RallyBadge.svelte';
 	import SystemNode from './SystemNode.svelte';
 	import CommandPalette from './CommandPalette.svelte';
 	import LayoutToolbar from './panels/LayoutToolbar.svelte';
@@ -748,6 +749,8 @@
 		</div>
 
 		<Scrollbars {map} />
+
+		<RallyBadge {map} />
 
 		<!-- Picking the map's own mode clears the override, so a later change to the map still
 	     reaches this viewer. -->
