@@ -26,6 +26,12 @@ with layered access control and Discord alerting.
   refresh) and the data it touches.
 - [`ui-style-guide.md`](./ui-style-guide.md) — the interface design language: slim,
   minimal, monochrome, theme tokens, and which component libraries to use.
+- [`deployment.md`](./deployment.md) — standing a deployment up with `wsctl`, and looking
+  after it afterwards.
+
+These describe how the thing works underneath. What it does *for a pilot* is the in-app
+documentation at `/documentation`, written in [`frontend/src/docs/`](../frontend/src/docs/)
+— that is the one to reach for when the question is "how do I use the map".
 
 ## Code layout
 

@@ -1,13 +1,44 @@
 # WormholeSystems
 
-Collaborative wormhole mapping for EVE Online. One live chain that a corp shares: paste
-your probe scanner and the signatures sync, mark what each hole will still take, see where
-everyone is, and find the way home.
+A **map** is a shared, real-time picture of a wormhole chain. Systems appear as nodes, the
+wormholes between them appear as connections, and everyone with access sees the same
+picture as it is scanned. When a corpmate pastes their probe scanner, resolves a hole, or
+marks a connection end-of-life, it is on your screen before they have finished typing.
 
 A Rust and SvelteKit rewrite of [wormhole.systems](https://wormhole.systems/).
 
-> **Pre-alpha.** It runs, and it is being worked on daily. Things move, break and get
-> rebuilt without warning, and the database is not yet treated as precious.
+---
+
+> ## ⚠️ Pre-alpha
+>
+> **This is not ready to rely on.**
+>
+> - **Breaking changes are constant.** The schema, the API and the interface all change
+>   without notice or a migration path. A deployment that worked yesterday may need to be
+>   rebuilt from scratch today.
+> - **There is no guarantee of continued updates.** Nothing here is promised, supported,
+>   or committed to a release schedule.
+> - **Your data is not safe.** Databases are wiped when it is convenient. Do not put a
+>   chain you care about on it.
+>
+> Run it to look at it, or to help build it. Do not run it for a corp that needs it to
+> work.
+
+---
+
+## What it does
+
+- **Map the chain** — add systems and connections by hand, or let jump tracking log them
+  as you fly.
+- **Track signatures** — paste the probe scanner and the map syncs, then link each
+  wormhole to the connection it turned out to be.
+- **Watch each hole** — mass and lifetime per connection, so a fleet knows what a hole
+  will still take.
+- **Plan routes** — the shortest or safest way through the chain, with in-game waypoints
+  set for you.
+- **See your group** — where every tracked character is, live from ESI.
+- **Control access** — per character, corporation or alliance, down to who may edit.
+- **Get told** — Discord alerts for kills, proximity, and capitals in jump range.
 
 ## Running it
 
@@ -15,17 +46,17 @@ You need Docker, a domain pointed at the machine, and an EVE application from th
 [developer portal](https://developers.eveonline.com/) with the `esi-location.*` scopes.
 
 ```sh
-curl -fsSL https://install.wormhole.systems | sh
+curl --proto '=https' --tlsv1.2 -sSf https://install-next.wormhole.systems | sh
 wsctl setup
 ```
 
-`wsctl setup` asks for what it needs, writes `.env`, and brings the stack up. See
-[docs/deployment.md](./docs/deployment.md) for what it does and how to look after it
-afterwards.
+`wsctl setup` checks the machine, asks for what it needs, writes `.env`, and brings the
+stack up. `wsctl update` takes new code and newer static data; `wsctl status` says what is
+running and whether it answers. [docs/deployment.md](./docs/deployment.md) covers the rest.
 
 ## Developing
 
-Postgres, then the API and the frontend:
+Postgres first, then the API and the frontend:
 
 ```sh
 docker compose up -d db
@@ -35,17 +66,24 @@ cargo run                  # API on :3000
 cd frontend && npm install && npm run dev
 ```
 
-`cargo test` needs a database (`DATABASE_URL`); it builds its own per test. `cargo sqlx
-prepare --workspace -- --all-targets` refreshes the offline query cache, which CI compiles
-against, and a pre-push hook checks it is current.
+`cargo test` builds its own database per test and needs `DATABASE_URL` set. After changing
+a query, `cargo sqlx prepare --workspace -- --all-targets` refreshes the offline cache that
+CI compiles against; a pre-push hook checks it is current.
 
 ## Layout
 
 - `src/` — the API. `src/maps/` holds the rules, `src/api/` only decodes and dispatches.
-- `frontend/` — SvelteKit. The map canvas, panels and their state.
-- `migrations/` — the schema, each file creating its tables in final form.
+- `frontend/` — SvelteKit: the map canvas, the panels, and their state.
+- `frontend/src/docs/` — the user documentation served at `/documentation`.
+- `migrations/` — the schema, each file creating its tables in their final shape.
 - `wsctl/` — the operator CLI that installs, updates and inspects a deployment.
-- `docs/` — how the thing works: data model, ESI endpoints, background processes.
+- `docs/` — how it works underneath: data model, ESI endpoints, background processes.
+
+## Contributing
+
+The documentation is the easiest place to start: it is Markdown in `frontend/src/docs/`,
+and a new page needs nothing but a file. See
+[frontend/src/docs/README.md](./frontend/src/docs/README.md).
 
 ## Licence
 

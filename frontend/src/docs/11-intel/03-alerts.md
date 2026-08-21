@@ -1,0 +1,40 @@
+---
+title: Discord alerts
+---
+
+# Discord alerts
+
+An **alert** is a standing question about the chain that answers itself into Discord. Set
+one up once and it speaks when the answer changes, instead of somebody watching a panel.
+
+## What you can ask
+
+| Kind           | Fires when                                                                     |
+| -------------- | ------------------------------------------------------------------------------ |
+| **Killmail**   | Something dies in the chain, filtered by who was involved and on which side.   |
+| **Proximity**  | The chain comes within a set number of jumps of a system you named.            |
+| **Jump range** | A capital of a given hull and jump-drive skill could reach a system you named. |
+
+## Where it goes
+
+Destinations are named once per map and pointed at by as many alerts as you like. Pasting
+the same webhook URL into four alerts is four chances to paste the wrong one, and rotating
+it is four edits.
+
+- **Channel webhook** — Discord's own channel setting, no application needed. This is the
+  quickest way to start, and the only kind that works on an instance with no Discord bot.
+- **Bot channel** — posts as the bot. Needs the instance to have a bot configured.
+- **Direct message** — reaches one person. Needs the bot, and needs that person to have
+  [linked their Discord account](/documentation/getting-started/connecting-your-character).
+
+Roles are named the same way, so an alert can say who to ping without anyone reciting
+`1189734502938472`.
+
+> If the instance you are on has no Discord application configured, the alerts page says
+> so. Webhooks still work; direct messages and bot posts do not.
+
+## When an alert stops
+
+An alert disables itself rather than failing quietly, and says why: the creator unlinked
+their Discord, their access to the map was revoked, the destination is gone, or Discord
+rejected the delivery. Fix the cause and switch it back on.
