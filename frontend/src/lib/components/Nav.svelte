@@ -61,6 +61,14 @@
 			<a href="/" class="flex items-center gap-2 text-foreground">
 				<Logo class="size-5" />
 				<span class="font-heading text-sm font-semibold tracking-tight">WormholeSystems</span>
+				<!-- Says what it is before anyone finds out the hard way. -->
+				<span
+					class="border border-amber-500/40 px-1.5 py-0.5 text-[10px] tracking-wider text-amber-500 uppercase"
+					data-testid="pre-alpha"
+					title="Early build: things move, break and get rebuilt without warning."
+				>
+					Pre-alpha
+				</span>
 			</a>
 			<!-- Without an account this only leads to the sign-in page, so it is not shown. -->
 			{#if me}
