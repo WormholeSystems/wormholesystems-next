@@ -1,8 +1,12 @@
 name: Format & Lint
 
-# Auto-format and apply clippy's machine-applicable fixes on every push,
-# then commit the result back to the branch. The fix-up commit is tagged
-# "[skip ci]" so it doesn't retrigger this workflow into a loop.
+# Auto-format both halves of the repo and apply clippy's machine-applicable fixes on every
+# push, then commit the result back to the branch. The fix-up commit is tagged "[skip ci]"
+# so it doesn't retrigger this workflow into a loop.
+#
+# Formatting is fixed here rather than failed in CI: a wrongly-placed brace should not cost
+# anyone a round trip. The frontend's style and the files it leaves alone are written down
+# in `frontend/.prettierrc` and `frontend/.prettierignore`, the backend's in `rustfmt.toml`.
 on:
   push:
     branches: ["**"]
@@ -31,8 +35,22 @@ jobs:
       - name: Apply clippy fixes
         run: cargo clippy --fix --all-targets --allow-dirty --allow-staged --allow-no-vcs || true
 
-      - name: Format
+      - name: Format Rust
         run: cargo fmt --all
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Format the frontend
+        working-directory: frontend
+        run: npm run format
 
       - name: Commit changes if anything changed
         run: |
