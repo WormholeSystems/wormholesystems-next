@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select build_number, seed_revision from sde_build",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "build_number",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "sde_build",
+            "name": "build_number"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "seed_revision",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "sde_build",
+            "name": "seed_revision"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "5f464ccce75293a862123e288b7ca87046299386b2ea48053999c9bf808a3f17"
+}

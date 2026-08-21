@@ -52,6 +52,8 @@ while the system is on the map; removing the system deletes this row.
 | `position_x`      | int/float   | grid position on the map                         |
 | `position_y`      | int/float   | grid position on the map                         |
 | `alias`           | text, null  | temporary, user-set; lost on removal             |
+| `raised_by_signature_id` | fk signatures, null | the scan this ghost is the far side of; cascade |
+| `hangs_off_id`    | fk self, null | the placement the scan was made in; cascade    |
 | `created_at`      | timestamptz |                                                  |
 
 ### Ghost placements
@@ -65,7 +67,13 @@ hand, or an existing signature recategorised as a wormhole.
 Ghosts are ordinary placements deliberately, not a table of their own: connections
 already reference `map_solar_systems.id` rather than a solar system, so a ghost gets
 edges, a position, an alias, and the connection's life-cycle bookkeeping with no second
-kind of node anywhere. What a ghost cannot have is anything keyed by *system*:
+kind of node anywhere. What sets one apart is the two columns it fills in and a real
+system leaves null — `raised_by_signature_id` and `hangs_off_id`, the scan it was drawn
+for and the placement that scan was made in. A check constraint makes those the two
+shapes a row is allowed to take, and both foreign keys cascade, so the two rules that
+govern a ghost's life are the database's rather than any one write's: the scan goes, the
+node goes; the system goes, what hung off it goes. What a ghost cannot have is anything
+keyed by *system*:
 [`signatures`](#signatures) and
 [`map_solar_system_details`](#map_solar_system_details) both hang off
 `(map_id, solar_system_id)`, so a ghost holds no scan and no intel until it is resolved.
@@ -88,10 +96,17 @@ kind of node anywhere. What a ghost cannot have is anything keyed by *system*:
   connections move to the existing placement and the ghost row is deleted. The same
   path serves the manual "assign a system" action and the jump tracker, which discovers
   the same fact by flying it.
-- A ghost with no connections left is removed. It is the far side of a wormhole and
-  nothing else, so removing the system it hangs off, or the connection itself, takes it
-  along; the same snapshot covers both, so one undo brings the lot back. A **real** system
-  left without connections stays: somebody put that on the map on purpose.
+- A ghost lasts exactly as long as its scan says an unmapped hole is there. Deleting the
+  signature or the system it hangs off cascades the node away; retyping the signature,
+  linking it to a real system, or unlinking it leaves a node nothing claims, and that is
+  swept up too. Every removal snapshots what it takes, so one undo brings the lot back. A
+  **real** system left without connections stays: somebody put that on the map on purpose.
+- The rule is re-established after **every** command rather than by the writes that
+  happen to remember (`ghost::reconcile`), which is also how the `ghost_unlinked_wormholes`
+  setting takes effect: turning it on draws the holes already scanned, turning it off takes
+  those nodes away, leaving the scans alone. A consequence worth stating: cutting a ghost's
+  edge, or unlinking its signature, does not make the hole go away — the scan still says it
+  is there, so it is drawn again. Deleting the signature is how you say it was never found.
 - The alias is **ephemeral**: removing the system from the map and re-adding it does
   **not** restore the previous alias.
 - Removing a system deletes its placement, its **signatures**, and its connections —

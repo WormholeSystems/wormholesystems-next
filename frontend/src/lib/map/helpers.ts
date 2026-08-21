@@ -13,6 +13,7 @@ export interface Vec2 {
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import type { WormholeSize } from '$lib/api/types/WormholeSize';
 import { isWormholeClass } from '$lib/map/classes';
+import type { MappedSystem } from '$lib/map/system';
 
 /** Fixed node width (px, world space). Height is `2 * grid cell`. */
 export const NODE_W = 180;
@@ -186,15 +187,15 @@ export function heuristicSize(
 ): WormholeSize | undefined {
 	const a = systems.find((s) => s.id === fromId);
 	const b = systems.find((s) => s.id === toId);
-	if (!a || !b) return undefined;
+	// Nobody has been through an unmapped hole, so there is nothing about it to guess from.
+	if (a?.kind !== 'system' || b?.kind !== 'system') return undefined;
 	const TURNUR = 30002086;
 	const classes = [a.wormhole_class_id, b.wormhole_class_id];
 	if (classes.includes(13)) return 'small';
 	if (classes.includes(1)) return 'medium';
-	const highsec = (s: MapSystemView) =>
-		s.wormhole_class_id === 7 || (s.security_status ?? 0) >= 0.45;
-	const thera = (s: MapSystemView) => s.wormhole_class_id === 12;
-	const wh = (s: MapSystemView) => isWormholeClass(s.wormhole_class_id);
+	const highsec = (s: MappedSystem) => s.wormhole_class_id === 7 || s.security_status >= 0.45;
+	const thera = (s: MappedSystem) => s.wormhole_class_id === 12;
+	const wh = (s: MappedSystem) => isWormholeClass(s.wormhole_class_id);
 	if ((thera(a) && highsec(b)) || (thera(b) && highsec(a))) return 'medium';
 	if ((a.solar_system_id === TURNUR && wh(b)) || (b.solar_system_id === TURNUR && wh(a))) {
 		return 'medium';

@@ -8,6 +8,7 @@
 	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 	import WorkflowIcon from '@lucide/svelte/icons/workflow';
+	import { solarSystemId } from '$lib/map/system';
 
 	import { setContext } from 'svelte';
 	import { fade } from 'svelte/transition';
@@ -129,7 +130,7 @@
 		const wanted = Number(page.url.searchParams.get('system'));
 		s.refetch().then(() => {
 			if (wanted && s.activeId === null) {
-				s.activeId = s.systems.find((x) => x.solar_system_id === wanted)?.id ?? null;
+				s.activeId = s.systems.find((x) => solarSystemId(x) === wanted)?.id ?? null;
 			}
 		});
 		s.loadUserSettings();
@@ -190,7 +191,7 @@
 	// `?system=` before the map data has arrived and an active system exists.
 	$effect(() => {
 		const active = map.activeSystem;
-		if (!routerReady || !active) return;
+		if (!routerReady || active?.kind !== 'system') return;
 		const url = new URL(page.url);
 		if (url.searchParams.get('system') === String(active.solar_system_id)) return;
 		url.searchParams.set('system', String(active.solar_system_id));
@@ -298,7 +299,7 @@
 			const target = nodeAt(map.systems, w.x, w.y, map.grid, map.positions);
 			// Dropping onto a ghost is the same claim from the other end, so it is no more
 			// allowed than starting from one.
-			const ghost = map.systems.some((s) => s.id === target && s.solar_system_id === null);
+			const ghost = map.systems.some((s) => s.id === target && s.kind === 'ghost');
 			if (target !== null && target !== l.from && !ghost) {
 				map.run(
 					'addConnection',
@@ -452,7 +453,7 @@
 	function saveAlias(s: MapSystemView, alias: string | null, occupier: string | null) {
 		// A ghost holds no system yet, so only the alias is its own.
 		const writes = [api.setAlias({ map_id: map.mapId, map_solar_system_id: s.id, alias })];
-		if (s.solar_system_id !== null) {
+		if (s.kind === 'system') {
 			writes.push(api.setOccupier({ map_id: map.mapId, map_solar_system_id: s.id, occupier }));
 		}
 		map.run('setAlias', Promise.all(writes));
@@ -718,13 +719,13 @@
 				selected={map.selected.has(s.id)}
 				highlighted={map.hoveredSystemId === s.id}
 				pos={map.positions.get(s.id) ?? { x: 0, y: 0 }}
-				sigCounts={sigCountsBySystem.get(s.solar_system_id ?? -1) ?? {
+				sigCounts={sigCountsBySystem.get(solarSystemId(s) ?? -1) ?? {
 					total: 0,
 					uncategorized: 0,
 					wormholes: 0
 				}}
 				connectionCount={connCountByPlacement.get(s.id) ?? 0}
-				pilots={pilotsBySystem.get(s.solar_system_id ?? -1) ?? []}
+				pilots={pilotsBySystem.get(solarSystemId(s) ?? -1) ?? []}
 				showThreat={map.userSettings?.show_threat_level ?? true}
 				draggable={!map.layoutLocked && canWrite}
 				linkable={canWrite}

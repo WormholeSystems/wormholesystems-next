@@ -18,6 +18,7 @@
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
+	import { solarSystemId as solarSystemIdOf } from '$lib/map/system';
 
 	let { map }: { map: MapState } =
 		$props();
@@ -36,7 +37,7 @@
 		if (solarSystemId === null) return null;
 		const info = map.systemInfo(solarSystemId);
 		if (!info) return null;
-		const placed = map.systems.find((s) => s.solar_system_id === solarSystemId);
+		const placed = map.systems.find((s) => solarSystemIdOf(s) === solarSystemId);
 		return {
 			id: placed?.id ?? null,
 			alias: placed?.alias ?? null,
@@ -63,7 +64,7 @@
 	/** Highlight the pilot's node and draw their route while the row is hovered. */
 	function hover(pilot: MapCharacter, on: boolean) {
 		const target = pilot.solar_system_id;
-		const placed = target === null ? null : map.systems.find((s) => s.solar_system_id === target);
+		const placed = target === null ? null : map.systems.find((s) => solarSystemIdOf(s) === target);
 		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
 		const route = target === null ? undefined : routes.get(target);
 		map.hoverPath = on ? (route?.route.map((s) => s.id) ?? null) : null;

@@ -13,6 +13,7 @@
 	import BrushCleaningIcon from '@lucide/svelte/icons/brush-cleaning';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import Undo2Icon from '@lucide/svelte/icons/undo-2';
+	import { solarSystemId } from '$lib/map/system';
 
 	import { page } from '$app/state';
 
@@ -48,7 +49,7 @@
 	// still gets their system id.
 	const pilot = $derived(map.myCharacters.find((c) => c.is_active) ?? null);
 	const pilotSystem = $derived(
-		map.systems.find((s) => s.solar_system_id === pilot?.solar_system_id) ?? null
+		map.systems.find((s) => solarSystemId(s) === pilot?.solar_system_id) ?? null
 	);
 
 	const socketLabel: Record<typeof map.socket, string> = {
@@ -234,7 +235,7 @@
 
 	{#if pilot?.online && pilot.solar_system_id !== null}
 		<span class="hidden items-center gap-1.5 text-xs text-muted-foreground lg:flex">
-			{#if pilotSystem}
+			{#if pilotSystem?.kind === 'system'}
 				<ClassBadge
 					classId={pilotSystem.wormhole_class_id}
 					security={pilotSystem.security_status}

@@ -17,14 +17,17 @@
 	let { system }: { system: MapSystemView } =
 		$props();
 
+	// Threat comes from killmails in a system, so a hole nobody has been through has none.
+	const mapped = $derived(system.kind === 'system' ? system : null);
+
 	let analysis = $state<ThreatAnalysis | null>(null);
 
 	$effect(() => {
-		const id = system.solar_system_id;
+		const target = mapped;
 		analysis = null;
-		if (id === null || !isWormholeClass(system.wormhole_class_id)) return;
+		if (!target || !isWormholeClass(target.wormhole_class_id)) return;
 		api
-			.threatAnalysis(id)
+			.threatAnalysis(target.solar_system_id)
 			.then((a) => (analysis = a))
 			.catch(() => {});
 	});
@@ -56,7 +59,7 @@
 	<MapPanelContent>
 	<Tooltip.Provider delayDuration={300} ignoreNonKeyboardFocus>
 		<div class="flex flex-col gap-2 p-3 text-xs">
-			{#if !isWormholeClass(system.wormhole_class_id)}
+			{#if !mapped || !isWormholeClass(mapped.wormhole_class_id)}
 				<!-- Threat is derived from killmails in wormhole space; k-space has none. -->
 				<p class="text-muted-foreground">
 					No analysis for this system. Threat is only tracked in wormhole space.
@@ -99,7 +102,7 @@
 									{#snippet child({ props })}
 										<a
 											{...props}
-											href="https://zkillboard.com/{e.entity_type}/{e.id}/system/{system.solar_system_id}/"
+											href="https://zkillboard.com/{e.entity_type}/{e.id}/system/{mapped.solar_system_id}/"
 											target="_blank"
 											rel="noopener"
 											aria-label="What they have killed in this system, on zKillboard"
@@ -109,7 +112,7 @@
 										</a>
 									{/snippet}
 								</Tooltip.Trigger>
-								<Tooltip.Content>What they have killed in {system.name ?? 'this system'}</Tooltip.Content>
+								<Tooltip.Content>What they have killed in {mapped.name}</Tooltip.Content>
 							</Tooltip.Root>
 						</div>
 					{/each}
@@ -120,14 +123,16 @@
 					Analyzed {timeAgo(analysis.threat_analyzed_at)}
 				</p>
 			{/if}
-			<a
-				class="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
-				href="https://zkillboard.com/system/{system.solar_system_id}/"
-				target="_blank"
-				rel="noopener"
-			>
-				zKillboard
-			</a>
+			{#if mapped}
+				<a
+					class="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+					href="https://zkillboard.com/system/{mapped.solar_system_id}/"
+					target="_blank"
+					rel="noopener"
+				>
+					zKillboard
+				</a>
+			{/if}
 			</div>
 		</Tooltip.Provider>
 </MapPanelContent>

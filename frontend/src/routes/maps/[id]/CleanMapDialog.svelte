@@ -5,15 +5,14 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import type { MapState } from './map-state.svelte';
+	import { solarSystemId } from '$lib/map/system';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
 
 	const going = $derived(map.orphaned);
 	const anchors = $derived(map.systems.filter((s) => s.is_pinned || s.is_home));
 	const signatures = $derived(
-		map.sigs.filter((sig) =>
-			going.some((s) => s.solar_system_id !== null && s.solar_system_id === sig.solar_system_id)
-		).length
+		map.sigs.filter((sig) => going.some((s) => solarSystemId(s) === sig.solar_system_id)).length
 	);
 
 	function clean() {
@@ -34,16 +33,20 @@
 		</Dialog.Header>
 
 		<ul class="max-h-64 overflow-y-auto border border-border/60" data-testid="clean-list">
-			{#each going as system (system.id)}
+			{#each going as node (node.id)}
+				{@const mapped = node.kind === 'system' ? node : null}
 				<li class="flex items-center gap-2 border-b border-border/40 px-2 py-1.5 text-xs last:border-b-0">
-					<ClassBadge classId={system.wormhole_class_id} security={system.security_status} />
-					{#if system.alias}
-						<span class="font-medium">{system.alias}</span>
+					<ClassBadge
+						classId={mapped?.wormhole_class_id ?? null}
+						security={mapped?.security_status ?? null}
+					/>
+					{#if node.alias}
+						<span class="font-medium">{node.alias}</span>
 					{/if}
-					<span class="truncate {system.alias ? 'text-muted-foreground' : 'font-medium'}">
-						{system.name ?? 'Unmapped'}
+					<span class="truncate {node.alias ? 'text-muted-foreground' : 'font-medium'}">
+						{mapped?.name ?? 'Unmapped'}
 					</span>
-					<span class="ml-auto shrink-0 truncate text-muted-foreground">{system.region ?? ''}</span>
+					<span class="ml-auto shrink-0 truncate text-muted-foreground">{mapped?.region ?? ''}</span>
 				</li>
 			{/each}
 		</ul>

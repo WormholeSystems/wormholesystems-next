@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select s.id, s.size as \"size: WormholeSize\",\n                  p.id as \"from_id!\", p.position_x as \"from_x!\", p.position_y as \"from_y!\"\n           from signatures s\n           join map_solar_systems p\n             on p.map_id = s.map_id and p.solar_system_id = s.solar_system_id\n           where s.map_id = $1 and s.\"group\" = 'wormhole' and s.connection_id is null\n           order by p.id, s.signature_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "size: WormholeSize",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "from_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "from_x!",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_x"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "from_y!",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "position_y"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "97c3ce6bfa3566259170cd9e85a15e6a0e918aefe8e1ba6336aed3ea82055c8d"
+}

@@ -3,6 +3,7 @@
 	// It opens mid-flight, so it has to be answerable without the mouse: the search field keeps
 	// focus, the arrow keys walk the list, and the likeliest signature starts selected.
 	import SearchIcon from '@lucide/svelte/icons/search';
+	import { systemName } from '$lib/map/system';
 
 	import { toast } from 'svelte-sonner';
 
@@ -69,6 +70,8 @@
 	$effect(() => {
 		const signature = chosen;
 		if (!signature) return;
+		const named = prompt?.ghostAliases.get(signature.id);
+		if (named) alias = named;
 		if (signature.time_status && signature.time_status !== 'stable') time = signature.time_status;
 		if (signature.mass_status && signature.mass_status !== 'stable') mass = signature.mass_status;
 		if (!lockedSize && signature.size) size = signature.size;
@@ -125,7 +128,9 @@
 			connection.from_system === prompt.origin.id ? connection.to_system : connection.from_system;
 		const other = map.systems.find((s) => s.id === otherId);
 		if (!other) return null;
-		return other.alias ? `${other.alias} · ${other.name}` : other.name;
+		const name = systemName(other);
+		if (!name) return other.alias;
+		return other.alias ? `${other.alias} · ${name}` : name;
 	}
 
 	function confirm() {

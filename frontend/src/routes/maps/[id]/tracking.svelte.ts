@@ -4,7 +4,7 @@
 // rather than guessed at.
 
 import { api } from '$lib/api/client';
-import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import { solarSystemId, type MappedSystem } from '$lib/map/system';
 import type { ResolveGhostSystem } from '$lib/api/types/ResolveGhostSystem';
 import type { Signature } from '$lib/api/types/Signature';
 import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
@@ -18,16 +18,22 @@ import type { MapState } from './map-state.svelte';
 
 /** A jump waiting on the user to say which signature it was. */
 export interface JumpPrompt {
-	origin: MapSystemView;
+	origin: MappedSystem;
 	targetSolarSystemId: number;
 	targetName: string;
 	targetClassId: number | null;
 	targetSecurity: number;
 	/** The placement the target already has on the map, if it was reached another way. */
-	existing: MapSystemView | null;
+	existing: MappedSystem | null;
 	groups: SignatureGroups;
 	catalog: SignatureCatalog;
 	suggestedAlias: string | null;
+	/**
+	 * The names already given to the nodes these signatures are drawn as, by signature. A
+	 * hole scanned and named before anyone flew it keeps that name when the jump finally
+	 * says what it is, rather than asking for it a second time.
+	 */
+	ghostAliases: Map<number, string>;
 	/** Where the new system would go, decided when the jump happened. */
 	at: { x: number; y: number };
 }
@@ -108,7 +114,7 @@ export class JumpTracker {
 	 * the moment it stops being a ghost, so the jump resolves the node already there instead
 	 * of mapping the same system twice.
 	 */
-	private ghostsFrom(origin: MapSystemView): Map<number, number> {
+	private ghostsFrom(origin: MappedSystem): Map<number, number> {
 		const ghosts = new Map<number, number>();
 		for (const c of this.map.connections) {
 			const other =
@@ -119,23 +125,37 @@ export class JumpTracker {
 						: null;
 			if (other === null) continue;
 			const placement = this.map.systems.find((s) => s.id === other);
-			if (placement && placement.solar_system_id === null) ghosts.set(c.id, other);
+			if (placement?.kind === 'ghost') ghosts.set(c.id, other);
 		}
 		return ghosts;
+	}
+
+	/** The names on the ghosts these signatures are drawn as, keyed by signature. */
+	private aliasesOf(ghosts: Map<number, number>, signatures: Signature[]): Map<number, string> {
+		const named = new Map<number, string>();
+		for (const signature of signatures) {
+			if (signature.connection_id === null) continue;
+			const placement = ghosts.get(signature.connection_id);
+			const alias = this.map.systems.find((s) => s.id === placement)?.alias;
+			if (alias) named.set(signature.id, alias);
+		}
+		return named;
 	}
 
 	private async handleJump(fromSystemId: number, toSystemId: number) {
 		const map = this.map;
 		// Only a jump *out of* the mapped chain extends it. Flying around known space with
 		// the map open should not start drawing it.
-		const origin = map.systems.find((s) => s.solar_system_id === fromSystemId) ?? null;
-		if (!origin) return;
+		const origin = map.systems.find((s) => solarSystemId(s) === fromSystemId) ?? null;
+		// Only a system can be jumped out of; a hole nobody has been through is nowhere yet.
+		if (origin?.kind !== 'system') return;
 
 		// A gate jump is not a new hole, so the gate table has to be in before judging one.
 		await map.whenRoutingLoaded();
 		if (map.stargates?.get(fromSystemId)?.includes(toSystemId)) return;
 
-		const existing = map.systems.find((s) => s.solar_system_id === toSystemId) ?? null;
+		const arrival = map.systems.find((s) => solarSystemId(s) === toSystemId);
+		const existing = arrival?.kind === 'system' ? arrival : null;
 		const linked = existing ? this.existingConnection(origin, existing) : null;
 		// Already mapped and already explained: there is nothing left to record.
 		if (linked?.signature) return;
@@ -184,12 +204,13 @@ export class JumpTracker {
 			groups,
 			catalog,
 			suggestedAlias: this.suggestAliasFor(origin, target, existing),
+			ghostAliases: this.aliasesOf(ghosts, originSignatures),
 			at: this.placeNear(origin)
 		};
 	}
 
 	/** The connection already joining two placements, and the signature explaining it. */
-	private existingConnection(origin: MapSystemView, target: MapSystemView) {
+	private existingConnection(origin: MappedSystem, target: MappedSystem) {
 		const connection = this.map.connections.find(
 			(c) =>
 				(c.from_system === origin.id && c.to_system === target.id) ||
@@ -203,16 +224,16 @@ export class JumpTracker {
 	}
 
 	/** A system already on the map carries its own class; anywhere else has to be resolved. */
-	private async describeTarget(solarSystemId: number, existing: MapSystemView | null) {
-		if (existing?.name != null) {
+	private async describeTarget(id: number, existing: MappedSystem | null) {
+		if (existing) {
 			return {
 				name: existing.name,
 				classId: existing.wormhole_class_id,
-				security: existing.security_status ?? 0
+				security: existing.security_status
 			};
 		}
 		try {
-			const [hit] = await api.resolveSystems([solarSystemId]);
+			const [hit] = await api.resolveSystems([id]);
 			if (!hit) return null;
 			return { name: hit.name, classId: hit.wormhole_class_id, security: hit.security };
 		} catch {
@@ -221,9 +242,9 @@ export class JumpTracker {
 	}
 
 	private suggestAliasFor(
-		origin: MapSystemView,
+		origin: MappedSystem,
 		target: { classId: number | null; security: number },
-		existing: MapSystemView | null
+		existing: MappedSystem | null
 	): string | null {
 		// A system already on the map keeps the name the chain knows it by.
 		if (existing?.alias) return existing.alias;
@@ -248,7 +269,7 @@ export class JumpTracker {
 	}
 
 	/** The first free slot beside the system jumped from. */
-	private placeNear(origin: MapSystemView): { x: number; y: number } {
+	private placeNear(origin: MappedSystem): { x: number; y: number } {
 		return freePosition(
 			this.map.systems,
 			{ x: origin.position_x, y: origin.position_y },
@@ -258,7 +279,7 @@ export class JumpTracker {
 
 	/** One command, so a mis-picked signature is one undo. */
 	submit(choice: {
-		origin: MapSystemView;
+		origin: MappedSystem;
 		targetSolarSystemId: number;
 		signaturePk: number | null;
 		alias: string | null;

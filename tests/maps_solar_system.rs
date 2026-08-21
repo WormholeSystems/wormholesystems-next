@@ -465,8 +465,8 @@ async fn position(
     )
     .await
     .unwrap();
-    let s = view.systems.iter().find(|s| s.id == id).expect("placed");
-    (s.position_x, s.position_y)
+    let s = view.systems.iter().find(|s| s.id() == id).expect("placed");
+    s.position()
 }
 
 async fn place(
@@ -498,7 +498,7 @@ async fn placed_ids(pool: &PgPool, actor: wormholesystems::maps::Actor, map_id: 
         .unwrap()
         .systems
         .iter()
-        .map(|s| s.id)
+        .map(|s| s.id())
         .collect()
 }
 

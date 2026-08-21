@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "delete from map_solar_systems where map_id = $1 and id = any($2) returning id",
+  "query": "select id from map_solar_systems\n         where map_id = $1 and raised_by_signature_id = any($2)",
   "describe": {
     "columns": [
       {
@@ -25,5 +25,5 @@
       false
     ]
   },
-  "hash": "2e095718d7485c5dca9177d2469a9032c450617b29b163549abfb913005bc13c"
+  "hash": "8047ed1f02d14af27488c1a1c9f44b5639274d4f90d7fe24e53d15fcdd266c75"
 }

@@ -292,6 +292,10 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
         .fetch_one(&mut *tx)
         .await?
     );
+    // Drawing unmapped holes is a map setting, so turning it on draws the holes already
+    // scanned and turning it off takes those nodes away, rather than waiting for the next
+    // scan to notice.
+    super::ghost::reconcile(&mut tx, cmd.map_id).await?;
     tx.commit().await?;
     Ok(map)
 }
@@ -482,10 +486,26 @@ pub async fn read_map(
                 (Some("faction"), Some(id), Some(name)) => Some(Sovereignty::Faction { id, name }),
                 _ => None,
             };
-            MapSystemView {
+            // The reference columns come off left joins, so they are all optional to sqlx.
+            // They arrive together or not at all: the placement's system id is a foreign
+            // key, and every column below is `not null` on the row it reaches.
+            let Some(solar_system_id) = row.solar_system_id else {
+                return MapSystemView::Ghost {
+                    id: row.id,
+                    map_id: row.map_id,
+                    position_x: row.position_x,
+                    position_y: row.position_y,
+                    alias: row.alias,
+                    is_home: row.is_home,
+                    is_rally: row.is_rally,
+                    is_pinned: row.is_pinned,
+                    status: row.status,
+                };
+            };
+            MapSystemView::System {
                 id: row.id,
                 map_id: row.map_id,
-                solar_system_id: row.solar_system_id,
+                solar_system_id,
                 position_x: row.position_x,
                 position_y: row.position_y,
                 alias: row.alias,
@@ -494,19 +514,18 @@ pub async fn read_map(
                 is_pinned: row.is_pinned,
                 status: row.status,
                 occupying_group: row.occupying_group,
-                name: row.name,
-                security_status: row.security_status,
+                name: row.name.unwrap_or_default(),
+                security_status: row.security_status.unwrap_or_default(),
                 wormhole_class_id: row.wormhole_class_id,
-                region: row.region,
-                region_id: row.region_id,
-                constellation_id: row.constellation_id,
-                constellation: row.constellation,
+                region: row.region.unwrap_or_default(),
+                region_id: row.region_id.unwrap_or_default(),
+                constellation_id: row.constellation_id.unwrap_or_default(),
+                constellation: row.constellation.unwrap_or_default(),
                 effect_name: row.effect_name,
                 is_shattered: row.is_shattered,
                 threat_level: row.threat_level,
-                statics: row
-                    .solar_system_id
-                    .and_then(|id| statics_by_system.remove(&id))
+                statics: statics_by_system
+                    .remove(&solar_system_id)
                     .unwrap_or_default(),
                 sovereignty,
             }

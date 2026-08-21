@@ -53,7 +53,7 @@ async fn placed(pool: &PgPool, actor: Actor, map_id: i64) -> Vec<i64> {
     systems(pool, actor, map_id)
         .await
         .iter()
-        .filter_map(|s| s.solar_system_id)
+        .filter_map(|s| s.solar_system_id())
         .collect()
 }
 
@@ -267,9 +267,9 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
     assert_eq!(
         after
             .iter()
-            .find(|s| s.solar_system_id == Some(SYS_B))
+            .find(|s| s.solar_system_id() == Some(SYS_B))
             .unwrap()
-            .id,
+            .id(),
         b
     );
     assert_eq!(
@@ -290,9 +290,9 @@ async fn undo_restores_a_removed_system_with_its_edges_and_signatures(pool: PgPo
     assert_eq!(
         after
             .iter()
-            .find(|s| s.solar_system_id == Some(SYS_B))
+            .find(|s| s.solar_system_id() == Some(SYS_B))
             .unwrap()
-            .id,
+            .id(),
         b,
         "walking back and forth must not renumber the placement"
     );
@@ -354,7 +354,7 @@ async fn undo_walks_back_through_several_steps_one_at_a_time(pool: PgPool) {
     .unwrap();
 
     step_back(&pool, w.owner, w.map_id).await;
-    assert_eq!(systems(&pool, w.owner, w.map_id).await[0].alias, None);
+    assert_eq!(systems(&pool, w.owner, w.map_id).await[0].alias(), None);
 
     step_back(&pool, w.owner, w.map_id).await;
     assert!(systems(&pool, w.owner, w.map_id).await.is_empty());
@@ -364,7 +364,7 @@ async fn undo_walks_back_through_several_steps_one_at_a_time(pool: PgPool) {
     assert_eq!(systems(&pool, w.owner, w.map_id).await.len(), 1);
     step_forward(&pool, w.owner, w.map_id).await;
     assert_eq!(
-        systems(&pool, w.owner, w.map_id).await[0].alias.as_deref(),
+        systems(&pool, w.owner, w.map_id).await[0].alias(),
         Some("Staging")
     );
 }
@@ -567,7 +567,7 @@ async fn cleaning_stale_connections_undoes_as_one_step(pool: PgPool) {
     assert!(connections(&pool, w.owner, w.map_id).await.is_empty());
     let left = systems(&pool, w.owner, w.map_id).await;
     assert_eq!(left.len(), 1);
-    assert_eq!(left[0].id, c);
+    assert_eq!(left[0].id(), c);
 
     assert_eq!(
         newest(&pool, w.owner, w.map_id).await.kind,

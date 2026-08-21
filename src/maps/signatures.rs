@@ -198,13 +198,12 @@ pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> R
         map_id: cmd.map_id,
         signature_pk: sig.id,
     });
-    let ghosts = super::ghost::ghost_unmapped_holes(tx, cmd.map_id, cmd.solar_system_id).await?;
     Ok(Effect::new(
         "signatures.added",
         format!("added signature {}", sig.signature_id),
         CommandOutput::Signature(Box::new(sig)),
     )
-    .undo_with(undo_with_ghosts(cmd.map_id, ghosts, inverse)))
+    .undo_with(inverse))
 }
 
 /// A partial edit of a signature. `None` leaves a field unchanged; `Some(None)` clears it.
@@ -352,18 +351,12 @@ pub(super) async fn apply_update_signature(
         mass_status: Some(current.mass_status),
         time_status: Some(current.time_status),
     });
-    // Calling a signature a wormhole is saying the hole is there, so the map draws it.
-    let ghosts = if is_wormhole(group) {
-        super::ghost::ghost_unmapped_holes(tx, cmd.map_id, sig.solar_system_id).await?
-    } else {
-        Vec::new()
-    };
     Ok(Effect::new(
         "signatures.updated",
         format!("edited signature {}", sig.signature_id),
         CommandOutput::Signature(Box::new(sig)),
     )
-    .undo_with(undo_with_ghosts(cmd.map_id, ghosts, inverse)))
+    .undo_with(inverse))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -402,6 +395,11 @@ pub(super) async fn apply_remove_signature(
     cmd: RemoveSignature,
 ) -> Result<Effect> {
     let restore = capture_signatures(tx, cmd.map_id, &[cmd.signature_pk]).await?;
+    // The node this scan raised goes with it, by the foreign key. Snapshotted first, so
+    // one undo brings the scan and what it drew back together.
+    let raised = super::ghost::raised_by(tx, cmd.map_id, &[cmd.signature_pk]).await?;
+    let raised_snapshot = capture_raised(tx, cmd.map_id, &raised).await?;
+
     let sig = sqlx::query!(
         "delete from signatures where id = $1 and map_id = $2
          returning solar_system_id, connection_id",
@@ -413,17 +411,12 @@ pub(super) async fn apply_remove_signature(
     .ok_or(MapError::NotFound)?;
 
     let mut removed_connection_id = None;
-    let mut removed_placement_ids = Vec::new();
-    if let Some(conn_id) = sig.connection_id {
-        // Asked before the delete, while the edge is still there to be counted.
-        let stranded = super::ghost::stranded_ghosts(tx, cmd.map_id, &[], &[conn_id]).await?;
-        if delete_connection_if_side_empty(tx, cmd.map_id, conn_id, sig.solar_system_id)
+    if let Some(conn_id) = sig.connection_id
+        && delete_connection_if_side_empty(tx, cmd.map_id, conn_id, sig.solar_system_id)
             .await?
             .is_some()
-        {
-            removed_connection_id = Some(conn_id);
-            removed_placement_ids = drop_placements(tx, cmd.map_id, &stranded).await?;
-        }
+    {
+        removed_connection_id = Some(conn_id);
     }
 
     Ok(Effect::new(
@@ -432,10 +425,42 @@ pub(super) async fn apply_remove_signature(
         CommandOutput::Removal(Box::new(RemovedSignature {
             solar_system_id: sig.solar_system_id,
             removed_connection_id,
-            removed_placement_ids,
+            removed_placement_ids: raised,
         })),
     )
-    .undo_with(MapCommand::RestoreSignatures(restore)))
+    .undo_with(undo_with_raised(
+        cmd.map_id,
+        raised_snapshot,
+        MapCommand::RestoreSignatures(restore),
+    )))
+}
+
+async fn capture_raised(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    raised: &[i64],
+) -> Result<Option<super::solar_system::RestoreSystems>> {
+    if raised.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(
+        super::solar_system::capture_systems(tx, map_id, raised).await?,
+    ))
+}
+
+/// Undo of a delete that took nodes with it. The nodes go back first: their snapshot
+/// carries the edge, and the scan cannot name an edge that is not there yet. It carries
+/// the scan too, so the second step is usually the one that finds nothing left to do.
+fn undo_with_raised(
+    map_id: i64,
+    raised: Option<super::solar_system::RestoreSystems>,
+    inverse: MapCommand,
+) -> MapCommand {
+    let Some(raised) = raised else { return inverse };
+    MapCommand::Sequence(super::command::Sequence {
+        map_id,
+        steps: vec![MapCommand::RestoreSystems(raised), inverse],
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -474,6 +499,8 @@ pub(super) async fn apply_remove_signatures(
     cmd: RemoveSignatures,
 ) -> Result<Effect> {
     let restore = capture_signatures(tx, cmd.map_id, &cmd.signature_pks).await?;
+    let raised = super::ghost::raised_by(tx, cmd.map_id, &cmd.signature_pks).await?;
+    let raised_snapshot = capture_raised(tx, cmd.map_id, &raised).await?;
     let removed = sqlx::query!(
         "delete from signatures where map_id = $1 and id = any($2)
          returning solar_system_id, connection_id",
@@ -510,7 +537,7 @@ pub(super) async fn apply_remove_signatures(
 
     // Orphan cleanup: endpoints of the deleted connections that are unpinned, unmarked,
     // and now connection-less disappear from the map.
-    let mut removed_placement_ids = Vec::new();
+    let mut removed_placement_ids = raised;
     for placement_id in endpoint_candidates {
         let deleted = sqlx::query!(
             "delete from map_solar_systems mss
@@ -542,20 +569,11 @@ pub(super) async fn apply_remove_signatures(
         })),
     )
     .entries(count)
-    .undo_with(MapCommand::RestoreSignatures(restore)))
-}
-
-async fn drop_placements(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<Vec<i64>> {
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    Ok(sqlx::query_scalar!(
-        "delete from map_solar_systems where map_id = $1 and id = any($2) returning id",
-        map_id,
-        ids,
-    )
-    .fetch_all(&mut **tx)
-    .await?)
+    .undo_with(undo_with_raised(
+        cmd.map_id,
+        raised_snapshot,
+        MapCommand::RestoreSignatures(restore),
+    )))
 }
 
 /// Delete `conn_id` if no signature in `side_system` still references it (the legacy
@@ -860,8 +878,6 @@ pub(super) async fn apply_paste_signatures(
         .await?;
     }
 
-    let ghosts = super::ghost::ghost_unmapped_holes(tx, cmd.map_id, cmd.solar_system_id).await?;
-
     let count = cmd.signatures.len() as i64;
     Ok(Effect::new(
         "signatures.pasted",
@@ -869,30 +885,7 @@ pub(super) async fn apply_paste_signatures(
         CommandOutput::None,
     )
     .entries(count)
-    .undo_with(undo_with_ghosts(
-        cmd.map_id,
-        ghosts,
-        MapCommand::RestoreSignatures(restore),
-    )))
-}
-
-/// Undo for a write that also raised ghosts: drop the nodes first, so clearing the
-/// signature's link does not fight the connection's own delete.
-fn undo_with_ghosts(map_id: i64, ghosts: Vec<i64>, inverse: MapCommand) -> MapCommand {
-    if ghosts.is_empty() {
-        return inverse;
-    }
-    MapCommand::Sequence(super::command::Sequence {
-        map_id,
-        steps: vec![
-            MapCommand::RemoveRestored(super::solar_system::RemoveRestored {
-                map_id,
-                system_ids: ghosts,
-                connection_ids: Vec::new(),
-            }),
-            inverse,
-        ],
-    })
+    .undo_with(MapCommand::RestoreSignatures(restore)))
 }
 
 /// A catalog type's category id, or `None` for an unknown type id.

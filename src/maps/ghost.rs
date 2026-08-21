@@ -67,15 +67,15 @@ fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
     }
 }
 
-/// Raise a ghost for every wormhole scanned in this system that is not on the map yet,
-/// when the map is set up for it. Returns the placements raised, for the caller's undo.
-/// Runs inside the signature write that made the hole known, so the nodes and the scan land
-/// in one transaction and one history entry.
-pub(super) async fn ghost_unmapped_holes(
-    tx: &mut Tx<'_>,
-    map_id: i64,
-    solar_system_id: i64,
-) -> Result<Vec<i64>> {
+/// Bring the map's ghosts back in line with its scans. A ghost is owed to every wormhole
+/// signature that has nowhere to lead yet, and owed to nothing else: not to a signature
+/// that has been deleted, retyped or unlinked, not to one whose far side has since been
+/// removed, and not at all on a map that has asked for no ghosts.
+///
+/// Running this after every command is what makes that hold however the map was changed,
+/// rather than only on the handful of writes that remember to. Returns the undo steps for
+/// what it did, in the order they should run, before the command's own inverse.
+pub(super) async fn reconcile(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<MapCommand>> {
     let wanted = sqlx::query_scalar!(
         "select ghost_unlinked_wormholes from maps where id = $1",
         map_id,
@@ -83,29 +83,98 @@ pub(super) async fn ghost_unmapped_holes(
     .fetch_optional(&mut **tx)
     .await?
     .unwrap_or(false);
-    if !wanted {
-        return Ok(Vec::new());
+
+    let mut undo = Vec::new();
+    let unclaimed = unclaimed_ghosts(tx, map_id, wanted).await?;
+    if !unclaimed.is_empty() {
+        undo.extend(drop_ghosts(tx, map_id, &unclaimed).await?);
     }
+    if wanted {
+        let raised = raise_unmapped_holes(tx, map_id).await?;
+        if !raised.is_empty() {
+            undo.push(MapCommand::RemoveRestored(
+                super::solar_system::RemoveRestored {
+                    map_id,
+                    system_ids: raised,
+                    connection_ids: Vec::new(),
+                },
+            ));
+        }
+    }
+    undo.reverse();
+    Ok(undo)
+}
 
-    let from = sqlx::query!(
-        "select id, position_x, position_y from map_solar_systems
-         where map_id = $1 and solar_system_id = $2",
+/// The ghosts the map no longer owes: those whose scan has stopped being an unmapped
+/// wormhole, whether it was retyped, linked to a real system or unlinked from this node,
+/// and, on a map that wants none, all of them. A scan that has been deleted outright, or a
+/// system that has been taken off the map, are the database's business rather than ours:
+/// both cascade. Home, pinned and rally nodes are deliberate markers and survive here as
+/// they do everywhere else.
+async fn unclaimed_ghosts(tx: &mut Tx<'_>, map_id: i64, wanted: bool) -> Result<Vec<i64>> {
+    Ok(sqlx::query_scalar!(
+        r#"select g.id as "id!" from map_solar_systems g
+           join signatures s on s.id = g.raised_by_signature_id
+           where g.map_id = $1
+             and g.solar_system_id is null
+             and not g.is_home and not g.is_pinned and not g.is_rally
+             and (not $2
+                  or s."group" <> 'wormhole'
+                  or not exists (
+                      select 1 from map_connections c
+                      where c.id = s.connection_id
+                        and (c.from_system = g.id or c.to_system = g.id)
+                  ))"#,
         map_id,
-        solar_system_id,
+        wanted,
     )
-    .fetch_optional(&mut **tx)
-    .await?;
-    let Some(from) = from else {
-        return Ok(Vec::new());
-    };
+    .fetch_all(&mut **tx)
+    .await?)
+}
 
-    let holes = sqlx::query!(
-        r#"select id, size as "size: WormholeSize" from signatures
-           where map_id = $1 and solar_system_id = $2
-             and "group" = 'wormhole' and connection_id is null
-           order by signature_id"#,
+/// Take ghosts off the map. The snapshot is taken first so the undo puts back the node and
+/// its edge; the scan on the far side is not ours to delete, so its link is put back by
+/// hand rather than by the snapshot, which would decline to overwrite a row still there.
+async fn drop_ghosts(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<Vec<MapCommand>> {
+    let snapshot = super::solar_system::capture_systems(tx, map_id, ids).await?;
+    let relink: Vec<MapCommand> = snapshot
+        .signatures
+        .iter()
+        .filter_map(|s| {
+            Some(MapCommand::LinkSignature(
+                super::signatures::LinkSignature {
+                    map_id,
+                    signature_pk: s.id,
+                    connection_id: s.connection_id?,
+                },
+            ))
+        })
+        .collect();
+
+    sqlx::query!(
+        "delete from map_solar_systems where map_id = $1 and id = any($2)",
         map_id,
-        solar_system_id,
+        ids,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    let mut undo = vec![MapCommand::RestoreSystems(snapshot)];
+    undo.extend(relink);
+    Ok(undo)
+}
+
+/// Raise a ghost for every wormhole scanned on this map that has nowhere to lead yet.
+async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<i64>> {
+    let holes = sqlx::query!(
+        r#"select s.id, s.size as "size: WormholeSize",
+                  p.id as "from_id!", p.position_x as "from_x!", p.position_y as "from_y!"
+           from signatures s
+           join map_solar_systems p
+             on p.map_id = s.map_id and p.solar_system_id = s.solar_system_id
+           where s.map_id = $1 and s."group" = 'wormhole' and s.connection_id is null
+           order by p.id, s.signature_id"#,
+        map_id,
     )
     .fetch_all(&mut **tx)
     .await?;
@@ -125,13 +194,13 @@ pub(super) async fn ghost_unmapped_holes(
 
     let mut raised = Vec::new();
     for hole in holes {
-        let (x, y) = free_position(&placed, (from.position_x, from.position_y));
+        let (x, y) = free_position(&placed, (hole.from_x, hole.from_y));
         placed.push((x, y));
         let effect = apply_add_ghost_system(
             tx,
             AddGhostSystem {
                 map_id,
-                from_system: from.id,
+                from_system: hole.from_id,
                 signature_pk: Some(hole.id),
                 x,
                 y,
@@ -140,8 +209,7 @@ pub(super) async fn ghost_unmapped_holes(
             },
         )
         .await?;
-        let ghost = effect.output.system()?;
-        raised.push(ghost.id);
+        raised.push(effect.output.system()?.id);
     }
     Ok(raised)
 }
@@ -212,15 +280,26 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
         None => None,
     };
 
+    // A ghost has to name the scan that raised it and the system it hangs off, which is
+    // what makes it go when either of them does.
+    let Some(signature_pk) = cmd.signature_pk else {
+        return Err(MapError::Validation(
+            "an unmapped hole has to name the signature it was scanned as".into(),
+        ));
+    };
     let ghost = sqlx::query_as!(
         MapSolarSystem,
-        "insert into map_solar_systems (map_id, solar_system_id, position_x, position_y, alias)
-         values ($1, null, $2, $3, $4)
+        "insert into map_solar_systems
+             (map_id, solar_system_id, position_x, position_y, alias,
+              raised_by_signature_id, hangs_off_id)
+         values ($1, null, $2, $3, $4, $5, $6)
          returning id, map_id, solar_system_id, position_x, position_y, alias, created_at",
         cmd.map_id,
         cmd.x,
         cmd.y,
         cmd.alias.as_deref(),
+        signature_pk,
+        cmd.from_system,
     )
     .fetch_one(&mut **tx)
     .await?;
@@ -238,9 +317,7 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
     .await?;
     let connection = effect.output.connection()?;
 
-    if let Some(pk) = cmd.signature_pk {
-        super::tracking::link(tx, cmd.map_id, pk, connection.id).await?;
-    }
+    super::tracking::link(tx, cmd.map_id, signature_pk, connection.id).await?;
 
     let mut steps = super::tracking::undo_signature(cmd.map_id, before.as_ref());
     steps.push(MapCommand::RemoveRestored(
@@ -288,17 +365,35 @@ pub struct ResolveGhostSystem {
     #[serde(default)]
     #[ts(optional)]
     pub time_status: Option<TimeStatus>,
+    /// Only ever set by the inverse of a resolve; see [`ResolveGhostSystem::unresolve`].
+    #[serde(default)]
+    #[ts(optional)]
+    pub raised_by_signature_id: Option<i64>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub hangs_off_id: Option<i64>,
 }
 
 impl ResolveGhostSystem {
-    /// The inverse form: take this node back to being a ghost.
-    fn unresolve(map_id: i64, map_solar_system_id: i64) -> Self {
+    /// The inverse form: take this node back to being the hole it was drawn as. The scan
+    /// and the system it hung off travel with it, because a ghost is not allowed to exist
+    /// without naming them, and by then they are no longer on the row to be read off.
+    fn unresolve(map_id: i64, map_solar_system_id: i64, was: Raised) -> Self {
         ResolveGhostSystem {
             map_id,
             map_solar_system_id,
+            raised_by_signature_id: Some(was.signature_pk),
+            hangs_off_id: Some(was.from_system),
             ..Default::default()
         }
     }
+}
+
+/// What a node was raised as, kept so a resolve can be undone.
+#[derive(Debug, Clone, Copy)]
+struct Raised {
+    signature_pk: i64,
+    from_system: i64,
 }
 
 /// Assign a system to a ghost, merging into the existing placement if the map already has
@@ -318,7 +413,8 @@ pub(super) async fn apply_resolve_ghost_system(
     cmd: ResolveGhostSystem,
 ) -> Result<Effect> {
     let placement = sqlx::query!(
-        "select solar_system_id, position_x, position_y, alias
+        "select solar_system_id, position_x, position_y, alias,
+                raised_by_signature_id, hangs_off_id
          from map_solar_systems where id = $1 and map_id = $2",
         cmd.map_solar_system_id,
         cmd.map_id,
@@ -328,13 +424,7 @@ pub(super) async fn apply_resolve_ghost_system(
     .ok_or(MapError::NotFound)?;
 
     let Some(solar_system_id) = cmd.solar_system_id else {
-        return unresolve(
-            tx,
-            cmd.map_id,
-            cmd.map_solar_system_id,
-            placement.solar_system_id,
-        )
-        .await;
+        return unresolve(tx, &cmd, placement.solar_system_id).await;
     };
 
     if placement.solar_system_id.is_some() {
@@ -404,9 +494,15 @@ pub(super) async fn apply_resolve_ghost_system(
     let effect = match existing {
         Some(target) => merge(tx, cmd.map_id, cmd.map_solar_system_id, target, &name).await,
         None => {
+            let was = Raised {
+                signature_pk: placement.raised_by_signature_id.ok_or(MapError::NotFound)?,
+                from_system: placement.hangs_off_id.ok_or(MapError::NotFound)?,
+            };
             let placed = sqlx::query_as!(
                 MapSolarSystem,
-                "update map_solar_systems set solar_system_id = $1 where id = $2 and map_id = $3
+                "update map_solar_systems
+                 set solar_system_id = $1, raised_by_signature_id = null, hangs_off_id = null
+                 where id = $2 and map_id = $3
                  returning id, map_id, solar_system_id, position_x, position_y, alias, created_at",
                 solar_system_id,
                 cmd.map_solar_system_id,
@@ -421,7 +517,7 @@ pub(super) async fn apply_resolve_ghost_system(
                 CommandOutput::System(Box::new(placed)),
             )
             .undo_with(MapCommand::ResolveGhostSystem(
-                ResolveGhostSystem::unresolve(cmd.map_id, cmd.map_solar_system_id),
+                ResolveGhostSystem::unresolve(cmd.map_id, cmd.map_solar_system_id, was),
             )))
         }
     }?;
@@ -431,7 +527,11 @@ pub(super) async fn apply_resolve_ghost_system(
 
 /// Put the alias and status back before the node itself goes, so one jump is one undo.
 /// A change that was not undoable in the first place stays that way.
-fn with_undo_steps(map_id: i64, mut steps: Vec<MapCommand>, mut effect: Effect) -> Effect {
+pub(super) fn with_undo_steps(
+    map_id: i64,
+    mut steps: Vec<MapCommand>,
+    mut effect: Effect,
+) -> Effect {
     if steps.is_empty() {
         return effect;
     }
@@ -442,20 +542,27 @@ fn with_undo_steps(map_id: i64, mut steps: Vec<MapCommand>, mut effect: Effect) 
     effect.undo_with(MapCommand::Sequence(Sequence { map_id, steps }))
 }
 
-/// Back to a ghost. Refuses once the system holds a scan, because those rows hang off the
-/// system id and would be cascaded away by clearing it.
+/// Back to a ghost. Only the inverse of a resolve gets here, because only it knows which
+/// scan the node was drawn for; a hole with no signature behind it is not a thing the map
+/// can hold. Refuses once the system holds a scan of its own, because those rows hang off
+/// the system id and would be cascaded away by clearing it.
 async fn unresolve(
     tx: &mut Tx<'_>,
-    map_id: i64,
-    map_solar_system_id: i64,
+    cmd: &ResolveGhostSystem,
     current: Option<i64>,
 ) -> Result<Effect> {
     let Some(current) = current else {
         return Err(MapError::Validation("that node is already a ghost".into()));
     };
+    let (Some(signature_pk), Some(from_system)) = (cmd.raised_by_signature_id, cmd.hangs_off_id)
+    else {
+        return Err(MapError::Validation(
+            "that node was not drawn for a scan, so it cannot go back to being one".into(),
+        ));
+    };
     let signatures = sqlx::query_scalar!(
         "select count(*) from signatures where map_id = $1 and solar_system_id = $2",
-        map_id,
+        cmd.map_id,
         current,
     )
     .fetch_one(&mut **tx)
@@ -470,11 +577,14 @@ async fn unresolve(
     let placed = sqlx::query_as!(
         MapSolarSystem,
         "update map_solar_systems
-         set solar_system_id = null, is_home = false, is_rally = false
+         set solar_system_id = null, is_home = false, is_rally = false,
+             raised_by_signature_id = $3, hangs_off_id = $4
          where id = $1 and map_id = $2
          returning id, map_id, solar_system_id, position_x, position_y, alias, created_at",
-        map_solar_system_id,
-        map_id,
+        cmd.map_solar_system_id,
+        cmd.map_id,
+        signature_pk,
+        from_system,
     )
     .fetch_one(&mut **tx)
     .await?;
@@ -485,8 +595,10 @@ async fn unresolve(
         CommandOutput::System(Box::new(placed)),
     )
     .undo_with(MapCommand::ResolveGhostSystem(ResolveGhostSystem {
+        map_id: cmd.map_id,
+        map_solar_system_id: cmd.map_solar_system_id,
         solar_system_id: Some(current),
-        ..ResolveGhostSystem::unresolve(map_id, map_solar_system_id)
+        ..Default::default()
     })))
 }
 
@@ -536,8 +648,10 @@ async fn merge(
     .await?;
 
     let ghost = sqlx::query!(
-        "delete from map_solar_systems where id = $1 and map_id = $2
-         returning position_x, position_y, alias",
+        r#"delete from map_solar_systems where id = $1 and map_id = $2
+           returning position_x, position_y, alias,
+               raised_by_signature_id as "raised_by_signature_id!",
+               hangs_off_id as "hangs_off_id!""#,
         ghost_id,
         map_id,
     )
@@ -567,6 +681,8 @@ async fn merge(
         position_x: ghost.position_x,
         position_y: ghost.position_y,
         alias: ghost.alias,
+        raised_by_signature_id: ghost.raised_by_signature_id,
+        hangs_off_id: ghost.hangs_off_id,
         from_connection_ids: from_ids,
         to_connection_ids: to_ids,
     })))
@@ -581,6 +697,8 @@ pub struct RestoreGhostSystem {
     pub position_x: f64,
     pub position_y: f64,
     pub alias: Option<String>,
+    pub raised_by_signature_id: i64,
+    pub hangs_off_id: i64,
     pub from_connection_ids: Vec<i64>,
     pub to_connection_ids: Vec<i64>,
 }
@@ -590,15 +708,19 @@ pub(super) async fn apply_restore_ghost_system(
     cmd: RestoreGhostSystem,
 ) -> Result<Effect> {
     sqlx::query!(
-        "insert into map_solar_systems (id, map_id, solar_system_id, position_x, position_y, alias)
+        "insert into map_solar_systems
+             (id, map_id, solar_system_id, position_x, position_y, alias,
+              raised_by_signature_id, hangs_off_id)
          overriding system value
-         values ($1, $2, null, $3, $4, $5)
+         values ($1, $2, null, $3, $4, $5, $6, $7)
          on conflict (id) do nothing",
         cmd.id,
         cmd.map_id,
         cmd.position_x,
         cmd.position_y,
         cmd.alias.as_deref(),
+        cmd.raised_by_signature_id,
+        cmd.hangs_off_id,
     )
     .execute(&mut **tx)
     .await?;
@@ -628,13 +750,37 @@ pub(super) async fn apply_restore_ghost_system(
     .fetch_one(&mut **tx)
     .await?;
 
-    let inverse = MapCommand::ResolveGhostSystem(ResolveGhostSystem::unresolve(cmd.map_id, cmd.id));
+    let inverse = MapCommand::ResolveGhostSystem(ResolveGhostSystem::unresolve(
+        cmd.map_id,
+        cmd.id,
+        Raised {
+            signature_pk: cmd.raised_by_signature_id,
+            from_system: cmd.hangs_off_id,
+        },
+    ));
     Ok(Effect::new(
         "systems.added",
         "put the unscanned hole back",
         CommandOutput::System(Box::new(ghost)),
     )
     .undo_with(inverse))
+}
+
+/// The nodes these scans raised. Deleting a scan takes them by the foreign key, so this is
+/// asked beforehand, while they are still there to be named.
+pub(super) async fn raised_by(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    signature_pks: &[i64],
+) -> Result<Vec<i64>> {
+    Ok(sqlx::query_scalar!(
+        "select id from map_solar_systems
+         where map_id = $1 and raised_by_signature_id = any($2)",
+        map_id,
+        signature_pks,
+    )
+    .fetch_all(&mut **tx)
+    .await?)
 }
 
 /// The ghosts that removing these placements or connections would strand. A ghost with no

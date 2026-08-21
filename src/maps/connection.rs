@@ -77,6 +77,25 @@ pub async fn add_connection(
     actor: Actor,
     cmd: AddConnection,
 ) -> Result<MapConnection> {
+    // Drawing an edge out of an unmapped hole claims the system on its far side leads
+    // somewhere, which is the one thing nobody knows yet. Checked here rather than in the
+    // apply, which raising a ghost goes through to make the hole's own edge.
+    let ghosts = sqlx::query_scalar!(
+        "select count(*) from map_solar_systems
+         where map_id = $1 and (id = $2 or id = $3) and solar_system_id is null",
+        cmd.map_id,
+        cmd.from_system,
+        cmd.to_system,
+    )
+    .fetch_one(pool)
+    .await?
+    .unwrap_or(0);
+    if ghosts > 0 {
+        return Err(MapError::Validation(
+            "nobody has been through that hole yet, so nothing can be connected to it".into(),
+        ));
+    }
+
     execute(pool, actor, MapCommand::AddConnection(cmd))
         .await?
         .connection()

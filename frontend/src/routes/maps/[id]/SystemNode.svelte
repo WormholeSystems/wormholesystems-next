@@ -82,17 +82,21 @@
 		onsavealias: (alias: string | null, occupier: string | null) => void;
 	} = $props();
 
-	const cls = $derived(classMeta(node.wormhole_class_id, node.security_status));
-	// Suppressed while active, so the amber ring is not fighting the threat ring.
-	const threatRing = $derived(
-		showThreat && !active && (node.threat_level === 'high' || node.threat_level === 'critical')
-			? node.threat_level
-			: null
-	);
-	const showStatics = $derived(isWormholeClass(node.wormhole_class_id) && node.statics.length > 0);
 	// A hole nobody has been through: drawn as a node so the chain can be laid out and named,
 	// dashed so it never reads as somewhere you can actually go.
-	const ghost = $derived(node.solar_system_id === null);
+	const mapped = $derived(node.kind === 'system' ? node : null);
+	const ghost = $derived(mapped === null);
+
+	const cls = $derived(classMeta(mapped?.wormhole_class_id ?? null, mapped?.security_status ?? null));
+	// Suppressed while active, so the amber ring is not fighting the threat ring.
+	const threatRing = $derived(
+		showThreat && !active && (mapped?.threat_level === 'high' || mapped?.threat_level === 'critical')
+			? mapped.threat_level
+			: null
+	);
+	const showStatics = $derived(
+		isWormholeClass(mapped?.wormhole_class_id ?? null) && (mapped?.statics.length ?? 0) > 0
+	);
 	const unmapped = $derived(Math.max(0, sigCounts.wormholes - connectionCount));
 	// EVE serves a faction's logo from the corporations endpoint keyed by the faction id.
 
@@ -112,7 +116,7 @@
 
 	function openEditor() {
 		editAlias = node.alias ?? '';
-		editOccupier = node.occupying_group ?? '';
+		editOccupier = mapped?.occupying_group ?? '';
 		editorOpen = true;
 	}
 
@@ -170,17 +174,17 @@
 
 		<div class="flex min-w-0 items-center gap-1">
 			<ClassBadge
-				classId={node.wormhole_class_id}
-				security={node.security_status}
+				classId={mapped?.wormhole_class_id ?? null}
+				security={mapped?.security_status ?? null}
 				class="shrink-0 font-medium"
 			/>
 			{#if node.alias}
 				<span class="shrink-0 font-medium text-foreground">{node.alias}</span>
 				<span class="truncate text-muted-foreground">
-					{node.name ?? signatureId ?? 'Unmapped'}
+					{mapped?.name ?? signatureId ?? 'Unmapped'}
 				</span>
-			{:else if node.name}
-				<span class="truncate font-medium text-foreground">{node.name}</span>
+			{:else if mapped}
+				<span class="truncate font-medium text-foreground">{mapped.name}</span>
 			{:else if signatureId}
 				<span class="truncate font-medium text-muted-foreground" data-testid="ghost-signature">
 					{signatureId}
@@ -188,8 +192,8 @@
 			{:else}
 				<span class="truncate font-medium text-muted-foreground italic">Unmapped</span>
 			{/if}
-			{#if node.occupying_group}
-				<span class="shrink-0 text-muted-foreground">({node.occupying_group})</span>
+			{#if mapped?.occupying_group}
+				<span class="shrink-0 text-muted-foreground">({mapped.occupying_group})</span>
 			{/if}
 
 			<span class="ml-auto flex shrink-0 items-center gap-1">
@@ -245,7 +249,7 @@
 						</Tooltip.Content>
 					</Tooltip.Root>
 				{/if}
-				{#if node.is_shattered}
+				{#if mapped?.is_shattered}
 					<Tooltip.Root>
 						<Tooltip.Trigger class="flex" data-testid="shattered-icon">
 							<ApertureIcon class="size-3 text-amber-500/90" />
@@ -253,17 +257,17 @@
 						<Tooltip.Content>Shattered system</Tooltip.Content>
 					</Tooltip.Root>
 				{/if}
-				{#if node.sovereignty}
-					<SovereigntyBadge sovereignty={node.sovereignty} />
-				{:else if node.effect_name}
-					<EffectBadge name={node.effect_name} wormholeClassId={node.wormhole_class_id ?? 0} />
+				{#if mapped?.sovereignty}
+					<SovereigntyBadge sovereignty={mapped.sovereignty} />
+				{:else if mapped?.effect_name}
+					<EffectBadge name={mapped.effect_name} wormholeClassId={mapped.wormhole_class_id ?? 0} />
 				{/if}
 			</span>
 		</div>
 
 		<div class="flex items-center gap-1.5 text-[10px]">
-			{#if showStatics}
-				{#each node.statics as st (st.code)}
+			{#if mapped && showStatics}
+				{#each mapped.statics as st (st.code)}
 					{@const dest = destClassMeta(st.dest_class)}
 					<Tooltip.Root delayDuration={700}>
 						<Tooltip.Trigger
@@ -279,7 +283,7 @@
 					</Tooltip.Root>
 				{/each}
 			{:else}
-				<span class="truncate text-muted-foreground">{node.region}</span>
+				<span class="truncate text-muted-foreground">{mapped?.region ?? ''}</span>
 			{/if}
 		</div>
 

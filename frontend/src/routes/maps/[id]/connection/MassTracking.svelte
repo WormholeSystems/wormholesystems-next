@@ -11,6 +11,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { solarSystemId, systemName } from '$lib/map/system';
 
 	import { api } from '$lib/api/client';
 	import type { ConnectionJump } from '$lib/api/types/ConnectionJump';
@@ -71,7 +72,7 @@
 	});
 
 	function isOutbound(jump: ConnectionJump): boolean {
-		return jump.from_solar_system_id === source.solar_system_id;
+		return jump.from_solar_system_id === solarSystemId(source);
 	}
 
 	let now = $state(Date.now());
@@ -106,7 +107,7 @@
 	let massKt = $state('');
 
 	function systemLabel(s: MapSystemView): string {
-		return s.alias ?? s.name ?? 'Unmapped';
+		return s.alias ?? systemName(s) ?? 'Unmapped';
 	}
 	const directionLabel = $derived(
 		direction === 'outbound'

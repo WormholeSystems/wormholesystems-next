@@ -38,6 +38,7 @@ import { toast } from 'svelte-sonner';
 import { MAP_ACTIONS, type MapAction } from './actions';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import { timeAgo } from '$lib/format';
+import { solarSystemId } from '$lib/map/system';
 
 /** Half size is where node text stops being readable, double where a chain stops fitting. */
 const ZOOM_MIN = 0.5;
@@ -201,7 +202,7 @@ export class MapState {
 	 *  else the tracked character's location. */
 	routeOrigin = $derived(
 		this.routeFromId ??
-			this.activeSystem?.solar_system_id ??
+			(this.activeSystem ? solarSystemId(this.activeSystem) : null) ??
 			this.myCharacters.find((c) => c.is_active && c.online)?.solar_system_id ??
 			this.myCharacters.find((c) => c.online && c.solar_system_id !== null)?.solar_system_id ??
 			null
@@ -224,7 +225,7 @@ export class MapState {
 		// could take you.
 		const placementSystem = new Map<number, number>();
 		for (const s of this.systems) {
-			if (s.solar_system_id !== null) placementSystem.set(s.id, s.solar_system_id);
+			if (s.kind === 'system') placementSystem.set(s.id, s.solar_system_id);
 		}
 		const edges: DynamicEdge[] = [];
 		for (const c of this.connections) {
@@ -300,7 +301,7 @@ export class MapState {
 		this.routePath.forEach((id, i) => index.set(id, i));
 		const placementSystem = new Map<number, number>();
 		for (const s of this.systems) {
-			if (s.solar_system_id !== null) placementSystem.set(s.id, s.solar_system_id);
+			if (s.kind === 'system') placementSystem.set(s.id, s.solar_system_id);
 		}
 		for (const c of this.connections) {
 			const a = index.get(placementSystem.get(c.from_system) ?? -1);
@@ -348,9 +349,7 @@ export class MapState {
 	 */
 	ghostSignatures = $derived.by(() => {
 		const out = new Map<number, string>();
-		const ghosts = new Set(
-			this.systems.filter((s) => s.solar_system_id === null).map((s) => s.id)
-		);
+		const ghosts = new Set(this.systems.filter((s) => s.kind === 'ghost').map((s) => s.id));
 		if (ghosts.size === 0) return out;
 		const byConnection = new Map(
 			this.sigs.filter((s) => s.connection_id !== null).map((s) => [s.connection_id!, s])
@@ -456,30 +455,28 @@ export class MapState {
 	 * A system in the shape every picker and the context menu expect, whether or not it is
 	 * on the map. Returns null until [`ensureResolved`] has fetched an off-map one.
 	 */
-	systemInfo(solarSystemId: number): SystemSearchResult | null {
-		const placed = this.systems.find(
-			(s) => s.solar_system_id === solarSystemId && s.name !== null
-		);
-		if (placed) {
+	systemInfo(id: number): SystemSearchResult | null {
+		const placed = this.systems.find((s) => solarSystemId(s) === id);
+		if (placed?.kind === 'system') {
 			return {
-				id: solarSystemId,
-				name: placed.name ?? '',
-				security: placed.security_status ?? 0,
-				region: placed.region ?? '',
-				region_id: placed.region_id ?? 0,
-				constellation_id: placed.constellation_id ?? 0,
+				id,
+				name: placed.name,
+				security: placed.security_status,
+				region: placed.region,
+				region_id: placed.region_id,
+				constellation_id: placed.constellation_id,
 				wormhole_class_id: placed.wormhole_class_id,
 				effect_name: placed.effect_name,
 				sovereignty: placed.sovereignty,
 				statics: placed.statics
 			};
 		}
-		return this.resolvedSystems.get(solarSystemId) ?? null;
+		return this.resolvedSystems.get(id) ?? null;
 	}
 
 	/** Fetch display data for any of `ids` that is neither on the map nor already known. */
 	ensureResolved(ids: number[]) {
-		const placed = new Set(this.systems.map((s) => s.solar_system_id).filter((id) => id !== null));
+		const placed = new Set(this.systems.map(solarSystemId).filter((id) => id !== null));
 		const missing = [
 			...new Set(ids.filter((id) => !placed.has(id) && !this.resolvedSystems.has(id)))
 		];
@@ -791,7 +788,7 @@ export class MapState {
 	 * one that matters is on the side you are leaving, which is the one in your scanner.
 	 */
 	wormholeSignature(from: number, to: number): string | null {
-		const system = new Map(this.systems.map((s) => [s.id, s.solar_system_id]));
+		const system = new Map(this.systems.map((s) => [s.id, solarSystemId(s)]));
 		const conn = this.connections.find((c) => {
 			const a = system.get(c.from_system);
 			const b = system.get(c.to_system);

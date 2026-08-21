@@ -372,6 +372,10 @@ pub(super) async fn execute_as(
         require_role_tx(&mut tx, map_id, character.user_id, cmd.required_role()).await?;
     }
     let effect = cmd.apply(&mut tx, actor).await?;
+    // Whatever the command was, the ghosts it left behind or now owes are settled here, so
+    // no write has to remember on its own. Undo of a command undoes its ghosts with it.
+    let ghosts = ghost::reconcile(&mut tx, map_id).await?;
+    let effect = ghost::with_undo_steps(map_id, ghosts, effect);
     events_log::record(&mut tx, map_id, actor, &effect).await?;
     tx.commit().await?;
     Ok(effect.output)

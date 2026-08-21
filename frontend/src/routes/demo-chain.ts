@@ -1,7 +1,7 @@
 import type { AccessEntry } from '$lib/api/types/AccessEntry';
 import type { MapCharacter } from '$lib/api/types/MapCharacter';
 import type { MapConnection } from '$lib/api/types/MapConnection';
-import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import type { MappedSystem } from '$lib/map/system';
 import type { Signature } from '$lib/api/types/Signature';
 
 /**
@@ -29,9 +29,10 @@ const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString
 
 function system(
 	id: number,
-	fields: Partial<MapSystemView> & Pick<MapSystemView, 'position_x' | 'position_y'>
-): MapSystemView {
+	fields: Partial<MappedSystem> & Pick<MappedSystem, 'position_x' | 'position_y' | 'name' | 'region'>
+): MappedSystem {
 	return {
+		kind: 'system',
 		id,
 		map_id: MAP_ID,
 		solar_system_id: 30000000 + id,
@@ -41,13 +42,12 @@ function system(
 		is_pinned: false,
 		status: 'unknown',
 		occupying_group: null,
-		name: null,
-		security_status: null,
+		// What the SDE gives every wormhole; the k-space entries below say otherwise.
+		security_status: -0.99,
 		wormhole_class_id: null,
-		region: null,
-		region_id: null,
-		constellation_id: null,
-		constellation: null,
+		region_id: 10000000 + id,
+		constellation_id: 20000000 + id,
+		constellation: `${fields.region} Constellation`,
 		effect_name: null,
 		is_shattered: false,
 		threat_level: null,
@@ -57,7 +57,7 @@ function system(
 	};
 }
 
-function statik(name: string, destClass: number): MapSystemView['statics'][number] {
+function statik(name: string, destClass: number): MappedSystem['statics'][number] {
 	return {
 		code: name,
 		dest_class: destClass,
@@ -65,21 +65,24 @@ function statik(name: string, destClass: number): MapSystemView['statics'][numbe
 		total_mass: null,
 		signature_strength: null,
 		lifetime_hours: null
-	} satisfies MapSystemView['statics'][number];
+	} satisfies MappedSystem['statics'][number];
 }
 
 export const HOME = 1;
 
-export const DEMO_SYSTEMS: MapSystemView[] = [
-	system(HOME, {
-		position_x: 0,
-		position_y: 160,
-		name: 'Turnur',
-		region: 'Metropolis',
-		security_status: 0.35,
-		is_home: true,
-		status: 'friendly'
-	}),
+/** The chain's home, named so the signature demo can render it without hunting for it. */
+export const HOME_SYSTEM = system(HOME, {
+	position_x: 0,
+	position_y: 160,
+	name: 'Turnur',
+	region: 'Metropolis',
+	security_status: 0.35,
+	is_home: true,
+	status: 'friendly'
+});
+
+export const DEMO_SYSTEMS: MappedSystem[] = [
+	HOME_SYSTEM,
 	system(2, {
 		position_x: 260,
 		position_y: 40,

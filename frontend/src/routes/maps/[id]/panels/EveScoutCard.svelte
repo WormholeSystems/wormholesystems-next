@@ -6,6 +6,7 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
+	import { solarSystemId } from '$lib/map/system';
 
 	import { api } from '$lib/api/client';
 	import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
@@ -171,7 +172,7 @@
 	}
 
 	function hover(row: Row, on: boolean) {
-		const placed = map.systems.find((s) => s.solar_system_id === row.connection.solar_system_id);
+		const placed = map.systems.find((s) => solarSystemId(s) === row.connection.solar_system_id);
 		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
 		map.hoverPath = on ? (row.route?.route.map((s) => s.id) ?? null) : null;
 	}

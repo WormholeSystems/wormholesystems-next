@@ -3,6 +3,7 @@
 	// typed signature filters to connections whose far end matches the type's destination.
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import { systemName, type MappedSystem } from '$lib/map/system';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import * as Select from '$lib/components/ui/select';
@@ -19,7 +20,7 @@
 		canWrite
 	}: {
 		ctx: SignatureContext;
-		system: MapSystemView;
+		system: MappedSystem;
 		sig: Signature;
 		catalog: SignatureCatalog;
 		compact: boolean;
@@ -38,14 +39,19 @@
 			.filter((c) => c.from_system === system.id || c.to_system === system.id)
 			.map((c) => ({ conn: c, target: target(c) }))
 			.filter((e) => e.target !== null)
-			.filter((e) => targetClass === null || e.target?.wormhole_class_id === targetClass)
+			.filter(
+				(e) =>
+					targetClass === null ||
+					(e.target?.kind === 'system' && e.target.wormhole_class_id === targetClass)
+			)
 			.toSorted((a, b) => {
 				const aa = a.target?.alias ?? null;
 				const bb = b.target?.alias ?? null;
 				if (aa !== null && bb !== null) return aa.localeCompare(bb);
 				if (aa !== null) return -1;
 				if (bb !== null) return 1;
-				return (a.target?.name ?? '').localeCompare(b.target?.name ?? '');
+				const an = a.target ? (systemName(a.target) ?? '') : '';
+				return an.localeCompare(b.target ? (systemName(b.target) ?? '') : '');
 			});
 	});
 
@@ -85,17 +91,20 @@
 {#snippet connLabel(entry: { conn: MapConnection; target: MapSystemView | null })}
 	{@const t = entry.target}
 	{#if t}
+		{@const mapped = t.kind === 'system' ? t : null}
 		<span class="inline-flex min-w-0 items-center gap-1">
 			<ClassBadge
-				classId={t.wormhole_class_id}
-				security={t.security_status}
+				classId={mapped?.wormhole_class_id ?? null}
+				security={mapped?.security_status ?? null}
 				class="w-5 shrink-0 text-center"
 			/>
 			{#if t.alias}
 				<span class="shrink-0 font-medium">{t.alias}</span>
 			{/if}
-			<span class="truncate {t.alias ? 'text-muted-foreground' : ''}">{t.name}</span>
-			<span class="shrink-0 text-muted-foreground/60">{t.region}</span>
+			<span class="truncate {t.alias ? 'text-muted-foreground' : ''}">
+				{mapped?.name ?? 'Unmapped'}
+			</span>
+			<span class="shrink-0 text-muted-foreground/60">{mapped?.region ?? ''}</span>
 		</span>
 	{/if}
 {/snippet}
@@ -127,7 +136,7 @@
 					<Select.Item
 						value={String(entry.conn.id)}
 						class="text-xs"
-						label={entry.target?.name ?? String(entry.conn.id)}
+						label={(entry.target && systemName(entry.target)) ?? String(entry.conn.id)}
 					>
 						{@render connLabel(entry)}
 					</Select.Item>
@@ -142,7 +151,7 @@
 					<Select.Item
 						value={String(entry.conn.id)}
 						class="text-xs"
-						label={entry.target?.name ?? String(entry.conn.id)}
+						label={(entry.target && systemName(entry.target)) ?? String(entry.conn.id)}
 					>
 						{@render connLabel(entry)}
 					</Select.Item>

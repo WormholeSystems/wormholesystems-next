@@ -7,7 +7,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { formatBookmark } from '$lib/bookmark';
-	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import type { MappedSystem } from '$lib/map/system';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
@@ -35,7 +35,7 @@
 		status
 	}: {
 		ctx: SignatureContext;
-		system: MapSystemView;
+		system: MappedSystem;
 		sig: Signature;
 		catalog: SignatureCatalog;
 		compact: boolean;
@@ -59,6 +59,8 @@
 			connection.from_system === system.id ? connection.to_system : connection.from_system;
 		return ctx.systems.find((s) => s.id === otherPid) ?? null;
 	});
+	/** The far end once it is a system: a hole nobody has been through has none of this. */
+	const linkedSystem = $derived(linkedTarget?.kind === 'system' ? linkedTarget : null);
 
 	// Inline ID editing: alphanumerics only, uppercased, dash after 3 characters.
 	let editingId = $state(false);
@@ -102,10 +104,10 @@
 	// standing. Until the hole is mapped, the signature type's promised class is all we know.
 	function copyBookmark() {
 		const type = typeById(catalog, sig.signature_type_id);
-		const far = linkedTarget;
+		const far = linkedSystem;
 		const text = formatBookmark(
 			{
-				alias: far?.alias ?? null,
+				alias: linkedTarget?.alias ?? null,
 				// Blank rather than borrowing this system's: the far side is genuinely unknown.
 				name: far?.name ?? '',
 				region: far?.region ?? null,
@@ -235,7 +237,7 @@
 			{compact}
 			{canWrite}
 			{showStaticsFirst}
-			linkedClass={linkedTarget?.wormhole_class_id ?? null}
+			linkedClass={linkedSystem?.wormhole_class_id ?? null}
 			onpick={(typeId) => update({ signature_type_id: typeId })}
 		/>
 	</div>

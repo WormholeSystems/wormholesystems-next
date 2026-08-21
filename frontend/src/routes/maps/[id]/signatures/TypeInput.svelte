@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Catalog types of the row's category that can spawn in this system, narrowed to the
 	// linked target's class once linked. An unmatched raw scanner name shows muted.
-	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import type { MappedSystem } from '$lib/map/system';
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 	import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
@@ -19,7 +19,7 @@
 		linkedClass,
 		onpick
 	}: {
-		system: MapSystemView;
+		system: MappedSystem;
 		sig: Signature;
 		catalog: SignatureCatalog;
 		compact: boolean;

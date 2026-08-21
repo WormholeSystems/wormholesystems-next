@@ -2,6 +2,7 @@
 // client and never stored, so manual placement finds its own untouched.
 
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import { systemName } from '$lib/map/system';
 
 export interface TreeEdge {
 	from: number;
@@ -341,6 +342,6 @@ export function compareForTree(systems: Map<number, MapSystemView>) {
 		if (!left.alias && right.alias) return 1;
 		const byAlias = (left.alias ?? '').localeCompare(right.alias ?? '');
 		if (byAlias !== 0) return byAlias;
-		return (left.name ?? '').localeCompare(right.name ?? '') || a - b;
+		return (systemName(left) ?? '').localeCompare(systemName(right) ?? '') || a - b;
 	};
 }

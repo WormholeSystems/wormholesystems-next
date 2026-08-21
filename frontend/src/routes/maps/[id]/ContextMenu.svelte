@@ -302,14 +302,14 @@
 		{/if}
 	{:else if menu.target.kind === 'node'}
 		{@const s = menu.target.system}
-		{#if s.solar_system_id === null}
+		{#if s.kind === 'ghost'}
 			<button class={item} onclick={() => assignSystem(s.id)}>
 				<SearchIcon class="size-4" />
 				Assign a system
 			</button>
 			<div class="my-0.5 border-t border-border"></div>
 		{/if}
-		{#if s.solar_system_id !== null}
+		{#if s.kind === 'system'}
 			<button class={item} onclick={() => togglePin(s.id, !s.is_pinned)}>
 				<PinIcon class="size-4" />
 				{s.is_pinned ? 'Unpin' : 'Pin'}
@@ -320,7 +320,7 @@
 			</button>
 		{/if}
 
-		{#if s.solar_system_id !== null && s.name !== null}
+		{#if s.kind === 'system'}
 		<div class={sub} data-testid="status-subtrigger">
 			<MapIcon class="size-4" />
 			Status
@@ -358,7 +358,7 @@
 				</a>
 				<a
 					class={item}
-					href="https://evemaps.dotlan.net/map/{underscore(s.region ?? '')}/{underscore(s.name)}"
+					href="https://evemaps.dotlan.net/map/{underscore(s.region)}/{underscore(s.name)}"
 					target="_blank"
 					rel="noopener"
 				>

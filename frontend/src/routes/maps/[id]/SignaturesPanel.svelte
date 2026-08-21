@@ -31,6 +31,7 @@
 	import SignatureColumns, { type SortColumn } from '$lib/components/map-ui/SignatureColumns.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
 	import { atLeast } from '$lib/map/roles';
+	import { solarSystemId, systemName } from '$lib/map/system';
 
 	let { map, system }: {
 		map: MapState;
@@ -73,9 +74,14 @@
 
 	// A ghost has no system to scan against, so the panel says so instead of offering a
 	// paste box that the server would refuse.
-	const systemId = $derived(system.solar_system_id);
+	const systemId = $derived(solarSystemId(system));
 	const canWrite = $derived(atLeast(map.data?.role, 'member') && systemId !== null);
 	const compact = $derived(map.userSettings?.compact_signature_list ?? false);
+	const targetLabel = $derived.by(() => {
+		const name = systemName(system);
+		if (system.alias && name) return `${system.alias} (${name})`;
+		return name ?? system.alias ?? 'this system';
+	});
 	const showStaticsFirst = $derived(map.userSettings?.show_statics_first ?? false);
 
 	// The HIDDEN set is what persists, so a new category defaults to visible.
@@ -106,7 +112,7 @@
 				: { column, direction: 'asc' };
 	}
 
-	const mySigs = $derived(map.sigs.filter((s) => s.solar_system_id === system.solar_system_id));
+	const mySigs = $derived(map.sigs.filter((s) => s.solar_system_id === systemId));
 	const filtered = $derived(mySigs.filter((s) => !hidden.includes(s.group)));
 	const hiddenCount = $derived(mySigs.length - filtered.length);
 
@@ -190,10 +196,7 @@
 			return;
 		}
 		const active = map.myCharacters.find((c) => c.is_active);
-		if (
-			active?.solar_system_id != null &&
-			active.solar_system_id !== system.solar_system_id
-		) {
+		if (active?.solar_system_id != null && active.solar_system_id !== systemId) {
 			pending = rows;
 			api
 				.resolveSystems([active.solar_system_id])
@@ -390,7 +393,7 @@
 		{/snippet}
 	</MapPanelHeader>
 	<MapPanelContent>
-		{#if systemId === null}
+		{#if system.kind === 'ghost'}
 			<div class="flex flex-col items-center justify-center gap-2 p-4 text-center">
 				<p class="max-w-56 text-[11px] text-muted-foreground">
 					An unmapped hole has nothing to scan yet. Assign a system to it and its signatures
@@ -459,9 +462,7 @@
 
 <MismatchDialog
 	bind:open={mismatchOpen}
-	targetLabel={system.alias && system.name
-		? `${system.alias} (${system.name})`
-		: (system.name ?? system.alias ?? 'this system')}
+	{targetLabel}
 	characterSystem={mismatchSystem}
 	onconfirm={() => {
 		if (pending !== null) commitPaste(pending);

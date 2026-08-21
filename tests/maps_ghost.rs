@@ -3,23 +3,24 @@
 
 mod common;
 
-use common::{SYS_A, SYS_B, SYS_C, member_with_role, world};
+use common::{SYS_A, SYS_B, SYS_C, world};
 use sqlx::PgPool;
 use wormholesystems::maps::connection::{RemoveConnection, remove_connection};
 use wormholesystems::maps::events_log::{MapIdBody, undo};
-use wormholesystems::maps::ghost::{
-    AddGhostSystem, ResolveGhostSystem, add_ghost_system, resolve_ghost_system,
-};
+use wormholesystems::maps::ghost::{ResolveGhostSystem, resolve_ghost_system};
 use wormholesystems::maps::map::{GetMap, get_map};
+use wormholesystems::maps::map::{UpdateMap, update_map};
 use wormholesystems::maps::signatures::{
-    AddSignature, PasteSignatures, PastedSignature, RemoveSignature, UpdateSignature,
-    add_signature, list_signatures, paste_signatures, remove_signature, update_signature,
+    AddSignature, PasteSignatures, PastedSignature, RemoveSignature, UnlinkSignature,
+    UpdateSignature, add_signature, list_signatures, paste_signatures, remove_signature,
+    unlink_signature, update_signature,
 };
 use wormholesystems::maps::solar_system::{
-    AddSystem, RemoveSystem, SetPinned, add_system, remove_system, set_pinned,
+    AddSystem, MapSystemView, RemoveSystem, RemoveSystems, SetAlias, SetPinned, add_system,
+    remove_system, remove_systems, set_alias, set_pinned,
 };
 use wormholesystems::maps::{
-    Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus, WormholeSize,
+    Actor, MapError, MassStatus, SignatureGroup, TimeStatus, WormholeSize,
 };
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
@@ -56,122 +57,124 @@ async fn scan(pool: &PgPool, actor: Actor, map_id: i64, system: i64, sig: &str) 
     .id
 }
 
-#[sqlx::test]
-async fn a_ghost_is_a_placement_with_no_system_hanging_off_the_scan(pool: PgPool) {
-    let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
-
-    let viewer = member_with_role(&pool, w.owner, w.map_id, 1002, 2002, Role::Viewer).await;
-    assert!(matches!(
-        add_ghost_system(
-            &pool,
-            viewer,
-            AddGhostSystem {
-                map_id: w.map_id,
-                from_system: home,
-                signature_pk: Some(sig),
-                x: 10.0,
-                y: 20.0,
-                alias: None,
-                size: None,
-            }
-        )
-        .await,
-        Err(MapError::Forbidden),
-    ));
-
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: Some(sig),
-            x: 10.0,
-            y: 20.0,
-            alias: Some("1a".into()),
-            size: None,
+/// A map that draws the far side of every hole it knows about. Ghosts are never placed by
+/// hand here, any more than they are in the app: the map raises them, and these tests say
+/// so by scanning.
+async fn ghosting(pool: &PgPool, actor: Actor, map_id: i64) {
+    update_map(
+        pool,
+        actor,
+        UpdateMap {
+            map_id,
+            ghost_unlinked_wormholes: Some(true),
+            ..Default::default()
         },
     )
     .await
     .unwrap();
+}
 
-    assert_eq!(ghost.solar_system_id, None);
-    assert_eq!(ghost.alias.as_deref(), Some("1a"));
+/// The node the map raised for this scan.
+async fn ghost_for(pool: &PgPool, map_id: i64, sig: i64) -> i64 {
+    sqlx::query_scalar::<_, i64>(
+        "select case when f.solar_system_id is null then f.id else t.id end
+         from signatures s
+         join map_connections c on c.id = s.connection_id
+         join map_solar_systems f on f.id = c.from_system
+         join map_solar_systems t on t.id = c.to_system
+         where s.id = $1 and s.map_id = $2",
+    )
+    .bind(sig)
+    .bind(map_id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// Where a node sits, for the assertions that care that it stayed there.
+async fn position(pool: &PgPool, id: i64) -> (f64, f64) {
+    sqlx::query_as::<_, (f64, f64)>(
+        "select position_x, position_y from map_solar_systems where id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+#[sqlx::test]
+async fn a_ghost_is_a_placement_with_no_system_hanging_off_the_scan(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     // It is on the map like any other node, with an edge from where it was scanned.
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
-    let placed = view.systems.iter().find(|s| s.id == ghost.id).unwrap();
-    assert_eq!(placed.name, None, "nothing to name it after yet");
-    assert_eq!(placed.region, None);
-    assert!(placed.statics.is_empty());
+    // Nothing to name it after yet, and now the type says so rather than a row of nulls:
+    // a ghost carries no name, region or statics to be read off it at all.
+    let placed = view.systems.iter().find(|s| s.id() == ghost).unwrap();
+    assert!(matches!(placed, MapSystemView::Ghost { .. }));
     assert_eq!(view.connections.len(), 1);
     assert_eq!(view.connections[0].from_system, home);
-    assert_eq!(view.connections[0].to_system, ghost.id);
+    assert_eq!(view.connections[0].to_system, ghost);
 
     // And the signature it came from is linked to that edge, so the two stay in step.
     let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
     assert_eq!(sigs[0].connection_id, Some(view.connections[0].id));
 
-    // A second ghost for the same signature would be that hole twice over.
-    assert!(matches!(
-        add_ghost_system(
-            &pool,
-            w.owner,
-            AddGhostSystem {
-                map_id: w.map_id,
-                from_system: home,
-                signature_pk: Some(sig),
-                x: 30.0,
-                y: 40.0,
-                alias: None,
-                size: None,
-            }
-        )
-        .await,
-        Err(MapError::Conflict(_)),
-    ));
+    // The map settles its ghosts after every write, so an unrelated one does not raise a
+    // second node for a hole that already has one.
+    set_alias(
+        &pool,
+        w.owner,
+        SetAlias {
+            map_id: w.map_id,
+            map_solar_system_id: home,
+            alias: Some("Home".into()),
+        },
+    )
+    .await
+    .unwrap();
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 2);
 }
 
 #[sqlx::test]
 async fn resolving_names_the_ghost_and_keeps_where_it_sits(pool: PgPool) {
     let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: Some("1a".into()),
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
+    let where_it_sat = position(&pool, ghost).await;
 
     let resolved = resolve_ghost_system(
         &pool,
         w.owner,
         ResolveGhostSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             solar_system_id: Some(SYS_B),
+            alias: Some("1a".into()),
             ..Default::default()
         },
     )
     .await
     .unwrap();
 
-    assert_eq!(resolved.id, ghost.id, "the node keeps its identity");
+    assert_eq!(resolved.id, ghost, "the node keeps its identity");
     assert_eq!(resolved.solar_system_id, Some(SYS_B));
-    assert_eq!((resolved.position_x, resolved.position_y), (10.0, 20.0));
+    assert_eq!(
+        (resolved.position_x, resolved.position_y),
+        where_it_sat,
+        "and where it was drawn"
+    );
     assert_eq!(resolved.alias.as_deref(), Some("1a"));
 
     // Only ghosts are resolvable; a real system is not re-pointed at another one.
@@ -181,7 +184,7 @@ async fn resolving_names_the_ghost_and_keeps_where_it_sits(pool: PgPool) {
             w.owner,
             ResolveGhostSystem {
                 map_id: w.map_id,
-                map_solar_system_id: ghost.id,
+                map_solar_system_id: ghost,
                 solar_system_id: Some(SYS_C),
                 ..Default::default()
             }
@@ -196,21 +199,9 @@ async fn a_ghost_that_leads_back_into_the_chain_is_merged(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
     let far = place(&pool, w.owner, w.map_id, SYS_C).await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     // The hole turns out to lead to a system already on the map, from the other side.
     let resolved = resolve_ghost_system(
@@ -218,7 +209,7 @@ async fn a_ghost_that_leads_back_into_the_chain_is_merged(pool: PgPool) {
         w.owner,
         ResolveGhostSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             solar_system_id: Some(SYS_C),
             ..Default::default()
         },
@@ -232,7 +223,7 @@ async fn a_ghost_that_leads_back_into_the_chain_is_merged(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(view.systems.len(), 2, "the ghost is gone, not duplicated");
-    assert!(view.systems.iter().all(|s| s.id != ghost.id));
+    assert!(view.systems.iter().all(|s| s.id() != ghost));
     assert_eq!(view.connections.len(), 1);
     assert_eq!(
         (
@@ -247,22 +238,10 @@ async fn a_ghost_that_leads_back_into_the_chain_is_merged(pool: PgPool) {
 #[sqlx::test]
 async fn a_ghost_cannot_lead_to_the_system_it_hangs_off(pool: PgPool) {
     let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     assert!(matches!(
         resolve_ghost_system(
@@ -270,7 +249,7 @@ async fn a_ghost_cannot_lead_to_the_system_it_hangs_off(pool: PgPool) {
             w.owner,
             ResolveGhostSystem {
                 map_id: w.map_id,
-                map_solar_system_id: ghost.id,
+                map_solar_system_id: ghost,
                 solar_system_id: Some(SYS_A),
                 ..Default::default()
             }
@@ -285,17 +264,16 @@ async fn undoing_a_merge_puts_the_ghost_back_with_its_edge(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
     place(&pool, w.owner, w.map_id, SYS_C).await;
-    let ghost = add_ghost_system(
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
+    set_alias(
         &pool,
         w.owner,
-        AddGhostSystem {
+        SetAlias {
             map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
+            map_solar_system_id: ghost,
             alias: Some("1a".into()),
-            size: None,
         },
     )
     .await
@@ -305,7 +283,7 @@ async fn undoing_a_merge_puts_the_ghost_back_with_its_edge(pool: PgPool) {
         w.owner,
         ResolveGhostSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             solar_system_id: Some(SYS_C),
             ..Default::default()
         },
@@ -320,16 +298,16 @@ async fn undoing_a_merge_puts_the_ghost_back_with_its_edge(pool: PgPool) {
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
-    let back = view.systems.iter().find(|s| s.id == ghost.id).unwrap();
-    assert_eq!(back.solar_system_id, None);
-    assert_eq!(back.alias.as_deref(), Some("1a"));
+    let back = view.systems.iter().find(|s| s.id() == ghost).unwrap();
+    assert_eq!(back.solar_system_id(), None);
+    assert_eq!(back.alias(), Some("1a"));
     assert_eq!(view.connections.len(), 1);
     assert_eq!(
         (
             view.connections[0].from_system,
             view.connections[0].to_system
         ),
-        (home, ghost.id),
+        (home, ghost),
         "the edge went back to the ghost"
     );
 }
@@ -337,28 +315,16 @@ async fn undoing_a_merge_puts_the_ghost_back_with_its_edge(pool: PgPool) {
 #[sqlx::test]
 async fn undoing_a_resolve_makes_it_a_ghost_again(pool: PgPool) {
     let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
     resolve_ghost_system(
         &pool,
         w.owner,
         ResolveGhostSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             solar_system_id: Some(SYS_B),
             ..Default::default()
         },
@@ -373,8 +339,8 @@ async fn undoing_a_resolve_makes_it_a_ghost_again(pool: PgPool) {
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
-    let back = view.systems.iter().find(|s| s.id == ghost.id).unwrap();
-    assert_eq!(back.solar_system_id, None);
+    let back = view.systems.iter().find(|s| s.id() == ghost).unwrap();
+    assert_eq!(back.solar_system_id(), None);
 }
 
 #[sqlx::test]
@@ -442,7 +408,7 @@ async fn a_pasted_scan_raises_the_holes_it_found(pool: PgPool) {
     let ghosts: Vec<_> = view
         .systems
         .iter()
-        .filter(|s| s.solar_system_id.is_none())
+        .filter(|s| s.solar_system_id().is_none())
         .collect();
     assert_eq!(
         ghosts.len(),
@@ -452,8 +418,12 @@ async fn a_pasted_scan_raises_the_holes_it_found(pool: PgPool) {
     assert_eq!(view.connections.len(), 3);
     assert!(view.connections.iter().all(|c| c.from_system == home));
     // Siblings stack in the column beside the system they hang off.
-    assert!(ghosts.iter().all(|g| g.position_x == ghosts[0].position_x));
-    let mut ys: Vec<i64> = ghosts.iter().map(|g| g.position_y as i64).collect();
+    assert!(
+        ghosts
+            .iter()
+            .all(|g| g.position().0 == ghosts[0].position().0)
+    );
+    let mut ys: Vec<i64> = ghosts.iter().map(|g| g.position().1 as i64).collect();
     ys.sort_unstable();
     ys.dedup();
     assert_eq!(ys.len(), 3, "and do not sit on top of each other");
@@ -519,7 +489,7 @@ async fn calling_a_signature_a_wormhole_raises_one_too(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(view.systems.len(), 2);
-    assert!(view.systems.iter().any(|s| s.solar_system_id.is_none()));
+    assert!(view.systems.iter().any(|s| s.solar_system_id().is_none()));
 }
 
 #[sqlx::test]
@@ -527,23 +497,9 @@ async fn removing_a_system_takes_the_holes_hanging_off_it(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
     let far = place(&pool, w.owner, w.map_id, SYS_C).await;
+    ghosting(&pool, w.owner, w.map_id).await;
     for sig in ["ABC-123", "DEF-456"] {
-        let pk = scan(&pool, w.owner, w.map_id, SYS_A, sig).await;
-        add_ghost_system(
-            &pool,
-            w.owner,
-            AddGhostSystem {
-                map_id: w.map_id,
-                from_system: home,
-                signature_pk: Some(pk),
-                x: 10.0,
-                y: 20.0,
-                alias: None,
-                size: None,
-            },
-        )
-        .await
-        .unwrap();
+        scan(&pool, w.owner, w.map_id, SYS_A, sig).await;
     }
 
     remove_system(
@@ -563,7 +519,7 @@ async fn removing_a_system_takes_the_holes_hanging_off_it(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(view.systems.len(), 1);
-    assert_eq!(view.systems[0].id, far);
+    assert_eq!(view.systems[0].id(), far);
     assert!(view.connections.is_empty());
 
     // And one undo puts the system and its holes back together.
@@ -577,32 +533,49 @@ async fn removing_a_system_takes_the_holes_hanging_off_it(pool: PgPool) {
     assert_eq!(
         view.systems
             .iter()
-            .filter(|s| s.solar_system_id.is_none())
+            .filter(|s| s.solar_system_id().is_none())
             .count(),
         2
     );
     assert_eq!(view.connections.len(), 2);
 }
 
+/// The same removal, made with a marquee across the chain: the holes hanging off what was
+/// swept up go with it, and are not left floating.
 #[sqlx::test]
-async fn a_ghost_goes_with_the_connection_that_made_it(pool: PgPool) {
+async fn a_marquee_delete_takes_the_holes_with_it(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let ghost = add_ghost_system(
+    let far = place(&pool, w.owner, w.map_id, SYS_C).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    scan(&pool, w.owner, w.map_id, SYS_C, "DEF-456").await;
+
+    remove_systems(
         &pool,
         w.owner,
-        AddGhostSystem {
+        RemoveSystems {
             map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
+            map_solar_system_ids: vec![home, far],
         },
     )
     .await
     .unwrap();
+
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert!(view.systems.is_empty(), "nothing was left behind");
+    assert!(view.connections.is_empty());
+}
+
+#[sqlx::test]
+async fn a_ghost_goes_with_the_connection_that_made_it(pool: PgPool) {
+    let w = world(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
@@ -619,20 +592,31 @@ async fn a_ghost_goes_with_the_connection_that_made_it(pool: PgPool) {
     .await
     .unwrap();
 
+    // That node is gone. What is not gone is the scan, which still says a hole is there,
+    // so the map draws it again: a ghost is a rendering of a signature, and cutting the
+    // edge is not how you say the hole was never found. Deleting the signature is.
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert!(view.systems.iter().all(|s| s.id() != ghost));
+    assert_eq!(view.systems.len(), 2);
+    assert_eq!(view.connections.len(), 1);
+
+    remove_signature(
+        &pool,
+        w.owner,
+        RemoveSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+        },
+    )
+    .await
+    .unwrap();
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
     assert_eq!(view.systems.len(), 1, "the hole had nothing else to be");
-    assert!(view.systems.iter().all(|s| s.id != ghost.id));
-
-    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
-        .await
-        .unwrap();
-    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
-        .await
-        .unwrap();
-    assert_eq!(view.systems.len(), 2);
-    assert_eq!(view.connections.len(), 1);
+    assert!(view.connections.is_empty());
 }
 
 #[sqlx::test]
@@ -671,28 +655,16 @@ async fn a_real_system_left_without_connections_stays(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(view.systems.len(), 1);
-    assert_eq!(view.systems[0].id, far);
+    assert_eq!(view.systems[0].id(), far);
 }
 
 #[sqlx::test]
 async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
     let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     // Pinning holds a node still, roots the tree layout and is passed over by every
     // sweep, which would leave this one behind when its connection goes.
@@ -702,7 +674,7 @@ async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
             w.owner,
             SetPinned {
                 map_id: w.map_id,
-                map_solar_system_id: ghost.id,
+                map_solar_system_id: ghost,
                 value: true,
             }
         )
@@ -716,7 +688,7 @@ async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
         w.owner,
         ResolveGhostSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             solar_system_id: Some(SYS_B),
             ..Default::default()
         },
@@ -728,7 +700,7 @@ async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
         w.owner,
         SetPinned {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             value: true,
         },
     )
@@ -739,23 +711,10 @@ async fn a_hole_nobody_has_been_through_cannot_be_pinned(pool: PgPool) {
 #[sqlx::test]
 async fn removing_a_system_takes_the_signature_that_led_to_it(pool: PgPool) {
     let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
     let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: Some(sig),
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     // Taking the far side off the map takes the hole with it: the signature it was
     // scanned as is the same fact, and leaving it behind puts the node back on the next
@@ -765,7 +724,7 @@ async fn removing_a_system_takes_the_signature_that_led_to_it(pool: PgPool) {
         w.owner,
         RemoveSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
         },
     )
     .await
@@ -796,34 +755,23 @@ async fn removing_a_system_takes_the_signature_that_led_to_it(pool: PgPool) {
 #[sqlx::test]
 async fn resolving_applies_what_the_jump_learned(pool: PgPool) {
     let w = world(&pool).await;
-    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: None,
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     let resolved = resolve_ghost_system(
         &pool,
         w.owner,
         ResolveGhostSystem {
             map_id: w.map_id,
-            map_solar_system_id: ghost.id,
+            map_solar_system_id: ghost,
             solar_system_id: Some(SYS_B),
             alias: Some("2b".into()),
             size: Some(WormholeSize::Medium),
             mass_status: Some(MassStatus::Critical),
             time_status: Some(TimeStatus::Critical),
+            ..Default::default()
         },
     )
     .await
@@ -845,9 +793,9 @@ async fn resolving_applies_what_the_jump_learned(pool: PgPool) {
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
-    let node = view.systems.iter().find(|s| s.id == ghost.id).unwrap();
-    assert_eq!(node.solar_system_id, None, "back to a ghost");
-    assert_eq!(node.alias, None);
+    let node = view.systems.iter().find(|s| s.id() == ghost).unwrap();
+    assert_eq!(node.solar_system_id(), None, "back to a ghost");
+    assert_eq!(node.alias(), None);
     // Back to unset, which is what an unflown hole is: not "stable", just unknown.
     assert_eq!(view.connections[0].mass_status, None);
     assert_eq!(view.connections[0].time_status, None);
@@ -860,22 +808,9 @@ async fn resolving_applies_what_the_jump_learned(pool: PgPool) {
 async fn deleting_the_signature_takes_its_ghost(pool: PgPool) {
     let w = world(&pool).await;
     let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
     let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
-    let ghost = add_ghost_system(
-        &pool,
-        w.owner,
-        AddGhostSystem {
-            map_id: w.map_id,
-            from_system: home,
-            signature_pk: Some(sig),
-            x: 10.0,
-            y: 20.0,
-            alias: None,
-            size: None,
-        },
-    )
-    .await
-    .unwrap();
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
 
     let outcome = remove_signature(
         &pool,
@@ -888,13 +823,13 @@ async fn deleting_the_signature_takes_its_ghost(pool: PgPool) {
     .await
     .unwrap();
 
-    assert_eq!(outcome.removed_placement_ids, vec![ghost.id]);
+    assert_eq!(outcome.removed_placement_ids, vec![ghost]);
     let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
         .await
         .unwrap();
     assert!(view.connections.is_empty());
     assert_eq!(
-        view.systems.iter().map(|s| s.id).collect::<Vec<_>>(),
+        view.systems.iter().map(|s| s.id()).collect::<Vec<_>>(),
         vec![home],
         "only the system someone actually placed is left"
     );
@@ -948,4 +883,218 @@ async fn deleting_the_signature_leaves_a_real_system(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(view.systems.len(), 2);
+}
+
+/// Taking the far side away from a signature does not make the hole go away: the scan
+/// still says it is there, so the map draws it again as a node nobody has been through.
+/// The new node is linked to the signature that raised it, the same as a freshly scanned
+/// one, so it shows the signature id rather than sitting there blank.
+#[sqlx::test]
+async fn unassigning_the_far_side_draws_the_hole_again(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
+    resolve_ghost_system(
+        &pool,
+        w.owner,
+        ResolveGhostSystem {
+            map_id: w.map_id,
+            map_solar_system_id: ghost,
+            solar_system_id: Some(SYS_B),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    unlink_signature(
+        &pool,
+        w.owner,
+        UnlinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+        },
+    )
+    .await
+    .unwrap();
+
+    // The system someone flew to stays where it is, edge and all. The scan gets a node of
+    // its own back.
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 3);
+    let redrawn = ghost_for(&pool, w.map_id, sig).await;
+    assert_ne!(redrawn, ghost, "the system it used to lead to is not it");
+    let node = view.systems.iter().find(|s| s.id() == redrawn).unwrap();
+    assert_eq!(node.solar_system_id(), None);
+
+    // Linked, so the node knows which signature it is.
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert!(sigs[0].connection_id.is_some());
+    let edge = view
+        .connections
+        .iter()
+        .find(|c| c.to_system == redrawn)
+        .unwrap();
+    assert_eq!(sigs[0].connection_id, Some(edge.id));
+    assert_eq!(edge.from_system, home);
+}
+
+/// Drawing unmapped holes is a map setting, and flipping it takes effect there and then.
+#[sqlx::test]
+async fn the_setting_draws_and_undraws_the_holes_already_scanned(pool: PgPool) {
+    let w = world(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 1, "off: a scan is only a scan");
+
+    ghosting(&pool, w.owner, w.map_id).await;
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(
+        view.systems.len(),
+        2,
+        "on: the hole scanned earlier is drawn"
+    );
+    assert_eq!(view.connections.len(), 1);
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert!(sigs[0].connection_id.is_some());
+
+    update_map(
+        &pool,
+        w.owner,
+        UpdateMap {
+            map_id: w.map_id,
+            ghost_unlinked_wormholes: Some(false),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    // Off again: the nodes go, and the scans they were drawn from stay.
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 1);
+    assert!(view.connections.is_empty());
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert_eq!(sigs.len(), 1);
+    assert_eq!(sigs[0].id, sig);
+    assert_eq!(sigs[0].connection_id, None);
+}
+
+/// Saying a signature was never a wormhole after all takes its node with it: the hole it
+/// was drawn for has stopped existing.
+#[sqlx::test]
+async fn retyping_a_wormhole_as_something_else_takes_its_node(pool: PgPool) {
+    let w = world(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    ghost_for(&pool, w.map_id, sig).await;
+
+    update_signature(
+        &pool,
+        w.owner,
+        UpdateSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+            group: Some(SignatureGroup::Relic),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.systems.len(), 1);
+    assert!(view.connections.is_empty());
+}
+
+/// Nothing is joined to an unmapped hole by hand. An edge out of it would claim the
+/// system on its far side leads somewhere, which is the one thing nobody knows yet, and it
+/// would give the node a second reason to exist that its signature never granted.
+#[sqlx::test]
+async fn nothing_can_be_connected_to_a_hole_nobody_has_been_through(pool: PgPool) {
+    let w = world(&pool).await;
+    let other = place(&pool, w.owner, w.map_id, SYS_C).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
+
+    for (from, to) in [(other, ghost), (ghost, other)] {
+        assert!(matches!(
+            wormholesystems::maps::connection::add_connection(
+                &pool,
+                w.owner,
+                wormholesystems::maps::connection::AddConnection {
+                    map_id: w.map_id,
+                    from_system: from,
+                    to_system: to,
+                    kind: wormholesystems::maps::ConnectionType::Wormhole,
+                    size: None,
+                },
+            )
+            .await,
+            Err(MapError::Validation(_)),
+        ));
+    }
+
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    assert_eq!(view.connections.len(), 1, "only the hole's own edge");
+}
+
+/// The node and the scan are one fact, so undoing the delete brings both back, linked as
+/// they were. The row naming its signature is what makes that possible: before, the node
+/// was found through its connection and the connection had already gone.
+#[sqlx::test]
+async fn undoing_a_signature_delete_brings_its_node_back(pool: PgPool) {
+    let w = world(&pool).await;
+    let home = place(&pool, w.owner, w.map_id, SYS_A).await;
+    ghosting(&pool, w.owner, w.map_id).await;
+    let sig = scan(&pool, w.owner, w.map_id, SYS_A, "ABC-123").await;
+    let ghost = ghost_for(&pool, w.map_id, sig).await;
+
+    remove_signature(
+        &pool,
+        w.owner,
+        RemoveSignature {
+            map_id: w.map_id,
+            signature_pk: sig,
+        },
+    )
+    .await
+    .unwrap();
+
+    undo(&pool, w.owner, MapIdBody { map_id: w.map_id })
+        .await
+        .unwrap();
+
+    let view = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap();
+    let back = view.systems.iter().find(|s| s.id() == ghost).unwrap();
+    assert_eq!(back.solar_system_id(), None);
+    assert_eq!(view.connections.len(), 1);
+    assert_eq!(view.connections[0].from_system, home);
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert_eq!(sigs.len(), 1);
+    assert_eq!(
+        sigs[0].connection_id,
+        Some(view.connections[0].id),
+        "and still linked to the edge it raised"
+    );
 }

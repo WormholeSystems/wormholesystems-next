@@ -8,14 +8,20 @@ import type { ThreatLevel } from "./ThreatLevel";
  * A placed system enriched with everything a map node displays. Read-only, built by
  * `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
  * [`MapSolarSystem`].
+ *
+ * Two shapes, because a node is either a system somebody placed or a hole somebody
+ * scanned. The fields only a system can have used to be optional on every node, which left
+ * each caller to check for itself and, more often, to paper over the answer with a default;
+ * a ghost read as security 0.0 is a null-sec system to anything downstream. Saying it in
+ * the type is what makes the check impossible to skip.
  */
-export type MapSystemView = { id: number, map_id: number, 
+export type MapSystemView = { "kind": "system", id: number, map_id: number, solar_system_id: number, position_x: number, position_y: number, alias: string | null, is_home: boolean, is_rally: boolean, is_pinned: boolean, status: SystemStatus, occupying_group: string | null, name: string, security_status: number, 
 /**
- * `None` for a ghost, which is what makes every reference field below optional too:
- * there is no system yet to look them up from.
+ * Absent on the systems the SDE gives no class, which is not the same as a ghost
+ * having none.
  */
-solar_system_id: number | null, position_x: number, position_y: number, alias: string | null, is_home: boolean, is_rally: boolean, is_pinned: boolean, status: SystemStatus, occupying_group: string | null, name: string | null, security_status: number | null, wormhole_class_id: number | null, region: string | null, region_id: number | null, constellation_id: number | null, constellation: string | null, effect_name: string | null, is_shattered: boolean, 
+wormhole_class_id: number | null, region: string, region_id: number, constellation_id: number, constellation: string, effect_name: string | null, is_shattered: boolean, 
 /**
  * Kill-activity threat (wormhole systems only; `None` for k-space).
  */
-threat_level: ThreatLevel | null, statics: Array<Static>, sovereignty: Sovereignty | null, };
+threat_level: ThreatLevel | null, statics: Array<Static>, sovereignty: Sovereignty | null, } | { "kind": "ghost", id: number, map_id: number, position_x: number, position_y: number, alias: string | null, is_home: boolean, is_rally: boolean, is_pinned: boolean, status: SystemStatus, };

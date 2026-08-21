@@ -105,7 +105,7 @@
 	const suggestedIds = $derived.by(() => {
 		const picks: { id: number; reason: string; icon: 'selected' | 'location' | 'pinned' }[] = [];
 		const active = map.activeSystem;
-		if (active?.solar_system_id != null) {
+		if (active?.kind === 'system') {
 			picks.push({ id: active.solar_system_id, reason: 'Selected system', icon: 'selected' });
 		}
 		const character = map.myCharacters.find((c) => c.online && c.solar_system_id !== null);

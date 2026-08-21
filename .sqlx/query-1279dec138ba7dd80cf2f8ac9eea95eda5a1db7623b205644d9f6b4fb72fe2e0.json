@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select g.id as \"id!\" from map_solar_systems g\n           join signatures s on s.id = g.raised_by_signature_id\n           where g.map_id = $1\n             and g.solar_system_id is null\n             and not g.is_home and not g.is_pinned and not g.is_rally\n             and (not $2\n                  or s.\"group\" <> 'wormhole'\n                  or not exists (\n                      select 1 from map_connections c\n                      where c.id = s.connection_id\n                        and (c.from_system = g.id or c.to_system = g.id)\n                  ))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1279dec138ba7dd80cf2f8ac9eea95eda5a1db7623b205644d9f6b4fb72fe2e0"
+}

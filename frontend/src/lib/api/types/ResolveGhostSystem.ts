@@ -11,4 +11,8 @@ import type { WormholeSize } from "./WormholeSize";
  * follow-up writes so that one jump stays one undo. All of it is ignored when taking a
  * node back to a ghost.
  */
-export type ResolveGhostSystem = { map_id: number, map_solar_system_id: number, solar_system_id?: number, alias?: string, size?: WormholeSize, mass_status?: MassStatus, time_status?: TimeStatus, };
+export type ResolveGhostSystem = { map_id: number, map_solar_system_id: number, solar_system_id?: number, alias?: string, size?: WormholeSize, mass_status?: MassStatus, time_status?: TimeStatus, 
+/**
+ * Only ever set by the inverse of a resolve; see [`ResolveGhostSystem::unresolve`].
+ */
+raised_by_signature_id?: number, hangs_off_id?: number, };

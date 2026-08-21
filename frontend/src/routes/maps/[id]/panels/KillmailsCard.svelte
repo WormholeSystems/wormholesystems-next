@@ -2,6 +2,7 @@
 	// What has died in the chain lately: whether anything is hunting here, and whether it was
 	// worth anything.
 	import FilterIcon from '@lucide/svelte/icons/list-filter';
+	import { solarSystemId } from '$lib/map/system';
 
 	import { api } from '$lib/api/client';
 	import type { MapKillmail } from '$lib/api/types/MapKillmail';
@@ -49,7 +50,7 @@
 	// array each time would refetch kills on every one of them.
 	const systemKey = $derived(
 		map.systems
-			.map((s) => s.solar_system_id)
+			.map(solarSystemId)
 			.filter((id) => id !== null)
 			.sort((a, b) => a - b)
 			.join(',')
@@ -88,7 +89,7 @@
 
 	/** The map's own name for the system, when it has one. */
 	function aliasOf(kill: MapKillmail): string | null {
-		return map.systems.find((s) => s.solar_system_id === kill.solar_system_id)?.alias ?? null;
+		return map.systems.find((s) => solarSystemId(s) === kill.solar_system_id)?.alias ?? null;
 	}
 
 	/** An NPC kill in the chain is noise; a solo kill is a hunter. */
@@ -119,7 +120,7 @@
 	}
 
 	function hover(kill: MapKillmail, on: boolean) {
-		const placed = map.systems.find((s) => s.solar_system_id === kill.solar_system_id);
+		const placed = map.systems.find((s) => solarSystemId(s) === kill.solar_system_id);
 		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
 	}
 

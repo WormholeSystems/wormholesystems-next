@@ -7,7 +7,7 @@
 	import { loadCatalog } from '$lib/map/signatures';
 	import type { SignatureContext } from '$lib/map/signature-context';
 	import SignatureRow from './maps/[id]/signatures/SignatureRow.svelte';
-	import { DEMO_CONNECTIONS, DEMO_SIGNATURES, DEMO_SYSTEMS, HOME } from './demo-chain';
+	import { DEMO_CONNECTIONS, DEMO_SIGNATURES, DEMO_SYSTEMS, HOME_SYSTEM } from './demo-chain';
 
 	// No `actions`, so the rows cannot write anything even if something were clicked.
 	const ctx: SignatureContext = {
@@ -15,7 +15,7 @@
 		connections: DEMO_CONNECTIONS,
 		sigs: DEMO_SIGNATURES
 	};
-	const system = DEMO_SYSTEMS.find((s) => s.id === HOME)!;
+	const system = HOME_SYSTEM;
 
 	let catalog = $state<SignatureCatalog | null>(null);
 	$effect(() => {

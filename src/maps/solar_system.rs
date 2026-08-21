@@ -102,40 +102,115 @@ pub enum Sovereignty {
 /// A placed system enriched with everything a map node displays. Read-only, built by
 /// `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
 /// [`MapSolarSystem`].
+///
+/// Two shapes, because a node is either a system somebody placed or a hole somebody
+/// scanned. The fields only a system can have used to be optional on every node, which left
+/// each caller to check for itself and, more often, to paper over the answer with a default;
+/// a ghost read as security 0.0 is a null-sec system to anything downstream. Saying it in
+/// the type is what makes the check impossible to skip.
+// The two variants are deliberately lopsided: a ghost is a node and nothing else. Boxing
+// the larger one would put the wire type behind an indirection to save bytes on a value
+// that is built once per node and serialised immediately.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-pub struct MapSystemView {
-    // Placement (map_solar_systems).
-    pub id: i64,
-    pub map_id: i64,
-    /// `None` for a ghost, which is what makes every reference field below optional too:
-    /// there is no system yet to look them up from.
-    pub solar_system_id: Option<i64>,
-    pub position_x: f64,
-    pub position_y: f64,
-    pub alias: Option<String>,
-    pub is_home: bool,
-    pub is_rally: bool,
-    pub is_pinned: bool,
-    // Intel (map_solar_system_details; defaults when no row exists yet).
-    pub status: super::SystemStatus,
-    pub occupying_group: Option<String>,
-    // Reference (solar_systems / regions / constellations). All `None` on a ghost.
-    pub name: Option<String>,
-    pub security_status: Option<f64>,
-    pub wormhole_class_id: Option<i32>,
-    pub region: Option<String>,
-    pub region_id: Option<i64>,
-    pub constellation_id: Option<i64>,
-    pub constellation: Option<String>,
-    // Wormhole reference (wormhole_systems / statics).
-    pub effect_name: Option<String>,
-    pub is_shattered: bool,
-    /// Kill-activity threat (wormhole systems only; `None` for k-space).
-    pub threat_level: Option<super::ThreatLevel>,
-    pub statics: Vec<Static>,
-    // Sovereignty (system_sovereignty → alliance/corp/faction).
-    pub sovereignty: Option<Sovereignty>,
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MapSystemView {
+    System {
+        // Placement (map_solar_systems).
+        id: i64,
+        map_id: i64,
+        solar_system_id: i64,
+        position_x: f64,
+        position_y: f64,
+        alias: Option<String>,
+        is_home: bool,
+        is_rally: bool,
+        is_pinned: bool,
+        // Intel (map_solar_system_details; defaults when no row exists yet).
+        status: super::SystemStatus,
+        occupying_group: Option<String>,
+        // Reference (solar_systems / regions / constellations).
+        name: String,
+        security_status: f64,
+        /// Absent on the systems the SDE gives no class, which is not the same as a ghost
+        /// having none.
+        wormhole_class_id: Option<i32>,
+        region: String,
+        region_id: i64,
+        constellation_id: i64,
+        constellation: String,
+        // Wormhole reference (wormhole_systems / statics).
+        effect_name: Option<String>,
+        is_shattered: bool,
+        /// Kill-activity threat (wormhole systems only; `None` for k-space).
+        threat_level: Option<super::ThreatLevel>,
+        statics: Vec<Static>,
+        // Sovereignty (system_sovereignty → alliance/corp/faction).
+        sovereignty: Option<Sovereignty>,
+    },
+    /// The far side of a scanned hole. It draws, moves and is named like any other node,
+    /// which is all it has: the rest is looked up from a system it is not yet.
+    Ghost {
+        id: i64,
+        map_id: i64,
+        position_x: f64,
+        position_y: f64,
+        alias: Option<String>,
+        is_home: bool,
+        is_rally: bool,
+        is_pinned: bool,
+        status: super::SystemStatus,
+    },
+}
+
+impl MapSystemView {
+    pub fn id(&self) -> i64 {
+        match self {
+            MapSystemView::System { id, .. } | MapSystemView::Ghost { id, .. } => *id,
+        }
+    }
+
+    /// `None` while the node is still a hole.
+    pub fn solar_system_id(&self) -> Option<i64> {
+        match self {
+            MapSystemView::System {
+                solar_system_id, ..
+            } => Some(*solar_system_id),
+            MapSystemView::Ghost { .. } => None,
+        }
+    }
+
+    pub fn alias(&self) -> Option<&str> {
+        match self {
+            MapSystemView::System { alias, .. } | MapSystemView::Ghost { alias, .. } => {
+                alias.as_deref()
+            }
+        }
+    }
+
+    pub fn position(&self) -> (f64, f64) {
+        match self {
+            MapSystemView::System {
+                position_x,
+                position_y,
+                ..
+            }
+            | MapSystemView::Ghost {
+                position_x,
+                position_y,
+                ..
+            } => (*position_x, *position_y),
+        }
+    }
+
+    /// `None` on a hole nobody has been through.
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            MapSystemView::System { name, .. } => Some(name),
+            MapSystemView::Ghost { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -243,7 +318,6 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
     ids.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &ids, &[]).await?);
 
     let snapshot = capture_systems(tx, cmd.map_id, &ids).await?;
-    remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
     // The guard is repeated on the delete itself, so the rule travels with the query.
     let deleted = sqlx::query!(
         "delete from map_solar_systems
@@ -257,6 +331,7 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
     if deleted == 0 {
         return Err(MapError::NotFound);
     }
+    remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
     let label = format!("removed {}", snapshot.label());
     Ok(Effect::new("systems.removed", label, CommandOutput::None)
         .undo_with(MapCommand::RestoreSystems(snapshot)))
@@ -301,7 +376,6 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     removable.extend(super::ghost::stranded_ghosts(tx, cmd.map_id, &removable, &[]).await?);
 
     let snapshot = capture_systems(tx, cmd.map_id, &removable).await?;
-    remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
     // The guard is repeated on the delete itself, so the rule travels with the query.
     let deleted = sqlx::query!(
         "delete from map_solar_systems
@@ -312,6 +386,7 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     .execute(&mut **tx)
     .await?
     .rows_affected();
+    remove_captured_signatures(tx, cmd.map_id, &snapshot).await?;
 
     let label = match held {
         0 => format!("removed {}", snapshot.label()),
@@ -882,6 +957,12 @@ pub struct RestoredSystem {
     pub is_home: bool,
     pub is_rally: bool,
     pub is_pinned: bool,
+    /// Set on a ghost, which is not allowed back on the map without naming its scan and
+    /// the system it hung off. `None` on a system somebody placed.
+    #[serde(default)]
+    pub raised_by_signature_id: Option<i64>,
+    #[serde(default)]
+    pub hangs_off_id: Option<i64>,
 }
 
 /// A connection that cascaded away with its endpoint.
@@ -937,8 +1018,9 @@ impl RestoreSystems {
 }
 
 /// Take the signatures the snapshot claimed that the database will not cascade: the ones in
-/// the systems staying on the map, linked to a connection about to die with its endpoint.
-/// Must run before the placements go, while their connections still name them.
+/// the systems staying on the map, linked to a connection that died with its endpoint.
+/// Runs after the placements go, because deleting a scan takes the node it raised, and one
+/// of those may be the placement this removal is about.
 async fn remove_captured_signatures(
     tx: &mut Tx<'_>,
     map_id: i64,
@@ -966,7 +1048,8 @@ pub(super) async fn capture_systems(
 ) -> Result<RestoreSystems> {
     let systems: Vec<RestoredSystem> = sqlx::query_as!(
         RestoredSystem,
-        "select id, solar_system_id, position_x, position_y, alias, is_home, is_rally, is_pinned
+        "select id, solar_system_id, position_x, position_y, alias, is_home, is_rally, is_pinned,
+                raised_by_signature_id, hangs_off_id
          from map_solar_systems where map_id = $1 and id = any($2)",
         map_id,
         ids,
@@ -1023,9 +1106,9 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
         sqlx::query!(
             "insert into map_solar_systems
                  (id, map_id, solar_system_id, position_x, position_y, alias,
-                  is_home, is_rally, is_pinned)
+                  is_home, is_rally, is_pinned, raised_by_signature_id, hangs_off_id)
              overriding system value
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              on conflict (id) do nothing",
             s.id,
             cmd.map_id,
@@ -1036,6 +1119,8 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
             s.is_home,
             s.is_rally,
             s.is_pinned,
+            s.raised_by_signature_id,
+            s.hangs_off_id,
         )
         .execute(&mut **tx)
         .await?;

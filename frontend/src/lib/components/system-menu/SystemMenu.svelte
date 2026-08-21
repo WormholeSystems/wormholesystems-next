@@ -15,6 +15,7 @@
 	import RouteIcon from '@lucide/svelte/icons/route';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { getContext, type Snippet } from 'svelte';
+	import { solarSystemId } from '$lib/map/system';
 
 	import { api } from '$lib/api/client';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
@@ -45,7 +46,7 @@
 
 	const canWrite = $derived(map !== undefined && atLeast(map.data?.role, 'member'));
 	const placement = $derived(
-		map?.systems.find((s) => s.solar_system_id === system.id) ?? null
+		map?.systems.find((s) => solarSystemId(s) === system.id) ?? null
 	);
 	const onlineCharacters = $derived(map?.myCharacters.filter((c) => c.online) ?? []);
 	const watched = $derived(
