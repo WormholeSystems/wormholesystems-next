@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,\n                  m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,\n                  m.ghost_unlinked_wormholes, m.layout, m.allow_layout_override,\n                  m.is_public, m.share_token,\n                  ma.role as \"role!: Role\"\n           from maps m\n           join map_access ma on ma.map_id = m.id\n           where ma.subject_id in (\n                 select id from characters where user_id = $1\n                 union all\n                 select corporation_id from characters where user_id = $1\n                 union all\n                 select alliance_id from characters where user_id = $1 and alliance_id is not null\n           )\n           order by m.created_at",
+  "query": "insert into maps (name, description) values ($1, $2)\n             returning id, name, description, image_url, created_at, alias_scheme as \"alias_scheme: AliasScheme\", ignored_alias,\n                 ghost_unlinked_wormholes, layout as \"layout: MapLayout\", allow_layout_override, is_public, share_token,\n                 bookmark_wormhole, bookmark_kspace, bookmark_return",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       },
       {
         "ordinal": 5,
-        "name": "alias_scheme",
+        "name": "alias_scheme: AliasScheme",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,39 +82,6 @@
       },
       {
         "ordinal": 7,
-        "name": "bookmark_wormhole",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "bookmark_wormhole"
-          }
-        }
-      },
-      {
-        "ordinal": 8,
-        "name": "bookmark_kspace",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "bookmark_kspace"
-          }
-        }
-      },
-      {
-        "ordinal": 9,
-        "name": "bookmark_return",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "bookmark_return"
-          }
-        }
-      },
-      {
-        "ordinal": 10,
         "name": "ghost_unlinked_wormholes",
         "type_info": "Bool",
         "origin": {
@@ -125,8 +92,8 @@
         }
       },
       {
-        "ordinal": 11,
-        "name": "layout",
+        "ordinal": 8,
+        "name": "layout: MapLayout",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -136,7 +103,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 9,
         "name": "allow_layout_override",
         "type_info": "Bool",
         "origin": {
@@ -147,7 +114,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 10,
         "name": "is_public",
         "type_info": "Bool",
         "origin": {
@@ -158,7 +125,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 11,
         "name": "share_token",
         "type_info": "Text",
         "origin": {
@@ -169,20 +136,43 @@
         }
       },
       {
-        "ordinal": 15,
-        "name": "role!: Role",
+        "ordinal": 12,
+        "name": "bookmark_wormhole",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "map_access",
-            "name": "role"
+            "table": "maps",
+            "name": "bookmark_wormhole"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "bookmark_kspace",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "bookmark_kspace"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "bookmark_return",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "bookmark_return"
           }
         }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -197,12 +187,11 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
       true,
+      false,
+      false,
       false
     ]
   },
-  "hash": "6b45a51ec07b4dec7f6928237fe7ee129cc184d01b965e79da252c758ca441c0"
+  "hash": "5f44225f6e4da33a0ad85e407211d9acc5314d3d87b4655f5b0e0211d00b7de1"
 }

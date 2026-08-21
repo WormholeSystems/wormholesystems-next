@@ -1,10 +1,14 @@
+<script lang="ts" module>
+	/** Named as values as well as a type, so what is stored can be checked against them. */
+	export const SORT_COLUMNS = ['id', 'category', 'type', 'age'] as const;
+	export type SortColumn = (typeof SORT_COLUMNS)[number];
+</script>
+
 <script lang="ts">
 	// The signature list's column header. The widths here are the row's widths, so the two
 	// have to stay together; keeping them in one component is what makes that true.
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-
-	export type SortColumn = 'id' | 'category' | 'type' | 'age';
 
 	let {
 		compact = false,

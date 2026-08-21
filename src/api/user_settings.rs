@@ -8,6 +8,8 @@ use axum::{Json, Router};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
+use crate::maps::{KillmailScope, MapLayout, MassStatus, RoutePreference, TimeStatus};
+
 use super::extract::require_actor;
 use super::layout::PanelLayouts;
 use super::{ApiError, ApiResult};
@@ -28,14 +30,13 @@ pub struct MapUserSettings {
     pub show_threat_level: bool,
     pub compact_signature_list: bool,
     pub show_statics_first: bool,
-    /// `shorter` / `safer` / `less_secure`.
-    pub route_preference: String,
+    pub route_preference: RoutePreference,
     /// 0-100, weight of the security preference (legacy `exp(0.15 * penalty)`).
     pub security_penalty: i32,
-    /// Worst wormhole lifetime still routed through: `stable` / `eol` / `critical`.
-    pub route_allow_time_status: String,
-    /// Worst wormhole mass still routed through: `stable` / `reduced` / `critical`.
-    pub route_allow_mass_status: String,
+    /// Worst wormhole lifetime still routed through.
+    pub route_allow_time_status: TimeStatus,
+    /// Worst wormhole mass still routed through.
+    pub route_allow_mass_status: MassStatus,
     pub route_use_evescout: bool,
     /// Ask which signature was jumped, rather than mapping the hole unlinked.
     pub prompt_for_signature: bool,
@@ -43,8 +44,8 @@ pub struct MapUserSettings {
     pub suggest_alias: bool,
     /// Put the new connection's bookmark on the clipboard once the jump is mapped.
     pub copy_bookmark: bool,
-    /// Which half of the chain the killmails card shows: `all` / `jspace` / `kspace`.
-    pub killmail_filter: String,
+    /// Which half of the chain the killmails card shows.
+    pub killmail_filter: KillmailScope,
     pub is_archived: bool,
     /// Whether this user has been through the map's introduction.
     pub introduction_confirmed: bool,
@@ -54,7 +55,7 @@ pub struct MapUserSettings {
     /// This viewer's placement choice, when the map hands it to them. `None` follows the
     /// map's own mode.
     #[ts(optional)]
-    pub layout_override: Option<String>,
+    pub layout_override: Option<MapLayout>,
     /// Whether this user keeps the map in the top bar for quick access.
     pub is_pinned: bool,
     /// Per-breakpoint tile positions. `None` = the built-in arrangement.
@@ -72,7 +73,7 @@ pub struct UpdateMapUserSettings {
     /// Absent leaves it; `null` goes back to following the map.
     #[serde(default, deserialize_with = "crate::maps::double_option")]
     #[ts(optional)]
-    pub layout_override: Option<Option<String>>,
+    pub layout_override: Option<Option<MapLayout>>,
     #[serde(default)]
     #[ts(optional)]
     pub tracking_allowed: Option<bool>,
@@ -87,16 +88,16 @@ pub struct UpdateMapUserSettings {
     pub show_statics_first: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
-    pub route_preference: Option<String>,
+    pub route_preference: Option<RoutePreference>,
     #[serde(default)]
     #[ts(optional)]
     pub security_penalty: Option<i32>,
     #[serde(default)]
     #[ts(optional)]
-    pub route_allow_time_status: Option<String>,
+    pub route_allow_time_status: Option<TimeStatus>,
     #[serde(default)]
     #[ts(optional)]
-    pub route_allow_mass_status: Option<String>,
+    pub route_allow_mass_status: Option<MassStatus>,
     #[serde(default)]
     #[ts(optional)]
     pub route_use_evescout: Option<bool>,
@@ -111,7 +112,7 @@ pub struct UpdateMapUserSettings {
     pub copy_bookmark: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
-    pub killmail_filter: Option<String>,
+    pub killmail_filter: Option<KillmailScope>,
     #[serde(default)]
     #[ts(optional)]
     pub is_archived: Option<bool>,
@@ -143,12 +144,17 @@ pub async fn map_user_settings(
     }
     let row = sqlx::query!(
         r#"select tracking_allowed, show_threat_level, compact_signature_list,
-                  show_statics_first, route_preference, security_penalty,
-                  route_allow_time_status, route_allow_mass_status, route_use_evescout,
-                  prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
+                  show_statics_first,
+                  route_preference as "route_preference: RoutePreference", security_penalty,
+                  route_allow_time_status as "route_allow_time_status: TimeStatus",
+                  route_allow_mass_status as "route_allow_mass_status: MassStatus",
+                  route_use_evescout,
+                  prompt_for_signature, suggest_alias, copy_bookmark,
+                  killmail_filter as "killmail_filter: KillmailScope",
                   is_archived,
                   (introduction_confirmed_at is not null) as "introduction_confirmed!",
-                  hidden_panels, layout_breakpoints, layout_override, is_pinned
+                  hidden_panels, layout_breakpoints,
+                  layout_override as "layout_override: MapLayout", is_pinned
            from map_user_settings where map_id = $1 and user_id = $2"#,
         map_id,
         actor.user_id,
@@ -188,15 +194,15 @@ pub async fn map_user_settings(
             show_threat_level: true,
             compact_signature_list: false,
             show_statics_first: false,
-            route_preference: "shorter".into(),
+            route_preference: RoutePreference::Shorter,
             security_penalty: 50,
-            route_allow_time_status: "critical".into(),
-            route_allow_mass_status: "reduced".into(),
+            route_allow_time_status: TimeStatus::Critical,
+            route_allow_mass_status: MassStatus::Reduced,
             route_use_evescout: false,
             prompt_for_signature: true,
             suggest_alias: true,
             copy_bookmark: false,
-            killmail_filter: "all".into(),
+            killmail_filter: KillmailScope::All,
             is_archived: false,
             introduction_confirmed: false,
             hidden_panels: Vec::new(),
@@ -220,25 +226,12 @@ pub async fn update_map_user_settings(
     {
         return Err(ApiError::from(crate::maps::MapError::NotFound));
     }
-    if let Some(p) = body.route_preference.as_deref()
-        && !matches!(p, "shorter" | "safer" | "less_secure")
-    {
-        return Err(ApiError::bad_request("invalid route preference"));
-    }
+    // The tolerances and the preference are enums, so a value outside them never gets this
+    // far: serde rejects the body. Only the number still needs saying out loud.
     if let Some(p) = body.security_penalty
         && !(0..=100).contains(&p)
     {
         return Err(ApiError::bad_request("security penalty must be 0-100"));
-    }
-    if let Some(t) = body.route_allow_time_status.as_deref()
-        && !matches!(t, "stable" | "eol" | "critical")
-    {
-        return Err(ApiError::bad_request("invalid lifetime tolerance"));
-    }
-    if let Some(m) = body.route_allow_mass_status.as_deref()
-        && !matches!(m, "stable" | "reduced" | "critical")
-    {
-        return Err(ApiError::bad_request("invalid mass tolerance"));
     }
     // Reject an arrangement that could not render, rather than breaking the next load.
     let layout_json =
@@ -253,7 +246,7 @@ pub async fn update_map_user_settings(
         };
 
     let row = sqlx::query!(
-        "insert into map_user_settings
+        r#"insert into map_user_settings
              (map_id, user_id, tracking_allowed, show_threat_level,
               compact_signature_list, show_statics_first,
               route_preference, security_penalty, route_allow_time_status,
@@ -300,32 +293,37 @@ pub async fn update_map_user_settings(
              is_pinned = coalesce($22, map_user_settings.is_pinned),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
-                   show_statics_first, route_preference, security_penalty,
-                   route_allow_time_status, route_allow_mass_status, route_use_evescout,
-                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,
+                   show_statics_first,
+                   route_preference as "route_preference: RoutePreference", security_penalty,
+                   route_allow_time_status as "route_allow_time_status: TimeStatus",
+                   route_allow_mass_status as "route_allow_mass_status: MassStatus",
+                   route_use_evescout,
+                   prompt_for_signature, suggest_alias, copy_bookmark,
+                   killmail_filter as "killmail_filter: KillmailScope",
                    is_archived,
                    (introduction_confirmed_at is not null) as introduction_confirmed,
-                   hidden_panels, layout_breakpoints, layout_override, is_pinned",
+                   hidden_panels, layout_breakpoints,
+                   layout_override as "layout_override: MapLayout", is_pinned"#,
         map_id,
         actor.user_id,
         body.tracking_allowed,
         body.show_threat_level,
         body.compact_signature_list,
         body.show_statics_first,
-        body.route_preference,
+        body.route_preference.map(|p| p.as_str()),
         body.security_penalty,
-        body.route_allow_time_status,
-        body.route_allow_mass_status,
+        body.route_allow_time_status.map(|t| t.as_str()),
+        body.route_allow_mass_status.map(|m| m.as_str()),
         body.route_use_evescout,
         body.prompt_for_signature,
         body.suggest_alias,
         body.copy_bookmark,
-        body.killmail_filter,
+        body.killmail_filter.map(|k| k.as_str()),
         body.is_archived,
         body.introduction_confirmed,
         body.hidden_panels.as_deref(),
         layout_json.as_ref(),
-        body.layout_override.clone().flatten(),
+        body.layout_override.flatten().map(|l| l.as_str()),
         body.layout_override.is_some(),
         body.is_pinned,
     )

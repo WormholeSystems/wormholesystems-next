@@ -223,10 +223,10 @@ export class MapState {
 	);
 
 	routingSettings = $derived<RoutingSettings>({
-		preference: (this.userSettings?.route_preference ?? 'shorter') as RoutingSettings['preference'],
+		preference: this.userSettings?.route_preference ?? 'shorter',
 		securityPenalty: this.userSettings?.security_penalty ?? 50,
-		allowTimeStatus: (this.userSettings?.route_allow_time_status ?? 'critical') as TimeStatus,
-		allowMassStatus: (this.userSettings?.route_allow_mass_status ?? 'reduced') as MassStatus,
+		allowTimeStatus: this.userSettings?.route_allow_time_status ?? 'critical',
+		allowMassStatus: this.userSettings?.route_allow_mass_status ?? 'reduced',
 	});
 	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
 

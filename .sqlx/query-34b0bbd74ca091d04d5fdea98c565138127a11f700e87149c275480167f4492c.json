@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into map_user_settings\n             (map_id, user_id, tracking_allowed, show_threat_level,\n              compact_signature_list, show_statics_first,\n              route_preference, security_penalty, route_allow_time_status,\n              route_allow_mass_status, route_use_evescout, prompt_for_signature,\n              suggest_alias, copy_bookmark, killmail_filter, is_archived,\n              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,\n              is_pinned)\n         values ($1, $2, coalesce($3, false), coalesce($4, true),\n                 coalesce($5, false), coalesce($6, false),\n                 coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),\n                 coalesce($10, 'reduced'), coalesce($11, false),\n                 coalesce($12, true), coalesce($13, true), coalesce($14, false),\n                 coalesce($15, 'all'), coalesce($16, false),\n                 case when $17 then now() end,\n                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false))\n         on conflict (map_id, user_id) do update set\n             tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),\n             show_threat_level = coalesce($4, map_user_settings.show_threat_level),\n             compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),\n             show_statics_first = coalesce($6, map_user_settings.show_statics_first),\n             route_preference = coalesce($7, map_user_settings.route_preference),\n             security_penalty = coalesce($8, map_user_settings.security_penalty),\n             route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),\n             route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),\n             route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),\n             prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),\n             suggest_alias = coalesce($13, map_user_settings.suggest_alias),\n             copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),\n             killmail_filter = coalesce($15, map_user_settings.killmail_filter),\n             is_archived = coalesce($16, map_user_settings.is_archived),\n             -- Absent leaves it; true stamps now; false clears it and shows it again.\n             introduction_confirmed_at = case\n                 when $17 is null then map_user_settings.introduction_confirmed_at\n                 when $17 then now()\n             end,\n             hidden_panels = coalesce($18, map_user_settings.hidden_panels),\n             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),\n             -- Absent leaves it; null is a real value here (follow the map again), so it\n             -- cannot go through coalesce.\n             layout_override = case\n                 when $21 then $20\n                 else map_user_settings.layout_override\n             end,\n             is_pinned = coalesce($22, map_user_settings.is_pinned),\n             updated_at = now()\n         returning tracking_allowed, show_threat_level, compact_signature_list,\n                   show_statics_first, route_preference, security_penalty,\n                   route_allow_time_status, route_allow_mass_status, route_use_evescout,\n                   prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,\n                   is_archived,\n                   (introduction_confirmed_at is not null) as introduction_confirmed,\n                   hidden_panels, layout_breakpoints, layout_override, is_pinned",
+  "query": "insert into map_user_settings\n             (map_id, user_id, tracking_allowed, show_threat_level,\n              compact_signature_list, show_statics_first,\n              route_preference, security_penalty, route_allow_time_status,\n              route_allow_mass_status, route_use_evescout, prompt_for_signature,\n              suggest_alias, copy_bookmark, killmail_filter, is_archived,\n              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,\n              is_pinned)\n         values ($1, $2, coalesce($3, false), coalesce($4, true),\n                 coalesce($5, false), coalesce($6, false),\n                 coalesce($7, 'shorter'), coalesce($8, 50), coalesce($9, 'critical'),\n                 coalesce($10, 'reduced'), coalesce($11, false),\n                 coalesce($12, true), coalesce($13, true), coalesce($14, false),\n                 coalesce($15, 'all'), coalesce($16, false),\n                 case when $17 then now() end,\n                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false))\n         on conflict (map_id, user_id) do update set\n             tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),\n             show_threat_level = coalesce($4, map_user_settings.show_threat_level),\n             compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),\n             show_statics_first = coalesce($6, map_user_settings.show_statics_first),\n             route_preference = coalesce($7, map_user_settings.route_preference),\n             security_penalty = coalesce($8, map_user_settings.security_penalty),\n             route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),\n             route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),\n             route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),\n             prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),\n             suggest_alias = coalesce($13, map_user_settings.suggest_alias),\n             copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),\n             killmail_filter = coalesce($15, map_user_settings.killmail_filter),\n             is_archived = coalesce($16, map_user_settings.is_archived),\n             -- Absent leaves it; true stamps now; false clears it and shows it again.\n             introduction_confirmed_at = case\n                 when $17 is null then map_user_settings.introduction_confirmed_at\n                 when $17 then now()\n             end,\n             hidden_panels = coalesce($18, map_user_settings.hidden_panels),\n             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),\n             -- Absent leaves it; null is a real value here (follow the map again), so it\n             -- cannot go through coalesce.\n             layout_override = case\n                 when $21 then $20\n                 else map_user_settings.layout_override\n             end,\n             is_pinned = coalesce($22, map_user_settings.is_pinned),\n             updated_at = now()\n         returning tracking_allowed, show_threat_level, compact_signature_list,\n                   show_statics_first,\n                   route_preference as \"route_preference: RoutePreference\", security_penalty,\n                   route_allow_time_status as \"route_allow_time_status: TimeStatus\",\n                   route_allow_mass_status as \"route_allow_mass_status: MassStatus\",\n                   route_use_evescout,\n                   prompt_for_signature, suggest_alias, copy_bookmark,\n                   killmail_filter as \"killmail_filter: KillmailScope\",\n                   is_archived,\n                   (introduction_confirmed_at is not null) as introduction_confirmed,\n                   hidden_panels, layout_breakpoints,\n                   layout_override as \"layout_override: MapLayout\", is_pinned",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 4,
-        "name": "route_preference",
+        "name": "route_preference: RoutePreference",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +71,7 @@
       },
       {
         "ordinal": 6,
-        "name": "route_allow_time_status",
+        "name": "route_allow_time_status: TimeStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +82,7 @@
       },
       {
         "ordinal": 7,
-        "name": "route_allow_mass_status",
+        "name": "route_allow_mass_status: MassStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -137,7 +137,7 @@
       },
       {
         "ordinal": 12,
-        "name": "killmail_filter",
+        "name": "killmail_filter: KillmailScope",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -187,7 +187,7 @@
       },
       {
         "ordinal": 17,
-        "name": "layout_override",
+        "name": "layout_override: MapLayout",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -256,5 +256,5 @@
       false
     ]
   },
-  "hash": "0408aeec73d7595f5f4dd50394efdf3088e9a2bb6d4cc1a90863135c02ee7038"
+  "hash": "34b0bbd74ca091d04d5fdea98c565138127a11f700e87149c275480167f4492c"
 }

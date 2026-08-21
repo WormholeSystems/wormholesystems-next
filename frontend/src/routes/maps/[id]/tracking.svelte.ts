@@ -259,7 +259,7 @@ export class JumpTracker {
 			aliases: this.map.systems
 				.map((s) => s.alias)
 				.filter((alias): alias is string => Boolean(alias)),
-			scheme: naming?.alias_scheme as AliasScheme | undefined,
+			scheme: naming?.alias_scheme,
 			targetKind: aliasTargetKind(
 				targetIsWormhole,
 				classMeta(target.classId, target.security).short,

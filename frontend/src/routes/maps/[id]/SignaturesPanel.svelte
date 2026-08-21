@@ -8,6 +8,8 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
+	import * as v from 'valibot';
+	import { readStored, sortSchema } from '$lib/storage';
 
 	import { browser } from '$app/environment';
 	import { toast } from 'svelte-sonner';
@@ -29,6 +31,7 @@
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import type { SignatureContext } from '$lib/map/signature-context';
 	import SignatureColumns, {
+		SORT_COLUMNS,
 		type SortColumn,
 	} from '$lib/components/map-ui/SignatureColumns.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
@@ -97,7 +100,7 @@
 
 	// The HIDDEN set is what persists, so a new category defaults to visible.
 	let hidden = $state<string[]>(
-		browser ? JSON.parse(localStorage.getItem('signatures-category-hidden-filters') ?? '[]') : [],
+		readStored('signatures-category-hidden-filters', v.array(v.string()), []),
 	);
 	$effect(() => {
 		localStorage.setItem('signatures-category-hidden-filters', JSON.stringify(hidden));
@@ -107,11 +110,11 @@
 	);
 
 	// Default: id desc, ties by id ascending, nulls last.
-	let sort = $state<{ column: SortColumn; direction: 'asc' | 'desc' }>(
-		(browser && JSON.parse(localStorage.getItem('signatures-sort') ?? 'null')) || {
+	let sort = $state(
+		readStored('signatures-sort', sortSchema(SORT_COLUMNS), {
 			column: 'id',
 			direction: 'desc',
-		},
+		}),
 	);
 	$effect(() => {
 		localStorage.setItem('signatures-sort', JSON.stringify(sort));

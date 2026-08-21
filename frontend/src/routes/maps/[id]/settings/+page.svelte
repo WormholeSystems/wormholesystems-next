@@ -3,6 +3,8 @@
 	// map for everyone on it, which is why it is Manager+ and why deletion sits at the
 	// bottom behind its own confirmation.
 	import { untrack } from 'svelte';
+	import type { MapLayout } from '$lib/api/types/MapLayout';
+	import { oneOf } from '$lib/enums';
 
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
@@ -56,7 +58,8 @@
 	const PLACEMENTS = [
 		{ value: 'manual', label: 'Custom placement', hint: 'Everyone drags the chain into shape' },
 		{ value: 'tree', label: 'Automatic placement', hint: 'Drawn as a tree from the connections' },
-	];
+	] as const satisfies readonly { value: MapLayout; label: string; hint: string }[];
+	const PLACEMENT_VALUES = PLACEMENTS.map((p) => p.value);
 	const placement = $derived(view.map.layout);
 	const allowOverride = $derived(view.map.allow_layout_override);
 
@@ -174,7 +177,10 @@
 						type="single"
 						value={placement}
 						disabled={!canManage}
-						onValueChange={(v) => v && act(api.updateMap({ map_id: mapId, layout: v }))}
+						onValueChange={(v) => {
+							const picked = oneOf(PLACEMENT_VALUES, v);
+							if (picked) act(api.updateMap({ map_id: mapId, layout: picked }));
+						}}
 					>
 						<Select.Trigger class="w-56" data-testid="map-layout-select">
 							{PLACEMENTS.find((p) => p.value === placement)?.label}

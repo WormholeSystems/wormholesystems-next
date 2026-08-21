@@ -52,11 +52,11 @@
 		map.systems.find((s) => solarSystemId(s) === pilot?.solar_system_id) ?? null,
 	);
 
-	const socketLabel: Record<typeof map.socket, string> = {
+	const socketLabel = {
 		connecting: 'Connecting to the live feed',
 		open: 'Live: changes from other pilots arrive automatically',
 		reconnecting: 'Disconnected. Retrying, the map may be out of date',
-	};
+	} satisfies Record<typeof map.socket, string>;
 
 	function toggleSetting(key: 'tracking_allowed' | 'show_threat_level' | 'show_statics_first') {
 		const current = map.userSettings;

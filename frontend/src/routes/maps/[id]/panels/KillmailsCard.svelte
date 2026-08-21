@@ -3,6 +3,7 @@
 	// worth anything.
 	import FilterIcon from '@lucide/svelte/icons/list-filter';
 	import { solarSystemId } from '$lib/map/system';
+	import type { KillmailScope } from '$lib/api/types/KillmailScope';
 
 	import { api } from '$lib/api/client';
 	import type { MapKillmail } from '$lib/api/types/MapKillmail';
@@ -30,7 +31,7 @@
 		{ value: 'all', label: 'Everywhere on the map' },
 		{ value: 'jspace', label: 'Wormhole space only' },
 		{ value: 'kspace', label: 'Known space only' },
-	];
+	] as const satisfies readonly { value: KillmailScope; label: string }[];
 
 	function load() {
 		api
@@ -64,7 +65,7 @@
 		load();
 	});
 
-	function setFilter(value: string) {
+	function setFilter(value: KillmailScope) {
 		map.patchUserSettings({ killmail_filter: value }).catch(() => {});
 	}
 

@@ -4,6 +4,7 @@
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
+	import { lookup } from '$lib/enums';
 
 	import { page } from '$app/state';
 	import { api, errorMessage } from '$lib/api/client';
@@ -103,15 +104,15 @@
 		role: 'Pings a role',
 		everyone: 'Pings everyone',
 	} satisfies Record<AlertMention, string>;
-	const REASON: Record<string, string> = {
+	const REASON = {
 		manual: 'Turned off by hand',
 		discord_unlinked: 'The creator unlinked their Discord account',
 		access_revoked: 'The creator lost access to this map',
 		destination_gone: 'Discord rejected the destination: the webhook or channel is gone',
 		delivery_failed: 'Too many failed deliveries',
-	};
+	} satisfies Record<string, string>;
 
-	const SHIP_LABEL: Record<string, string> = {
+	const SHIP_LABEL = {
 		dreadnought: 'Dreadnought',
 		carrier: 'Carrier',
 		force_auxiliary: 'Force Auxiliary',
@@ -120,12 +121,12 @@
 		jump_freighter: 'Jump Freighter',
 		rorqual: 'Rorqual',
 		black_ops: 'Black Ops',
-	};
+	} satisfies Record<string, string>;
 
 	function summary(alert: MapAlert): string {
 		const target = alert.target_system_name ?? 'a system';
 		if (alert.kind === 'jump_range') {
-			const ship = SHIP_LABEL[alert.ship_type ?? ''] ?? 'a capital';
+			const ship = lookup(SHIP_LABEL, alert.ship_type ?? '') ?? 'a capital';
 			return `An exit within ${ship} range (JDC ${alert.jdc_level ?? 0}) of ${target}`;
 		}
 		const within = `within ${alert.max_jumps} ${alert.max_jumps === 1 ? 'jump' : 'jumps'}`;
@@ -236,7 +237,7 @@
 							</span>
 							{#if !alert.is_active && alert.disabled_reason}
 								<span class="text-[11px] text-amber-500" data-testid="alert-reason">
-									{REASON[alert.disabled_reason] ?? alert.disabled_reason}
+									{lookup(REASON, alert.disabled_reason) ?? alert.disabled_reason}
 								</span>
 							{/if}
 						</div>

@@ -14,8 +14,8 @@ use std::collections::HashMap;
 
 use super::solar_system::{MapSystemView, Sovereignty, Static};
 use super::{
-    Actor, ConnectionType, MapConnection, MapView, MassStatus, Role, SubjectType, TimeStatus,
-    WormholeSize,
+    Actor, AliasScheme, ConnectionType, MapConnection, MapLayout, MapView, MassStatus, Role,
+    SubjectType, TimeStatus, WormholeSize,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -32,7 +32,7 @@ pub struct Map {
     pub ghost_unlinked_wormholes: bool,
     /// How the chain is placed: `manual` (dragged into shape) or `tree` (drawn from the
     /// connections). Map-wide, so everyone on a chain reads the same picture.
-    pub layout: String,
+    pub layout: MapLayout,
     /// Whether a viewer may pick their own placement instead of the map's.
     pub allow_layout_override: bool,
     /// Whether anyone with the address may watch it, account or no account.
@@ -50,7 +50,7 @@ pub struct Map {
 pub struct MapNaming {
     /// `numeric` (`1`, `11`, `12`) or `alphabetical` (`A`, `AB`, with `H/L/N/P` reserved
     /// for k-space exits).
-    pub alias_scheme: String,
+    pub alias_scheme: AliasScheme,
     /// The alias that sits outside the chain, e.g. `HOME`.
     pub ignored_alias: String,
     pub bookmark_wormhole: String,
@@ -58,16 +58,8 @@ pub struct MapNaming {
     pub bookmark_return: String,
 }
 
-pub const ALIAS_SCHEMES: [&str; 2] = ["numeric", "alphabetical"];
-
 impl MapNaming {
     pub fn validate(&self) -> Result<()> {
-        if !ALIAS_SCHEMES.contains(&self.alias_scheme.as_str()) {
-            return Err(MapError::Validation(format!(
-                "unknown alias scheme {}",
-                self.alias_scheme
-            )));
-        }
         // A blank format renders as an empty bookmark name, which the game silently
         // replaces with a generic one and the whole convention is lost.
         for (label, format) in [
@@ -138,10 +130,10 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     let mut tx = pool.begin().await?;
     let map = map_from_row!(
         sqlx::query!(
-            "insert into maps (name, description) values ($1, $2)
-             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
-                 ghost_unlinked_wormholes, layout, allow_layout_override, is_public, share_token,
-                 bookmark_wormhole, bookmark_kspace, bookmark_return",
+            r#"insert into maps (name, description) values ($1, $2)
+             returning id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
+                 ghost_unlinked_wormholes, layout as "layout: MapLayout", allow_layout_override, is_public, share_token,
+                 bookmark_wormhole, bookmark_kspace, bookmark_return"#,
             cmd.name.trim(),
             cmd.description.as_deref(),
         )
@@ -199,7 +191,7 @@ pub struct UpdateMap {
     pub ghost_unlinked_wormholes: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
-    pub layout: Option<String>,
+    pub layout: Option<MapLayout>,
     #[serde(default)]
     #[ts(optional)]
     pub allow_layout_override: Option<bool>,
@@ -218,14 +210,6 @@ impl UpdateMap {
         if let Some(naming) = &self.naming {
             naming.validate()?;
         }
-        if let Some(layout) = &self.layout
-            && layout != "manual"
-            && layout != "tree"
-        {
-            return Err(MapError::Validation(
-                "placement must be manual or tree".into(),
-            ));
-        }
         Ok(())
     }
 }
@@ -238,10 +222,10 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     let mut tx = pool.begin().await?;
     let current = map_from_row!(
         sqlx::query!(
-            "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+            r#"select id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout, allow_layout_override, is_public, share_token
-             from maps where id = $1",
+                 layout as "layout: MapLayout", allow_layout_override, is_public, share_token
+             from maps where id = $1"#,
             cmd.map_id,
         )
         .fetch_optional(&mut *tx)
@@ -267,25 +251,25 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
 
     let map = map_from_row!(
         sqlx::query!(
-            "update maps set name = $1, description = $2, image_url = $3,
+            r#"update maps set name = $1, description = $2, image_url = $3,
                     alias_scheme = $5, ignored_alias = $6, bookmark_wormhole = $7,
                     bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10,
                     layout = $11, allow_layout_override = $12, is_public = $13
              where id = $4
-             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+             returning id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout, allow_layout_override, is_public, share_token",
+                 layout as "layout: MapLayout", allow_layout_override, is_public, share_token"#,
             name,
             description,
             image_url,
             cmd.map_id,
-            naming.alias_scheme,
+            naming.alias_scheme.as_str(),
             naming.ignored_alias,
             naming.bookmark_wormhole,
             naming.bookmark_kspace,
             naming.bookmark_return,
             ghost_unlinked_wormholes,
-            layout,
+            layout.as_str(),
             allow_layout_override,
             is_public,
         )
@@ -319,9 +303,9 @@ pub async fn delete_map(pool: &PgPool, actor: Actor, cmd: DeleteMap) -> Result<(
 /// Every map the user can access, paired with their effective role on it.
 pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> {
     let rows = sqlx::query!(
-        r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme,
+        r#"select m.id, m.name, m.description, m.image_url, m.created_at, m.alias_scheme as "alias_scheme: AliasScheme",
                   m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
-                  m.ghost_unlinked_wormholes, m.layout, m.allow_layout_override,
+                  m.ghost_unlinked_wormholes, m.layout as "layout: MapLayout", m.allow_layout_override,
                   m.is_public, m.share_token,
                   ma.role as "role!: Role"
            from maps m
@@ -387,10 +371,10 @@ pub async fn read_map(
 
     let map = map_from_row!(
         sqlx::query!(
-            "select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+            r#"select id, name, description, image_url, created_at, alias_scheme as "alias_scheme: AliasScheme", ignored_alias,
                  bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
-                 layout, allow_layout_override, is_public, share_token
-             from maps where id = $1",
+                 layout as "layout: MapLayout", allow_layout_override, is_public, share_token
+             from maps where id = $1"#,
             cmd.map_id,
         )
         .fetch_optional(pool)

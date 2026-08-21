@@ -4,6 +4,7 @@
 	// placement itself lives in `$lib/layout/grid`, this only turns pointers into calls.
 	import { untrack } from 'svelte';
 	import { browser } from '$app/environment';
+	import { lookup } from '$lib/enums';
 
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -192,13 +193,13 @@
 	/** Arrow keys move a focused tile, shift+arrows resize it. */
 	function onKeyDown(ev: KeyboardEvent, id: PanelId) {
 		if (!map.editingLayout) return;
-		const deltas: Record<string, [number, number]> = {
+		const deltas = {
 			ArrowLeft: [-1, 0],
 			ArrowRight: [1, 0],
 			ArrowUp: [0, -1],
 			ArrowDown: [0, 1],
-		};
-		const delta = deltas[ev.key];
+		} satisfies Record<string, [number, number]>;
+		const delta = lookup(deltas, ev.key);
 		if (!delta) return;
 		ev.preventDefault();
 		const current = items.find((i) => i.i === id);

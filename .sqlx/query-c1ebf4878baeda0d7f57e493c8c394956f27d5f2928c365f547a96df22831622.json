@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first, route_preference, security_penalty,\n                  route_allow_time_status, route_allow_mass_status, route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark, killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints, layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference as \"route_preference: RoutePreference\", security_penalty,\n                  route_allow_time_status as \"route_allow_time_status: TimeStatus\",\n                  route_allow_mass_status as \"route_allow_mass_status: MassStatus\",\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark,\n                  killmail_filter as \"killmail_filter: KillmailScope\",\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override as \"layout_override: MapLayout\", is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 4,
-        "name": "route_preference",
+        "name": "route_preference: RoutePreference",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +71,7 @@
       },
       {
         "ordinal": 6,
-        "name": "route_allow_time_status",
+        "name": "route_allow_time_status: TimeStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +82,7 @@
       },
       {
         "ordinal": 7,
-        "name": "route_allow_mass_status",
+        "name": "route_allow_mass_status: MassStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -137,7 +137,7 @@
       },
       {
         "ordinal": 12,
-        "name": "killmail_filter",
+        "name": "killmail_filter: KillmailScope",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -187,7 +187,7 @@
       },
       {
         "ordinal": 17,
-        "name": "layout_override",
+        "name": "layout_override: MapLayout",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -236,5 +236,5 @@
       false
     ]
   },
-  "hash": "1e38959463dd24e35aac9b59b1289ceffe031d2378d4f68f8f001f36abce50d1"
+  "hash": "c1ebf4878baeda0d7f57e493c8c394956f27d5f2928c365f547a96df22831622"
 }

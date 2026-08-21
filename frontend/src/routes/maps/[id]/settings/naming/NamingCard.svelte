@@ -2,6 +2,7 @@
 	// The alias sequence and the three bookmark formats. The formats are opaque token strings,
 	// so each previews against a worked example as you type.
 	import { untrack } from 'svelte';
+	import { oneOf } from '$lib/enums';
 
 	import { guessNextAlias } from '$lib/alias';
 	import type { AliasScheme } from '$lib/alias';
@@ -47,7 +48,8 @@
 
 	const dirty = $derived(JSON.stringify(draft) !== savedKey);
 
-	const scheme = $derived(draft.alias_scheme as AliasScheme);
+	const ALIAS_SCHEMES = ['numeric', 'alphabetical'] as const satisfies readonly AliasScheme[];
+	const scheme = $derived(draft.alias_scheme);
 
 	/** The first three children of a chain, so switching scheme shows the difference. */
 	const aliasPreview = $derived.by(() => {
@@ -123,7 +125,10 @@
 					variant="outline"
 					value={draft.alias_scheme}
 					{disabled}
-					onValueChange={(value) => value && (draft.alias_scheme = value)}
+					onValueChange={(value) => {
+						const picked = oneOf(ALIAS_SCHEMES, value);
+						if (picked) draft.alias_scheme = picked;
+					}}
 					data-testid="alias-scheme"
 				>
 					<ToggleGroup.Item value="numeric">Numeric</ToggleGroup.Item>

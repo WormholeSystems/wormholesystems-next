@@ -68,11 +68,11 @@ test('a pasted wormhole becomes a node, and assigning a system names it', async 
 
 	// And the API says the same, whichever end the connection is asked for.
 	const view = await (await api.get(`/api/maps/${mapId}`)).json();
-	const ghostId = view.systems.find(
-		(s: { solar_system_id: number | null }) => s.solar_system_id === null,
-	).id;
+	type Node =
+		{ kind: 'system'; id: number; solar_system_id: number } | { kind: 'ghost'; id: number };
+	const ghostId = view.systems.find((s: Node) => s.kind === 'ghost').id;
 	const scanned = view.systems.find(
-		(s: { solar_system_id: number | null }) => s.solar_system_id === J122515,
+		(s: Node) => s.kind === 'system' && s.solar_system_id === J122515,
 	).id;
 	const refused = await api.post(`/api/maps/${mapId}/connections/add`, {
 		data: { map_id: mapId, from_system: scanned, to_system: ghostId, kind: 'wormhole' },

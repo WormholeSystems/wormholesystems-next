@@ -7,8 +7,8 @@ use chrono::{DateTime, Utc};
 use wormholesystems::maps::connection::SetConnectionStatus;
 use wormholesystems::maps::signatures::AddSignature;
 use wormholesystems::maps::{
-    ConnectionType, Map, MapConnection, MapEvent, MapSystemView, MapView, MassStatus,
-    SignatureGroup, Static, SystemStatus, ThreatLevel, TimeStatus, WormholeSize,
+    AliasScheme, ConnectionType, Map, MapConnection, MapEvent, MapLayout, MapSystemView, MapView,
+    MassStatus, SignatureGroup, Static, SystemStatus, ThreatLevel, TimeStatus, WormholeSize,
 };
 
 /// A fixed timestamp (chrono's `clock` feature is off — no `Utc::now()`).
@@ -139,14 +139,14 @@ fn map_view_round_trips() {
             image_url: None,
             created_at: ts(),
             naming: wormholesystems::maps::map::MapNaming {
-                alias_scheme: "numeric".into(),
+                alias_scheme: AliasScheme::Numeric,
                 ignored_alias: "HOME".into(),
                 bookmark_wormhole: "{alias} {sig} {class}".into(),
                 bookmark_kspace: "{alias} {class} {sig} {name} {region}".into(),
                 bookmark_return: "*{alias} {sig} {class}".into(),
             },
             ghost_unlinked_wormholes: false,
-            layout: "manual".into(),
+            layout: MapLayout::Manual,
             allow_layout_override: false,
             is_public: false,
             share_token: None,

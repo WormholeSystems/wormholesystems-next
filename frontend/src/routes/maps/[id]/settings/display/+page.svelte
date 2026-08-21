@@ -10,6 +10,9 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
+	import type { MapLayout } from '$lib/api/types/MapLayout';
+	import type { KillmailScope } from '$lib/api/types/KillmailScope';
+	import { oneOf } from '$lib/enums';
 
 	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
 
@@ -17,18 +20,22 @@
 	const settings = $derived(data.settings);
 	const view = $derived(data.view);
 
+	// `map` is not a layout, it is the absence of an override: this viewer follows whatever
+	// the map itself is set to.
 	const PLACEMENTS = [
 		{ value: 'map', label: 'Follow the map' },
 		{ value: 'manual', label: 'Custom placement' },
 		{ value: 'tree', label: 'Automatic placement' },
-	];
+	] as const satisfies readonly { value: MapLayout | 'map'; label: string }[];
+	const PLACEMENT_VALUES = PLACEMENTS.map((p) => p.value);
 	const placement = $derived(settings?.layout_override ?? 'map');
 
 	const FILTERS = [
 		{ value: 'all', label: 'Everything' },
 		{ value: 'jspace', label: 'Wormhole space only' },
 		{ value: 'kspace', label: 'Known space only' },
-	];
+	] as const satisfies readonly { value: KillmailScope; label: string }[];
+	const FILTER_VALUES = FILTERS.map((f) => f.value);
 	const filter = $derived(settings?.killmail_filter ?? 'all');
 </script>
 
@@ -90,8 +97,14 @@
 					<Select.Root
 						type="single"
 						value={placement}
-						onValueChange={(v) =>
-							v && saveUserSettings(mapId, { layout_override: v === 'map' ? null : v })}
+						onValueChange={(v) => {
+							const picked = oneOf(PLACEMENT_VALUES, v);
+							if (picked) {
+								saveUserSettings(mapId, {
+									layout_override: picked === 'map' ? null : picked,
+								});
+							}
+						}}
 					>
 						<Select.Trigger class="w-52" data-testid="layout-override-select">
 							{PLACEMENTS.find((p) => p.value === placement)?.label}
@@ -119,7 +132,10 @@
 				<Select.Root
 					type="single"
 					value={filter}
-					onValueChange={(v) => v && saveUserSettings(mapId, { killmail_filter: v })}
+					onValueChange={(v) => {
+						const picked = oneOf(FILTER_VALUES, v);
+						if (picked) saveUserSettings(mapId, { killmail_filter: picked });
+					}}
 				>
 					<Select.Trigger class="w-52" data-testid="killmail-filter-select">
 						{FILTERS.find((f) => f.value === filter)?.label}

@@ -14,6 +14,7 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import BuildingIcon from '@lucide/svelte/icons/building-2';
+	import { readStored, sortSchema } from '$lib/storage';
 
 	import { browser } from '$app/environment';
 
@@ -54,11 +55,11 @@
 
 	let { map }: { map: MapState } = $props();
 
-	const PREF_LABELS: Record<string, string> = {
+	const PREF_LABELS = {
 		shorter: 'Shortest',
 		safer: 'Safer',
 		less_secure: 'Less Secure',
-	};
+	} satisfies Record<string, string>;
 	const canWrite = $derived(atLeast(map.data?.role, 'member'));
 
 	// Routing tables and the graph live on the map state, so every card measures distance the
@@ -157,11 +158,12 @@
 	});
 
 	type SortColumn = 'system' | 'region' | 'jumps';
-	let sort = $state<{ column: SortColumn; direction: 'asc' | 'desc' }>(
-		(browser && JSON.parse(localStorage.getItem('watchlist-sort') ?? 'null')) || {
+	const SORT_COLUMNS = ['system', 'region', 'jumps'] as const;
+	let sort = $state(
+		readStored('watchlist-sort', sortSchema(SORT_COLUMNS), {
 			column: 'system',
 			direction: 'asc',
-		},
+		}),
 	);
 	$effect(() => {
 		localStorage.setItem('watchlist-sort', JSON.stringify(sort));

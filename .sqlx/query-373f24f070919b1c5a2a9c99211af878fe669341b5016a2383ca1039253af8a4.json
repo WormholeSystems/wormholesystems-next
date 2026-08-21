@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into maps (name, description) values ($1, $2)\n             returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,\n                 ghost_unlinked_wormholes, layout, allow_layout_override, is_public, share_token,\n                 bookmark_wormhole, bookmark_kspace, bookmark_return",
+  "query": "update maps set name = $1, description = $2, image_url = $3,\n                    alias_scheme = $5, ignored_alias = $6, bookmark_wormhole = $7,\n                    bookmark_kspace = $8, bookmark_return = $9, ghost_unlinked_wormholes = $10,\n                    layout = $11, allow_layout_override = $12, is_public = $13\n             where id = $4\n             returning id, name, description, image_url, created_at, alias_scheme as \"alias_scheme: AliasScheme\", ignored_alias,\n                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,\n                 layout as \"layout: MapLayout\", allow_layout_override, is_public, share_token",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       },
       {
         "ordinal": 5,
-        "name": "alias_scheme",
+        "name": "alias_scheme: AliasScheme",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,61 +82,6 @@
       },
       {
         "ordinal": 7,
-        "name": "ghost_unlinked_wormholes",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "ghost_unlinked_wormholes"
-          }
-        }
-      },
-      {
-        "ordinal": 8,
-        "name": "layout",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "layout"
-          }
-        }
-      },
-      {
-        "ordinal": 9,
-        "name": "allow_layout_override",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "allow_layout_override"
-          }
-        }
-      },
-      {
-        "ordinal": 10,
-        "name": "is_public",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "is_public"
-          }
-        }
-      },
-      {
-        "ordinal": 11,
-        "name": "share_token",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "maps",
-            "name": "share_token"
-          }
-        }
-      },
-      {
-        "ordinal": 12,
         "name": "bookmark_wormhole",
         "type_info": "Text",
         "origin": {
@@ -147,7 +92,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 8,
         "name": "bookmark_kspace",
         "type_info": "Text",
         "origin": {
@@ -158,7 +103,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 9,
         "name": "bookmark_return",
         "type_info": "Text",
         "origin": {
@@ -167,12 +112,78 @@
             "name": "bookmark_return"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "ghost_unlinked_wormholes",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "ghost_unlinked_wormholes"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "layout: MapLayout",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "layout"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "allow_layout_override",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "allow_layout_override"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "is_public",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "is_public"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "share_token",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "maps",
+            "name": "share_token"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
         "Text",
-        "Text"
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Bool"
       ]
     },
     "nullable": [
@@ -187,11 +198,11 @@
       false,
       false,
       false,
-      true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "2a70dd04ed298d431c608e08a84934283bc980f202f7932e7d4e4cc3c1e44e06"
+  "hash": "373f24f070919b1c5a2a9c99211af878fe669341b5016a2383ca1039253af8a4"
 }

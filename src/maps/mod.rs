@@ -46,7 +46,9 @@ macro_rules! text_enum {
     ($(#[$m:meta])* $vis:vis enum $name:ident { $($variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS)]
-        #[serde(rename_all = "lowercase")]
+        // snake_case rather than lowercase: it agrees with the string each variant maps to,
+        // which lowercase does not once a variant is two words (`LessSecure`).
+        #[serde(rename_all = "snake_case")]
         #[ts(export)]
         $vis enum $name { $($variant),+ }
 
@@ -104,6 +106,41 @@ text_enum! {
     pub enum ConnectionType {
         Wormhole => "wormhole",
         Stargate => "stargate",
+    }
+}
+
+text_enum! {
+    /// How a chain names itself: the sequence an alias suggestion walks.
+    pub enum AliasScheme {
+        Numeric => "numeric",
+        Alphabetical => "alphabetical",
+    }
+}
+
+text_enum! {
+    /// Where the nodes get their positions. `Manual` keeps whatever they were dragged to;
+    /// `Tree` derives them, and is the map's choice unless it hands it to each viewer.
+    pub enum MapLayout {
+        Manual => "manual",
+        Tree => "tree",
+    }
+}
+
+text_enum! {
+    /// What a route is optimised for.
+    pub enum RoutePreference {
+        Shorter => "shorter",
+        Safer => "safer",
+        LessSecure => "less_secure",
+    }
+}
+
+text_enum! {
+    /// Which half of the chain the killmails card shows.
+    pub enum KillmailScope {
+        All => "all",
+        Jspace => "jspace",
+        Kspace => "kspace",
     }
 }
 
