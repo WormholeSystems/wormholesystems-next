@@ -18,6 +18,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import InstanceNotice from '$lib/components/InstanceNotice.svelte';
+	import type { Instance } from '$lib/api/types/Instance';
 	import { Switch } from '$lib/components/ui/switch';
 	import { timeAgo } from '$lib/format';
 	import { cn } from '$lib/utils';
@@ -37,8 +39,13 @@
 	// comes back: otherwise the controls would offer buttons that 403.
 	let canManage = $state(false);
 
+	let instance = $state<Instance | null>(null);
+
 	async function load() {
 		try {
+			// A deployment without a Discord bot can still post to a webhook, so this only
+			// dims the half that needs one rather than the whole page.
+			instance = await api.instance().catch(() => null);
 			[alerts, events, webhooks, roles] = await Promise.all([
 				api.listAlerts(mapId),
 				api.alertEvents(mapId),
@@ -133,6 +140,12 @@
 </script>
 
 <div class="flex flex-col gap-6">
+	{#if instance && !instance.discord.bot}
+		<InstanceNotice title="The Discord bot is not set up on this instance">
+			Alerts to a <strong>channel webhook</strong> work as normal. Direct messages and posting as the
+			bot need a bot token, which whoever runs this instance has not configured.
+		</InstanceNotice>
+	{/if}
 	{#if error}
 		<p class="text-sm text-destructive" data-testid="alerts-error">{error}</p>
 	{/if}

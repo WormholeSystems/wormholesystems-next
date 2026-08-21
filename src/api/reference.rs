@@ -52,6 +52,7 @@ pub struct ThreatAnalysis {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/api/instance", get(instance))
         .route("/api/grid-config", get(grid_config))
         .route("/api/effects", get(effect_modifiers))
         .route("/api/systems/search", get(search_systems))
@@ -91,6 +92,39 @@ pub async fn reference_counts(State(state): State<AppState>) -> ApiResult<Refere
         wormhole_systems: row.wormhole_systems,
         stargates: row.stargates,
         wormhole_types: row.wormhole_types,
+    }))
+}
+
+/// What this deployment can actually do, so the interface can say what is switched off
+/// rather than offering something that will quietly never arrive. Self-hosters configure
+/// Discord separately from the rest, and most of them do not configure it at all.
+#[derive(Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct Instance {
+    pub discord: DiscordCapability,
+}
+
+#[derive(Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct DiscordCapability {
+    /// Whether an account can be linked at all: the OAuth half of the application.
+    pub linking: bool,
+    /// Whether the bot can post to a channel or DM. Needs a bot token on top of the rest;
+    /// a plain webhook destination works without it.
+    pub bot: bool,
+}
+
+/// `GET /api/instance`: what this deployment has switched on. No actor check; it says
+/// nothing an anonymous visitor could not infer from which buttons appear.
+pub async fn instance(State(state): State<AppState>) -> ApiResult<Instance> {
+    Ok(Json(Instance {
+        discord: DiscordCapability {
+            linking: state.discord.is_some(),
+            bot: state
+                .discord
+                .as_ref()
+                .is_some_and(|d| d.bot_token.is_some()),
+        },
     }))
 }
 

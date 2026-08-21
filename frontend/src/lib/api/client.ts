@@ -23,6 +23,7 @@ import type { ClearMap } from './types/ClearMap';
 import type { EffectModifier } from './types/EffectModifier';
 import type { EveScoutConnection } from './types/EveScoutConnection';
 import type { GridConfig } from './types/GridConfig';
+import type { Instance } from './types/Instance';
 import type { LinkSignature } from './types/LinkSignature';
 import type { Map } from './types/Map';
 import type { MapCharacter } from './types/MapCharacter';
@@ -163,6 +164,7 @@ export const api = {
 	setWaypointAll: (body: SetWaypointAllBody) => post<null>('/api/waypoints/all', body),
 
 	// Config / reference data
+	instance: () => get<Instance>('/api/instance'),
 	gridConfig: () => get<GridConfig>('/api/grid-config'),
 	effectModifiers: (name: string, wormholeClassId: number) =>
 		get<EffectModifier[]>(`/api/effects?name=${encodeURIComponent(name)}&class=${wormholeClassId}`),

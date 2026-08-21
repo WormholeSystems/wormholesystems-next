@@ -9,8 +9,11 @@
 	import type { DiscordAccount } from '$lib/api/types/DiscordAccount';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import InstanceNotice from '$lib/components/InstanceNotice.svelte';
+	import type { Instance } from '$lib/api/types/Instance';
 
 	let account = $state<DiscordAccount | null>(null);
+	let instance = $state<Instance | null>(null);
 	let loaded = $state(false);
 	let error = $state<string | null>(null);
 
@@ -18,6 +21,9 @@
 
 	async function load() {
 		try {
+			// What this deployment configured, not what the account did: a self-hosted
+			// instance may have no Discord application at all.
+			instance = await api.instance().catch(() => null);
 			account = await api.myDiscord();
 			error = null;
 		} catch (err) {
@@ -43,6 +49,17 @@
 </script>
 
 <div class="flex flex-col gap-6">
+	{#if loaded && instance && !instance.discord.linking}
+		<InstanceNotice title="Discord is not set up on this instance">
+			Whoever runs it has not configured a Discord application, so there is nothing to link an
+			account to. Alerts can still be delivered to a channel webhook, which needs no application.
+		</InstanceNotice>
+	{:else if loaded && instance && !instance.discord.bot}
+		<InstanceNotice title="The Discord bot is not set up on this instance">
+			Linking works, but there is no bot token, so nothing can direct-message you, post to a channel
+			as the bot, or answer <code>/wh</code>. Channel webhooks are unaffected.
+		</InstanceNotice>
+	{/if}
 	{#if error}
 		<p class="text-sm text-destructive" data-testid="discord-error">{error}</p>
 	{/if}
