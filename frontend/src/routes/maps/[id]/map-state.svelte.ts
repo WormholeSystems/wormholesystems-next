@@ -88,6 +88,34 @@ interface ViewportRect {
 	height: number;
 }
 
+/** Somewhere worth routing to, and the stations that make it worth it. */
+export interface StationGroup {
+	id: number;
+	name: string;
+	systems: Set<number>;
+	/** Concrete stations per system, so results can name (and target) the station. */
+	stationsBySystem: Map<number, { id: number; name: string }[]>;
+}
+
+function stationGroup(group: {
+	id: number;
+	name: string;
+	stations: { id: number; name: string; solar_system_id: number }[];
+}): StationGroup {
+	const stationsBySystem = new Map<number, { id: number; name: string }[]>();
+	for (const station of group.stations) {
+		const list = stationsBySystem.get(station.solar_system_id) ?? [];
+		list.push({ id: station.id, name: station.name });
+		stationsBySystem.set(station.solar_system_id, list);
+	}
+	return {
+		id: group.id,
+		name: group.name,
+		systems: new Set(stationsBySystem.keys()),
+		stationsBySystem,
+	};
+}
+
 export class MapState {
 	mapId: number;
 	viewportEl: HTMLElement | null = null;
@@ -161,15 +189,9 @@ export class MapState {
 	security = $state<Map<number, number>>(new Map());
 	joveSystems = $state<Set<number>>(new Set());
 	stationSystems = $state<Set<number>>(new Set());
-	serviceOptions = $state<
-		{
-			id: number;
-			name: string;
-			systems: Set<number>;
-			/** Concrete stations per system, so results can name (and target) the station. */
-			stationsBySystem: Map<number, { id: number; name: string }[]>;
-		}[]
-	>([]);
+	/** A named set of stations to search for: what a station does, or who owns it. */
+	serviceOptions = $state<StationGroup[]>([]);
+	corporationOptions = $state<StationGroup[]>([]);
 
 	// The history tree plus where the map sits in it, and the live socket state behind
 	// the status dot.
@@ -506,20 +528,8 @@ export class MapState {
 			this.security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
 			this.joveSystems = new Set(g.jove ?? []);
 			this.stationSystems = new Set(g.stations ?? []);
-			this.serviceOptions = (g.services ?? []).map((svc) => {
-				const stationsBySystem = new Map<number, { id: number; name: string }[]>();
-				for (const station of svc.stations) {
-					const list = stationsBySystem.get(station.solar_system_id) ?? [];
-					list.push({ id: station.id, name: station.name });
-					stationsBySystem.set(station.solar_system_id, list);
-				}
-				return {
-					id: svc.id,
-					name: svc.name,
-					systems: new Set(stationsBySystem.keys()),
-					stationsBySystem,
-				};
-			});
+			this.serviceOptions = (g.services ?? []).map(stationGroup);
+			this.corporationOptions = (g.corporations ?? []).map(stationGroup);
 		} catch {
 			// No graph means no routing; the cards fall back to showing no distances.
 		}

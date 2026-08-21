@@ -29,6 +29,7 @@
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import RouteList from '$lib/components/map/RouteList.svelte';
+	import { Input } from '$lib/components/ui/input';
 	import SystemCombobox from '$lib/components/pickers/SystemCombobox.svelte';
 	import DestinationMenu from '$lib/components/system-menu/DestinationMenu.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
@@ -67,6 +68,7 @@
 	const joveSystems = $derived(map.joveSystems);
 	const stationSystems = $derived(map.stationSystems);
 	const serviceOptions = $derived(map.serviceOptions);
+	const corporationOptions = $derived(map.corporationOptions);
 	const graph = $derived(map.graph);
 
 	$effect(() => {
@@ -235,11 +237,26 @@
 	const conditionLabel = $derived(
 		CONDITIONS.find((c) => c.value === condition)?.label ??
 			serviceOptions.find((svc) => `service_${svc.id}` === condition)?.name ??
+			corporationOptions.find((corp) => `corp_${corp.id}` === condition)?.name ??
 			'Pick one',
 	);
+	// Whichever group of stations is being searched for, if it is one: services and owners
+	// are the same question, so the results expand the same way.
 	const activeService = $derived(
-		serviceOptions.find((svc) => condition === `service_${svc.id}`) ?? null,
+		serviceOptions.find((svc) => condition === `service_${svc.id}`) ??
+			corporationOptions.find((corp) => condition === `corp_${corp.id}`) ??
+			null,
 	);
+
+	// 185 owners is a list nobody scrolls, so it is typed into instead.
+	let corpSearch = $state('');
+	const matchingCorps = $derived.by(() => {
+		const query = corpSearch.trim().toLowerCase();
+		const all = query
+			? corporationOptions.filter((corp) => corp.name.toLowerCase().includes(query))
+			: corporationOptions;
+		return all.slice(0, 50);
+	});
 	// Station lists collapse by default: a service can match a dozen stations per system,
 	// which would bury the jump-ordered results.
 	let expandedFind = $state<Set<number>>(new Set());
@@ -266,6 +283,9 @@
 		};
 		for (const svc of serviceOptions) {
 			matchers[`service_${svc.id}`] = (id) => svc.systems.has(id);
+		}
+		for (const corp of corporationOptions) {
+			matchers[`corp_${corp.id}`] = (id) => corp.systems.has(id);
 		}
 		return findClosestSystems(
 			graph,
@@ -562,6 +582,28 @@
 												{svc.name}
 											</Select.Item>
 										{/each}
+									</Select.Group>
+								{/if}
+								{#if corporationOptions.length > 0}
+									<Select.Group>
+										<Select.GroupHeading>Station owner</Select.GroupHeading>
+										<div class="px-2 pb-1">
+											<Input
+												bind:value={corpSearch}
+												placeholder="Search owners…"
+												class="h-7 text-xs"
+												data-testid="find-owner-search"
+												onkeydown={(ev) => ev.stopPropagation()}
+											/>
+										</div>
+										{#each matchingCorps as corp (corp.id)}
+											<Select.Item value="corp_{corp.id}" label={corp.name}>
+												{corp.name}
+											</Select.Item>
+										{/each}
+										{#if matchingCorps.length === 0}
+											<p class="px-2 py-1 text-xs text-muted-foreground">No owner by that name.</p>
+										{/if}
 									</Select.Group>
 								{/if}
 							</Select.Content>

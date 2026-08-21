@@ -137,6 +137,13 @@ function put<T>(path: string, body: unknown): Promise<T> {
 function del<T>(path: string): Promise<T> {
 	return request<T>(path, { method: 'DELETE' });
 }
+/** A named set of stations the routing graph ships: a service, or the corporation that
+ * owns them. Both are searched the same way. */
+interface StationGroupPayload {
+	id: number;
+	name: string;
+	stations: { id: number; name: string; solar_system_id: number }[];
+}
 
 export const api = {
 	// Auth / identity
@@ -171,12 +178,9 @@ export const api = {
 			security: Record<string, number>;
 			jove: number[];
 			stations: number[];
-			services: {
-				id: number;
-				name: string;
-				stations: { id: number; name: string; solar_system_id: number }[];
-			}[];
-		}>('/api/routing-graph?v=3'),
+			services: StationGroupPayload[];
+			corporations: StationGroupPayload[];
+		}>('/api/routing-graph?v=4'),
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),

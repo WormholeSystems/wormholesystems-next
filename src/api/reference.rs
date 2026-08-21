@@ -344,6 +344,32 @@ pub async fn routing_graph(
     if let Some((id, name, stations)) = current {
         services.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
     }
+
+    // The NPC corporations that own stations, in the same shape as the services above, so
+    // "the nearest Quafe Company station" is the same question as "the nearest repair shop"
+    // and the client answers both with one relaxation over the graph it already has.
+    let rows = sqlx::query!(
+        r#"select st.owner_corporation_id as "corporation_id!", c.name as "corporation_name!",
+                  st.id as "station_id", st.name as "station_name", st.solar_system_id
+           from stations st
+           join corporations c on c.id = st.owner_corporation_id
+           where st.owner_corporation_id is not null
+           order by c.name, st.name"#,
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let corporations = group_stations(rows.into_iter().map(|row| {
+        (
+            row.corporation_id,
+            row.corporation_name,
+            serde_json::json!({
+                "id": row.station_id,
+                "name": row.station_name,
+                "solar_system_id": row.solar_system_id,
+            }),
+        )
+    }));
+
     Ok((
         [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
         Json(serde_json::json!({
@@ -352,8 +378,33 @@ pub async fn routing_graph(
             "jove": jove,
             "stations": stations,
             "services": services,
+            "corporations": corporations,
         })),
     ))
+}
+
+/// Fold `(group id, group name, station)` rows, already ordered by group, into one entry
+/// per group.
+fn group_stations(
+    rows: impl Iterator<Item = (i64, String, serde_json::Value)>,
+) -> Vec<serde_json::Value> {
+    let mut out: Vec<serde_json::Value> = Vec::new();
+    let mut current: Option<(i64, String, Vec<serde_json::Value>)> = None;
+    for (id, name, station) in rows {
+        match &mut current {
+            Some((open, _, stations)) if *open == id => stations.push(station),
+            _ => {
+                if let Some((id, name, stations)) = current.take() {
+                    out.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
+                }
+                current = Some((id, name, vec![station]));
+            }
+        }
+    }
+    if let Some((id, name, stations)) = current {
+        out.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
+    }
+    out
 }
 
 /// `GET /api/systems/resolve?ids=a,b,c`, resolve solar system ids to display data for
