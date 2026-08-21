@@ -85,7 +85,10 @@ pub fn setup(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn update(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
+/// Bring the checkout, the containers and the static data up to date. One command,
+/// because a version of the code and the export it reads are not separately interesting:
+/// whoever is updating the server wants the server updated.
+pub fn update(runner: &mut dyn Runner, dir: &Path, force_sde: bool) -> Result<()> {
     require_checkout(dir)?;
     ui::heading("Updating");
     let before = runner
@@ -107,8 +110,59 @@ pub fn update(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
     stack::build(runner, dir)?;
     stack::up(runner, dir)?;
     ui::done("running");
-    report_sde(runner, dir);
+    update_sde(runner, dir, force_sde);
     Ok(())
+}
+
+/// What `status` says about the static data. Reports and changes nothing, unlike its
+/// namesake in `update`: asking what is running should never start a download.
+fn report_sde(runner: &mut dyn Runner, dir: &Path) {
+    match stack::sde_status(runner, dir) {
+        Ok(sde) if sde.update_available => println!(
+            "  {} a newer build is out ({}); `wsctl update` takes it",
+            style("!").yellow(),
+            sde.latest
+        ),
+        Ok(sde) => ui::done(&format!("current ({})", sde.loaded)),
+        Err(_) => println!(
+            "  {} could not read it; is the stack built?",
+            style("!").yellow()
+        ),
+    }
+}
+
+/// Take a newer export when CCP has one, and say so either way. Failing to read the status
+/// does not fail the update: the code is already live, and the static data can wait.
+fn update_sde(runner: &mut dyn Runner, dir: &Path, force: bool) {
+    let status = match stack::sde_status(runner, dir) {
+        Ok(status) => status,
+        Err(_) => {
+            println!(
+                "  {} could not read the static data; is the stack built?",
+                style("!").yellow()
+            );
+            return;
+        }
+    };
+    if !status.update_available && !force {
+        ui::done(&format!("static data current ({})", status.loaded));
+        return;
+    }
+
+    ui::note("A few hundred MB of static data, then a re-seed. This takes a while.");
+    let fetched = stack::api(runner, dir, &["sde-fetch", "--force"])
+        .and_then(|_| stack::restart(runner, dir, "api"));
+    match fetched {
+        Ok(()) => ui::done(&format!(
+            "static data {} → {}; the API re-seeds from it as it boots",
+            status.loaded, status.latest
+        )),
+        Err(err) => println!(
+            "  {} static data left at {}: {err:#}",
+            style("!").yellow(),
+            status.loaded
+        ),
+    }
 }
 
 pub fn status(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
@@ -151,18 +205,6 @@ pub fn status(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
             Err(_) => println!("  {} {url} did not answer", style("✗").red()),
         }
     }
-    Ok(())
-}
-
-/// CCP publishes a new static data export every few days. It is a large download and a
-/// re-seed of several minutes, so it is taken deliberately rather than on every restart.
-pub fn sde_update(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
-    require_checkout(dir)?;
-    ui::heading("Updating the static data");
-    ui::note("A few hundred MB, then a re-seed. This takes a while.");
-    stack::api(runner, dir, &["sde-fetch", "--force"])?;
-    stack::restart(runner, dir, "api")?;
-    ui::done("downloaded; the API re-seeds from it as it boots");
     Ok(())
 }
 
@@ -288,21 +330,6 @@ fn after_boot(answers: &Answers) {
         "\n  Then open {}",
         style(answers.base_url()).cyan().underlined()
     );
-}
-
-fn report_sde(runner: &mut dyn Runner, dir: &Path) {
-    match stack::sde_status(runner, dir) {
-        Ok(sde) if sde.update_available => println!(
-            "  {} a newer build is out ({}); `wsctl sde-update` takes it",
-            style("!").yellow(),
-            sde.latest
-        ),
-        Ok(sde) => ui::done(&format!("current ({})", sde.loaded)),
-        Err(_) => println!(
-            "  {} could not read it; is the stack built?",
-            style("!").yellow()
-        ),
-    }
 }
 
 /// What is already configured. Only a real `.env` counts: the example file is a template

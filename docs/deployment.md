@@ -101,14 +101,15 @@ docker compose --profile full logs -f api
 wsctl update
 ```
 
-Fast-forwards the checkout, rebuilds, restarts. Migrations run on boot, so there is no
-separate step.
+Fast-forwards the checkout, rebuilds, restarts, and takes CCP's static data when a newer
+build is out. Migrations run on boot, so there is no separate step for those either.
 
-CCP's static data is deliberately not part of that. `status` says when a newer build is
-out; taking it is another ~550MB download and a re-seed of a few minutes:
+The static data is the slow half: another ~550MB and a re-seed of a few minutes. It is
+skipped when the loaded build is already current, and `--sde` fetches it regardless, which
+is what to reach for if a download was interrupted:
 
 ```sh
-wsctl sde-update
+wsctl update --sde
 ```
 
 ## Checking on it

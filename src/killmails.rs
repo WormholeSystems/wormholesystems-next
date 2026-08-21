@@ -602,6 +602,10 @@ async fn analysis_loop(pool: PgPool, esi: EsiClient) {
     }
 }
 
+/// Advisory lock key for [`analyze`], which replaces the whole table and so cannot overlap
+/// with itself. Arbitrary, only has to be unique among this application's locks.
+const THREAT_ANALYSIS_LOCK: i64 = 0x7B12_0001;
+
 struct OrgStat {
     solar_system_id: i64,
     entity_type: String,
@@ -684,8 +688,14 @@ pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::
         names.insert(key, name);
     }
 
-    // Full replacement in one transaction.
+    // Full replacement in one transaction, and only one at a time: the backfill asks for an
+    // analysis when it finishes, which can land on top of the daily one. Two replacements
+    // interleaving delete each other's rows and then collide on the unique key.
     let mut tx = pool.begin().await?;
+    sqlx::query("select pg_advisory_xact_lock($1)")
+        .bind(THREAT_ANALYSIS_LOCK)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("delete from wormhole_system_threats")
         .execute(&mut *tx)
         .await?;
