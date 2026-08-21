@@ -83,10 +83,12 @@ async fn ensure_sde_present() -> Result<(), BoxError> {
 pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
     ensure_sde_present().await?;
     let bundled = bundled_build()?;
-    let loaded: Option<(i64, i32)> =
-        sqlx::query_as("select build_number, seed_revision from sde_build")
-            .fetch_optional(pool)
-            .await?;
+    // Checked against the schema at compile time, unlike the untyped form: a seed_revision
+    // that changed width would otherwise only be caught by a boot that failed.
+    let loaded = sqlx::query!("select build_number, seed_revision from sde_build")
+        .fetch_optional(pool)
+        .await?
+        .map(|r| (r.build_number, r.seed_revision));
     if loaded == Some((bundled.build_number, SEED_REVISION)) {
         return Ok(false);
     }

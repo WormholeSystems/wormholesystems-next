@@ -62,11 +62,13 @@ async fn main() {
         let db = wormholesystems::db::connect(&url)
             .await
             .expect("db connect failed");
-        let loaded: Option<(i64, Option<chrono::DateTime<chrono::Utc>>)> =
-            sqlx::query_as("select build_number, release_date from sde_build")
-                .fetch_optional(&db)
-                .await
-                .expect("could not read sde_build");
+        // `query!` rather than `query_as`: the row is built from the real schema at compile
+        // time, so a renamed column or a changed type stops the build instead of this.
+        let loaded = sqlx::query!("select build_number, release_date from sde_build")
+            .fetch_optional(&db)
+            .await
+            .expect("could not read sde_build")
+            .map(|r| (r.build_number, r.release_date));
         let latest = tokio::task::spawn_blocking(|| {
             wormholesystems::sde::download::Downloader::new().latest_build()
         })
