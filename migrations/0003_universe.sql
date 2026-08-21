@@ -56,7 +56,12 @@ create table solar_systems (
     security_class    text,
     faction_id        bigint references factions (id),
     wormhole_class_id integer,
-    star_id           bigint
+    star_id           bigint,
+    -- Where the system sits, in metres from the galactic centre. Jump range is measured
+    -- from these: "within range" means nothing without them.
+    pos_x             double precision,
+    pos_y             double precision,
+    pos_z             double precision
 );
 
 create table stargates (

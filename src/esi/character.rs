@@ -21,6 +21,9 @@ impl CharacterLocation {
 pub struct CharacterShip {
     pub ship_name: String,
     pub ship_type_id: i64,
+    /// The hull itself. Two Lokis are one type and two items, which is what tells a reship
+    /// apart from a pilot who has been sitting in the same ship for an hour.
+    pub ship_item_id: i64,
 }
 
 #[derive(Debug, Clone, Deserialize)]

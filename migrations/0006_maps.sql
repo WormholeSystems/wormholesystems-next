@@ -21,14 +21,37 @@ create table maps (
     -- The leading `*` sorts the way home to the top of the in-game folder.
     bookmark_return   text not null default '*{alias} {sig} {class}',
     head_event_id     bigint,
+    -- Whether a scanned wormhole that leads nowhere yet is drawn as a node. Map-wide: a
+    -- ghost is something everyone on the chain sees, so it cannot be one person's taste.
+    ghost_unlinked_wormholes boolean not null default false,
+    -- Automatic placement, so everyone looking at the same chain sees the same shape. A
+    -- map may hand the choice to each viewer instead. Positions are derived on the client
+    -- and never stored: the manual ones stay exactly as they were left.
+    layout            text not null default 'manual',
+    allow_layout_override boolean not null default false,
+    -- Two read-only ways in without an account. `is_public` puts the map in the open for
+    -- anyone with the link; `share_token` keeps it private but lets whoever holds the
+    -- secret watch. Either way the visitor is a viewer and pilots stay hidden.
+    is_public         boolean not null default false,
+    share_token       text unique,
     created_at        timestamptz not null default now()
 );
 
 -- Ephemeral placement: a system as currently on the map.
+-- A placement with no solar system is a **ghost**: the far side of a scanned wormhole,
+-- before anyone has been through it (docs/database/mapping.md#ghost-placements).
+-- Connections, positions and aliases work on it unchanged, and `unique (map_id,
+-- solar_system_id)` still caps real systems at one per map, because nulls are distinct.
+--
+-- The two `raised_by`/`hangs_off` columns are what a ghost is: the scan it was drawn for
+-- and the placement that scan was made in. Both cascade, so the rules that govern a
+-- ghost's life belong to the database rather than to whichever write remembers them.
+-- Deferred, because restoring a removal walks a cycle: a ghost names its signature, a
+-- signature names its connection, and a connection names its endpoints.
 create table map_solar_systems (
     id              bigint generated always as identity primary key,
     map_id          bigint not null references maps (id) on delete cascade,
-    solar_system_id bigint not null references solar_systems (id),
+    solar_system_id bigint references solar_systems (id),
     position_x      double precision not null,
     position_y      double precision not null,
     alias           text,
@@ -38,15 +61,33 @@ create table map_solar_systems (
     is_home         boolean not null default false,
     is_rally        boolean not null default false,
     is_pinned       boolean not null default false,
+    raised_by_signature_id bigint,
+    hangs_off_id    bigint references map_solar_systems (id)
+                        on delete cascade deferrable initially deferred,
     created_at      timestamptz not null default now(),
 
-    unique (map_id, solar_system_id)
+    unique (map_id, solar_system_id),
+    -- A node is either a system somebody placed or a hole somebody scanned, never both and
+    -- never neither.
+    constraint map_solar_systems_ghost_names_its_scan check (
+        (solar_system_id is not null
+             and raised_by_signature_id is null and hangs_off_id is null)
+        or (solar_system_id is null
+             and raised_by_signature_id is not null and hangs_off_id is not null)
+    ),
+    -- Home and rally mean a place you can go; pinning means a place you have decided
+    -- matters, which is skipped by every sweep and would let a ghost outlive its hole.
+    constraint map_solar_systems_ghost_unmarked
+        check (solar_system_id is not null or not (is_home or is_rally or is_pinned))
 );
 
 create unique index map_solar_systems_one_home
     on map_solar_systems (map_id) where is_home;
 create unique index map_solar_systems_one_rally
     on map_solar_systems (map_id) where is_rally;
+create index map_solar_systems_raised_by_idx
+    on map_solar_systems (raised_by_signature_id)
+    where raised_by_signature_id is not null;
 
 -- Persisted intel: survives a system being removed from the map. A new placement starts
 -- as `unknown` (no status icon, neutral border); anything else is an explicit choice.
@@ -115,10 +156,17 @@ create table map_access (
     subject_type text not null,
     subject_id   bigint not null,
     role         text not null,
+    -- Access that runs out on its own, for the scout who joined for one operation. `null`
+    -- is the ordinary grant: it lasts until it is taken away.
+    expires_at   timestamptz,
     created_at   timestamptz not null default now(),
 
     unique (map_id, subject_id)
 );
+
+-- Every role lookup filters on this, and a map's grants are read on nearly every request.
+create index map_access_live on map_access (map_id, subject_id)
+    where expires_at is null;
 
 -- Per-user, per-map preferences: what to share, what to show, and how the page is laid
 -- out. `tracking_allowed` is the explicit opt-in for sharing this user's characters' live
@@ -148,10 +196,15 @@ create table map_user_settings (
     -- Hides a finished chain from this user's map list without deleting it for everyone
     -- else. Per-user because one group's dead chain is another's staging map.
     is_archived             boolean not null default false,
-    -- When this user waved the setup guide away. The guide otherwise shows itself whenever
-    -- a map still has setup left, so this is the "yes, I know, leave it" switch. Stamped
-    -- rather than a flag, because when someone dismissed it is the useful half.
-    setup_dismissed_at      timestamptz,
+    -- When this user finished the map's introduction, the one-time walkthrough of
+    -- permissions and preferences. Stamped rather than a flag: when they did it is the
+    -- useful half.
+    introduction_confirmed_at timestamptz,
+    -- Set only on a map that allows it, and only for this viewer.
+    layout_override         text,
+    -- Quick access: the maps this person keeps in the top bar. Per user, because which
+    -- chains you are flying this week is your business.
+    is_pinned               boolean not null default false,
     -- Panels this user hides, and the per-breakpoint tile positions. Null layout means
     -- "the built-in arrangement", so a map nobody has customised renders from defaults.
     hidden_panels           text[] not null default '{}',
@@ -228,3 +281,10 @@ create index map_events_children on map_events (map_id, parent_id) where is_step
 -- The cursor. Null means every step has been undone.
 alter table maps
     add foreign key (head_event_id) references map_events (id) on delete set null;
+
+-- A ghost's scan, declared here because `signatures` is created after the placements that
+-- point at it. Deferred for the same reason as its sibling: the undo of a removal puts the
+-- placement, the connection and the scan back in whichever order suits it.
+alter table map_solar_systems
+    add foreign key (raised_by_signature_id) references signatures (id)
+        on delete cascade deferrable initially deferred;

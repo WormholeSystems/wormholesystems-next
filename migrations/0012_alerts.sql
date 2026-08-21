@@ -14,6 +14,28 @@ create table discord_accounts (
     updated_at      timestamptz not null default now()
 );
 
+-- A webhook the map has registered, pointed at by however many alerts want it.
+create table map_webhooks (
+    id         bigint primary key generated always as identity,
+    map_id     bigint      not null references maps (id) on delete cascade,
+    name       text        not null,
+    -- Write-only: the API returns a redacted summary, never this.
+    url        text        not null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (map_id, name)
+);
+
+-- A Discord role, named, so an alert can say who to ping without anyone reciting an id.
+create table map_webhook_roles (
+    id              bigint primary key generated always as identity,
+    map_id          bigint      not null references maps (id) on delete cascade,
+    name            text        not null,
+    discord_role_id text        not null,
+    created_at      timestamptz not null default now(),
+    unique (map_id, discord_role_id)
+);
+
 create table map_alerts (
     id                     bigint primary key generated always as identity,
     map_id                 bigint      not null references maps (id) on delete cascade,
@@ -25,14 +47,22 @@ create table map_alerts (
     kind                   text        not null,
     -- `webhook` | `discord_dm` | `discord_channel`.
     delivery               text        not null default 'webhook',
-    webhook_url            text,
     discord_guild_id       text,
     discord_channel_id     text,
-    discord_role_id        text,
+    -- Where it goes and who it pings, both named things the map registers once and points
+    -- several alerts at. Pasting the same webhook URL into four alerts is four chances to
+    -- paste the wrong one, and rotating it is four edits; a role gets a name because
+    -- nobody knows which of theirs is 1189734502938472.
+    map_webhook_id         bigint references map_webhooks (id) on delete cascade,
+    map_webhook_role_id    bigint references map_webhook_roles (id) on delete set null,
     -- `none` | `creator` | `role` | `everyone`.
     mention                text        not null default 'none',
     -- Proximity and jump range only: what the chain has to come close to.
     target_solar_system_id bigint references solar_systems (id) on delete cascade,
+    -- Jump range only: `dreadnought` | `carrier` | `force_auxiliary` | `supercarrier`
+    -- | `titan` | `jump_freighter` | `rorqual` | `black_ops`, and the pilot's JDC level.
+    ship_type              text,
+    jdc_level              integer,
     -- Gate jumps for proximity and killmail; light years, tenths, for jump range.
     max_jumps              integer     not null default 5,
     -- Killmail only: `[{subject, side, mode, ids}]`, matched per `filter_match`.

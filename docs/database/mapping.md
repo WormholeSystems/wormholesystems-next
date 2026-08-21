@@ -201,7 +201,7 @@ The state lives on **every** member (not just the signatures) because either can
 alone: a connection can be marked massed/EOL before it's scanned, and a wormhole sig
 carries state from the scanner before it's linked. So we can't designate one as the sole
 source of truth. Instead a **PostgreSQL trigger keeps the whole group in lock-step**
-(implemented in `migrations/0009_create_connection_sync.sql`; the ordered enums mirror it
+(implemented in `migrations/0007_connection_sync.sql`; the ordered enums mirror it
 in `src/maps/mod.rs`). A trigger rather than app-side code, so the rows can never drift
 regardless of which path writes them — including the connection's own `set_connection_status`
 and a signature's edit/link.

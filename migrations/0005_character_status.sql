@@ -13,6 +13,10 @@ create table character_status (
     last_online_at  timestamptz,
     ship_type_id    bigint references types (id),
     ship_name       text,
+    -- The hull itself, not its type: the same pilot in a second Loki is a different item.
+    -- Kept so `ship_updated_at` can say how long they have been in this one, which is the
+    -- difference between somebody who just undocked and somebody who has been sitting on a
+    -- hole for an hour.
     ship_item_id    bigint,
     ship_updated_at timestamptz,
     updated_at      timestamptz not null default now()
