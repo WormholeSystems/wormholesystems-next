@@ -25,6 +25,11 @@ where g.solar_system_id is null
 -- Ghosts no scan claims never had anything to be; there is nothing to backfill them with.
 delete from map_solar_systems where solar_system_id is null and raised_by_signature_id is null;
 
+-- The backfill above queued a deferred check for every row it touched, and Postgres will
+-- not alter a table with trigger events still pending. Settling them here is what lets the
+-- constraint go on in the same transaction.
+set constraints all immediate;
+
 -- A node is either a system somebody placed or a hole somebody scanned, never both and
 -- never neither.
 alter table map_solar_systems
