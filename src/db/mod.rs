@@ -7,10 +7,20 @@ use sqlx::postgres::PgPoolOptions;
 use crate::esi::token::{Token, TokenStore};
 use crate::esi::{EsiError, Result as EsiResult};
 
+/// How many Postgres connections to hold open. The default is not sqlx's five: the API,
+/// every open websocket, the tracking poller, killmail ingest and the alert lifecycle all
+/// draw on one pool, and the poller alone asks for more than five at a time — so five means
+/// requests queue behind background work rather than being served.
+const DEFAULT_MAX_CONNECTIONS: u32 = 20;
+
 /// Connect to Postgres and run any pending migrations.
 pub async fn connect(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    let max = std::env::var("DATABASE_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_MAX_CONNECTIONS);
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(max)
         .connect(database_url)
         .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;

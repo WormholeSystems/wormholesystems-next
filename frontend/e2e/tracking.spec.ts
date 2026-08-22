@@ -67,6 +67,11 @@ async function openAsPilot(
 	await page.goto(`http://localhost:5173/maps/${mapId}?system=${startSystem}`);
 	await page.waitForSelector('html[data-hydrated="true"]');
 	await page.waitForSelector('[data-testid="panel-grid"]');
+	// And wait until the page knows where the pilot already is. The tracker calls a move a
+	// jump by comparing it to the last place it saw them, so with no starting point the
+	// first move is not a jump at all and nothing gets mapped. The pilot appearing on their
+	// own node is that baseline, observable from out here.
+	await page.waitForSelector('[data-testid="pilots-row"]');
 
 	async function close() {
 		// Park the pilot offline, so a later spec never finds them sitting in a wormhole.

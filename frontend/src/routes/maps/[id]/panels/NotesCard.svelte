@@ -26,8 +26,18 @@
 	let editing = $state(false);
 	let draft = $state('');
 
+	// Which system the notes below belong to. Plain, not `$state`: it is bookkeeping for the
+	// effect, and making it reactive would have the effect depend on its own write.
+	let loadedFor: number | null = null;
+
 	$effect(() => {
 		const mss = system.id;
+		// Only when the panel is looking at a different system. `map.systems` is replaced
+		// wholesale on every refetch, so this prop gets a new identity whenever anyone
+		// touches the map — and closing the editor then would take the note out from under
+		// somebody in the middle of typing it.
+		if (loadedFor === mss) return;
+		loadedFor = mss;
 		editing = false;
 		notes = null;
 		hidden = false;

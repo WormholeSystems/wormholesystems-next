@@ -5,10 +5,20 @@ import { defineConfig } from '@playwright/test';
 // setup), so locally the tests attach to your running stack.
 export default defineConfig({
 	testDir: 'e2e',
-	// The suite shares one dev stack, so a slow response can occasionally trip a
-	// timing-sensitive assertion; one retry keeps real failures visible without the
-	// noise. Retried tests are reported as flaky, not silently passed.
-	retries: 1,
+	// The suite shares one dev stack: six workers against one debug-build API, one Postgres
+	// and one dev server. Nothing here is slow on its own — every one of these passes in
+	// isolation in milliseconds — but a round trip under that load can outlast the default
+	// five seconds an assertion waits, which is what used to show up as flakiness. The
+	// budget is the shared stack's, not the app's.
+	expect: { timeout: 10_000 },
+	// Half of Playwright's default. The stack under test is one debug-build API, one dev
+	// server and one Postgres, and six workers oversubscribe it badly enough that
+	// assertions start losing races that have nothing to do with the code. Fewer workers
+	// costs about a minute and buys a suite that means something when it goes red.
+	workers: 3,
+	// Kept at zero deliberately: a retry hides exactly the intermittency worth knowing
+	// about. If this suite goes red, something is actually wrong.
+	retries: 0,
 	use: {
 		baseURL: 'http://localhost:5173',
 	},
