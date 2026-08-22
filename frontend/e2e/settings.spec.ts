@@ -29,7 +29,8 @@ test('renaming the map shows up on the map itself', async ({ page, api }) => {
 
 test('the owner is listed, and granting adds a second entry', async ({ page, api }) => {
 	const mapId = await createMap(api, 'E2E Access');
-	const mate = await createIdentity(2);
+	// A second identity, so the grant below has somebody to be granted to.
+	await createIdentity(2);
 	await gotoApp(page, `/maps/${mapId}/settings/access`);
 
 	const list = page.getByTestId('access-list');
@@ -62,7 +63,6 @@ test('a grant can be given an end date, and taken back to permanent', async ({ p
 	await page.getByTestId('duration-24').click();
 	await page.getByTestId('grant-button').click();
 
-	const list = page.getByTestId('access-list');
 	await expect(page.getByTestId('access-row')).toHaveCount(2);
 	// The row says when it runs out, rather than looking like any other grant.
 	await expect(page.getByTestId('access-expiry')).toHaveCount(1);

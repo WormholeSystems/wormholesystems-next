@@ -3,8 +3,6 @@ import {
 	E2E_CORPORATION_ID,
 	createIdentity,
 	grantAccess,
-	grantLocationScopes,
-	setCharacterOnline,
 	setActiveCharacter,
 	setCharacterPresence,
 	withDb,

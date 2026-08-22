@@ -7,7 +7,6 @@ import { createIdentity, grantAccess } from './db';
 
 const JITA = 30000142;
 const PERIMETER = 30000144;
-const J122515 = 31001882;
 
 async function createMap(api: import('@playwright/test').APIRequestContext, name: string) {
 	const res = await api.post('/api/maps', { data: { name } });

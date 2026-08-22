@@ -58,9 +58,13 @@
 
 	$effect(() => {
 		// The list is scoped to the map's systems, so adding one is as much a change as a fresh
-		// kill arriving. Read here to register the dependency.
+		// kill arriving. Read here to register the dependency: the reads are the point, which
+		// is exactly what an unused-expression check cannot know.
+		// oxlint-disable-next-line no-unused-expressions
 		filter;
+		// oxlint-disable-next-line no-unused-expressions
 		systemKey;
+		// oxlint-disable-next-line no-unused-expressions
 		map.killmailTick;
 		load();
 	});

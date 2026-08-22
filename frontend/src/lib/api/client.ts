@@ -17,8 +17,6 @@ import type { SaveRole } from './types/SaveRole';
 import type { SaveWebhook } from './types/SaveWebhook';
 import type { ScopeStatus } from './types/ScopeStatus';
 import type { ConnectionJump } from './types/ConnectionJump';
-import type { CharacterStatus } from './types/CharacterStatus';
-import type { CharacterSummary } from './types/CharacterSummary';
 import type { ClearMap } from './types/ClearMap';
 import type { EffectModifier } from './types/EffectModifier';
 import type { EveScoutConnection } from './types/EveScoutConnection';
