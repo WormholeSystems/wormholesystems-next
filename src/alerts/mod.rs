@@ -317,7 +317,7 @@ pub async fn deliver(
     // Checked at send time rather than hooked to every access change: access can be lost in
     // half a dozen ways, and this is the one place that must be right.
     if let Some(creator) = alert.created_by_user_id
-        && !can_still_see(pool, alert.map_id, creator).await
+        && !crate::maps::access::can_see(pool, alert.map_id, creator).await
     {
         disable(pool, alert, DisabledReason::AccessRevoked, None).await;
         return Err(false);
@@ -387,14 +387,6 @@ pub async fn deliver(
             Err(false)
         }
     }
-}
-
-async fn can_still_see(pool: &PgPool, map_id: i64, user_id: i64) -> bool {
-    crate::maps::access::effective_role(pool, map_id, user_id)
-        .await
-        .ok()
-        .flatten()
-        .is_some()
 }
 
 /// Claim the right to deliver this alert for this occasion; `false` means somebody already

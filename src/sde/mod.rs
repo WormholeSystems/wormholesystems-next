@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, io::BufRead, io::BufReader, path::Path};
+use std::{fs::File, io::BufRead, io::BufReader, path::Path};
 
 pub mod character;
 pub mod common;
@@ -65,15 +65,12 @@ pub fn fetch(force: bool) -> Result<bool, EnsurePresentError> {
     Ok(true)
 }
 
-/// An SDE record type backed by one `.jsonl` file and addressable by a primary key.
-/// Implemented for every top-level type in `entities.rs`.
+/// An SDE record type backed by one `.jsonl` file. Implemented for every top-level type in
+/// `entities.rs`. The key is not part of this: every reader takes the whole file and does
+/// its own grouping, so a record only ever needs to say which file it came from.
 pub trait SdeEntity: serde::de::DeserializeOwned {
-    /// The primary key type (`i64` for most files, `String` for a few).
-    type Id: std::hash::Hash + std::cmp::Eq;
     /// Filename of the backing `.jsonl`, resolved under [`SDE_DIR`].
     const FILE: &'static str;
-    /// This record's primary key (the JSON `_key`).
-    fn id(&self) -> Self::Id;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -120,13 +117,4 @@ pub(crate) fn parse_sample<T: SdeEntity>() -> Option<Vec<T>> {
         return None;
     }
     Some(load_all::<T>().unwrap_or_else(|err| panic!("parse {}: {err}", T::FILE)))
-}
-
-/// Load every row of an entity's file into a `HashMap` keyed by `id`, e.g.
-/// `sde::load::<SolarSystem>()?`.
-pub fn load<T: SdeEntity>() -> Result<HashMap<T::Id, T>, SdeError> {
-    Ok(load_all::<T>()?
-        .into_iter()
-        .map(|row| (row.id(), row))
-        .collect())
 }

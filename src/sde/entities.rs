@@ -8,31 +8,16 @@
 use super::SdeEntity;
 
 /// Generate `SdeEntity` impls from a `Type => "file.jsonl"` table.
-///
-/// The default arm is for `i64` keys read straight from `self.id`. Prefix a
-/// block with `str:` for entities whose `_key` is a `String` (cloned out).
 macro_rules! sde_entities {
     ( $( $ty:ty => $file:literal ),* $(,)? ) => {
         $(
             impl SdeEntity for $ty {
-                type Id = i64;
                 const FILE: &'static str = $file;
-                fn id(&self) -> i64 { self.id }
-            }
-        )*
-    };
-    ( str: $( $ty:ty => $file:literal ),* $(,)? ) => {
-        $(
-            impl SdeEntity for $ty {
-                type Id = String;
-                const FILE: &'static str = $file;
-                fn id(&self) -> String { self.id.clone() }
             }
         )*
     };
 }
 
-// ---- integer-keyed entities ----
 sde_entities! {
     // character
     super::character::Ancestry           => "ancestries.jsonl",
@@ -123,10 +108,9 @@ sde_entities! {
     super::universe::SolarSystem   => "mapSolarSystems.jsonl",
     super::universe::Star          => "mapStars.jsonl",
     super::universe::Stargate      => "mapStargates.jsonl",
-}
 
-// ---- string-keyed entities ----
-sde_entities! { str:
+    // These few carry a string `_key` rather than an integer one, which stopped mattering
+    // when the key stopped being part of the trait.
     super::character::CharacterTitle           => "characterTitles.jsonl",
     super::misc::SdeMeta                        => "_sde.jsonl",
     super::misc::TranslationLanguage           => "translationLanguages.jsonl",

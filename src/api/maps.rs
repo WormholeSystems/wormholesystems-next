@@ -8,8 +8,8 @@ use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
+use super::ApiResult;
 use super::extract::{ShareQuery, acting_on, read_map_as, require_actor, session_actor};
-use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 use crate::maps::map::UpdateMap;
 use crate::maps::{Map, MapEvent, MapView};
@@ -220,13 +220,9 @@ pub async fn map_characters(
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapCharacter>> {
     let actor = require_actor(&state.db, &jar).await?;
-    match crate::maps::access::effective_role(&state.db, map_id, actor.user_id).await? {
-        None => return Err(ApiError::from(crate::maps::MapError::NotFound)),
-        Some(crate::maps::Role::Viewer) => {
-            return Err(ApiError::from(crate::maps::MapError::Forbidden));
-        }
-        Some(_) => {}
-    }
+    // Member+: a viewer does not get to see where anyone is.
+    crate::maps::access::require_role(&state.db, map_id, actor.user_id, crate::maps::Role::Member)
+        .await?;
     let rows = sqlx::query!(
         r#"select c.id as character_id, c.name, co.ticker as corporation_ticker,
                   s.solar_system_id, s.ship_type_id, s.ship_name, t.name as "ship_type?",

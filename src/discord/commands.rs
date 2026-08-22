@@ -337,7 +337,7 @@ async fn remove(state: &AppState, user_id: i64, alert: Option<i64>) -> String {
 }
 
 async fn route(state: &AppState, user_id: i64, map_id: i64, system_id: i64) -> String {
-    if !can_see(state, user_id, map_id).await {
+    if !crate::maps::access::can_see(&state.db, map_id, user_id).await {
         return "You do not have access to that map.".into();
     }
     let Some(chain) = crate::alerts::killmail::chain_of(&state.db, map_id).await else {
@@ -380,14 +380,6 @@ async fn route(state: &AppState, user_id: i64, map_id: i64, system_id: i64) -> S
         named(found.from),
         route.join(" → ")
     )
-}
-
-async fn can_see(state: &AppState, user_id: i64, map_id: i64) -> bool {
-    crate::maps::access::effective_role(&state.db, map_id, user_id)
-        .await
-        .ok()
-        .flatten()
-        .is_some()
 }
 
 /// Suggestions for whichever option is being typed.

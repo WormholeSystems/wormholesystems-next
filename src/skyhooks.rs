@@ -15,6 +15,7 @@ use tokio::time::{MissedTickBehavior, interval};
 use crate::esi::EsiClient;
 use crate::esi::skyhooks::RaidableSkyhook;
 use crate::maps::Sovereignty;
+use crate::maps::solar_system::sovereignty_of;
 use crate::server_status::ServerWatch;
 
 /// Windows are two hours long and ESI advertises them ahead of time, so five minutes never
@@ -163,29 +164,6 @@ pub async fn store(pool: &PgPool, fetched: &[RaidableSkyhook]) -> sqlx::Result<u
     .len();
     tx.commit().await?;
     Ok(stored)
-}
-
-/// Mirrors the systems queries, so a skyhook row names its holder exactly as a map node does.
-fn sovereignty_of(
-    kind: Option<&str>,
-    id: Option<i64>,
-    name: Option<String>,
-    ticker: Option<String>,
-) -> Option<Sovereignty> {
-    match (kind, id, name) {
-        (Some("alliance"), Some(id), Some(name)) => Some(Sovereignty::Alliance {
-            id,
-            name,
-            ticker: ticker.unwrap_or_default(),
-        }),
-        (Some("corporation"), Some(id), Some(name)) => Some(Sovereignty::Corporation {
-            id,
-            name,
-            ticker: ticker.unwrap_or_default(),
-        }),
-        (Some("faction"), Some(id), Some(name)) => Some(Sovereignty::Faction { id, name }),
-        _ => None,
-    }
 }
 
 /// The in-game name of a planet: its system, then its position in Roman numerals.

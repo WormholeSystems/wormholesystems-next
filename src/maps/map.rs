@@ -12,7 +12,7 @@ use super::access::{owns_character, require_role};
 use super::error::{MapError, Result};
 use std::collections::HashMap;
 
-use super::solar_system::{MapSystemView, Sovereignty, Static};
+use super::solar_system::{MapSystemView, Static, sovereignty_of};
 use super::{Actor, AliasScheme, MapConnection, MapLayout, MapView, Role, SubjectType};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -451,22 +451,12 @@ pub async fn read_map(
     let systems = rows
         .into_iter()
         .map(|row| {
-            // kind/id/name are present together (or all absent). Ticker exists for
-            // alliances/corps; factions have none.
-            let sovereignty = match (row.sov_kind.as_deref(), row.sov_id, row.sov_name) {
-                (Some("alliance"), Some(id), Some(name)) => Some(Sovereignty::Alliance {
-                    id,
-                    name,
-                    ticker: row.sov_ticker.unwrap_or_default(),
-                }),
-                (Some("corporation"), Some(id), Some(name)) => Some(Sovereignty::Corporation {
-                    id,
-                    name,
-                    ticker: row.sov_ticker.unwrap_or_default(),
-                }),
-                (Some("faction"), Some(id), Some(name)) => Some(Sovereignty::Faction { id, name }),
-                _ => None,
-            };
+            let sovereignty = sovereignty_of(
+                row.sov_kind.as_deref(),
+                row.sov_id,
+                row.sov_name,
+                row.sov_ticker,
+            );
             // The reference columns come off left joins, so they are all optional to sqlx.
             // They arrive together or not at all: the placement's system id is a foreign
             // key, and every column below is `not null` on the row it reaches.

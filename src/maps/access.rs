@@ -47,14 +47,20 @@ fn require(role: Option<Role>, min: Role) -> Result<Role> {
     }
 }
 
+/// Whether this user can see the map at all. The yes/no form of [`effective_role`], for the
+/// callers that have nothing useful to say about *why* not: an alert deciding whether its
+/// creator still belongs, or the bot deciding whether to list a map.
+pub async fn can_see(pool: &PgPool, map_id: i64, user_id: i64) -> bool {
+    effective_role(pool, map_id, user_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+}
+
 /// Require at least `min` on the map, returning the actor's actual role (callers use it as
 /// the ceiling on what they may grant).
-pub(super) async fn require_role(
-    pool: &PgPool,
-    map_id: i64,
-    user_id: i64,
-    min: Role,
-) -> Result<Role> {
+pub async fn require_role(pool: &PgPool, map_id: i64, user_id: i64, min: Role) -> Result<Role> {
     require(effective_role(pool, map_id, user_id).await?, min)
 }
 

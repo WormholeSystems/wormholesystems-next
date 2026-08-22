@@ -8,9 +8,10 @@ use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::{ShareQuery, read_map_as};
-use super::reference::{SearchQuery, sovereignty_of, statics_for, systems_for};
+use super::reference::{SearchQuery, statics_for, systems_for};
 use super::{ApiError, ApiResult, SystemSearchResult};
 use crate::auth::AppState;
+use crate::maps::solar_system::sovereignty_of;
 
 /// One hit from the map command palette. `map_solar_system_id` is set when the system is
 /// already placed; otherwise the hit is an off-map system the palette can add.

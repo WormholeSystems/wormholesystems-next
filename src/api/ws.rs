@@ -21,13 +21,10 @@ pub async fn map_ws(
     jar: CookieJar,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let actor = match jar.get(crate::session::SESSION_COOKIE) {
-        Some(cookie) => crate::session::actor_for_session(&state.db, cookie.value())
-            .await
-            .ok()
-            .flatten(),
-        None => None,
-    };
+    let actor = crate::api::extract::session_actor(&state.db, &jar)
+        .await
+        .ok()
+        .flatten();
     let token = crate::api::extract::share_cookie(&jar, map_id);
 
     match crate::maps::access::reader_for(&state.db, map_id, actor, token.as_deref()).await {
@@ -45,13 +42,10 @@ pub async fn user_ws(
     jar: CookieJar,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let actor = match jar.get(crate::session::SESSION_COOKIE) {
-        Some(cookie) => crate::session::actor_for_session(&state.db, cookie.value())
-            .await
-            .ok()
-            .flatten(),
-        None => None,
-    };
+    let actor = crate::api::extract::session_actor(&state.db, &jar)
+        .await
+        .ok()
+        .flatten();
     match actor {
         Some(actor) => ws.on_upgrade(move |socket| {
             user_heartbeat(socket, state.db, state.user_hub, actor.user_id)

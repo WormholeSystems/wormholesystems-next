@@ -34,6 +34,8 @@ import { MAP_ACTIONS, type MapAction } from './actions';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import { timeAgo } from '$lib/format';
 import { solarSystemId } from '$lib/map/system';
+import * as v from 'valibot';
+import { readStored } from '$lib/storage';
 
 /** Half size is where node text stops being readable, double where a chain stops fitting. */
 const ZOOM_MIN = 0.5;
@@ -276,12 +278,9 @@ export class MapState {
 	}
 
 	loadIgnored() {
-		try {
-			const raw = localStorage.getItem(this.ignoreStorageKey());
-			this.ignoredSystems = new Set(raw ? (JSON.parse(raw) as number[]) : []);
-		} catch {
-			this.ignoredSystems = new Set();
-		}
+		this.ignoredSystems = new Set(
+			readStored(this.ignoreStorageKey(), v.array(v.number()), []),
+		);
 	}
 
 	ignoreSystem(id: number) {

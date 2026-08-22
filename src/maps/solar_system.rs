@@ -99,6 +99,30 @@ pub enum Sovereignty {
     },
 }
 
+/// Build the holder from the columns every sovereignty query selects. Lives here rather
+/// than beside one of those queries because four of them read the same four columns.
+pub fn sovereignty_of(
+    kind: Option<&str>,
+    id: Option<i64>,
+    name: Option<String>,
+    ticker: Option<String>,
+) -> Option<Sovereignty> {
+    match (kind, id, name) {
+        (Some("alliance"), Some(id), Some(name)) => Some(Sovereignty::Alliance {
+            id,
+            name,
+            ticker: ticker.unwrap_or_default(),
+        }),
+        (Some("corporation"), Some(id), Some(name)) => Some(Sovereignty::Corporation {
+            id,
+            name,
+            ticker: ticker.unwrap_or_default(),
+        }),
+        (Some("faction"), Some(id), Some(name)) => Some(Sovereignty::Faction { id, name }),
+        _ => None,
+    }
+}
+
 /// A placed system enriched with everything a map node displays. Read-only, built by
 /// `get_map` from joins across the SDE + intel + sovereignty tables. Mutations use the lean
 /// [`MapSolarSystem`].

@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
-use crate::maps::{KillmailScope, MapLayout, MassStatus, RoutePreference, TimeStatus};
+use crate::maps::{KillmailScope, MapLayout, MassStatus, Role, RoutePreference, TimeStatus};
 
 use super::extract::require_actor;
 use super::layout::PanelLayouts;
@@ -136,12 +136,7 @@ pub async fn map_user_settings(
     Path(map_id): Path<i64>,
 ) -> ApiResult<MapUserSettings> {
     let actor = require_actor(&state.db, &jar).await?;
-    if crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
-        .await?
-        .is_none()
-    {
-        return Err(ApiError::from(crate::maps::MapError::NotFound));
-    }
+    crate::maps::access::require_role(&state.db, map_id, actor.user_id, Role::Viewer).await?;
     let row = sqlx::query!(
         r#"select tracking_allowed, show_threat_level, compact_signature_list,
                   show_statics_first,
@@ -220,12 +215,7 @@ pub async fn update_map_user_settings(
     Json(body): Json<UpdateMapUserSettings>,
 ) -> ApiResult<MapUserSettings> {
     let actor = require_actor(&state.db, &jar).await?;
-    if crate::maps::access::effective_role(&state.db, map_id, actor.user_id)
-        .await?
-        .is_none()
-    {
-        return Err(ApiError::from(crate::maps::MapError::NotFound));
-    }
+    crate::maps::access::require_role(&state.db, map_id, actor.user_id, Role::Viewer).await?;
     // The tolerances and the preference are enums, so a value outside them never gets this
     // far: serde rejects the body. Only the number still needs saying out loud.
     if let Some(p) = body.security_penalty

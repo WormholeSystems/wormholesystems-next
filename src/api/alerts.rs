@@ -100,11 +100,8 @@ pub struct MapAlertEvent {
 
 async fn require_manager(state: &AppState, jar: &CookieJar, map_id: i64) -> Result<i64, ApiError> {
     let actor = require_actor(&state.db, jar).await?;
-    match crate::maps::access::effective_role(&state.db, map_id, actor.user_id).await? {
-        None => Err(ApiError::from(MapError::NotFound)),
-        Some(role) if role >= Role::Manager => Ok(actor.user_id),
-        Some(_) => Err(ApiError::from(MapError::Forbidden)),
-    }
+    crate::maps::access::require_role(&state.db, map_id, actor.user_id, Role::Manager).await?;
+    Ok(actor.user_id)
 }
 
 /// `GET /api/maps/{id}/alerts`, every alert on the map. Manager+.

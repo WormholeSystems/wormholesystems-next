@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::extract::require_actor;
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
+use crate::maps::solar_system::sovereignty_of;
 use crate::maps::{EffectModifier, GridConfig};
 
 /// A solar system matched by the "add system" search, with just enough to display and pick.
@@ -153,35 +154,6 @@ pub async fn effect_modifiers(
 #[derive(Deserialize)]
 pub struct SearchQuery {
     pub q: String,
-}
-
-/// Build the sovereignty holder from the joined columns.
-pub(super) fn sovereignty_of(
-    kind: Option<&str>,
-    id: Option<i64>,
-    name: Option<String>,
-    ticker: Option<String>,
-) -> Option<crate::maps::solar_system::Sovereignty> {
-    match (kind, id, name) {
-        (Some("alliance"), Some(id), Some(name)) => {
-            Some(crate::maps::solar_system::Sovereignty::Alliance {
-                id,
-                name,
-                ticker: ticker.unwrap_or_default(),
-            })
-        }
-        (Some("corporation"), Some(id), Some(name)) => {
-            Some(crate::maps::solar_system::Sovereignty::Corporation {
-                id,
-                name,
-                ticker: ticker.unwrap_or_default(),
-            })
-        }
-        (Some("faction"), Some(id), Some(name)) => {
-            Some(crate::maps::solar_system::Sovereignty::Faction { id, name })
-        }
-        _ => None,
-    }
 }
 
 /// The statics of every wormhole among `ids`, grouped by system. Kept out of the search
@@ -501,26 +473,12 @@ pub(super) async fn systems_for(
     let results = rows
         .into_iter()
         .map(|row| {
-            let sovereignty = match (row.sov_kind.as_deref(), row.sov_id, row.sov_name) {
-                (Some("alliance"), Some(id), Some(name)) => {
-                    Some(crate::maps::solar_system::Sovereignty::Alliance {
-                        id,
-                        name,
-                        ticker: row.sov_ticker.unwrap_or_default(),
-                    })
-                }
-                (Some("corporation"), Some(id), Some(name)) => {
-                    Some(crate::maps::solar_system::Sovereignty::Corporation {
-                        id,
-                        name,
-                        ticker: row.sov_ticker.unwrap_or_default(),
-                    })
-                }
-                (Some("faction"), Some(id), Some(name)) => {
-                    Some(crate::maps::solar_system::Sovereignty::Faction { id, name })
-                }
-                _ => None,
-            };
+            let sovereignty = sovereignty_of(
+                row.sov_kind.as_deref(),
+                row.sov_id,
+                row.sov_name,
+                row.sov_ticker,
+            );
             SystemSearchResult {
                 statics: statics.remove(&row.id).unwrap_or_default(),
                 id: row.id,
