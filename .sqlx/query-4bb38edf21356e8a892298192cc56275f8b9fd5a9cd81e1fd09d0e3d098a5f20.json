@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into sde_build (id, build_number, release_date, seed_revision, loaded_at) values (true, $1, $2, $3, now()) on conflict (id) do update set build_number = excluded.build_number, release_date = excluded.release_date, seed_revision = excluded.seed_revision, loaded_at = excluded.loaded_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4bb38edf21356e8a892298192cc56275f8b9fd5a9cd81e1fd09d0e3d098a5f20"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into zkb_state (id, sequence_id) values (true, $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "add117bf4a2ffb9fb882f9196e5c49dc6973fa56458a8d4c8cdb3271cc32a262"
+}

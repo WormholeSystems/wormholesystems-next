@@ -290,31 +290,29 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
     // per-system class for a handful of systems, so fall back to the wormhole-system
     // catalogue (all of J-space, Thera, C13), then to the region (Pochven, drifter
     // regions). Runs after seed_static so wormhole_systems is populated.
-    sqlx::query(
-        "update solar_systems ss
+    sqlx::query!("update solar_systems ss
          set wormhole_class_id = coalesce(
              ss.wormhole_class_id,
              (select ws.wormhole_class_id from wormhole_systems ws where ws.solar_system_id = ss.id),
              (select r.wormhole_class_id from regions r where r.id = ss.region_id)
          )
-         where ss.wormhole_class_id is null",
-    )
+         where ss.wormhole_class_id is null")
     .execute(&mut *tx)
     .await?;
 
     // Record the loaded build + seed revision so startup can skip re-seeding when
     // nothing changed.
     let build = bundled_build()?;
-    sqlx::query(
+    sqlx::query!(
         "insert into sde_build (id, build_number, release_date, seed_revision, loaded_at) \
          values (true, $1, $2, $3, now()) \
          on conflict (id) do update set \
          build_number = excluded.build_number, release_date = excluded.release_date, \
          seed_revision = excluded.seed_revision, loaded_at = excluded.loaded_at",
+        build.build_number,
+        build.release_date(),
+        SEED_REVISION
     )
-    .bind(build.build_number)
-    .bind(build.release_date())
-    .bind(SEED_REVISION)
     .execute(&mut *tx)
     .await?;
 

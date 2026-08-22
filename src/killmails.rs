@@ -390,7 +390,7 @@ async fn ingest_next(
     maps: &crate::maps::MapHub,
     alerts: Option<&crate::alerts::Runtime>,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    let cursor: Option<i64> = sqlx::query_scalar("select sequence_id from zkb_state")
+    let cursor: Option<i64> = sqlx::query_scalar!("select sequence_id from zkb_state")
         .fetch_optional(pool)
         .await?;
     let next = match cursor {
@@ -404,10 +404,12 @@ async fn ingest_next(
                 .error_for_status()?
                 .json()
                 .await?;
-            sqlx::query("insert into zkb_state (id, sequence_id) values (true, $1)")
-                .bind(head.sequence)
-                .execute(pool)
-                .await?;
+            sqlx::query!(
+                "insert into zkb_state (id, sequence_id) values (true, $1)",
+                head.sequence
+            )
+            .execute(pool)
+            .await?;
             head.sequence + 1
         }
     };
@@ -432,7 +434,9 @@ async fn ingest_next(
     let detail = extract_detail(&km.esi, &km.zkb);
     if solar_system_id != 0 && !time.is_empty() {
         // The retention check happens in SQL (chrono's clock is disabled in this crate).
-        sqlx::query(
+        sqlx::query!(
+            // `$4::text::timestamptz`: the time arrives from ESI as a string, and the cast
+            // is what makes it a timestamp, so the parameter itself is text.
             "insert into killmails (
                  id, hash, solar_system_id, time, orgs,
                  victim_character_id, victim_corporation_id, victim_alliance_id,
@@ -440,29 +444,29 @@ async fn ingest_next(
                  final_blow_character_id, final_blow_corporation_id,
                  final_blow_alliance_id, final_blow_ship_type_id
              )
-             select $1, $2, $3, $4::timestamptz, $5, $7, $8, $9, $10, $11, $12, $13, $14,
-                    $15, $16, $17, $18
-             where $4::timestamptz >= now() - make_interval(days => $6)
+             select $1, $2, $3, $4::text::timestamptz, $5, $7, $8, $9, $10, $11, $12, $13,
+                    $14, $15, $16, $17, $18
+             where $4::text::timestamptz >= now() - make_interval(days => $6)
              on conflict (id) do nothing",
+            km.killmail_id,
+            &km.hash,
+            solar_system_id,
+            time,
+            serde_json::to_value(&orgs)?,
+            RETENTION_DAYS,
+            detail.victim_character_id,
+            detail.victim_corporation_id,
+            detail.victim_alliance_id,
+            detail.victim_ship_type_id,
+            detail.total_value,
+            detail.attacker_count,
+            detail.is_npc,
+            detail.is_solo,
+            detail.final_blow_character_id,
+            detail.final_blow_corporation_id,
+            detail.final_blow_alliance_id,
+            detail.final_blow_ship_type_id,
         )
-        .bind(km.killmail_id)
-        .bind(&km.hash)
-        .bind(solar_system_id)
-        .bind(time)
-        .bind(serde_json::to_value(&orgs)?)
-        .bind(RETENTION_DAYS)
-        .bind(detail.victim_character_id)
-        .bind(detail.victim_corporation_id)
-        .bind(detail.victim_alliance_id)
-        .bind(detail.victim_ship_type_id)
-        .bind(detail.total_value)
-        .bind(detail.attacker_count)
-        .bind(detail.is_npc)
-        .bind(detail.is_solo)
-        .bind(detail.final_blow_character_id)
-        .bind(detail.final_blow_corporation_id)
-        .bind(detail.final_blow_alliance_id)
-        .bind(detail.final_blow_ship_type_id)
         .execute(pool)
         .await?;
         announce(pool, maps, solar_system_id).await;
@@ -548,8 +552,7 @@ async fn announce(pool: &PgPool, maps: &crate::maps::MapHub, solar_system_id: i6
 }
 
 async fn advance(pool: &PgPool, seq: i64) -> Result<(), sqlx::Error> {
-    sqlx::query("update zkb_state set sequence_id = $1")
-        .bind(seq)
+    sqlx::query!("update zkb_state set sequence_id = $1", seq)
         .execute(pool)
         .await?;
     Ok(())
@@ -619,7 +622,7 @@ struct OrgStat {
 
 /// Recompute threat for every wormhole system (full replacement).
 pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::error::Error>> {
-    let rows = sqlx::query(
+    let rows = sqlx::query!(
         r#"with orgs as (
                select k.solar_system_id, (o->>'id')::bigint as entity_id,
                       o->>'kind' as entity_type, k.id as killmail_id, date(k.time) as day
@@ -639,23 +642,25 @@ pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::
                ) as rn
                from stats where active_days >= $2
            )
-           select solar_system_id, entity_type, entity_id, kills::bigint as kills
+           -- `!` throughout: these come out of the CTEs above, which the planner cannot
+           -- prove non-null, but a row only exists here because an org produced it.
+           select solar_system_id as "solar_system_id!", entity_type as "entity_type!",
+                  entity_id as "entity_id!", kills::bigint as "kills!"
            from ranked where rn <= $3"#,
+        ANALYSIS_WINDOW_DAYS,
+        MIN_ACTIVE_DAYS,
+        TOP_ORGS,
     )
-    .bind(ANALYSIS_WINDOW_DAYS)
-    .bind(MIN_ACTIVE_DAYS)
-    .bind(TOP_ORGS)
     .fetch_all(pool)
     .await?;
 
-    use sqlx::Row;
     let stats: Vec<OrgStat> = rows
         .into_iter()
         .map(|r| OrgStat {
-            solar_system_id: r.get("solar_system_id"),
-            entity_type: r.get("entity_type"),
-            entity_id: r.get("entity_id"),
-            kills: r.get("kills"),
+            solar_system_id: r.solar_system_id,
+            entity_type: r.entity_type,
+            entity_id: r.entity_id,
+            kills: r.kills,
         })
         .collect();
 
@@ -668,13 +673,11 @@ pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::
             continue;
         }
         let local: Option<String> = if s.entity_type == "alliance" {
-            sqlx::query_scalar("select name from alliances where id = $1")
-                .bind(s.entity_id)
+            sqlx::query_scalar!("select name from alliances where id = $1", s.entity_id)
                 .fetch_optional(pool)
                 .await?
         } else {
-            sqlx::query_scalar("select name from corporations where id = $1")
-                .bind(s.entity_id)
+            sqlx::query_scalar!("select name from corporations where id = $1", s.entity_id)
                 .fetch_optional(pool)
                 .await?
         };
@@ -696,16 +699,15 @@ pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::
     // analysis when it finishes, which can land on top of the daily one. Two replacements
     // interleaving delete each other's rows and then collide on the unique key.
     let mut tx = pool.begin().await?;
-    sqlx::query("select pg_advisory_xact_lock($1)")
-        .bind(THREAT_ANALYSIS_LOCK)
+    sqlx::query!("select pg_advisory_xact_lock($1)", THREAT_ANALYSIS_LOCK)
         .execute(&mut *tx)
         .await?;
-    sqlx::query("delete from wormhole_system_threats")
+    sqlx::query!("delete from wormhole_system_threats")
         .execute(&mut *tx)
         .await?;
-    sqlx::query(
+    sqlx::query!(
         "update wormhole_systems set threat_level = 'unknown'::threat_level,
-                threat_analyzed_at = now()",
+                threat_analyzed_at = now()"
     )
     .execute(&mut *tx)
     .await?;
@@ -714,34 +716,31 @@ pub async fn analyze(pool: &PgPool, esi: &EsiClient) -> Result<(), Box<dyn std::
     for s in &stats {
         *totals.entry(s.solar_system_id).or_default() += s.kills;
         let name = &names[&(s.entity_type.clone(), s.entity_id)];
-        sqlx::query(
-            "insert into wormhole_system_threats (solar_system_id, entity_id, entity_type, name, kills)
-             values ($1, $2, $3, $4, $5)",
-        )
-        .bind(s.solar_system_id)
-        .bind(s.entity_id)
-        .bind(&s.entity_type)
-        .bind(name)
-        .bind(s.kills as i32)
+        sqlx::query!("insert into wormhole_system_threats (solar_system_id, entity_id, entity_type, name, kills)
+             values ($1, $2, $3, $4, $5)", s.solar_system_id, s.entity_id, &s.entity_type, name, s.kills as i32)
         .execute(&mut *tx)
         .await?;
     }
     for (system, total) in &totals {
-        sqlx::query("update wormhole_systems set threat_level = $2 where solar_system_id = $1")
-            .bind(system)
-            .bind(threat_level(*total))
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            "update wormhole_systems set threat_level = $2 where solar_system_id = $1",
+            system,
+            threat_level(*total)
+        )
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
     Ok(())
 }
 
 async fn purge(pool: &PgPool) -> Result<(), sqlx::Error> {
-    sqlx::query("delete from killmails where time < now() - make_interval(days => $1)")
-        .bind(RETENTION_DAYS)
-        .execute(pool)
-        .await?;
+    sqlx::query!(
+        "delete from killmails where time < now() - make_interval(days => $1)",
+        RETENTION_DAYS
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

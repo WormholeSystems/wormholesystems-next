@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select sequence_id from zkb_state",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sequence_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "zkb_state",
+            "name": "sequence_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7ea1dc1c674d3f57f56ec27dbb56d2f67414af596ff3dc1968ce584da4483ed3"
+}

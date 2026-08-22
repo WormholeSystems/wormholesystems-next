@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from wormhole_system_threats",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "99b4bd99b4b77a35f3b4d23e7667fdc95ca73d6cd4f41853df1799a288f967ef"
+}

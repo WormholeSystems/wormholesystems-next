@@ -1,0 +1,51 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "with orgs as (\n               select k.solar_system_id, (o->>'id')::bigint as entity_id,\n                      o->>'kind' as entity_type, k.id as killmail_id, date(k.time) as day\n               from killmails k\n               cross join lateral jsonb_array_elements(k.orgs) o\n               where k.time >= now() - make_interval(days => $1)\n                 and k.solar_system_id in (select solar_system_id from wormhole_systems)\n           ),\n           stats as (\n               select solar_system_id, entity_type, entity_id,\n                      count(distinct killmail_id) as kills, count(distinct day) as active_days\n               from orgs group by 1, 2, 3\n           ),\n           ranked as (\n               select *, row_number() over (\n                   partition by solar_system_id order by kills desc, entity_id\n               ) as rn\n               from stats where active_days >= $2\n           )\n           -- `!` throughout: these come out of the CTEs above, which the planner cannot\n           -- prove non-null, but a row only exists here because an org produced it.\n           select solar_system_id as \"solar_system_id!\", entity_type as \"entity_type!\",\n                  entity_id as \"entity_id!\", kills::bigint as \"kills!\"\n           from ranked where rn <= $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_system_id!",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "killmails",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "entity_type!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "entity_id!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "kills!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "b21355dec75b38c29bcc41b0a93d4588e738397efdce8873f9bf7c97daca2fe4"
+}
