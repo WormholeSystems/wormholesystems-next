@@ -31,6 +31,7 @@ import { orphanedSystems } from '$lib/map/orphans';
 import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
 import { MAP_ACTIONS, type MapAction } from './actions';
+import type { MapEvent } from '$lib/api/types/MapEvent';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import { timeAgo } from '$lib/format';
 import { solarSystemId } from '$lib/map/system';
@@ -117,6 +118,16 @@ function stationGroup(group: {
 		stationsBySystem,
 	};
 }
+
+/** The independently-refetchable halves of what a map screen shows. */
+const SLICES = ['graph', 'signatures', 'watchlist', 'history', 'stale'] as const;
+type Slice = (typeof SLICES)[number] | 'characters';
+
+/**
+ * How long to wait before acting on a frame. Long enough to swallow the burst one write
+ * produces, short enough that nobody watching the map notices the delay.
+ */
+const BURST_MS = 60;
 
 export class MapState {
 	mapId: number;
@@ -278,9 +289,7 @@ export class MapState {
 	}
 
 	loadIgnored() {
-		this.ignoredSystems = new Set(
-			readStored(this.ignoreStorageKey(), v.array(v.number()), []),
-		);
+		this.ignoredSystems = new Set(readStored(this.ignoreStorageKey(), v.array(v.number()), []));
 	}
 
 	ignoreSystem(id: number) {
@@ -410,6 +419,10 @@ export class MapState {
 	 * an account is not fetched rather than fetched and refused.
 	 */
 	signedIn = $state(true);
+
+	private fetchTimers = new Map<Slice, ReturnType<typeof setTimeout>>();
+	private fetching = new Set<Slice>();
+	private refetchAfter = new Set<Slice>();
 
 	/** True until the first refetch, so a seeded graph is not fetched twice on open. */
 	private seeded = false;
@@ -718,38 +731,50 @@ export class MapState {
 		);
 	}
 
-	async refetch() {
-		try {
-			// All five go out together, but the page only waits on the graph: the panels can
-			// fill in a moment later, and holding first paint for every list makes the map
-			// feel slow for no benefit.
-			// A seeded graph is as fresh as the page: skip the request, once.
-			const graph = this.seeded ? Promise.resolve(this.data!) : api.fetchMap(this.mapId);
-			this.seeded = false;
-			const sigs = api.listSignatures(this.mapId);
-			const watchlist = api.listWatchlist(this.mapId);
-			const history = this.fetchHistory();
-			const stale = this.fetchStale();
-
-			const data = await graph;
-			this.data = data;
-			// Reconcile optimistic move overrides: drop one once the server position matches
-			// it (our move landed) or the system is gone.
-			const pending = { ...this.pending };
-			for (const [id, p] of Object.entries(pending)) {
-				const s = data.systems.find((s) => s.id === Number(id));
-				if (!s || (Math.abs(s.position_x - p.x) <= 0.5 && Math.abs(s.position_y - p.y) <= 0.5)) {
-					delete pending[Number(id)];
-				}
+	/** The graph itself, and the optimistic move overrides it settles. */
+	private async fetchGraph() {
+		// A seeded graph is as fresh as the page: skip the request, once.
+		const data = this.seeded ? this.data! : await api.fetchMap(this.mapId);
+		this.seeded = false;
+		this.data = data;
+		// Drop a pending move once the server position matches it (ours landed) or the
+		// system is gone.
+		const pending = { ...this.pending };
+		for (const [id, p] of Object.entries(pending)) {
+			const s = data.systems.find((s) => s.id === Number(id));
+			if (!s || (Math.abs(s.position_x - p.x) <= 0.5 && Math.abs(s.position_y - p.y) <= 0.5)) {
+				delete pending[Number(id)];
 			}
-			this.pending = pending;
-			this.loaded = true;
-			this.loadError = '';
+		}
+		this.pending = pending;
+		this.loaded = true;
+		this.loadError = '';
+	}
 
-			this.sigs = await sigs;
-			this.watchlist = await watchlist;
-			await history;
-			await stale;
+	private async fetchSignatures() {
+		this.sigs = await api.listSignatures(this.mapId);
+	}
+
+	private async fetchWatchlist() {
+		this.watchlist = await api.listWatchlist(this.mapId);
+	}
+
+	private async fetchSlice(slice: Slice) {
+		try {
+			switch (slice) {
+				case 'graph':
+					return await this.fetchGraph();
+				case 'signatures':
+					return await this.fetchSignatures();
+				case 'watchlist':
+					return await this.fetchWatchlist();
+				case 'history':
+					return await this.fetchHistory();
+				case 'stale':
+					return await this.fetchStale();
+				case 'characters':
+					return await this.fetchCharacters();
+			}
 		} catch (err) {
 			const message = errorMessage(err);
 			toast.error(`load: ${message}`);
@@ -760,8 +785,103 @@ export class MapState {
 	}
 
 	/**
-	 * Run an action and refetch (the WS event also arrives; both are idempotent). What it
-	 * says on the way out lives in [`MAP_ACTIONS`] rather than at the call site.
+	 * Ask for a slice, soon. Two guards, because the server is chatty in bursts: pasting a
+	 * scan publishes a frame per system, per connection and per placement it touched, all
+	 * within a few milliseconds. The timer collapses the burst into one request, and the
+	 * in-flight set stops a second one overlapping the first — with a single re-run queued
+	 * behind it, so a change that landed mid-request is not missed.
+	 */
+	private schedule(slice: Slice) {
+		clearTimeout(this.fetchTimers.get(slice));
+		this.fetchTimers.set(
+			slice,
+			setTimeout(() => {
+				this.fetchTimers.delete(slice);
+				void this.runSlice(slice);
+			}, BURST_MS),
+		);
+	}
+
+	private scheduleAll() {
+		for (const slice of SLICES) this.schedule(slice);
+	}
+
+	private async runSlice(slice: Slice) {
+		if (this.fetching.has(slice)) {
+			this.refetchAfter.add(slice);
+			return;
+		}
+		this.fetching.add(slice);
+		try {
+			await this.fetchSlice(slice);
+		} finally {
+			this.fetching.delete(slice);
+			if (this.refetchAfter.delete(slice)) this.schedule(slice);
+		}
+	}
+
+	/**
+	 * What one frame off the map socket actually invalidates.
+	 *
+	 * The event says what changed and this believes it, rather than reloading the map five
+	 * ways over. Two things ride along wider than they look: the graph follows a signature
+	 * change because `ghost::reconcile` can raise or drop a node as a side effect of one,
+	 * and the history follows any command because the journal grows without announcing it.
+	 */
+	applyEvent(event: MapEvent) {
+		switch (event.type) {
+			case 'characters_changed':
+				return this.schedule('characters');
+			// A kill changes nothing about the graph; only the killmail card reacts.
+			case 'killmail_received':
+				this.killmailTick += 1;
+				return;
+			case 'watchlist_changed':
+				return this.schedule('watchlist');
+			// Undo, redo and jumping to a step all publish this, and moving the cursor can
+			// touch anything the steps it crosses did — the server says so where it
+			// publishes it. So this one really does mean everything.
+			case 'history_changed':
+				return this.scheduleAll();
+			case 'signature_changed':
+				this.schedule('signatures');
+				this.schedule('graph');
+				return this.schedule('history');
+			case 'connection_changed':
+				this.schedule('graph');
+				this.schedule('stale');
+				return this.schedule('history');
+			case 'map_updated':
+			case 'access_changed':
+				return this.schedule('graph');
+			default:
+				this.schedule('graph');
+				return this.schedule('history');
+		}
+	}
+
+	/** Everything, for the first load. After that the socket says what to ask for. */
+	async refetch() {
+		const rest = [
+			this.fetchSlice('signatures'),
+			this.fetchSlice('watchlist'),
+			this.fetchSlice('history'),
+			this.fetchSlice('stale'),
+		];
+		// The page waits on the graph only: the panels can fill in a moment later, and
+		// holding first paint for every list makes the map feel slow for no benefit.
+		await this.fetchSlice('graph');
+		await Promise.all(rest);
+	}
+
+	/**
+	 * Run an action and say how it went. What it says lives in [`MAP_ACTIONS`] rather than
+	 * at the call site.
+	 *
+	 * The write is not followed by a refetch while the socket is up: the server echoes the
+	 * change back like it does to everyone else, and `applyEvent` asks for exactly the part
+	 * that moved. Refetching here as well meant the person doing the editing paid twice for
+	 * every write. With the socket down there is no echo, so the fallback stands in.
 	 */
 	run(action: MapAction, promise: Promise<unknown>, detail?: string) {
 		const copy = MAP_ACTIONS[action];
@@ -770,7 +890,7 @@ export class MapState {
 				if ('done' in copy && copy.done) {
 					toast.success(copy.done, { description: detail });
 				}
-				return this.refetch();
+				if (this.socket !== 'open') return this.refetch();
 			})
 			.catch((err) => toast.error(copy.failed, { description: errorMessage(err) }));
 	}

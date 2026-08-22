@@ -139,9 +139,7 @@
 		if (!s.signedIn) {
 			const closeShared = openMapSocket(
 				s.mapId,
-				(event) => {
-					if (event?.type !== 'characters_changed') s.refetch();
-				},
+				(event) => event && s.applyEvent(event),
 				(state) => (s.socket = state),
 			);
 			return () => closeShared();
@@ -163,13 +161,7 @@
 		window.addEventListener('focus', observe);
 		const closeWs = openMapSocket(
 			s.mapId,
-			(event) => {
-				// Movement is its own event so a busy chain does not refetch the whole graph.
-				if (event?.type === 'characters_changed') s.fetchCharacters();
-				// A kill changes nothing about the graph, so only the killmail card reacts.
-				else if (event?.type === 'killmail_received') s.killmailTick += 1;
-				else s.refetch();
-			},
+			(event) => event && s.applyEvent(event),
 			(state) => (s.socket = state),
 		);
 		return () => {
