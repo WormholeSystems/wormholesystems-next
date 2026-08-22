@@ -46,12 +46,18 @@ create unique index characters_one_preferred_per_user
     on characters (user_id)
     where is_preferred;
 
+-- The refresh token is stored as it comes back from EVE, not encrypted. Anyone who can
+-- read this table can act as any linked character within the scopes it was granted, so the
+-- database is exactly as sensitive as the characters on it. Encrypting it would need a key
+-- kept somewhere the application can reach and an attacker cannot, which on a single-host
+-- deployment is largely a matter of moving the problem; saying plainly what the property is
+-- beats implying it is solved.
 create table esi_tokens (
     id               bigint generated always as identity primary key,
     character_id     bigint not null references characters (id) on delete cascade,
     access_token     text,
     token_expires_at timestamptz,
-    refresh_token    text not null,                          -- sensitive: encrypt at rest (TODO)
+    refresh_token    text not null,
     created_at       timestamptz not null default now(),
     updated_at       timestamptz not null default now()
 );

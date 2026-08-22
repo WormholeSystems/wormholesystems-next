@@ -44,5 +44,13 @@ export, which is a few hundred megabytes and takes a while.
 
 Database migrations run when the app boots, so there is no separate step for them.
 
+## What the database holds
+
+Linking a character stores the refresh token EVE hands back, unencrypted. Anyone who can
+read the database can act as any linked character, within the scopes that character
+granted. Treat the database as being as sensitive as the pilots on it: keep the port
+closed to the outside, and do not hand a dump to somebody you would not hand your API keys
+to.
+
 Nothing backs itself up yet. If you are keeping a chain you care about — see the warning
 above about not doing that — take your own dumps.

@@ -134,6 +134,9 @@ async fn main() {
         Ok(false) => {}
         Err(e) => panic!("could not seed the SDE reference tables: {e}"),
     }
+    // Read before the config is consumed: the callback URL is what says whether anyone
+    // reaches this over HTTPS, which decides whether the session cookie may be `Secure`.
+    let secure_cookies = config.sso.redirect_uri.starts_with("https://");
     let sso = Arc::new(
         Sso::discover(wormholesystems::user_agent::client(), config.sso)
             .await
@@ -211,6 +214,7 @@ async fn main() {
         user_hub,
         grid: config.grid,
         server,
+        secure_cookies,
     };
 
     let app = Router::new()

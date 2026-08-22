@@ -25,6 +25,10 @@ pub struct AppState {
     pub server: crate::server_status::ServerWatch,
     /// `None` when no Discord application is configured, which disables the bot half.
     pub discord: Option<Arc<crate::config::DiscordConfig>>,
+    /// Whether this deployment is served over HTTPS, taken from the callback URL EVE was
+    /// given. The session cookie is marked `Secure` when it is, so a browser will not send
+    /// it in the clear; local development over plain http would never receive it back.
+    pub secure_cookies: bool,
 }
 
 pub struct Auth {
@@ -256,7 +260,7 @@ pub async fn callback(
         .path("/")
         .http_only(true)
         .same_site(SameSite::Lax)
-        // TODO: `.secure(true)` once served over HTTPS (off for local http dev).
+        .secure(state.secure_cookies)
         .build();
     let destination = flow.redirect_to.unwrap_or_else(|| "/".to_string());
     (jar.add(cookie), Redirect::to(&destination)).into_response()

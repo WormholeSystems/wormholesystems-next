@@ -70,15 +70,6 @@
 					Pre-alpha
 				</span>
 			</a>
-			<a
-				href="/documentation"
-				class="hidden text-sm transition-colors sm:block {here.startsWith('/documentation')
-					? 'text-foreground'
-					: 'text-muted-foreground hover:text-foreground'}"
-				data-testid="nav-docs"
-			>
-				Docs
-			</a>
 			<!-- Without an account this only leads to the sign-in page, so it is not shown. -->
 			{#if me}
 				<a
@@ -137,6 +128,15 @@
 		</span>
 
 		<span class="flex items-center justify-end gap-3">
+			<a
+				href="/documentation"
+				class="hidden text-sm transition-colors sm:block {here.startsWith('/documentation')
+					? 'text-foreground'
+					: 'text-muted-foreground hover:text-foreground'}"
+				data-testid="nav-docs"
+			>
+				Docs
+			</a>
 			<ThemeToggle />
 			{#if me}
 				<DropdownMenu.Root>
