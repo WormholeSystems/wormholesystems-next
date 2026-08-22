@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select exists(\n                   select 1 from map_access_live a\n                   join characters c on c.id = $2\n                   where a.map_id = $1\n                     and a.subject_id in (c.id, c.corporation_id, c.alliance_id)\n               ) as \"has!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "has!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c2aeab1a93266580fbbebcc1881fc0bc3ba4766849263b3b0d23b4a22dde1d50"
+}

@@ -243,7 +243,7 @@ pub async fn map_characters(
                        and sc.name = 'esi-location.read_location.v1'
                  )
              and exists (
-                     select 1 from map_access ma
+                     select 1 from map_access_live ma
                      where ma.map_id = $1
                        and ma.role <> 'viewer'
                        and ma.subject_id in (

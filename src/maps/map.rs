@@ -304,9 +304,10 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
                   m.ignored_alias, m.bookmark_wormhole, m.bookmark_kspace, m.bookmark_return,
                   m.ghost_unlinked_wormholes, m.layout, m.allow_layout_override,
                   m.is_public, m.share_token,
-                  ma.role
+                  -- The view cannot promise not-null the way the table does.
+                  ma.role as "role!: Role"
            from maps m
-           join map_access ma on ma.map_id = m.id
+           join map_access_live ma on ma.map_id = m.id
            where ma.subject_id in (
                  select id from characters where user_id = $1
                  union all
@@ -526,7 +527,7 @@ pub async fn read_map(
         Some(actor) => {
             sqlx::query_scalar!(
                 r#"select exists(
-                   select 1 from map_access a
+                   select 1 from map_access_live a
                    join characters c on c.id = $2
                    where a.map_id = $1
                      and a.subject_id in (c.id, c.corporation_id, c.alliance_id)

@@ -12,7 +12,8 @@ use wormholesystems::maps::access::{
     set_access, transfer_ownership,
 };
 use wormholesystems::maps::map::{
-    GetMap, UpdateMap, get_map, read_map, revoke_share_token, rotate_share_token, update_map,
+    GetMap, UpdateMap, get_map, list_maps, read_map, revoke_share_token, rotate_share_token,
+    update_map,
 };
 use wormholesystems::maps::{Actor, MapError, Role, SubjectType};
 
@@ -482,4 +483,56 @@ async fn a_shared_map_can_be_read_by_somebody_with_no_account(pool: PgPool) {
         list_access(&pool, outsider, w.map_id).await,
         Err(MapError::NotFound),
     ));
+}
+
+/// A grant that has run out stops counting everywhere, not just in `effective_role`. The
+/// map list, the presence panel and the Discord picker each expanded the subject union
+/// themselves and forgot the filter, so an expired scout kept the map in his list.
+#[sqlx::test]
+async fn an_expired_grant_is_gone_from_every_answer(pool: PgPool) {
+    let w = world(&pool).await;
+    let scout = new_user(&pool).await;
+    add_character(&pool, scout, 1500, 2500, None).await;
+
+    set_access(
+        &pool,
+        w.owner,
+        SetAccess {
+            map_id: w.map_id,
+            subject_type: SubjectType::Character,
+            subject_id: 1500,
+            role: Role::Member,
+            expires_at: Some(Some(Utc::now() + Duration::hours(4))),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(list_maps(&pool, scout).await.unwrap().len(), 1);
+
+    // Wind it into the past, the way four hours of flying would.
+    sqlx::query(
+        "update map_access set expires_at = now() - interval '1 minute' where subject_id = 1500",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(effective_role(&pool, w.map_id, scout).await.unwrap(), None);
+    assert!(
+        list_maps(&pool, scout).await.unwrap().is_empty(),
+        "an expired grant kept the map in his list"
+    );
+
+    // And the sweep takes the row itself, so they do not pile up.
+    assert_eq!(
+        wormholesystems::maps::access::sweep_expired(&pool)
+            .await
+            .unwrap(),
+        1
+    );
+    let left: i64 = sqlx::query_scalar("select count(*) from map_access where subject_id = 1500")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
 }

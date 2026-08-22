@@ -47,6 +47,34 @@ fn require(role: Option<Role>, min: Role) -> Result<Role> {
     }
 }
 
+/// Delete grants that have run out. The view keeps an expired grant from counting the
+/// moment it expires; this is what stops the rows accumulating, and is why the two exist
+/// together rather than either being enough on its own.
+pub async fn sweep_expired(pool: &PgPool) -> Result<u64> {
+    Ok(
+        sqlx::query!("delete from map_access where expires_at is not null and expires_at <= now()")
+            .execute(pool)
+            .await?
+            .rows_affected(),
+    )
+}
+
+/// Run [`sweep_expired`] hourly. Hourly rather than daily because an expired grant is a
+/// row somebody meant to be gone, and rather than per-minute because the view already makes
+/// it stop counting — this is tidying, not enforcement.
+pub fn spawn_expiry_sweep(pool: PgPool) {
+    tokio::spawn(async move {
+        loop {
+            match sweep_expired(&pool).await {
+                Ok(0) => {}
+                Ok(n) => println!("access: {n} expired grant(s) removed"),
+                Err(err) => eprintln!("access expiry sweep failed: {err}"),
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
+        }
+    });
+}
+
 /// Whether this user can see the map at all. The yes/no form of [`effective_role`], for the
 /// callers that have nothing useful to say about *why* not: an alert deciding whether its
 /// creator still belongs, or the bot deciding whether to list a map.

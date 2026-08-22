@@ -205,7 +205,7 @@ async fn account(state: &AppState, user_id: i64) -> String {
     .unwrap_or_default();
     let maps = sqlx::query_scalar!(
         "select count(distinct m.id) from maps m
-         join map_access ma on ma.map_id = m.id
+         join map_access_live ma on ma.map_id = m.id
          where ma.subject_id in (
              select id from characters where user_id = $1
              union all select corporation_id from characters where user_id = $1
@@ -413,7 +413,7 @@ async fn maps_for(state: &AppState, user_id: i64, typed: &str) -> Vec<Value> {
     let like = format!("%{typed}%");
     let rows = sqlx::query!(
         "select distinct m.id, m.name from maps m
-         join map_access ma on ma.map_id = m.id
+         join map_access_live ma on ma.map_id = m.id
          where m.name ilike $2 and ma.subject_id in (
              select id from characters where user_id = $1
              union all select corporation_id from characters where user_id = $1

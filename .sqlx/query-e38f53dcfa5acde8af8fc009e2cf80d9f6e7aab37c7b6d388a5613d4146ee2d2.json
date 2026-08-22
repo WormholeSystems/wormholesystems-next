@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_access where expires_at is not null and expires_at <= now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "e38f53dcfa5acde8af8fc009e2cf80d9f6e7aab37c7b6d388a5613d4146ee2d2"
+}

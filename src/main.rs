@@ -175,6 +175,7 @@ async fn main() {
 
     // Background: mirror the raidable skyhooks CCP is currently advertising.
     wormholesystems::skyhooks::start(db.clone(), esi.clone(), server.clone());
+    wormholesystems::maps::access::spawn_expiry_sweep(db.clone());
 
     // Background: Discord alerts. One runtime shared by everything that can fire one, since
     // the stargate graph it holds is the expensive part.
