@@ -270,6 +270,32 @@ describe('runs share a lane where they can', () => {
 	});
 });
 
+// Distilled from a live map: a leftward edge into the left column ended level with a
+// rightward edge into the right column, and packing order alone put the leftward lane
+// right of the rightward one, so their level tails overlapped between the two bends.
+describe('level tails from opposite sides stay apart', () => {
+	it('keeps the leftward lane left of the rightward lane', () => {
+		const positions = new Map([
+			[1, { x: 0, y: 980 }], // hub with two children, its ports spread
+			[2, { x: 320, y: 420 }],
+			[3, { x: 320, y: 1040 }],
+			[4, { x: 320, y: 620 }], // sends an edge back left, level with the hub's lower child
+			[5, { x: 0, y: 1040 }],
+		]);
+		const g = treeEdges(
+			[connection(20, 1, 2), connection(21, 1, 3), connection(22, 4, 5)],
+			positions,
+			40,
+		);
+		const bend = (id: number) => Number([...g.get(id)!.d.matchAll(/Q (-?[\d.]+) /g)][0][1]);
+
+		// Both end at the same y on opposite faces of the corridor, in different lanes.
+		expect(g.get(21)!.to.y).toBe(g.get(22)!.to.y);
+		// The tails [near, leftward.bend] and [rightward.bend, far] must not overlap.
+		expect(bend(22)).toBeLessThan(bend(21));
+	});
+});
+
 // A node with two holes spreads its ends apart so they can be told apart. A neighbour level
 // with it, holding only this one hole, has nothing to spread, so the two ends used to sit a
 // few pixels apart and the line kinked on its way across for no reason.

@@ -188,6 +188,40 @@ function spreadSharedEdge(ports: Port[]): void {
 	});
 }
 
+/**
+ * Positions for the lanes of one corridor honouring `precedes` (lane → lanes that must
+ * sit farther out), keeping the original order where the constraints leave a choice.
+ * A cycle would mean tails that cannot all be kept apart; the tie is broken in favour
+ * of the earlier lane and the rest still honoured.
+ */
+function laneOrder(precedes: ReadonlySet<number>[]): number[] {
+	const indegree = precedes.map(() => 0);
+	for (const targets of precedes) {
+		for (const target of targets) {
+			indegree[target]++;
+		}
+	}
+	const position = precedes.map(() => 0);
+	const placed = new Set<number>();
+	for (let slot = 0; slot < precedes.length; slot++) {
+		let pick = -1;
+		for (let lane = 0; lane < precedes.length; lane++) {
+			if (placed.has(lane)) continue;
+			if (indegree[lane] === 0) {
+				pick = lane;
+				break;
+			}
+			if (pick === -1) pick = lane;
+		}
+		placed.add(pick);
+		position[pick] = slot;
+		for (const target of precedes[pick]) {
+			if (!placed.has(target)) indegree[target]--;
+		}
+	}
+	return position;
+}
+
 function elbowCorners(edge: Routed): [Vec2, Vec2] {
 	if (edge.fromNormal.x !== 0) {
 		const midX = edge.bend ?? (edge.from.x + edge.to.x) / 2;
@@ -376,8 +410,44 @@ export function treeEdges(
 			const ends = group.flatMap((e) => (horizontal ? [e.from.x, e.to.x] : [e.from.y, e.to.y]));
 			return [Math.min(...ends), Math.max(...ends)];
 		})();
+
+		// Separate lanes only keep the runs themselves apart. Each run also has two tails
+		// tying its lane to a corridor face, and the tails of a leftward and a rightward
+		// edge that end level lie on one line: they stay apart only when the lane of the
+		// edge entering the near face sits nearer than the lane of the edge entering the
+		// far face. Renumber the lanes to honour those orderings, so a run never doubles
+		// back over the tail of a level neighbour approaching from the other side.
+		const tailsOf = (edge: Routed): { at: number; fromNear: boolean }[] => {
+			const middle = (near + far) / 2;
+			return horizontal
+				? [
+						{ at: edge.from.y, fromNear: edge.from.x < middle },
+						{ at: edge.to.y, fromNear: edge.to.x < middle },
+					]
+				: [
+						{ at: edge.from.x, fromNear: edge.from.y < middle },
+						{ at: edge.to.x, fromNear: edge.to.y < middle },
+					];
+		};
+		const precedes = lanes.map(() => new Set<number>());
+		for (let i = 0; i < group.length; i++) {
+			for (let j = i + 1; j < group.length; j++) {
+				const laneA = laneOf.get(group[i].id)!;
+				const laneB = laneOf.get(group[j].id)!;
+				if (laneA === laneB) continue;
+				for (const tailA of tailsOf(group[i])) {
+					for (const tailB of tailsOf(group[j])) {
+						if (Math.abs(tailA.at - tailB.at) >= 0.5 || tailA.fromNear === tailB.fromNear) continue;
+						const [nearLane, farLane] = tailA.fromNear ? [laneA, laneB] : [laneB, laneA];
+						precedes[nearLane].add(farLane);
+					}
+				}
+			}
+		}
+		const position = laneOrder(precedes);
+
 		for (const edge of group) {
-			edge.bend = near + ((far - near) * (laneOf.get(edge.id)! + 1)) / (lanes.length + 1);
+			edge.bend = near + ((far - near) * (position[laneOf.get(edge.id)!] + 1)) / (lanes.length + 1);
 		}
 	}
 
