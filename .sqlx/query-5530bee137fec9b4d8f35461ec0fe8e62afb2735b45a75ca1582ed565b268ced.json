@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select mss.id as \"map_solar_system_id!\", ss.id as \"solar_system_id!\",\n                  ss.name as \"name!\", r.name as \"region!\",\n                  ss.security_status as \"security!\", ss.region_id, ss.constellation_id,\n                  ss.wormhole_class_id, ws.effect_name,\n                  sov.kind as \"sov_kind?\", sov.entity_id as \"sov_id?\",\n                  sov.name as \"sov_name?\", sov.ticker as \"sov_ticker?\",\n                  mss.alias, d.occupying_group, d.notes\n           from map_solar_systems mss\n           join solar_systems ss on ss.id = mss.solar_system_id\n           join regions r on r.id = ss.region_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id\n           left join map_solar_system_details d\n             on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id\n           where mss.map_id = $1\n             and (ss.name ilike $2 or mss.alias ilike $2 or d.occupying_group ilike $2\n                  or ($4 and d.notes ilike $2))\n           order by (ss.name ilike $3) desc, ss.name\n           limit 25",
+  "query": "select mss.id as \"map_solar_system_id!\", ss.id as \"solar_system_id!\",\n                  ss.name as \"name!\", r.name as \"region!\",\n                  ss.security_status as \"security!\", ss.region_id, ss.constellation_id,\n                  ss.wormhole_class_id, ws.effect_name,\n                  sov.kind as \"sov_kind?\", sov.entity_id as \"sov_id?\",\n                  sov.name as \"sov_name?\", sov.ticker as \"sov_ticker?\",\n                  mss.alias, d.occupying_group, d.notes\n           from map_solar_systems mss\n           join solar_systems ss on ss.id = mss.solar_system_id\n           join regions r on r.id = ss.region_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id\n           left join map_solar_system_details d\n             on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id\n           where mss.map_id = $1\n             and (ss.name ilike $2 or mss.alias ilike $2 or d.occupying_group ilike $2\n                  or ($4 and d.notes ilike $2))\n           -- Name matches first, so the limit sheds intel matches rather than systems.\n           order by (ss.name ilike $2) desc, (ss.name ilike $3) desc, ss.name\n           limit 25",
   "describe": {
     "columns": [
       {
@@ -207,5 +207,5 @@
       true
     ]
   },
-  "hash": "2d344cd4456236f320b9ee8836105d93d0dbf74a8193929e6e9f15a9d8d281da"
+  "hash": "5530bee137fec9b4d8f35461ec0fe8e62afb2735b45a75ca1582ed565b268ced"
 }

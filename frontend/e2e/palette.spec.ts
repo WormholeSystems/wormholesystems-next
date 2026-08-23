@@ -109,6 +109,33 @@ test('columns line up across both groups, not just within a row', async ({ page,
 	expect(new Set(columns).size).toBe(1);
 });
 
+test('the system itself outranks intel that merely mentions it', async ({ page, api }) => {
+	const mapId = await createMap(api, 'E2E PaletteRank');
+	const added = await api.post(`/api/maps/${mapId}/systems/add`, {
+		data: { map_id: mapId, solar_system_id: J122515, x: 200, y: 200, alias: null },
+	});
+	const placementId = await createdId(added);
+	await api.post(`/api/maps/${mapId}/systems/set-notes`, {
+		data: {
+			map_id: mapId,
+			map_solar_system_id: placementId,
+			notes: 'Haul the loot to Jita when the chain closes',
+		},
+	});
+
+	await gotoApp(page, `/maps/${mapId}`);
+	await page.getByTestId('palette-trigger').click();
+	await page.getByPlaceholder('System, alias, occupier or notes…').fill('Jita');
+
+	// Both rows are offered, but Jita itself comes first; the note match sits below it.
+	const rows = page
+		.getByTestId('palette-list')
+		.locator('[data-testid="palette-add"], [data-testid="palette-hit"]');
+	await expect(rows.first()).toContainText('Jita');
+	await expect(rows.first()).toHaveAttribute('data-testid', 'palette-add');
+	await expect(page.getByTestId('palette-hit').first()).toContainText('Haul the loot');
+});
+
 // Searching an organisation finds the wormholes it operates in, from the killmail threat
 // analysis rather than from anything anyone typed onto the map.
 

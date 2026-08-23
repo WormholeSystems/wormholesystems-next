@@ -50,7 +50,8 @@ pub fn routes() -> Router<AppState> {
 
 /// `GET /api/maps/{id}/search?q=`: the map command palette. Matches placed systems by
 /// name, alias, occupier and (for members) notes, then falls back to off-map systems the
-/// palette can offer to add. Viewer+.
+/// palette can offer to add. Hits come back ranked by what matched ([`match_rank`]): a
+/// system named like the query always beats one whose intel merely mentions it. Viewer+.
 pub async fn search_map(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -88,7 +89,8 @@ pub async fn search_map(
            where mss.map_id = $1
              and (ss.name ilike $2 or mss.alias ilike $2 or d.occupying_group ilike $2
                   or ($4 and d.notes ilike $2))
-           order by (ss.name ilike $3) desc, ss.name
+           -- Name matches first, so the limit sheds intel matches rather than systems.
+           order by (ss.name ilike $2) desc, (ss.name ilike $3) desc, ss.name
            limit 25"#,
         map_id,
         contains,
@@ -203,7 +205,33 @@ pub async fn search_map(
     }));
 
     hits.extend(threat_hits(&state.db, map_id, q, &contains, &prefix).await?);
+    // Stable, so within a tier the queries' own ordering (prefix first, then name; threat
+    // organisations by rank and kills) is what the client renders.
+    hits.sort_by_key(|hit| match_rank(hit, &lower));
     Ok(Json(hits))
+}
+
+/// How directly a hit answers the query. A system *named* what was typed comes before one
+/// whose alias matches, and both come before anything matched through intel (occupier,
+/// notes, threat organisations): the legacy behaviour buried the actual system under rows
+/// that merely mentioned it.
+fn match_rank(hit: &MapSearchHit, query_lower: &str) -> u8 {
+    match hit.matched.as_str() {
+        "name" => {
+            let name = hit.system.name.to_lowercase();
+            if name == query_lower {
+                0
+            } else if name.starts_with(query_lower) {
+                1
+            } else {
+                2
+            }
+        }
+        "alias" => 3,
+        "occupier" => 4,
+        "notes" => 5,
+        _ => 6,
+    }
 }
 
 /// How many organisations a threat search considers, and how many systems it reports.
@@ -324,4 +352,65 @@ fn excerpt(notes: &str, needle: &str) -> String {
         out.push('…');
     }
     out.replace('\n', " ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hit(matched: &str, name: &str) -> MapSearchHit {
+        MapSearchHit {
+            system: SystemSearchResult {
+                id: 1,
+                name: name.into(),
+                security: 0.9,
+                region: "Heimatar".into(),
+                region_id: 1,
+                constellation_id: 1,
+                wormhole_class_id: None,
+                effect_name: None,
+                sovereignty: None,
+                statics: Vec::new(),
+            },
+            map_solar_system_id: None,
+            alias: None,
+            occupying_group: None,
+            note_excerpt: None,
+            threat: None,
+            matched: matched.into(),
+        }
+    }
+
+    /// The Rens problem: a corporation named "Wrens Logistics" typed into an occupier
+    /// field, and notes mentioning the market run, must not bury the system itself.
+    #[test]
+    fn a_system_named_like_the_query_beats_everything_matched_through_intel() {
+        let mut hits = [
+            hit("notes", "J155207"),
+            hit("occupier", "J122515"),
+            hit("threat", "J100001"),
+            hit("alias", "J170601"),
+            hit("name", "Rens"),
+            hit("name", "Frarn"),
+        ];
+        hits.sort_by_key(|h| match_rank(h, "rens"));
+        let order: Vec<&str> = hits.iter().map(|h| h.matched.as_str()).collect();
+        assert_eq!(
+            order,
+            vec!["name", "name", "alias", "occupier", "notes", "threat"]
+        );
+        assert_eq!(hits[0].system.name, "Rens");
+    }
+
+    #[test]
+    fn among_name_matches_exact_beats_prefix_beats_contains() {
+        let mut hits = [
+            hit("name", "Erenta"),
+            hit("name", "Rensavik"),
+            hit("name", "Rens"),
+        ];
+        hits.sort_by_key(|h| match_rank(h, "rens"));
+        let names: Vec<&str> = hits.iter().map(|h| h.system.name.as_str()).collect();
+        assert_eq!(names, vec!["Rens", "Rensavik", "Erenta"]);
+    }
 }

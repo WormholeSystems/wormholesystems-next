@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_alerts (map_id, created_by_user_id, name, kind, delivery, max_jumps)\n         values ($1, $2, 'DM me', 'killmail', 'discord_dm', 5) returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a7e7589f7808689d144e2851429bc572e88c4394ca6cd669bbbc31337379c5fb"
+}

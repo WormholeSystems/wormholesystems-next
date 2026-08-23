@@ -46,6 +46,8 @@
 		return [...groups.entries()].map(([id, group]) => ({ id, ...group }));
 	});
 	const named = $derived(results.filter((h) => !h.threat));
+	/** Matched by what the system is called, not by intel typed onto it. */
+	const byName = (h: MapSearchHit) => h.matched === 'name' || h.matched === 'alias';
 	/** Opened from "connect to a new system": every pick becomes a connection as well. */
 	const linking = $derived(map.linkFrom !== null);
 	/**
@@ -53,8 +55,11 @@
 	 * on-map hits included: those merge the ghost into the placement already there.
 	 */
 	const assigning = $derived(map.assignGhostId !== null);
-	const onMap = $derived(named.filter((h) => h.map_solar_system_id !== null));
+	const onMap = $derived(named.filter((h) => h.map_solar_system_id !== null && byName(h)));
 	const offMap = $derived(named.filter((h) => h.map_solar_system_id === null));
+	// Occupier and notes matches sit below every system named like the query: the answer to
+	// "rens" is Rens, not the three systems whose intel mentions it.
+	const intel = $derived(named.filter((h) => h.map_solar_system_id !== null && !byName(h)));
 
 	// The list owns the tracks and rows are subgrids of them, so on-map and off-map rows line
 	// up with each other. Tracks: four SystemRow cells, the hint/badge, Command's indicator.
@@ -236,6 +241,49 @@
 				</Command.Item>
 			{/each}
 		{/if}
+		{#if canWrite && offMap.length > 0}
+			<div class={HEADING}>
+				{assigning ? 'Not on the map' : linking ? 'Add and connect' : 'Add to the map'}
+			</div>
+			{#each offMap as hit (hit.system.id)}
+				<Command.Item
+					value={`off-${hit.system.id}`}
+					onSelect={() => add(hit)}
+					class={ROW}
+					data-testid="palette-add"
+				>
+					<SystemMenu system={hit.system} class={CELLS}>
+						<SystemRow system={hit.system} />
+						{#if assigning}
+							<Badge variant="outline" class="justify-self-end">Assign</Badge>
+						{:else}
+							<Badge variant="outline" class="justify-self-end gap-1">
+								<PlusIcon />
+								Add
+							</Badge>
+						{/if}
+					</SystemMenu>
+				</Command.Item>
+			{/each}
+		{/if}
+		{#if intel.length > 0}
+			<div class={HEADING}>Mentioned in intel</div>
+			{#each intel as hit (hit.map_solar_system_id)}
+				<Command.Item
+					value={`intel-${hit.system.id}`}
+					onSelect={() => activate(hit)}
+					class={ROW}
+					data-testid="palette-hit"
+				>
+					<SystemMenu system={hit.system} class={CELLS}>
+						<SystemRow system={hit.system} />
+						<span class="truncate text-xs text-muted-foreground" title={hint(hit) ?? undefined}>
+							{hint(hit) ?? ''}
+						</span>
+					</SystemMenu>
+				</Command.Item>
+			{/each}
+		{/if}
 		{#each threatGroups as group (group.id)}
 			<div class="{HEADING} flex items-center gap-2" data-testid="palette-threat-group">
 				<span class="min-w-0 truncate text-foreground" title="{group.name} ({group.kind})">
@@ -266,30 +314,5 @@
 				</Command.Item>
 			{/each}
 		{/each}
-		{#if canWrite && offMap.length > 0}
-			<div class={HEADING}>
-				{assigning ? 'Not on the map' : linking ? 'Add and connect' : 'Add to the map'}
-			</div>
-			{#each offMap as hit (hit.system.id)}
-				<Command.Item
-					value={`off-${hit.system.id}`}
-					onSelect={() => add(hit)}
-					class={ROW}
-					data-testid="palette-add"
-				>
-					<SystemMenu system={hit.system} class={CELLS}>
-						<SystemRow system={hit.system} />
-						{#if assigning}
-							<Badge variant="outline" class="justify-self-end">Assign</Badge>
-						{:else}
-							<Badge variant="outline" class="justify-self-end gap-1">
-								<PlusIcon />
-								Add
-							</Badge>
-						{/if}
-					</SystemMenu>
-				</Command.Item>
-			{/each}
-		{/if}
 	</Command.List>
 </Command.Dialog>

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select last_fired_at from map_alerts where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_fired_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "last_fired_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "55ac8ef50e590a5cd628317ff1d6193b11aa4203eb82ed46838e8f2c2da2e681"
+}
