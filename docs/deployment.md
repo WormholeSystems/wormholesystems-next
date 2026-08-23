@@ -24,14 +24,6 @@ A server with Docker Engine and Compose v2, 5GB of disk, and a DNS A record poin
 The release build wants about 2GB of memory: on a 2GB machine, add swap first or the
 compiler is killed part way through.
 
-The repository is private, so the server needs its own read-only access. Generate a key on
-the server and add the public half as a deploy key under Settings → Deploy keys:
-
-```sh
-ssh-keygen -t ed25519 -C wormholesystems-deploy -f ~/.ssh/id_ed25519 -N ""
-cat ~/.ssh/id_ed25519.pub
-```
-
 ## First run
 
 Install `wsctl`, the setup tool:
@@ -46,22 +38,10 @@ run the setup straight away. Pin a version with `WSCTL_VERSION=wsctl-v0.1.0`.
 Then, in a checkout:
 
 ```sh
-git clone git@github.com:WormholeSystems/wormholesystems-next.git
+git clone https://github.com/WormholeSystems/wormholesystems-next.git
 cd wormholesystems-next
 wsctl setup
 ```
-
-While the repository is private, that download needs a token that can read it:
-
-```sh
-export WSCTL_TOKEN=ghp_...
-curl -fsSL -H "Authorization: Bearer $WSCTL_TOKEN" \
-  https://raw.githubusercontent.com/WormholeSystems/wormholesystems-next/main/install.sh | sh
-```
-
-A private repository's release assets are not reachable by plain URL at all, so with a
-token the installer goes through the API instead: it finds the asset by name and asks for
-its bytes.
 
 ### Building it instead
 
