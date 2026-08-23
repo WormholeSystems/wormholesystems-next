@@ -10,7 +10,7 @@
 
 	import Reveal from './Reveal.svelte';
 
-	const command = 'wsctl setup';
+	const command = "curl --proto '=https' --tlsv1.2 -sSf https://install-next.wormhole.systems | sh";
 	let copied = $state(false);
 	let resetTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -33,9 +33,12 @@
 	// The rest of wsctl, so the story is the whole life of the install, not day one.
 	const commands = [
 		{ cmd: 'setup', body: 'Checks the machine, asks for what it needs, brings the stack up.' },
-		{ cmd: 'update', body: 'Pulls, rebuilds, restarts, and says what changed.' },
+		{
+			cmd: 'update',
+			body: 'Pulls, rebuilds, restarts, and takes newer static data when CCP has one.',
+		},
 		{ cmd: 'status', body: 'What is running, which SDE build is loaded, whether the URL answers.' },
-		{ cmd: 'sde-update', body: 'Takes a newer static data export when CCP publishes one.' },
+		{ cmd: 'doctor', body: 'Checks Docker, disk, ports and DNS without changing anything.' },
 		{ cmd: 'discord-register', body: 'Uploads the slash command to your Discord application.' },
 	];
 
@@ -87,7 +90,7 @@
 						<span class="min-w-0 flex-1 break-all">{command}</span>
 						<button
 							class="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-							aria-label="Copy the setup command"
+							aria-label="Copy the install command"
 							data-testid="copy-command"
 							onclick={copy}
 						>
@@ -99,6 +102,7 @@
 						</button>
 					</div>
 					<p class="mt-4 text-sm text-muted-foreground">
+						The installer puts wsctl on the machine and offers to run the setup right away.
 						Postgres, the API, the web server and TLS come up together under Docker. Certificates
 						are issued on the first boot and the static data seeds itself. It asks for your domain
 						and your EVE application, and works the rest out.
