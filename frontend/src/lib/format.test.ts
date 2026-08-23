@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatIsk, iskTone, timeAgo } from './format';
+import { formatIsk, iskTone, timeAgo, timeAgoShort } from './format';
 
 const NOW = new Date('2026-08-17T15:00:00Z');
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
@@ -21,6 +21,18 @@ describe('timeAgo', () => {
 		expect(timeAgo(ago(30 * 3_600_000), NOW)).toBe('1d ago');
 		expect(timeAgo(ago(47 * 3_600_000), NOW)).toBe('1d ago');
 		expect(timeAgo(ago(48 * 3_600_000), NOW)).toBe('2d ago');
+	});
+});
+
+describe('timeAgoShort', () => {
+	it('is timeAgo at column width', () => {
+		expect(timeAgoShort(ago(30_000), NOW)).toBe('now');
+		expect(timeAgoShort(ago(60_000), NOW)).toBe('1m');
+		expect(timeAgoShort(ago(47 * 60_000), NOW)).toBe('47m');
+		expect(timeAgoShort(ago(60 * 60_000), NOW)).toBe('1h');
+		expect(timeAgoShort(ago(23 * 3_600_000), NOW)).toBe('23h');
+		expect(timeAgoShort(ago(30 * 3_600_000), NOW)).toBe('1d');
+		expect(timeAgoShort(ago(48 * 3_600_000), NOW)).toBe('2d');
 	});
 });
 

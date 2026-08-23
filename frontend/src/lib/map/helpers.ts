@@ -23,6 +23,21 @@ export function formatKt(kg: number): string {
 	return (kg / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 1 });
 }
 
+/**
+ * What is left of a hole's estimated total mass after the logged jumps, clamped at empty.
+ * Null when the total is unknown, so the caller can leave the bar out entirely.
+ */
+export function remainingMass(
+	totalKg: number | null,
+	jumpedKg: number,
+): { kg: number; percent: number } | null {
+	if (totalKg === null || totalKg <= 0) return null;
+	return {
+		kg: Math.max(0, totalKg - jumpedKg),
+		percent: Math.max(0, 100 - (jumpedKg / totalKg) * 100),
+	};
+}
+
 /** Legacy ship-size letter by max jump mass (kg). */
 export function shipSizeLetter(kg: number | null): string {
 	if (kg === null || kg <= 0) return '—';

@@ -1,0 +1,50 @@
+// The one vocabulary for a wormhole connection's degradable statuses: what each state is
+// called, the threshold it stands for, and the colors it is drawn in.
+
+import type { MassStatus } from '$lib/api/types/MassStatus';
+import type { TimeStatus } from '$lib/api/types/TimeStatus';
+import type { WormholeSize } from '$lib/api/types/WormholeSize';
+
+export interface StatusOption<T> {
+	value: T;
+	label: string;
+	hint: string | null;
+	/** For inline-styled dots and edge badges. */
+	color: string;
+	/** For Tailwind-styled dots. */
+	dot: string;
+}
+
+const HEALTHY_DOT = 'oklch(55.6% 0.007 260)';
+
+export const LIFETIME_OPTIONS: StatusOption<TimeStatus>[] = [
+	{ value: 'stable', label: 'Healthy', hint: null, color: HEALTHY_DOT, dot: 'bg-neutral-500' },
+	{ value: 'eol', label: 'End of Life', hint: '< 4h', color: '#a855f7', dot: 'bg-purple-500' },
+	{ value: 'critical', label: 'Critical', hint: '< 1h', color: '#ef4444', dot: 'bg-red-500' },
+];
+
+export const MASS_OPTIONS: StatusOption<MassStatus>[] = [
+	{ value: 'stable', label: 'Fresh', hint: '≥ 50%', color: HEALTHY_DOT, dot: 'bg-neutral-500' },
+	{ value: 'reduced', label: 'Reduced', hint: '< 50%', color: '#f59e0b', dot: 'bg-amber-500' },
+	{ value: 'critical', label: 'Critical', hint: '≤ 15%', color: '#ef4444', dot: 'bg-red-500' },
+];
+
+// `small` is what EVE calls frigate-sized.
+export const SIZE_OPTIONS: { value: WormholeSize; label: string; letter: string }[] = [
+	{ value: 'small', label: 'Frigate', letter: 'S' },
+	{ value: 'medium', label: 'Medium', letter: 'M' },
+	{ value: 'large', label: 'Large', letter: 'L' },
+	{ value: 'xl', label: 'Extra Large', letter: 'XL' },
+];
+
+/** The edge badge color for a degraded lifetime; a healthy one draws no badge. */
+export function timeBadgeColor(status: TimeStatus | null): string | null {
+	if (status === null || status === 'stable') return null;
+	return LIFETIME_OPTIONS.find((o) => o.value === status)?.color ?? null;
+}
+
+/** The edge badge color for a degraded mass status; a fresh one draws no badge. */
+export function massBadgeColor(status: MassStatus | null): string | null {
+	if (status === null || status === 'stable') return null;
+	return MASS_OPTIONS.find((o) => o.value === status)?.color ?? null;
+}

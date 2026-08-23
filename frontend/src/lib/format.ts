@@ -5,13 +5,18 @@
  * reading the clock, so callers that tick on a timer recompute and tests stay deterministic.
  */
 export function timeAgo(iso: string, now: Date = new Date()): string {
-	const seconds = Math.floor((now.getTime() - new Date(iso).getTime()) / 1000);
-	if (seconds < 60) return 'just now';
-	const minutes = Math.floor(seconds / 60);
-	if (minutes < 60) return `${minutes}m ago`;
+	const short = timeAgoShort(iso, now);
+	return short === 'now' ? 'just now' : `${short} ago`;
+}
+
+/** The same ages at column width: `now`, `47m`, `3h`, `2d`. */
+export function timeAgoShort(iso: string, now: Date = new Date()): string {
+	const minutes = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000);
+	if (minutes < 1) return 'now';
+	if (minutes < 60) return `${minutes}m`;
 	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours}h ago`;
-	return `${Math.floor(hours / 24)}d ago`;
+	if (hours < 24) return `${hours}h`;
+	return `${Math.floor(hours / 24)}d`;
 }
 
 const ISK = new Intl.NumberFormat('en-US', {

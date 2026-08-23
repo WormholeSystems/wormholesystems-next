@@ -2,9 +2,41 @@
 // out the ones sharing a node edge. All world units; the canvas transform does the scaling.
 
 import type { MapConnection } from '$lib/api/types/MapConnection';
-import { NODE_W, railEndpoint, type Vec2 } from './helpers';
+import { massBadgeColor, timeBadgeColor } from './connection-status';
+import { NODE_W, railEndpoint, sizeLetter, type Vec2 } from './helpers';
 
 export type { Vec2 };
+
+/** Everything a connection's state hangs on its line: the dash and the badge pill. */
+export interface EdgeDecorations {
+	/** Degraded wormholes dash. */
+	dashed: boolean;
+	massColor: string | null;
+	timeColor: string | null;
+	/** Only sizes worth calling out; large is the default and stays quiet. */
+	sizeLabel: string | null;
+	badgeCount: number;
+	/** The pill's width, from how many badges it holds. */
+	badgeWidth: number;
+}
+
+export function edgeDecorations(c: MapConnection): EdgeDecorations {
+	const dashed =
+		c.kind === 'wormhole' &&
+		(c.mass_status === 'reduced' ||
+			c.mass_status === 'critical' ||
+			c.time_status === 'eol' ||
+			c.time_status === 'critical');
+	const massColor = massBadgeColor(c.mass_status);
+	const timeColor = timeBadgeColor(c.time_status);
+	const sizeLabel = c.size !== null && c.size !== 'large' ? sizeLetter(c.size) : null;
+	const badgeCount =
+		(c.kind === 'stargate' ? 1 : 0) +
+		(sizeLabel ? 1 : 0) +
+		(massColor ? 1 : 0) +
+		(timeColor ? 1 : 0);
+	return { dashed, massColor, timeColor, sizeLabel, badgeCount, badgeWidth: badgeCount * 18 + 8 };
+}
 
 export interface EdgeGeometry {
 	id: number;

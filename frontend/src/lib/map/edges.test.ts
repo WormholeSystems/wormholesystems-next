@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { MapConnection } from '$lib/api/types/MapConnection';
-import { freeEdges, treeEdges } from './edges';
+import { LIFETIME_OPTIONS, MASS_OPTIONS } from './connection-status';
+import { edgeDecorations, freeEdges, treeEdges } from './edges';
 import { NODE_W } from './helpers';
 
 const NODE_H = 40;
@@ -9,6 +10,73 @@ const NODE_H = 40;
 function connection(id: number, from: number, to: number): MapConnection {
 	return { id, from_system: from, to_system: to } as MapConnection;
 }
+
+function wormhole(state: Partial<MapConnection>): MapConnection {
+	return {
+		kind: 'wormhole',
+		mass_status: null,
+		time_status: null,
+		size: null,
+		...state,
+	} as MapConnection;
+}
+
+const massColor = (value: string) => MASS_OPTIONS.find((o) => o.value === value)!.color;
+const timeColor = (value: string) => LIFETIME_OPTIONS.find((o) => o.value === value)!.color;
+
+describe('edgeDecorations', () => {
+	it('draws a fresh wormhole plain: solid, no badges', () => {
+		expect(edgeDecorations(wormhole({}))).toEqual({
+			dashed: false,
+			massColor: null,
+			timeColor: null,
+			sizeLabel: null,
+			badgeCount: 0,
+			badgeWidth: 8,
+		});
+	});
+
+	it('treats stable statuses as no badge at all', () => {
+		const deco = edgeDecorations(wormhole({ mass_status: 'stable', time_status: 'stable' }));
+		expect(deco.dashed).toBe(false);
+		expect(deco.badgeCount).toBe(0);
+	});
+
+	it('dashes every degraded state', () => {
+		expect(edgeDecorations(wormhole({ mass_status: 'reduced' })).dashed).toBe(true);
+		expect(edgeDecorations(wormhole({ mass_status: 'critical' })).dashed).toBe(true);
+		expect(edgeDecorations(wormhole({ time_status: 'eol' })).dashed).toBe(true);
+		expect(edgeDecorations(wormhole({ time_status: 'critical' })).dashed).toBe(true);
+	});
+
+	it('never dashes a stargate, whatever its statuses say', () => {
+		const gate = wormhole({ kind: 'stargate', mass_status: 'critical' });
+		expect(edgeDecorations(gate).dashed).toBe(false);
+	});
+
+	it('takes the badge colors from the shared status options', () => {
+		const deco = edgeDecorations(wormhole({ mass_status: 'reduced', time_status: 'eol' }));
+		expect(deco.massColor).toBe(massColor('reduced'));
+		expect(deco.timeColor).toBe(timeColor('eol'));
+	});
+
+	it('labels every size except the default large', () => {
+		expect(edgeDecorations(wormhole({ size: 'small' })).sizeLabel).toBe('S');
+		expect(edgeDecorations(wormhole({ size: 'xl' })).sizeLabel).toBe('XL');
+		expect(edgeDecorations(wormhole({ size: 'large' })).sizeLabel).toBeNull();
+	});
+
+	it('sizes the pill by how many badges it holds', () => {
+		const gate = edgeDecorations(wormhole({ kind: 'stargate' }));
+		expect(gate.badgeCount).toBe(1);
+		expect(gate.badgeWidth).toBe(26);
+		const busy = edgeDecorations(
+			wormhole({ size: 'small', mass_status: 'critical', time_status: 'critical' }),
+		);
+		expect(busy.badgeCount).toBe(3);
+		expect(busy.badgeWidth).toBe(3 * 18 + 8);
+	});
+});
 
 describe('freeEdges', () => {
 	it('pulls each endpoint along its node toward the other one', () => {

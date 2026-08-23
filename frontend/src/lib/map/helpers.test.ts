@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NODE_GAP_CELLS, NODE_W, freePosition, sizeForJumpMass } from './helpers';
+import { NODE_GAP_CELLS, NODE_W, freePosition, remainingMass, sizeForJumpMass } from './helpers';
 import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 
@@ -101,5 +101,21 @@ describe('sizeForJumpMass', () => {
 		expect(sizeForJumpMass(null)).toBeNull();
 		expect(sizeForJumpMass(undefined)).toBeNull();
 		expect(sizeForJumpMass(0)).toBeNull();
+	});
+});
+
+describe('remainingMass', () => {
+	it('splits what is left between kilograms and percent', () => {
+		expect(remainingMass(1_000_000_000, 250_000_000)).toEqual({ kg: 750_000_000, percent: 75 });
+	});
+
+	it('clamps an overshot hole at empty instead of going negative', () => {
+		expect(remainingMass(1_000_000_000, 1_200_000_000)).toEqual({ kg: 0, percent: 0 });
+	});
+
+	it('says nothing when the total is unknown or nonsense', () => {
+		expect(remainingMass(null, 100)).toBeNull();
+		expect(remainingMass(0, 100)).toBeNull();
+		expect(remainingMass(-5, 100)).toBeNull();
 	});
 });

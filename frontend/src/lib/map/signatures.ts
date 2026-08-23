@@ -12,6 +12,7 @@ import SwordsIcon from '@lucide/svelte/icons/swords';
 
 import { api } from '$lib/api/client';
 import type { PastedSignature } from '$lib/api/types/PastedSignature';
+import type { Signature } from '$lib/api/types/Signature';
 import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
 import type { SignatureGroup } from '$lib/api/types/SignatureGroup';
 import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
@@ -166,6 +167,50 @@ export function parseScan(text: string, catalog: SignatureCatalog): PastedSignat
 		});
 	}
 	return out;
+}
+
+/** A scanner id as typed: separators stripped, uppercased, hyphenated once long enough. */
+export function formatSignatureId(raw: string): string {
+	const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+	return clean.length >= 4 ? `${clean.slice(0, 3)}-${clean.slice(3, 6)}` : clean;
+}
+
+// Wormhole ages run from creation; site ages from the last update.
+function modifiedDate(s: Signature): number {
+	return Date.parse(s.group === 'wormhole' ? s.created_at : s.updated_at);
+}
+
+function cmpNullableStrings(a: string | null, b: string | null): number {
+	if (a === null && b === null) return 0;
+	if (a === null) return 1;
+	if (b === null) return -1;
+	return a.localeCompare(b);
+}
+
+/**
+ * The signatures panel's per-column comparison, before the sort direction is applied.
+ * `typeName` resolves a signature's display name, which needs the loaded catalog.
+ */
+export function compareSignatures(
+	a: Signature,
+	b: Signature,
+	column: 'id' | 'category' | 'type' | 'age',
+	typeName: (s: Signature) => string | null,
+): number {
+	switch (column) {
+		case 'id':
+			return a.signature_id.localeCompare(b.signature_id);
+		case 'category':
+			return cmpNullableStrings(
+				a.group === 'unknown' ? null : a.group,
+				b.group === 'unknown' ? null : b.group,
+			);
+		case 'type':
+			return cmpNullableStrings(typeName(a), typeName(b));
+		case 'age':
+			// Newest first in ascending order.
+			return modifiedDate(b) - modifiedDate(a);
+	}
 }
 
 function matchCategory(catalog: SignatureCatalog, name: string): number | null {
