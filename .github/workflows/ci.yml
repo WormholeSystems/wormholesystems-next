@@ -82,6 +82,9 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+      - name: Generated TS bindings are committed
+        run: git diff --exit-code frontend/src/lib/api/types
+
   frontend:
     name: frontend
     runs-on: ubuntu-latest
