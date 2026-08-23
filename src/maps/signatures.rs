@@ -176,8 +176,6 @@ pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> R
                (map_id, solar_system_id, signature_id, "group", signature_type_id, name,
                 size, mass_status, time_status, time_status_updated_at)
            values ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-                   -- $9 is the lifetime, whose type the parameter already fixes; naming it
-                   -- again as text is what made the two deductions disagree.
                    case when $9::time_status is not null then now() end)
            returning id, map_id, solar_system_id, signature_id, "group",
                      signature_type_id, name, size,
@@ -200,12 +198,17 @@ pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> R
         map_id: cmd.map_id,
         signature_pk: sig.id,
     });
+    let event = MapEvent::SignatureChanged {
+        map_id: cmd.map_id,
+        solar_system_id: sig.solar_system_id,
+    };
     Ok(Effect::new(
         "signatures.added",
         format!("added signature {}", sig.signature_id),
         CommandOutput::Signature(Box::new(sig)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(event))
 }
 
 /// A partial edit of a signature. `None` leaves a field unchanged; `Some(None)` clears it.
@@ -251,12 +254,66 @@ pub async fn update_signature(
         .signature()
 }
 
+/// What an update writes: the current row with the command's partial edit merged in, per
+/// the legacy rules documented on [`UpdateSignature`].
+struct UpdatedFields {
+    group: SignatureGroup,
+    type_id: Option<i64>,
+    name: Option<String>,
+    size: Option<WormholeSize>,
+    mass_status: Option<MassStatus>,
+    time_status: Option<TimeStatus>,
+    connection_id: Option<i64>,
+}
+
+fn merge_update(current: &Signature, cmd: &UpdateSignature) -> Result<UpdatedFields> {
+    let group = cmd.group.unwrap_or(current.group);
+    let group_changed = group != current.group;
+
+    // A group change invalidates the old catalog type and the link; the same call may
+    // re-supply a type, but never a stale one.
+    let type_id = if group_changed {
+        cmd.signature_type_id.flatten()
+    } else {
+        cmd.signature_type_id.unwrap_or(current.signature_type_id)
+    };
+    let name = cmd.name.clone().unwrap_or_else(|| current.name.clone());
+    let (size, mass_status, time_status) = if group_changed && !is_wormhole(group) {
+        (None, None, None)
+    } else {
+        (
+            cmd.size.unwrap_or(current.size),
+            cmd.mass_status.unwrap_or(current.mass_status),
+            cmd.time_status.unwrap_or(current.time_status),
+        )
+    };
+    let connection_id = if group_changed {
+        None
+    } else {
+        current.connection_id
+    };
+
+    if !is_wormhole(group) && (size.is_some() || mass_status.is_some() || time_status.is_some()) {
+        return Err(MapError::Validation(
+            "only a wormhole signature can carry size / mass / time".into(),
+        ));
+    }
+    Ok(UpdatedFields {
+        group,
+        type_id,
+        name,
+        size,
+        mass_status,
+        time_status,
+        connection_id,
+    })
+}
+
 pub(super) async fn apply_update_signature(
     tx: &mut Tx<'_>,
     cmd: UpdateSignature,
 ) -> Result<Effect> {
     let current = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
-    let previous_name = current.name.clone();
 
     let signature_id = match &cmd.signature_id {
         Some(v) => {
@@ -284,38 +341,9 @@ pub(super) async fn apply_update_signature(
         None => current.signature_id.clone(),
     };
 
-    let group = cmd.group.unwrap_or(current.group);
-    let group_changed = group != current.group;
-
-    let type_id = if group_changed {
-        cmd.signature_type_id.flatten()
-    } else {
-        cmd.signature_type_id.unwrap_or(current.signature_type_id)
-    };
-    if let Some(type_id) = type_id {
-        validate_type_for_group(tx, type_id, group).await?;
-    }
-
-    let name = cmd.name.unwrap_or(current.name);
-    let (size, mass, time) = if group_changed && !is_wormhole(group) {
-        (None, None, None)
-    } else {
-        (
-            cmd.size.unwrap_or(current.size),
-            cmd.mass_status.unwrap_or(current.mass_status),
-            cmd.time_status.unwrap_or(current.time_status),
-        )
-    };
-    let connection_id = if group_changed {
-        None
-    } else {
-        current.connection_id
-    };
-
-    if !is_wormhole(group) && (size.is_some() || mass.is_some() || time.is_some()) {
-        return Err(MapError::Validation(
-            "only a wormhole signature can carry size / mass / time".into(),
-        ));
+    let merged = merge_update(&current, &cmd)?;
+    if let Some(type_id) = merged.type_id {
+        validate_type_for_group(tx, type_id, merged.group).await?;
     }
 
     let sig = sqlx::query_as!(
@@ -330,13 +358,13 @@ pub(super) async fn apply_update_signature(
                      time_status,
                      time_status_updated_at, connection_id, created_at, updated_at"#,
         signature_id,
-        group,
-        type_id,
-        name.as_deref(),
-        size,
-        mass,
-        time,
-        connection_id,
+        merged.group,
+        merged.type_id,
+        merged.name.as_deref(),
+        merged.size,
+        merged.mass_status,
+        merged.time_status,
+        merged.connection_id,
         cmd.signature_pk,
         cmd.map_id,
     )
@@ -348,17 +376,28 @@ pub(super) async fn apply_update_signature(
         signature_id: Some(current.signature_id.clone()),
         group: Some(current.group),
         signature_type_id: Some(current.signature_type_id),
-        name: Some(previous_name),
+        name: Some(current.name),
         size: Some(current.size),
         mass_status: Some(current.mass_status),
         time_status: Some(current.time_status),
     });
+    let mut events = vec![MapEvent::SignatureChanged {
+        map_id: cmd.map_id,
+        solar_system_id: sig.solar_system_id,
+    }];
+    if let Some(connection_id) = sig.connection_id {
+        events.push(MapEvent::ConnectionChanged {
+            map_id: cmd.map_id,
+            connection_id,
+        });
+    }
     Ok(Effect::new(
         "signatures.updated",
         format!("edited signature {}", sig.signature_id),
         CommandOutput::Signature(Box::new(sig)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit_all(events))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -421,6 +460,20 @@ pub(super) async fn apply_remove_signature(
         removed_connection_id = Some(conn_id);
     }
 
+    let mut events = vec![MapEvent::SignatureChanged {
+        map_id: cmd.map_id,
+        solar_system_id: sig.solar_system_id,
+    }];
+    if let Some(connection_id) = removed_connection_id {
+        events.push(MapEvent::ConnectionChanged {
+            map_id: cmd.map_id,
+            connection_id,
+        });
+    }
+    events.extend(raised.iter().map(|id| MapEvent::SystemRemoved {
+        map_id: cmd.map_id,
+        map_solar_system_id: *id,
+    }));
     Ok(Effect::new(
         "signatures.removed",
         "removed a signature",
@@ -434,19 +487,20 @@ pub(super) async fn apply_remove_signature(
         cmd.map_id,
         raised_snapshot,
         MapCommand::RestoreSignatures(restore),
-    )))
+    ))
+    .emit_all(events))
 }
 
 async fn capture_raised(
     tx: &mut Tx<'_>,
     map_id: i64,
     raised: &[i64],
-) -> Result<Option<super::solar_system::RestoreSystems>> {
+) -> Result<Option<super::restore::RestoreSystems>> {
     if raised.is_empty() {
         return Ok(None);
     }
     Ok(Some(
-        super::solar_system::capture_systems(tx, map_id, raised).await?,
+        super::restore::capture_systems(tx, map_id, raised).await?,
     ))
 }
 
@@ -455,7 +509,7 @@ async fn capture_raised(
 /// the scan too, so the second step is usually the one that finds nothing left to do.
 fn undo_with_raised(
     map_id: i64,
-    raised: Option<super::solar_system::RestoreSystems>,
+    raised: Option<super::restore::RestoreSystems>,
     inverse: MapCommand,
 ) -> MapCommand {
     let Some(raised) = raised else { return inverse };
@@ -561,6 +615,29 @@ pub(super) async fn apply_remove_signatures(
     }
 
     let count = cmd.signature_pks.len() as i64;
+    let mut events: Vec<MapEvent> = systems
+        .iter()
+        .map(|solar_system_id| MapEvent::SignatureChanged {
+            map_id: cmd.map_id,
+            solar_system_id: *solar_system_id,
+        })
+        .collect();
+    events.extend(
+        removed_connection_ids
+            .iter()
+            .map(|connection_id| MapEvent::ConnectionChanged {
+                map_id: cmd.map_id,
+                connection_id: *connection_id,
+            }),
+    );
+    events.extend(
+        removed_placement_ids
+            .iter()
+            .map(|id| MapEvent::SystemRemoved {
+                map_id: cmd.map_id,
+                map_solar_system_id: *id,
+            }),
+    );
     Ok(Effect::new(
         "signatures.removed",
         format!("removed {count} signatures"),
@@ -575,7 +652,8 @@ pub(super) async fn apply_remove_signatures(
         cmd.map_id,
         raised_snapshot,
         MapCommand::RestoreSignatures(restore),
-    )))
+    ))
+    .emit_all(events))
 }
 
 /// Delete `conn_id` if no signature in `side_system` still references it (the legacy
@@ -682,12 +760,23 @@ pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) ->
         mass_status: Some(sig.mass_status),
         time_status: Some(sig.time_status),
     });
+    let events = [
+        MapEvent::SignatureChanged {
+            map_id: cmd.map_id,
+            solar_system_id: linked.solar_system_id,
+        },
+        MapEvent::ConnectionChanged {
+            map_id: cmd.map_id,
+            connection_id: cmd.connection_id,
+        },
+    ];
     Ok(Effect::new(
         "signatures.linked",
         "linked a signature",
         CommandOutput::Signature(Box::new(linked)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit_all(events))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -730,11 +819,16 @@ pub(super) async fn apply_unlink_signature(
             connection_id,
         })
     });
+    let event = MapEvent::SignatureChanged {
+        map_id: cmd.map_id,
+        solar_system_id: sig.solar_system_id,
+    };
     let mut effect = Effect::new(
         "signatures.unlinked",
         "unlinked a signature",
         CommandOutput::Signature(Box::new(sig)),
-    );
+    )
+    .emit(event);
     if let Some(inverse) = inverse {
         effect = effect.undo_with(inverse);
     }
@@ -779,6 +873,52 @@ pub struct PasteSignatures {
 pub async fn paste_signatures(pool: &PgPool, actor: Actor, cmd: PasteSignatures) -> Result<()> {
     execute(pool, actor, MapCommand::PasteSignatures(cmd)).await?;
     Ok(())
+}
+
+/// What one pasted row writes over an existing signature: the legacy merge rules listed on
+/// [`paste_signatures`]. `pasted_type` is the pasted catalog type, already checked against
+/// the pasted group's category; `kept_type_fits` says whether the existing catalog type
+/// still belongs to the merged group.
+struct PastedFields {
+    group: SignatureGroup,
+    type_id: Option<i64>,
+    name: Option<String>,
+    clear_link: bool,
+}
+
+fn merge_paste(
+    existing_group: SignatureGroup,
+    existing_type: Option<i64>,
+    existing_name: Option<String>,
+    pasted: &PastedSignature,
+    pasted_type: Option<i64>,
+    kept_type_fits: bool,
+) -> PastedFields {
+    let group = pasted.group.unwrap_or(existing_group);
+    let type_id = if is_wormhole(group) {
+        existing_type.or(pasted_type)
+    } else if pasted_type.is_some() {
+        pasted_type
+    } else if pasted.name.is_some() {
+        // A site with only an unmatched raw name clears a stale type.
+        None
+    } else {
+        existing_type.filter(|_| kept_type_fits)
+    };
+    let name = if is_wormhole(group) {
+        existing_name.or_else(|| pasted.name.clone())
+    } else {
+        pasted.name.clone().or(existing_name)
+    };
+    // Recategorizing a hole into a site drops the link (legacy rule); the connection
+    // itself stays on the map.
+    let clear_link = pasted.group.is_some_and(|g| !is_wormhole(g));
+    PastedFields {
+        group,
+        type_id,
+        name,
+        clear_link,
+    }
 }
 
 pub(super) async fn apply_paste_signatures(
@@ -841,28 +981,21 @@ pub(super) async fn apply_paste_signatures(
             continue;
         };
 
-        let group = s.group.unwrap_or(existing.group);
-        let type_id = if is_wormhole(group) {
-            existing.signature_type_id.or(pasted_type)
-        } else if pasted_type.is_some() {
-            pasted_type
-        } else if s.name.is_some() {
-            // A site with only an unmatched raw name clears a stale type.
-            None
-        } else if let Some(kept) = existing.signature_type_id {
-            // Keep the old type only if it still fits the (possibly new) group.
-            (type_category(tx, kept).await? == category_id_for(group)).then_some(kept)
-        } else {
-            None
+        let kept_type_fits = match existing.signature_type_id {
+            Some(kept) => {
+                let group = s.group.unwrap_or(existing.group);
+                type_category(tx, kept).await? == category_id_for(group)
+            }
+            None => false,
         };
-        let name = if is_wormhole(group) {
-            existing.name.or_else(|| s.name.clone())
-        } else {
-            s.name.clone().or(existing.name)
-        };
-        // Recategorizing a hole into a site drops the link (legacy rule); the connection
-        // itself stays on the map.
-        let clear_link = s.group.is_some_and(|g| !is_wormhole(g));
+        let merged = merge_paste(
+            existing.group,
+            existing.signature_type_id,
+            existing.name,
+            s,
+            pasted_type,
+            kept_type_fits,
+        );
 
         sqlx::query!(
             r#"update signatures
@@ -870,10 +1003,10 @@ pub(super) async fn apply_paste_signatures(
                    connection_id = case when $4 then null else connection_id end,
                    updated_at = now()
                where id = $5"#,
-            group,
-            type_id,
-            name.as_deref(),
-            clear_link,
+            merged.group,
+            merged.type_id,
+            merged.name.as_deref(),
+            merged.clear_link,
             existing.id,
         )
         .execute(&mut **tx)
@@ -887,7 +1020,11 @@ pub(super) async fn apply_paste_signatures(
         CommandOutput::None,
     )
     .entries(count)
-    .undo_with(MapCommand::RestoreSignatures(restore)))
+    .undo_with(MapCommand::RestoreSignatures(restore))
+    .emit(MapEvent::SignatureChanged {
+        map_id: cmd.map_id,
+        solar_system_id: cmd.solar_system_id,
+    }))
 }
 
 /// A catalog type's category id, or `None` for an unknown type id.
@@ -927,7 +1064,7 @@ pub async fn read_signatures(pool: &PgPool, map_id: i64) -> Result<Vec<Signature
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestoreSignatures {
     pub map_id: i64,
-    pub signatures: Vec<super::solar_system::RestoredSignature>,
+    pub signatures: Vec<super::restore::RestoredSignature>,
     /// When set, the system is reset to exactly this snapshot (used by paste undo, which
     /// must also drop rows the paste created).
     pub replaces_system: Option<i64>,
@@ -940,7 +1077,7 @@ pub(super) async fn capture_signatures(
     ids: &[i64],
 ) -> Result<RestoreSignatures> {
     let signatures = sqlx::query_as!(
-        super::solar_system::RestoredSignature,
+        super::restore::RestoredSignature,
         r#"select id, solar_system_id, signature_id, "group",
                   signature_type_id, name, size,
                   mass_status,
@@ -1004,6 +1141,21 @@ pub(super) async fn apply_restore_signatures(
     }
     let count = cmd.signatures.len() as i64;
     let ids: Vec<i64> = cmd.signatures.iter().map(|s| s.id).collect();
+    let mut systems: Vec<i64> = cmd
+        .signatures
+        .iter()
+        .map(|s| s.solar_system_id)
+        .chain(cmd.replaces_system)
+        .collect();
+    systems.sort_unstable();
+    systems.dedup();
+    let events: Vec<MapEvent> = systems
+        .into_iter()
+        .map(|solar_system_id| MapEvent::SignatureChanged {
+            map_id: cmd.map_id,
+            solar_system_id,
+        })
+        .collect();
     Ok(Effect::new(
         "signatures.restored",
         format!("restored {count} signatures"),
@@ -1013,7 +1165,8 @@ pub(super) async fn apply_restore_signatures(
     .undo_with(MapCommand::RemoveSignatures(RemoveSignatures {
         map_id: cmd.map_id,
         signature_pks: ids,
-    })))
+    }))
+    .emit_all(events))
 }
 
 async fn fetch_signature_tx(tx: &mut Tx<'_>, map_id: i64, signature_pk: i64) -> Result<Signature> {
@@ -1096,4 +1249,232 @@ pub fn start_expiry(pool: PgPool, hub: MapHub) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod merge_tests {
+    use super::*;
+
+    fn wormhole_sig() -> Signature {
+        Signature {
+            id: 1,
+            map_id: 1,
+            solar_system_id: 31000001,
+            signature_id: "ABC-123".into(),
+            group: SignatureGroup::Wormhole,
+            signature_type_id: Some(100),
+            name: Some("K162".into()),
+            size: Some(WormholeSize::Large),
+            mass_status: Some(MassStatus::Reduced),
+            time_status: Some(TimeStatus::Eol),
+            time_status_updated_at: None,
+            connection_id: Some(7),
+            created_at: chrono::DateTime::UNIX_EPOCH,
+            updated_at: chrono::DateTime::UNIX_EPOCH,
+        }
+    }
+
+    fn edit() -> UpdateSignature {
+        UpdateSignature {
+            map_id: 1,
+            signature_pk: 1,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_empty_edit_changes_nothing() {
+        let sig = wormhole_sig();
+        let merged = merge_update(&sig, &edit()).unwrap();
+        assert_eq!(merged.group, sig.group);
+        assert_eq!(merged.type_id, sig.signature_type_id);
+        assert_eq!(merged.name, sig.name);
+        assert_eq!(merged.size, sig.size);
+        assert_eq!(merged.mass_status, sig.mass_status);
+        assert_eq!(merged.time_status, sig.time_status);
+        assert_eq!(merged.connection_id, sig.connection_id);
+    }
+
+    #[test]
+    fn leaving_the_wormhole_group_clears_type_link_and_state() {
+        let cmd = UpdateSignature {
+            group: Some(SignatureGroup::Data),
+            ..edit()
+        };
+        let merged = merge_update(&wormhole_sig(), &cmd).unwrap();
+        assert_eq!(merged.group, SignatureGroup::Data);
+        assert_eq!(merged.type_id, None);
+        assert_eq!(merged.connection_id, None);
+        assert_eq!(
+            (merged.size, merged.mass_status, merged.time_status),
+            (None, None, None)
+        );
+        // The raw name survives a recategorize; only the catalog fields reset.
+        assert_eq!(merged.name, Some("K162".into()));
+    }
+
+    #[test]
+    fn a_group_change_may_bring_its_own_type_but_never_keeps_the_stale_one() {
+        let cmd = UpdateSignature {
+            group: Some(SignatureGroup::Data),
+            signature_type_id: Some(Some(200)),
+            ..edit()
+        };
+        assert_eq!(
+            merge_update(&wormhole_sig(), &cmd).unwrap().type_id,
+            Some(200)
+        );
+
+        let without_type = UpdateSignature {
+            group: Some(SignatureGroup::Data),
+            signature_type_id: None,
+            ..edit()
+        };
+        assert_eq!(
+            merge_update(&wormhole_sig(), &without_type)
+                .unwrap()
+                .type_id,
+            None
+        );
+    }
+
+    #[test]
+    fn becoming_a_wormhole_still_drops_the_link_but_keeps_supplied_state() {
+        let mut site = wormhole_sig();
+        site.group = SignatureGroup::Data;
+        site.size = None;
+        site.mass_status = None;
+        site.time_status = None;
+        site.connection_id = None;
+        let cmd = UpdateSignature {
+            group: Some(SignatureGroup::Wormhole),
+            size: Some(Some(WormholeSize::Small)),
+            ..edit()
+        };
+        let merged = merge_update(&site, &cmd).unwrap();
+        assert_eq!(merged.size, Some(WormholeSize::Small));
+        assert_eq!(merged.connection_id, None);
+    }
+
+    #[test]
+    fn a_present_null_clears_a_field_where_absent_keeps_it() {
+        let cmd = UpdateSignature {
+            name: Some(None),
+            ..edit()
+        };
+        assert_eq!(merge_update(&wormhole_sig(), &cmd).unwrap().name, None);
+    }
+
+    #[test]
+    fn wormhole_state_on_a_site_is_refused() {
+        let mut site = wormhole_sig();
+        site.group = SignatureGroup::Data;
+        site.connection_id = None;
+        let cmd = UpdateSignature {
+            size: Some(Some(WormholeSize::Small)),
+            ..edit()
+        };
+        assert!(matches!(
+            merge_update(&site, &cmd),
+            Err(MapError::Validation(_))
+        ));
+    }
+
+    fn pasted(group: Option<SignatureGroup>, name: Option<&str>) -> PastedSignature {
+        PastedSignature {
+            signature_id: "ABC-123".into(),
+            group,
+            signature_type_id: None,
+            name: name.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn a_wormholes_existing_type_and_name_survive_a_repaste() {
+        let merged = merge_paste(
+            SignatureGroup::Wormhole,
+            Some(100),
+            Some("K162".into()),
+            &pasted(Some(SignatureGroup::Wormhole), Some("Fresh name")),
+            Some(200),
+            true,
+        );
+        assert_eq!(merged.type_id, Some(100));
+        assert_eq!(merged.name, Some("K162".into()));
+        assert!(!merged.clear_link);
+    }
+
+    #[test]
+    fn a_scanned_down_wormhole_takes_the_pasted_type_when_it_had_none() {
+        let merged = merge_paste(
+            SignatureGroup::Wormhole,
+            None,
+            None,
+            &pasted(Some(SignatureGroup::Wormhole), None),
+            Some(200),
+            false,
+        );
+        assert_eq!(merged.type_id, Some(200));
+    }
+
+    #[test]
+    fn a_site_takes_the_pasted_match_and_refreshes_its_name() {
+        let merged = merge_paste(
+            SignatureGroup::Data,
+            Some(100),
+            Some("Old site".into()),
+            &pasted(Some(SignatureGroup::Data), Some("New site")),
+            Some(200),
+            true,
+        );
+        assert_eq!(merged.type_id, Some(200));
+        assert_eq!(merged.name, Some("New site".into()));
+    }
+
+    #[test]
+    fn a_site_with_only_a_raw_name_clears_a_stale_type() {
+        let merged = merge_paste(
+            SignatureGroup::Data,
+            Some(100),
+            None,
+            &pasted(Some(SignatureGroup::Data), Some("Unmatched name")),
+            None,
+            true,
+        );
+        assert_eq!(merged.type_id, None);
+        assert_eq!(merged.name, Some("Unmatched name".into()));
+    }
+
+    #[test]
+    fn a_bare_repaste_keeps_the_old_type_only_while_it_fits_the_group() {
+        let bare = pasted(Some(SignatureGroup::Relic), None);
+        let kept = merge_paste(SignatureGroup::Relic, Some(100), None, &bare, None, true);
+        assert_eq!(kept.type_id, Some(100));
+        let recategorized = merge_paste(SignatureGroup::Data, Some(100), None, &bare, None, false);
+        assert_eq!(recategorized.type_id, None);
+        assert_eq!(recategorized.group, SignatureGroup::Relic);
+    }
+
+    #[test]
+    fn recategorizing_a_hole_into_a_site_drops_the_link() {
+        let merged = merge_paste(
+            SignatureGroup::Wormhole,
+            Some(100),
+            None,
+            &pasted(Some(SignatureGroup::Gas), None),
+            None,
+            false,
+        );
+        assert!(merged.clear_link);
+        // A paste that names no group at all leaves the link alone.
+        let unnamed = merge_paste(
+            SignatureGroup::Wormhole,
+            Some(100),
+            None,
+            &pasted(None, None),
+            None,
+            true,
+        );
+        assert!(!unnamed.clear_link);
+    }
 }

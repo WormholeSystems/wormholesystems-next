@@ -18,19 +18,20 @@ use super::error::{MapError, Result};
 use super::events_log;
 use super::ghost::{AddGhostSystem, ResolveGhostSystem, RestoreGhostSystem};
 use super::jumps::{AddConnectionJump, RemoveConnectionJump, UpdateConnectionJump};
+use super::restore::{RemoveRestored, RestoreSystems};
 use super::signatures::{
     AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
     RestoreSignatures, UnlinkSignature, UpdateSignature,
 };
 use super::solar_system::{
-    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveRestored, RemoveSystem, RemoveSystems,
-    RestoreSystems, SetAlias, SetHome, SetNotes, SetOccupier, SetPinned, SetRally, SetStatus,
+    AddSystem, ClearMap, MoveSystem, MoveSystems, RemoveSystem, RemoveSystems, SetAlias, SetHome,
+    SetNotes, SetOccupier, SetPinned, SetRally, SetStatus,
 };
 use super::tracking::TrackJump;
 use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
 use super::{
-    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, ghost, jumps, signatures,
-    solar_system, tracking, watchlist,
+    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, ghost, jumps, restore,
+    signatures, solar_system, tracking, watchlist,
 };
 
 /// An open transaction, threaded through every `apply_*` so the write and its audit
@@ -195,6 +196,10 @@ pub(super) struct Effect {
     /// `None` marks the change as not undoable.
     pub inverse: Option<MapCommand>,
     pub output: CommandOutput,
+    /// What open clients should refetch. Each `apply_*` declares its own, and [`execute_as`]
+    /// publishes them after commit: a handler can no longer forget one, and a command
+    /// applied from the background or as an undo step announces itself the same way.
+    pub events: Vec<super::MapEvent>,
 }
 
 impl Effect {
@@ -205,6 +210,7 @@ impl Effect {
             entries: 1,
             inverse: None,
             output,
+            events: Vec::new(),
         }
     }
 
@@ -215,6 +221,16 @@ impl Effect {
 
     pub(super) fn undo_with(mut self, inverse: MapCommand) -> Self {
         self.inverse = Some(inverse);
+        self
+    }
+
+    pub(super) fn emit(mut self, event: super::MapEvent) -> Self {
+        self.events.push(event);
+        self
+    }
+
+    pub(super) fn emit_all(mut self, events: impl IntoIterator<Item = super::MapEvent>) -> Self {
+        self.events.extend(events);
         self
     }
 }
@@ -277,8 +293,8 @@ impl MapCommand {
             MapCommand::RestoreGhostSystem(c) => ghost::apply_restore_ghost_system(tx, c).await,
             MapCommand::RemoveSystem(c) => solar_system::apply_remove_system(tx, c).await,
             MapCommand::RemoveSystems(c) => solar_system::apply_remove_systems(tx, c).await,
-            MapCommand::RestoreSystems(c) => solar_system::apply_restore_systems(tx, c).await,
-            MapCommand::RemoveRestored(c) => solar_system::apply_remove_restored(tx, c).await,
+            MapCommand::RestoreSystems(c) => restore::apply_restore_systems(tx, c).await,
+            MapCommand::RemoveRestored(c) => restore::apply_remove_restored(tx, c).await,
             MapCommand::Sequence(c) => apply_sequence(tx, c, actor).await,
             MapCommand::ClearMap(c) => solar_system::apply_clear_map(tx, c).await,
             MapCommand::MoveSystem(c) => solar_system::apply_move_system(tx, c).await,
@@ -332,11 +348,13 @@ async fn apply_sequence(tx: &mut Tx<'_>, cmd: Sequence, actor: EventActor) -> Re
     let map_id = cmd.map_id;
     let mut inverses = Vec::new();
     let mut entries = 0;
+    let mut events = Vec::new();
     for step in cmd.steps {
         // Boxed because this is `apply` calling itself: the future would otherwise be
         // infinitely sized.
         let effect = Box::pin(step.apply(tx, actor)).await?;
         entries += effect.entries;
+        events.extend(effect.events);
         if let Some(inverse) = effect.inverse {
             inverses.push(inverse);
         }
@@ -348,7 +366,8 @@ async fn apply_sequence(tx: &mut Tx<'_>, cmd: Sequence, actor: EventActor) -> Re
             .undo_with(MapCommand::Sequence(Sequence {
                 map_id,
                 steps: inverses,
-            })),
+            }))
+            .emit_all(events),
     )
 }
 
@@ -374,9 +393,14 @@ pub(super) async fn execute_as(
     let effect = cmd.apply(&mut tx, actor).await?;
     // Whatever the command was, the ghosts it left behind or now owes are settled here, so
     // no write has to remember on its own. Undo of a command undoes its ghosts with it.
-    let ghosts = ghost::reconcile(&mut tx, map_id).await?;
-    let effect = ghost::with_undo_steps(map_id, ghosts, effect);
+    let (ghosts, ghost_events) = ghost::reconcile(&mut tx, map_id).await?;
+    let effect = ghost::with_undo_steps(map_id, ghosts, effect).emit_all(ghost_events);
     events_log::record(&mut tx, map_id, actor, &effect).await?;
     tx.commit().await?;
+    // Published after commit, so nobody refetches a change that then rolls back.
+    let hub = super::hub();
+    for event in effect.events {
+        hub.publish(event);
+    }
     Ok(effect.output)
 }

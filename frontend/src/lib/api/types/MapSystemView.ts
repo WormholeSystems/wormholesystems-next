@@ -10,10 +10,8 @@ import type { ThreatLevel } from "./ThreatLevel";
  * [`MapSolarSystem`].
  *
  * Two shapes, because a node is either a system somebody placed or a hole somebody
- * scanned. The fields only a system can have used to be optional on every node, which left
- * each caller to check for itself and, more often, to paper over the answer with a default;
- * a ghost read as security 0.0 is a null-sec system to anything downstream. Saying it in
- * the type is what makes the check impossible to skip.
+ * scanned: a ghost has no security, statics, or intel, and saying that in the type makes
+ * the check impossible to skip.
  */
 export type MapSystemView = { "kind": "system", id: number, map_id: number, solar_system_id: number, position_x: number, position_y: number, alias: string | null, is_home: boolean, is_rally: boolean, is_pinned: boolean, status: SystemStatus, occupying_group: string | null, name: string, security_status: number, 
 /**

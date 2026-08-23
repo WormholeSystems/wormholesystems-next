@@ -8,10 +8,11 @@ use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::{ShareQuery, read_map_as};
-use super::reference::{SearchQuery, statics_for, systems_for};
+use super::reference::{SearchQuery, systems_for};
 use super::{ApiError, ApiResult, SystemSearchResult};
 use crate::auth::AppState;
-use crate::maps::solar_system::sovereignty_of;
+use crate::maps::view::sovereignty_of;
+use crate::maps::view::statics_for;
 
 /// One hit from the map command palette. `map_solar_system_id` is set when the system is
 /// already placed; otherwise the hit is an off-map system the palette can add.
@@ -74,23 +75,14 @@ pub async fn search_map(
                   ss.name as "name!", r.name as "region!",
                   ss.security_status as "security!", ss.region_id, ss.constellation_id,
                   ss.wormhole_class_id, ws.effect_name,
-                  case
-                      when sov.alliance_id is not null then 'alliance'
-                      when sov.corporation_id is not null then 'corporation'
-                      when sov.faction_id is not null then 'faction'
-                  end as "sov_kind?",
-                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
-                  coalesce(al.name, co.name, f.name) as "sov_name?",
-                  coalesce(al.ticker, co.ticker) as "sov_ticker?",
+                  sov.kind as "sov_kind?", sov.entity_id as "sov_id?",
+                  sov.name as "sov_name?", sov.ticker as "sov_ticker?",
                   mss.alias, d.occupying_group, d.notes
            from map_solar_systems mss
            join solar_systems ss on ss.id = mss.solar_system_id
            join regions r on r.id = ss.region_id
            left join wormhole_systems ws on ws.solar_system_id = ss.id
-           left join system_sovereignty sov on sov.solar_system_id = ss.id
-           left join alliances al on al.id = sov.alliance_id
-           left join corporations co on co.id = sov.corporation_id
-           left join factions f on f.id = sov.faction_id
+           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id
            left join map_solar_system_details d
              on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
            where mss.map_id = $1
@@ -166,21 +158,12 @@ pub async fn search_map(
         r#"select ss.id as "solar_system_id!", ss.name as "name!", r.name as "region!",
                   ss.security_status as "security!", ss.region_id, ss.constellation_id,
                   ss.wormhole_class_id, ws.effect_name,
-                  case
-                      when sov.alliance_id is not null then 'alliance'
-                      when sov.corporation_id is not null then 'corporation'
-                      when sov.faction_id is not null then 'faction'
-                  end as "sov_kind?",
-                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
-                  coalesce(al.name, co.name, f.name) as "sov_name?",
-                  coalesce(al.ticker, co.ticker) as "sov_ticker?"
+                  sov.kind as "sov_kind?", sov.entity_id as "sov_id?",
+                  sov.name as "sov_name?", sov.ticker as "sov_ticker?"
            from solar_systems ss
            join regions r on r.id = ss.region_id
            left join wormhole_systems ws on ws.solar_system_id = ss.id
-           left join system_sovereignty sov on sov.solar_system_id = ss.id
-           left join alliances al on al.id = sov.alliance_id
-           left join corporations co on co.id = sov.corporation_id
-           left join factions f on f.id = sov.faction_id
+           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id
            where ss.name ilike $1 and ss.id <> all($2)
            order by (ss.name ilike $3) desc, length(ss.name), ss.name
            limit 10"#,

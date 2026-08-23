@@ -9,7 +9,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::{ConnectionType, MassStatus, TimeStatus, WormholeSize};
+use super::{ConnectionType, MapEvent, MassStatus, TimeStatus, WormholeSize};
 
 use sqlx::PgPool;
 
@@ -41,6 +41,46 @@ pub struct MapConnection {
     pub jumps_mass_sum: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// A map's connections with their jump aggregates, oldest first; `connection_id` narrows
+/// the read to one edge. The one place the stats subselects are written: the map read and
+/// every mutation's returned row all come through here.
+pub(super) async fn connections_with_stats(
+    exec: impl sqlx::PgExecutor<'_>,
+    map_id: i64,
+    connection_id: Option<i64>,
+) -> sqlx::Result<Vec<MapConnection>> {
+    sqlx::query_as!(
+        MapConnection,
+        r#"select id, map_id, from_system, to_system, type as kind,
+                  mass_status,
+                  time_status,
+                  size,
+                  (select count(*) from map_connection_jumps j
+                   where j.connection_id = map_connections.id) as "jumps_count!",
+                  coalesce((select sum(j.mass) from map_connection_jumps j
+                            where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
+                  preserve_mass, time_status_updated_at, created_at, updated_at
+           from map_connections
+           where map_id = $1 and ($2::bigint is null or id = $2)
+           order by id"#,
+        map_id,
+        connection_id,
+    )
+    .fetch_all(exec)
+    .await
+}
+
+async fn fetch_connection_tx(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+    connection_id: i64,
+) -> Result<MapConnection> {
+    connections_with_stats(&mut **tx, map_id, Some(connection_id))
+        .await?
+        .pop()
+        .ok_or(MapError::NotFound)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -119,19 +159,9 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
         ));
     }
 
-    let connection = sqlx::query_as!(
-        MapConnection,
-        r#"insert into map_connections (map_id, from_system, to_system, type, size)
-           values ($1, $2, $3, $4, $5)
-           returning id, map_id, from_system, to_system, type as kind,
-                     mass_status,
-                     time_status,
-                     size,
-                     (select count(*) from map_connection_jumps j
-                      where j.connection_id = map_connections.id) as "jumps_count!",
-                     coalesce((select sum(j.mass) from map_connection_jumps j
-                               where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
-                     preserve_mass, time_status_updated_at, created_at, updated_at"#,
+    let id = sqlx::query_scalar!(
+        "insert into map_connections (map_id, from_system, to_system, type, size)
+         values ($1, $2, $3, $4, $5) returning id",
         cmd.map_id,
         cmd.from_system,
         cmd.to_system,
@@ -140,6 +170,7 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
     )
     .fetch_one(&mut **tx)
     .await?;
+    let connection = fetch_connection_tx(tx, cmd.map_id, id).await?;
 
     // A hole often gets jumped moments before it's mapped: adopt those observations.
     if connection.kind == ConnectionType::Wormhole {
@@ -163,12 +194,17 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
         map_id: connection.map_id,
         connection_id: connection.id,
     });
+    let event = MapEvent::ConnectionChanged {
+        map_id: connection.map_id,
+        connection_id: connection.id,
+    };
     Ok(Effect::new(
         "connections.added",
         "mapped a connection",
         CommandOutput::Connection(Box::new(connection)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(event))
 }
 
 /// A partial update of a connection's wormhole state. `None` leaves a field unchanged;
@@ -214,24 +250,7 @@ pub(super) async fn apply_set_connection_status(
     tx: &mut Tx<'_>,
     cmd: SetConnectionStatus,
 ) -> Result<Effect> {
-    let current = sqlx::query_as!(
-        MapConnection,
-        r#"select id, map_id, from_system, to_system, type as kind,
-                  mass_status,
-                  time_status,
-                  size,
-                  (select count(*) from map_connection_jumps j
-                   where j.connection_id = map_connections.id) as "jumps_count!",
-                  coalesce((select sum(j.mass) from map_connection_jumps j
-                            where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
-                  preserve_mass, time_status_updated_at, created_at, updated_at
-           from map_connections where id = $1 and map_id = $2"#,
-        cmd.connection_id,
-        cmd.map_id,
-    )
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or(MapError::NotFound)?;
+    let current = fetch_connection_tx(tx, cmd.map_id, cmd.connection_id).await?;
 
     let kind = cmd.kind.unwrap_or(current.kind);
     let mass = cmd.mass_status.unwrap_or(current.mass_status);
@@ -239,20 +258,10 @@ pub(super) async fn apply_set_connection_status(
     let size = cmd.size.unwrap_or(current.size);
     let preserve = cmd.preserve_mass.unwrap_or(current.preserve_mass);
 
-    let connection = sqlx::query_as!(
-        MapConnection,
-        r#"update map_connections
-           set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5
-           where id = $6 and map_id = $7
-           returning id, map_id, from_system, to_system, type as kind,
-                     mass_status,
-                     time_status,
-                     size,
-                     (select count(*) from map_connection_jumps j
-                      where j.connection_id = map_connections.id) as "jumps_count!",
-                     coalesce((select sum(j.mass) from map_connection_jumps j
-                               where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
-                     preserve_mass, time_status_updated_at, created_at, updated_at"#,
+    sqlx::query!(
+        "update map_connections
+         set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5
+         where id = $6 and map_id = $7",
         kind,
         mass,
         time,
@@ -261,8 +270,9 @@ pub(super) async fn apply_set_connection_status(
         cmd.connection_id,
         cmd.map_id,
     )
-    .fetch_one(&mut **tx)
+    .execute(&mut **tx)
     .await?;
+    let connection = fetch_connection_tx(tx, cmd.map_id, cmd.connection_id).await?;
     // Undo restores every field, since the sync triggers may have moved more than one.
     let inverse = MapCommand::SetConnectionStatus(SetConnectionStatus {
         map_id: cmd.map_id,
@@ -273,12 +283,17 @@ pub(super) async fn apply_set_connection_status(
         size: Some(current.size),
         preserve_mass: Some(current.preserve_mass),
     });
+    let event = MapEvent::ConnectionChanged {
+        map_id: cmd.map_id,
+        connection_id: cmd.connection_id,
+    };
     Ok(Effect::new(
         "connections.updated",
         "updated a connection",
         CommandOutput::Connection(Box::new(connection)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(event))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -298,7 +313,7 @@ pub(super) async fn apply_remove_connection(
     tx: &mut Tx<'_>,
     cmd: RemoveConnection,
 ) -> Result<Effect> {
-    let mut restore = super::solar_system::capture_connection(tx, cmd.map_id, cmd.connection_id)
+    let mut restore = super::restore::capture_connection(tx, cmd.map_id, cmd.connection_id)
         .await?
         .ok_or(MapError::NotFound)?;
 
@@ -306,7 +321,7 @@ pub(super) async fn apply_remove_connection(
     // connection away takes it too. Captured first, so one undo puts both back.
     let ghosts = super::ghost::stranded_ghosts(tx, cmd.map_id, &[], &[cmd.connection_id]).await?;
     if !ghosts.is_empty() {
-        restore.systems = super::solar_system::capture_systems(tx, cmd.map_id, &ghosts)
+        restore.systems = super::restore::capture_systems(tx, cmd.map_id, &ghosts)
             .await?
             .systems;
         sqlx::query!(
@@ -331,9 +346,18 @@ pub(super) async fn apply_remove_connection(
         1 => "removed a connection and the hole it led to".to_string(),
         n => format!("removed a connection and the {n} holes it led to"),
     };
+    let mut events = vec![MapEvent::ConnectionChanged {
+        map_id: cmd.map_id,
+        connection_id: cmd.connection_id,
+    }];
+    events.extend(ghosts.iter().map(|id| MapEvent::SystemRemoved {
+        map_id: cmd.map_id,
+        map_solar_system_id: *id,
+    }));
     Ok(
         Effect::new("connections.removed", label, CommandOutput::None)
-            .undo_with(MapCommand::RestoreSystems(restore)),
+            .undo_with(MapCommand::RestoreSystems(restore))
+            .emit_all(events),
     )
 }
 
@@ -420,14 +444,14 @@ pub(super) async fn apply_clean_stale(
 
     // Snapshot the edges before deleting them, then the placements they orphan. Order
     // matters: a placement only looks orphaned once its stale edges are gone.
-    let mut snapshot = super::solar_system::RestoreSystems {
+    let mut snapshot = super::restore::RestoreSystems {
         map_id: cmd.map_id,
         systems: Vec::new(),
         connections: Vec::new(),
         signatures: Vec::new(),
     };
     for row in &stale {
-        if let Some(one) = super::solar_system::capture_connection(tx, cmd.map_id, row.id).await? {
+        if let Some(one) = super::restore::capture_connection(tx, cmd.map_id, row.id).await? {
             snapshot.connections.extend(one.connections);
         }
     }
@@ -463,7 +487,7 @@ pub(super) async fn apply_clean_stale(
     .await?;
 
     if !orphans.is_empty() {
-        let captured = super::solar_system::capture_systems(tx, cmd.map_id, &orphans).await?;
+        let captured = super::restore::capture_systems(tx, cmd.map_id, &orphans).await?;
         snapshot.systems = captured.systems;
         snapshot.signatures = captured.signatures;
         sqlx::query!(
@@ -482,9 +506,21 @@ pub(super) async fn apply_clean_stale(
         (1, m) => format!("cleaned a stale connection and {m} system(s)"),
         (n, m) => format!("cleaned {n} stale connections and {m} system(s)"),
     };
+    let mut events: Vec<MapEvent> = stale_ids
+        .iter()
+        .map(|id| MapEvent::ConnectionChanged {
+            map_id: cmd.map_id,
+            connection_id: *id,
+        })
+        .collect();
+    events.extend(orphans.iter().map(|id| MapEvent::SystemRemoved {
+        map_id: cmd.map_id,
+        map_solar_system_id: *id,
+    }));
     Ok(
         Effect::new("connections.cleaned", label, CommandOutput::Count(removed))
             .entries(removed as i64 + orphans.len() as i64)
-            .undo_with(MapCommand::RestoreSystems(snapshot)),
+            .undo_with(MapCommand::RestoreSystems(snapshot))
+            .emit_all(events),
     )
 }

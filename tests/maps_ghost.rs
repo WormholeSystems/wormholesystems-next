@@ -5,6 +5,7 @@ mod common;
 
 use common::{SYS_A, SYS_B, SYS_C, world};
 use sqlx::PgPool;
+use wormholesystems::maps::MapSystemView;
 use wormholesystems::maps::connection::{RemoveConnection, remove_connection};
 use wormholesystems::maps::events_log::{MapIdBody, undo};
 use wormholesystems::maps::ghost::{ResolveGhostSystem, resolve_ghost_system};
@@ -16,8 +17,8 @@ use wormholesystems::maps::signatures::{
     unlink_signature, update_signature,
 };
 use wormholesystems::maps::solar_system::{
-    AddSystem, MapSystemView, RemoveSystem, RemoveSystems, SetAlias, SetPinned, add_system,
-    remove_system, remove_systems, set_alias, set_pinned,
+    AddSystem, RemoveSystem, RemoveSystems, SetAlias, SetPinned, add_system, remove_system,
+    remove_systems, set_alias, set_pinned,
 };
 use wormholesystems::maps::{
     Actor, MapError, MassStatus, SignatureGroup, TimeStatus, WormholeSize,

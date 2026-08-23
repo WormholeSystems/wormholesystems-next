@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::extract::require_actor;
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
-use crate::maps::solar_system::sovereignty_of;
+use crate::maps::view::{sovereignty_of, statics_for};
 use crate::maps::{EffectModifier, GridConfig};
 
 /// A solar system matched by the "add system" search, with just enough to display and pick.
@@ -27,9 +27,9 @@ pub struct SystemSearchResult {
     pub wormhole_class_id: Option<i32>,
     /// Wormhole effect, for J-space rows (shown where k-space rows show sovereignty).
     pub effect_name: Option<String>,
-    pub sovereignty: Option<crate::maps::solar_system::Sovereignty>,
+    pub sovereignty: Option<crate::maps::view::Sovereignty>,
     /// The statics a wormhole always has. Empty for k-space.
-    pub statics: Vec<crate::maps::solar_system::Static>,
+    pub statics: Vec<crate::maps::view::Static>,
 }
 
 /// One organisation in a system's threat top list.
@@ -146,8 +146,7 @@ pub async fn effect_modifiers(
     State(state): State<AppState>,
     Query(query): Query<EffectsQuery>,
 ) -> ApiResult<Vec<EffectModifier>> {
-    let mods =
-        crate::maps::solar_system::effect_modifiers(&state.db, &query.name, query.class).await?;
+    let mods = crate::maps::view::effect_modifiers(&state.db, &query.name, query.class).await?;
     Ok(Json(mods))
 }
 
@@ -156,43 +155,10 @@ pub struct SearchQuery {
     pub q: String,
 }
 
-/// The statics of every wormhole among `ids`, grouped by system. Kept out of the search
-/// query itself: statics are one-to-many, so joining would multiply its ranked rows.
-pub(super) async fn statics_for(
-    db: &sqlx::PgPool,
-    ids: &[i64],
-) -> Result<std::collections::HashMap<i64, Vec<crate::maps::solar_system::Static>>, ApiError> {
-    use crate::maps::solar_system::Static;
-    let mut out: std::collections::HashMap<i64, Vec<Static>> = std::collections::HashMap::new();
-    if ids.is_empty() {
-        return Ok(out);
-    }
-    let rows = sqlx::query!(
-        "select wss.solar_system_id, wt.code, wt.dest_class,
-                wt.total_mass, wt.max_mass_per_jump, wt.lifetime_hours, wt.signature_strength
-         from wormhole_system_statics wss
-         join wormhole_types wt on wt.code = wss.wormhole_code
-         where wss.solar_system_id = any($1)
-         order by wt.dest_class nulls last, wt.code",
-        ids,
-    )
-    .fetch_all(db)
-    .await?;
-    for row in rows {
-        out.entry(row.solar_system_id).or_default().push(Static {
-            code: row.code,
-            dest_class: row.dest_class,
-            total_mass: row.total_mass,
-            max_jump_mass: row.max_mass_per_jump,
-            lifetime_hours: row.lifetime_hours,
-            signature_strength: row.signature_strength,
-        });
-    }
-    Ok(out)
-}
-
 /// `GET /api/systems/search?q=`, search the SDE solar systems by name. Prefix matches rank
 /// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
+/// The ranking query only picks ids; [`systems_for`] builds the rows, so search and resolve
+/// cannot drift apart in what they return.
 pub async fn search_systems(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -205,67 +171,25 @@ pub async fn search_systems(
     }
     let contains = format!("%{q}%");
     let prefix = format!("{q}%");
-    let rows = sqlx::query!(
-        r#"
-        -- `!` on the columns an inner join makes certain: sqlx reads nullability out of the
-        -- query plan, which changes shape on a table with no rows, so without these the
-        -- build depends on whether the universe happens to be seeded.
-        select s.id              as "id!",
-               s.name            as "name!",
-               s.security_status as "security!",
-               r.name            as "region!",
-               s.region_id       as "region_id!",
-               s.constellation_id as "constellation_id!",
-               s.wormhole_class_id,
-               ws.effect_name,
-               case
-                   when sov.alliance_id is not null then 'alliance'
-                   when sov.corporation_id is not null then 'corporation'
-                   when sov.faction_id is not null then 'faction'
-               end as "sov_kind?",
-               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
-               coalesce(al.name, co.name, f.name) as "sov_name?",
-               coalesce(al.ticker, co.ticker) as "sov_ticker?"
-        from solar_systems s
-        join regions r on r.id = s.region_id
-        left join wormhole_systems ws on ws.solar_system_id = s.id
-        left join system_sovereignty sov on sov.solar_system_id = s.id
-        left join alliances al on al.id = sov.alliance_id
-        left join corporations co on co.id = sov.corporation_id
-        left join factions f on f.id = sov.faction_id
-        where s.name ilike $1
-        order by (s.name ilike $2) desc, length(s.name), s.name
-        limit 30
-        "#,
+    let ranked_ids = sqlx::query_scalar!(
+        "select id from solar_systems
+         where name ilike $1
+         order by (name ilike $2) desc, length(name), name
+         limit 30",
         contains,
         prefix,
     )
     .fetch_all(&state.db)
     .await?;
-    let mut statics =
-        statics_for(&state.db, &rows.iter().map(|r| r.id).collect::<Vec<_>>()).await?;
-    let results = rows
-        .into_iter()
-        .map(|row| {
-            let sovereignty = sovereignty_of(
-                row.sov_kind.as_deref(),
-                row.sov_id,
-                row.sov_name,
-                row.sov_ticker,
-            );
-            SystemSearchResult {
-                statics: statics.remove(&row.id).unwrap_or_default(),
-                id: row.id,
-                name: row.name,
-                security: row.security,
-                region: row.region,
-                region_id: row.region_id,
-                constellation_id: row.constellation_id,
-                wormhole_class_id: row.wormhole_class_id,
-                effect_name: row.effect_name,
-                sovereignty,
-            }
-        })
+    let mut by_id: std::collections::HashMap<i64, SystemSearchResult> =
+        systems_for(&state.db, &ranked_ids)
+            .await?
+            .into_iter()
+            .map(|s| (s.id, s))
+            .collect();
+    let results = ranked_ids
+        .iter()
+        .filter_map(|id| by_id.remove(id))
         .collect();
     Ok(Json(results))
 }
@@ -331,28 +255,17 @@ pub async fn routing_graph(
     )
     .fetch_all(&state.db)
     .await?;
-    let mut services: Vec<serde_json::Value> = Vec::new();
-    let mut current: Option<(i64, String, Vec<serde_json::Value>)> = None;
-    for row in rows {
-        let station = serde_json::json!({
-            "id": row.station_id,
-            "name": row.station_name,
-            "solar_system_id": row.solar_system_id,
-        });
-        match &mut current {
-            Some((id, _, stations)) if *id == row.service_id => stations.push(station),
-            _ => {
-                if let Some((id, name, stations)) = current.take() {
-                    services
-                        .push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
-                }
-                current = Some((row.service_id, row.service_name, vec![station]));
-            }
-        }
-    }
-    if let Some((id, name, stations)) = current {
-        services.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
-    }
+    let services = group_stations(rows.into_iter().map(|row| {
+        (
+            row.service_id,
+            row.service_name,
+            serde_json::json!({
+                "id": row.station_id,
+                "name": row.station_name,
+                "solar_system_id": row.solar_system_id,
+            }),
+        )
+    }));
 
     // The NPC corporations that own stations, in the same shape as the services above, so
     // "the nearest Quafe Company station" is the same question as "the nearest repair shop"
@@ -449,21 +362,12 @@ pub(super) async fn systems_for(
                s.constellation_id as "constellation_id!",
                s.wormhole_class_id,
                ws.effect_name,
-               case
-                   when sov.alliance_id is not null then 'alliance'
-                   when sov.corporation_id is not null then 'corporation'
-                   when sov.faction_id is not null then 'faction'
-               end as "sov_kind?",
-               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
-               coalesce(al.name, co.name, f.name) as "sov_name?",
-               coalesce(al.ticker, co.ticker) as "sov_ticker?"
+               sov.kind as "sov_kind?", sov.entity_id as "sov_id?",
+               sov.name as "sov_name?", sov.ticker as "sov_ticker?"
         from solar_systems s
         join regions r on r.id = s.region_id
         left join wormhole_systems ws on ws.solar_system_id = s.id
-        left join system_sovereignty sov on sov.solar_system_id = s.id
-        left join alliances al on al.id = sov.alliance_id
-        left join corporations co on co.id = sov.corporation_id
-        left join factions f on f.id = sov.faction_id
+        left join system_sovereignty_resolved sov on sov.solar_system_id = s.id
         where s.id = any($1)"#,
         ids,
     )

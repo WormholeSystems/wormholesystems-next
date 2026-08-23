@@ -15,9 +15,10 @@ use serde::{Deserialize, Serialize};
 use super::command::{CommandOutput, Effect, MapCommand, Sequence, Tx};
 use super::connection::{AddConnection, SetConnectionStatus, apply_add_connection};
 use super::error::{MapError, Result};
+use super::restore::RemoveRestored;
 use super::signatures::{LinkSignature, UnlinkSignature, UpdateSignature};
-use super::solar_system::{AddSystem, RemoveRestored, SetAlias};
-use super::{ConnectionType, MassStatus, SignatureGroup, TimeStatus, WormholeSize};
+use super::solar_system::{AddSystem, SetAlias};
+use super::{ConnectionType, MapEvent, MassStatus, SignatureGroup, TimeStatus, WormholeSize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -130,7 +131,15 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
         .undo_with(MapCommand::Sequence(Sequence {
             map_id: cmd.map_id,
             steps: undo_signature(cmd.map_id, before.as_ref()),
-        })));
+        }))
+        .emit(MapEvent::SignatureChanged {
+            map_id: cmd.map_id,
+            solar_system_id: from_system,
+        })
+        .emit(MapEvent::ConnectionChanged {
+            map_id: cmd.map_id,
+            connection_id,
+        }));
     }
 
     let target_name = sqlx::query_scalar!(
@@ -235,12 +244,35 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
         Some(_) => format!("jumped into {target_name}"),
         None => format!("connected {target_name} by jumping it"),
     };
+    let mut events = Vec::new();
+    if let Some(id) = added {
+        events.push(MapEvent::SystemAdded {
+            map_id: cmd.map_id,
+            map_solar_system_id: id,
+        });
+    } else {
+        events.push(MapEvent::SystemDetailsChanged {
+            map_id: cmd.map_id,
+            map_solar_system_id: to_placement,
+        });
+    }
+    events.push(MapEvent::ConnectionChanged {
+        map_id: cmd.map_id,
+        connection_id,
+    });
+    if cmd.signature_pk.is_some() {
+        events.push(MapEvent::SignatureChanged {
+            map_id: cmd.map_id,
+            solar_system_id: from_system,
+        });
+    }
     Ok(Effect::new(
         "tracking.jumped",
         label,
         CommandOutput::Connection(Box::new(connection)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit_all(events))
 }
 
 /// What the signature looked like before the jump touched it.

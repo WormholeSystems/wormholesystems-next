@@ -16,7 +16,7 @@ use super::command::{CommandOutput, Effect, MapCommand, Sequence, Tx, execute};
 use super::connection::{AddConnection, SetConnectionStatus};
 use super::error::{MapError, Result};
 use super::solar_system::{MapSolarSystem, SetAlias};
-use super::{Actor, ConnectionType, MassStatus, TimeStatus, WormholeSize};
+use super::{Actor, ConnectionType, MapEvent, MassStatus, TimeStatus, WormholeSize};
 
 /// Node width in world px, and the clear space kept between nodes, both mirroring
 /// `frontend/src/lib/map/helpers.ts` so a server-placed node lands on the same lattice.
@@ -74,8 +74,13 @@ fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
 ///
 /// Running this after every command is what makes that hold however the map was changed,
 /// rather than only on the handful of writes that remember to. Returns the undo steps for
-/// what it did, in the order they should run, before the command's own inverse.
-pub(super) async fn reconcile(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<MapCommand>> {
+/// what it did, in the order they should run, before the command's own inverse, plus the
+/// events announcing it: reconciliation happens inside somebody else's command, so no
+/// handler knows to announce these changes for it.
+pub(super) async fn reconcile(
+    tx: &mut Tx<'_>,
+    map_id: i64,
+) -> Result<(Vec<MapCommand>, Vec<MapEvent>)> {
     let wanted = sqlx::query_scalar!(
         "select ghost_unlinked_wormholes from maps where id = $1",
         map_id,
@@ -85,24 +90,28 @@ pub(super) async fn reconcile(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<MapCom
     .unwrap_or(false);
 
     let mut undo = Vec::new();
+    let mut events = Vec::new();
     let unclaimed = unclaimed_ghosts(tx, map_id, wanted).await?;
     if !unclaimed.is_empty() {
         undo.extend(drop_ghosts(tx, map_id, &unclaimed).await?);
+        events.extend(unclaimed.iter().map(|id| MapEvent::SystemRemoved {
+            map_id,
+            map_solar_system_id: *id,
+        }));
     }
     if wanted {
-        let raised = raise_unmapped_holes(tx, map_id).await?;
+        let (raised, raised_events) = raise_unmapped_holes(tx, map_id).await?;
+        events.extend(raised_events);
         if !raised.is_empty() {
-            undo.push(MapCommand::RemoveRestored(
-                super::solar_system::RemoveRestored {
-                    map_id,
-                    system_ids: raised,
-                    connection_ids: Vec::new(),
-                },
-            ));
+            undo.push(MapCommand::RemoveRestored(super::restore::RemoveRestored {
+                map_id,
+                system_ids: raised,
+                connection_ids: Vec::new(),
+            }));
         }
     }
     undo.reverse();
-    Ok(undo)
+    Ok((undo, events))
 }
 
 /// The ghosts the map no longer owes: those whose scan has stopped being an unmapped
@@ -136,7 +145,7 @@ async fn unclaimed_ghosts(tx: &mut Tx<'_>, map_id: i64, wanted: bool) -> Result<
 /// its edge; the scan on the far side is not ours to delete, so its link is put back by
 /// hand rather than by the snapshot, which would decline to overwrite a row still there.
 async fn drop_ghosts(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<Vec<MapCommand>> {
-    let snapshot = super::solar_system::capture_systems(tx, map_id, ids).await?;
+    let snapshot = super::restore::capture_systems(tx, map_id, ids).await?;
     let relink: Vec<MapCommand> = snapshot
         .signatures
         .iter()
@@ -165,7 +174,7 @@ async fn drop_ghosts(tx: &mut Tx<'_>, map_id: i64, ids: &[i64]) -> Result<Vec<Ma
 }
 
 /// Raise a ghost for every wormhole scanned on this map that has nowhere to lead yet.
-async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<i64>> {
+async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<(Vec<i64>, Vec<MapEvent>)> {
     let holes = sqlx::query!(
         r#"select s.id, s.size,
                   p.id as "from_id!", p.position_x as "from_x!", p.position_y as "from_y!"
@@ -179,7 +188,7 @@ async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<i64>> 
     .fetch_all(&mut **tx)
     .await?;
     if holes.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
 
     let mut placed: Vec<(f64, f64)> = sqlx::query!(
@@ -193,6 +202,7 @@ async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<i64>> 
     .collect();
 
     let mut raised = Vec::new();
+    let mut events = Vec::new();
     for hole in holes {
         let (x, y) = free_position(&placed, (hole.from_x, hole.from_y));
         placed.push((x, y));
@@ -209,9 +219,10 @@ async fn raise_unmapped_holes(tx: &mut Tx<'_>, map_id: i64) -> Result<Vec<i64>> 
             },
         )
         .await?;
+        events.extend(effect.events);
         raised.push(effect.output.system()?.id);
     }
-    Ok(raised)
+    Ok((raised, events))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -320,14 +331,23 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
     super::tracking::link(tx, cmd.map_id, signature_pk, connection.id).await?;
 
     let mut steps = super::tracking::undo_signature(cmd.map_id, before.as_ref());
-    steps.push(MapCommand::RemoveRestored(
-        super::solar_system::RemoveRestored {
-            map_id: cmd.map_id,
-            system_ids: vec![ghost.id],
-            connection_ids: vec![connection.id],
-        },
-    ));
+    steps.push(MapCommand::RemoveRestored(super::restore::RemoveRestored {
+        map_id: cmd.map_id,
+        system_ids: vec![ghost.id],
+        connection_ids: vec![connection.id],
+    }));
 
+    let mut events = vec![MapEvent::SystemAdded {
+        map_id: cmd.map_id,
+        map_solar_system_id: ghost.id,
+    }];
+    events.extend(effect.events);
+    if let Some(solar_system_id) = source.solar_system_id {
+        events.push(MapEvent::SignatureChanged {
+            map_id: cmd.map_id,
+            solar_system_id,
+        });
+    }
     Ok(Effect::new(
         "systems.added",
         "put an unscanned hole on the map",
@@ -336,7 +356,8 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
     .undo_with(MapCommand::Sequence(Sequence {
         map_id: cmd.map_id,
         steps,
-    })))
+    }))
+    .emit_all(events))
 }
 
 /// Say which system a ghost turned out to be. `solar_system_id: None` takes it back to a
@@ -450,6 +471,7 @@ pub(super) async fn apply_resolve_ghost_system(
     // Whatever survives the merge is what carries the alias; the ghost row may not.
     let surviving = existing.unwrap_or(cmd.map_solar_system_id);
     let mut undo = Vec::new();
+    let mut events = Vec::new();
     if let Some(alias) = cmd.alias.clone() {
         let effect = super::solar_system::apply_set_alias(
             tx,
@@ -461,6 +483,7 @@ pub(super) async fn apply_resolve_ghost_system(
         )
         .await?;
         undo.extend(effect.inverse);
+        events.extend(effect.events);
     }
     if cmd.size.is_some() || cmd.mass_status.is_some() || cmd.time_status.is_some() {
         // Connections keep their id through a merge, so this holds either way.
@@ -488,6 +511,7 @@ pub(super) async fn apply_resolve_ghost_system(
             )
             .await?;
             undo.extend(effect.inverse);
+            events.extend(effect.events);
         }
     }
 
@@ -518,11 +542,15 @@ pub(super) async fn apply_resolve_ghost_system(
             )
             .undo_with(MapCommand::ResolveGhostSystem(
                 ResolveGhostSystem::unresolve(cmd.map_id, cmd.map_solar_system_id, was),
-            )))
+            ))
+            .emit(MapEvent::SystemDetailsChanged {
+                map_id: cmd.map_id,
+                map_solar_system_id: cmd.map_solar_system_id,
+            }))
         }
     }?;
 
-    Ok(with_undo_steps(cmd.map_id, undo, effect))
+    Ok(with_undo_steps(cmd.map_id, undo, effect).emit_all(events))
 }
 
 /// Put the alias and status back before the node itself goes, so one jump is one undo.
@@ -599,7 +627,11 @@ async fn unresolve(
         map_solar_system_id: cmd.map_solar_system_id,
         solar_system_id: Some(current),
         ..Default::default()
-    })))
+    }))
+    .emit(MapEvent::SystemDetailsChanged {
+        map_id: cmd.map_id,
+        map_solar_system_id: cmd.map_solar_system_id,
+    }))
 }
 
 /// The ghost turned out to be a system already on the map: hand its edges over and drop
@@ -670,11 +702,31 @@ async fn merge(
         claim_pending_for(tx, map_id, target, system).await?;
     }
 
+    let mut events = vec![
+        MapEvent::SystemRemoved {
+            map_id,
+            map_solar_system_id: ghost_id,
+        },
+        MapEvent::SystemDetailsChanged {
+            map_id,
+            map_solar_system_id: target,
+        },
+    ];
+    events.extend(
+        from_ids
+            .iter()
+            .chain(to_ids.iter())
+            .map(|id| MapEvent::ConnectionChanged {
+                map_id,
+                connection_id: *id,
+            }),
+    );
     Ok(Effect::new(
         "systems.details",
         format!("scanned that hole as {name}, already on the map"),
         CommandOutput::System(Box::new(placed)),
     )
+    .emit_all(events)
     .undo_with(MapCommand::RestoreGhostSystem(RestoreGhostSystem {
         map_id,
         id: ghost_id,
@@ -758,12 +810,26 @@ pub(super) async fn apply_restore_ghost_system(
             from_system: cmd.hangs_off_id,
         },
     ));
+    let mut events = vec![MapEvent::SystemAdded {
+        map_id: cmd.map_id,
+        map_solar_system_id: cmd.id,
+    }];
+    events.extend(
+        cmd.from_connection_ids
+            .iter()
+            .chain(cmd.to_connection_ids.iter())
+            .map(|id| MapEvent::ConnectionChanged {
+                map_id: cmd.map_id,
+                connection_id: *id,
+            }),
+    );
     Ok(Effect::new(
         "systems.added",
         "put the unscanned hole back",
         CommandOutput::System(Box::new(ghost)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit_all(events))
 }
 
 /// The nodes these scans raised. Deleting a scan takes them by the foreign key, so this is
@@ -845,4 +911,66 @@ async fn claim_pending_for(
         super::jumps::claim_pending_tx(tx, map_id, edge.id, solar_system_id, other).await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::free_position;
+
+    // The default grid: 20px cells, nodes 180x40, one cell of clear space. A step is
+    // 200 across and 60 down.
+
+    #[test]
+    fn an_empty_map_gives_the_base_back_snapped_to_the_grid() {
+        assert_eq!(free_position(&[], (400.0, 300.0)), (400.0, 300.0));
+        assert_eq!(free_position(&[], (413.0, 307.0)), (420.0, 300.0));
+    }
+
+    #[test]
+    fn a_base_outside_the_world_is_clamped_onto_it() {
+        let (x, y) = free_position(&[], (99999.0, 99999.0));
+        assert_eq!((x, y), (3820.0, 1960.0));
+        assert_eq!(free_position(&[], (-50.0, -50.0)), (0.0, 0.0));
+    }
+
+    #[test]
+    fn a_crowded_base_moves_one_column_right() {
+        let placed = [(400.0, 300.0)];
+        assert_eq!(free_position(&placed, (400.0, 300.0)), (600.0, 300.0));
+    }
+
+    #[test]
+    fn siblings_stack_down_the_column_before_starting_the_next() {
+        let placed = [(400.0, 300.0), (600.0, 300.0)];
+        assert_eq!(free_position(&placed, (400.0, 300.0)), (600.0, 360.0));
+    }
+
+    #[test]
+    fn a_full_column_spills_into_the_next_one() {
+        // Everything from the top of column one to the bottom of the world is taken.
+        let mut placed = vec![(400.0, 300.0)];
+        let mut y = 300.0;
+        while y <= 1960.0 {
+            placed.push((600.0, y));
+            y += 60.0;
+        }
+        assert_eq!(free_position(&placed, (400.0, 300.0)), (800.0, 300.0));
+    }
+
+    #[test]
+    fn no_room_at_all_falls_back_to_the_base() {
+        // A wall of nodes from the base to the right edge, every row, leaves nowhere to
+        // go: the ghost lands on the base and overlaps rather than leaving the world.
+        let mut placed = vec![];
+        let mut x = 3700.0;
+        while x <= 3820.0 {
+            let mut y = 0.0;
+            while y <= 1960.0 {
+                placed.push((x, y));
+                y += 60.0;
+            }
+            x += 200.0;
+        }
+        assert_eq!(free_position(&placed, (3700.0, 1000.0)), (3700.0, 1000.0));
+    }
 }

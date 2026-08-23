@@ -15,7 +15,7 @@ use tokio::time::{MissedTickBehavior, interval};
 use crate::esi::EsiClient;
 use crate::esi::skyhooks::RaidableSkyhook;
 use crate::maps::Sovereignty;
-use crate::maps::solar_system::sovereignty_of;
+use crate::maps::view::sovereignty_of;
 use crate::server_status::ServerWatch;
 
 /// Windows are two hours long and ESI advertises them ahead of time, so five minutes never

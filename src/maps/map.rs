@@ -10,10 +10,9 @@ use sqlx::PgPool;
 
 use super::access::{owns_character, require_role};
 use super::error::{MapError, Result};
-use std::collections::HashMap;
 
-use super::solar_system::{MapSystemView, Static, sovereignty_of};
-use super::{Actor, AliasScheme, MapConnection, MapLayout, MapView, Role, SubjectType};
+use super::view::{MapSystemView, sovereignty_of};
+use super::{Actor, AliasScheme, MapLayout, MapView, Role, SubjectType};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -380,34 +379,6 @@ pub async fn read_map(
         .ok_or(MapError::NotFound)?
     );
 
-    // Statics are 1-to-many, so fetch them in one query for the whole map and group by
-    // system rather than joining (which would multiply the system rows).
-    let mut statics_by_system: HashMap<i64, Vec<Static>> = HashMap::new();
-    let static_rows = sqlx::query!(
-        "select wss.solar_system_id, wt.code, wt.dest_class,
-                wt.total_mass, wt.max_mass_per_jump, wt.lifetime_hours, wt.signature_strength
-         from map_solar_systems mss
-         join wormhole_system_statics wss on wss.solar_system_id = mss.solar_system_id
-         join wormhole_types wt on wt.code = wss.wormhole_code
-         where mss.map_id = $1",
-        cmd.map_id,
-    )
-    .fetch_all(pool)
-    .await?;
-    for row in static_rows {
-        statics_by_system
-            .entry(row.solar_system_id)
-            .or_default()
-            .push(Static {
-                code: row.code,
-                dest_class: row.dest_class,
-                total_mass: row.total_mass,
-                max_jump_mass: row.max_mass_per_jump,
-                lifetime_hours: row.lifetime_hours,
-                signature_strength: row.signature_strength,
-            });
-    }
-
     let rows = sqlx::query!(
         r#"select
                mss.id, mss.map_id, mss.solar_system_id, mss.position_x, mss.position_y,
@@ -421,15 +392,8 @@ pub async fn read_map(
                ws.effect_name,
                coalesce(ws.is_shattered, false) as "is_shattered!",
                ws.threat_level as "threat_level?: super::ThreatLevel",
-               -- Sovereignty holder, alliance preferred over corp over faction.
-               case
-                   when sov.alliance_id is not null then 'alliance'
-                   when sov.corporation_id is not null then 'corporation'
-                   when sov.faction_id is not null then 'faction'
-               end as "sov_kind?",
-               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as "sov_id?",
-               coalesce(al.name, co.name, f.name) as "sov_name?",
-               coalesce(al.ticker, co.ticker) as "sov_ticker?"
+               sov.kind as "sov_kind?", sov.entity_id as "sov_id?",
+               sov.name as "sov_name?", sov.ticker as "sov_ticker?"
            from map_solar_systems mss
            -- Left joins throughout: a ghost placement has no system to join to.
            left join solar_systems ss on ss.id = mss.solar_system_id
@@ -438,16 +402,16 @@ pub async fn read_map(
            left join map_solar_system_details d
                on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id
            left join wormhole_systems ws on ws.solar_system_id = ss.id
-           left join system_sovereignty sov on sov.solar_system_id = ss.id
-           left join alliances al on al.id = sov.alliance_id
-           left join corporations co on co.id = sov.corporation_id
-           left join factions f on f.id = sov.faction_id
+           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id
            where mss.map_id = $1
            order by mss.id"#,
         cmd.map_id,
     )
     .fetch_all(pool)
     .await?;
+
+    let system_ids: Vec<i64> = rows.iter().filter_map(|r| r.solar_system_id).collect();
+    let mut statics_by_system = super::view::statics_for(pool, &system_ids).await?;
 
     let systems = rows
         .into_iter()
@@ -504,22 +468,7 @@ pub async fn read_map(
         })
         .collect();
 
-    let connections = sqlx::query_as!(
-        MapConnection,
-        r#"select id, map_id, from_system, to_system, type as kind,
-                  mass_status,
-                  time_status,
-                  size,
-                  (select count(*) from map_connection_jumps j
-                   where j.connection_id = map_connections.id) as "jumps_count!",
-                  coalesce((select sum(j.mass) from map_connection_jumps j
-                            where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
-                  preserve_mass, time_status_updated_at, created_at, updated_at
-           from map_connections where map_id = $1 order by id"#,
-        cmd.map_id,
-    )
-    .fetch_all(pool)
-    .await?;
+    let connections = super::connection::connections_with_stats(pool, cmd.map_id, None).await?;
 
     // Whether the acting character is covered, a different question from whether the user
     // is. A guest has no character, and nothing to warn about.

@@ -13,19 +13,32 @@ pub mod events_log;
 pub mod ghost;
 pub mod jumps;
 pub mod map;
+pub mod restore;
 pub mod signatures;
 pub mod solar_system;
 pub mod tracking;
+pub mod view;
 pub mod watchlist;
 
 pub use command::{CommandOutput, EventActor, MapCommand, execute};
+
+/// The process-wide event hub, like [`GRID`] below: global so a committed command can
+/// announce itself without every caller threading the hub through. `main` clones this one
+/// into the app state and the background loops; tests publish into it with no subscribers,
+/// which is a no-op.
+static HUB: std::sync::OnceLock<events::MapHub> = std::sync::OnceLock::new();
+
+pub fn hub() -> &'static events::MapHub {
+    HUB.get_or_init(events::MapHub::default)
+}
 pub use connection::MapConnection;
 pub use error::{MapError, Result};
 pub use events::MapEvent;
 pub use events::MapHub;
 pub use map::Map;
 pub use signatures::Signature;
-pub use solar_system::{EffectModifier, MapSolarSystem, MapSystemView, Sovereignty, Static};
+pub use solar_system::MapSolarSystem;
+pub use view::{EffectModifier, MapSystemView, Sovereignty, Static};
 
 /// Deserializer for `Option<Option<T>>` "absent = leave, null = clear" fields: a present
 /// field (including `null`) becomes `Some(inner)`; pair with `#[serde(default)]` so an
