@@ -1,0 +1,107 @@
+// The viewport: where the world sits on screen, how big it is drawn, and the scrollbars
+// that show while it moves. Knows nothing about what is on the map.
+
+import { browser } from '$app/environment';
+import { clamp, type Vec2 } from '$lib/map/helpers';
+
+/** Half size is where node text stops being readable, double where a chain stops fitting. */
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.1;
+
+/** How long the scrollbars stay up after the last thing that moved the view. */
+const SCROLLBAR_LINGER_MS = 1500;
+
+/** Where the canvas sits on screen, and how big it is. */
+export interface ViewportRect {
+	left: number;
+	top: number;
+	width: number;
+	height: number;
+}
+
+export class MapCamera {
+	private mapId: number;
+	viewportEl: HTMLElement | null = null;
+
+	pan = $state({ x: 0, y: 0 });
+	zoom = $state(1);
+	/** Shown while the scrollbars are awake; they fade out once nothing has moved. */
+	scrollbarsVisible = $state(false);
+	/** The canvas's rendered size, kept current by a ResizeObserver on the viewport. */
+	viewportSize = $state({ width: 1200, height: 1400 });
+
+	private hideScrollbars: ReturnType<typeof setTimeout> | null = null;
+
+	constructor(mapId: number) {
+		this.mapId = mapId;
+	}
+
+	viewportRect(): ViewportRect {
+		const r = this.viewportEl?.getBoundingClientRect();
+		return {
+			// Position is read live: it only matters during a pointer event, and it moves
+			// with scrolling rather than with the element's own size.
+			left: r?.left ?? 0,
+			top: r?.top ?? 0,
+			// Size comes from the observer instead of the rect, because a rect read is not
+			// reactive: anything derived from it (the scrollbar thumbs) would keep the
+			// value it had when the canvas was first measured.
+			width: this.viewportSize.width,
+			height: this.viewportSize.height,
+		};
+	}
+
+	/** Screen (client) point → world coords, accounting for pan + zoom. */
+	toWorld(clientX: number, clientY: number): Vec2 {
+		const r = this.viewportRect();
+		return {
+			x: (clientX - r.left - this.pan.x) / this.zoom,
+			y: (clientY - r.top - this.pan.y) / this.zoom,
+		};
+	}
+
+	/** Shift the view by a screen-pixel delta (wheel, scrollbar, drag). */
+	panBy(dx: number, dy: number) {
+		this.pan = { x: this.pan.x + dx, y: this.pan.y + dy };
+		this.wakeScrollbars();
+	}
+
+	/** Shown while the view is moving or the cursor is over the canvas, then faded out. */
+	wakeScrollbars() {
+		this.scrollbarsVisible = true;
+		if (this.hideScrollbars) clearTimeout(this.hideScrollbars);
+		this.hideScrollbars = setTimeout(() => {
+			this.scrollbarsVisible = false;
+			this.hideScrollbars = null;
+		}, SCROLLBAR_LINGER_MS);
+	}
+
+	/** Zoom by whole steps, keeping the middle of the viewport where it is. */
+	zoomBy(steps: number) {
+		const next = Math.round((this.zoom + steps * ZOOM_STEP) * 10) / 10;
+		const nz = clamp(next, ZOOM_MIN, ZOOM_MAX);
+		if (nz === this.zoom) return;
+		const z = this.zoom;
+		const r = this.viewportRect();
+		const cx = r.width / 2;
+		const cy = r.height / 2;
+		const wx = (cx - this.pan.x) / z;
+		const wy = (cy - this.pan.y) / z;
+		this.pan = { x: cx - wx * nz, y: cy - wy * nz };
+		this.zoom = nz;
+		this.rememberZoom();
+		this.wakeScrollbars();
+	}
+
+	/** Per map and per browser: how far out you want to be depends on the screen. */
+	restoreZoom() {
+		if (!browser) return;
+		const saved = Number(localStorage.getItem(`map-zoom-${this.mapId}`));
+		if (saved >= ZOOM_MIN && saved <= ZOOM_MAX) this.zoom = saved;
+	}
+
+	private rememberZoom() {
+		if (browser) localStorage.setItem(`map-zoom-${this.mapId}`, String(this.zoom));
+	}
+}

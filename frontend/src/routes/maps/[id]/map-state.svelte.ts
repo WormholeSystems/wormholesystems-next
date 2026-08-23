@@ -17,47 +17,27 @@ import type { StaleConnection } from '$lib/api/types/StaleConnection';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 import type { SocketState } from '$lib/ws';
 import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
-import { DEFAULT_LAYOUTS, placeAtBottom, resolveLayouts } from './panels/registry';
 import type { GridItem } from '$lib/layout/grid';
-import type { DynamicEdge, RouteGraph, RouteStep, RoutingSettings } from '$lib/routing/algorithm';
-import { buildDynamicAdjacency } from '$lib/routing/algorithm';
-import type { MassStatus } from '$lib/api/types/MassStatus';
-import type { TimeStatus } from '$lib/api/types/TimeStatus';
+import type { RouteStep, RoutingSettings } from '$lib/routing/algorithm';
 import { NODE_W, clamp } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
+import { draggedPositions, type Drag } from '$lib/map/gestures';
 import type { Vec2 } from '$lib/map/helpers';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
 import { orphanedSystems } from '$lib/map/orphans';
-import { browser } from '$app/environment';
 import { toast } from 'svelte-sonner';
 import { MAP_ACTIONS, type MapAction } from './actions';
+import { MapCamera } from './map-camera.svelte';
+import { PanelLayoutStore } from './panel-layout.svelte';
+import { RoutePlanner } from './route-planner.svelte';
+import { SliceFetcher, slicesFor, type Slice } from './slices.svelte';
 import type { MapEvent } from '$lib/api/types/MapEvent';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import { timeAgo } from '$lib/format';
 import { solarSystemId } from '$lib/map/system';
-import * as v from 'valibot';
-import { readStored } from '$lib/storage';
+import { atLeast } from '$lib/map/roles';
 
-/** Half size is where node text stops being readable, double where a chain stops fitting. */
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 2;
-const ZOOM_STEP = 0.1;
-
-/** How long the scrollbars stay up after the last thing that moved the view. */
-const SCROLLBAR_LINGER_MS = 1500;
-
-/**
- * A live drag. `members` are the co-dragged nodes with their start top-left; each moves by
- * the same delta the primary moved.
- */
-export interface Drag {
-	primary: number;
-	x: number;
-	y: number;
-	offX: number;
-	offY: number;
-	members: { id: number; sx: number; sy: number }[];
-}
+export type { Drag };
 
 /** An in-progress connection drag: from this placement to the current cursor (world coords). */
 export interface Linking {
@@ -83,55 +63,11 @@ const defaultGrid: GridConfig = {
 	viewport_height: 1400,
 };
 
-/** Where the canvas sits on screen, and how big it is. */
-interface ViewportRect {
-	left: number;
-	top: number;
-	width: number;
-	height: number;
-}
-
-/** Somewhere worth routing to, and the stations that make it worth it. */
-export interface StationGroup {
-	id: number;
-	name: string;
-	systems: Set<number>;
-	/** Concrete stations per system, so results can name (and target) the station. */
-	stationsBySystem: Map<number, { id: number; name: string }[]>;
-}
-
-function stationGroup(group: {
-	id: number;
-	name: string;
-	stations: { id: number; name: string; solar_system_id: number }[];
-}): StationGroup {
-	const stationsBySystem = new Map<number, { id: number; name: string }[]>();
-	for (const station of group.stations) {
-		const list = stationsBySystem.get(station.solar_system_id) ?? [];
-		list.push({ id: station.id, name: station.name });
-		stationsBySystem.set(station.solar_system_id, list);
-	}
-	return {
-		id: group.id,
-		name: group.name,
-		systems: new Set(stationsBySystem.keys()),
-		stationsBySystem,
-	};
-}
-
-/** The independently-refetchable halves of what a map screen shows. */
-const SLICES = ['graph', 'signatures', 'watchlist', 'history', 'stale'] as const;
-type Slice = (typeof SLICES)[number] | 'characters';
-
-/**
- * How long to wait before acting on a frame. Long enough to swallow the burst one write
- * produces, short enough that nobody watching the map notices the delay.
- */
-const BURST_MS = 60;
-
 export class MapState {
 	mapId: number;
-	viewportEl: HTMLElement | null = null;
+	camera: MapCamera;
+	panelLayout: PanelLayoutStore;
+	route: RoutePlanner;
 
 	data = $state<MapView | null>(null);
 	grid = $state<GridConfig>(defaultGrid);
@@ -142,10 +78,6 @@ export class MapState {
 	myCharacters = $state<CharacterRef[]>([]);
 	userSettings = $state<MapUserSettings | null>(null);
 
-	pan = $state({ x: 0, y: 0 });
-	zoom = $state(1);
-	/** Shown while the scrollbars are awake; they fade out once nothing has moved. */
-	scrollbarsVisible = $state(false);
 	selected = $state<Set<number>>(new Set());
 	drag = $state<Drag | null>(null);
 	// Optimistic positions held from drop until the server confirms them, so a moved node
@@ -158,16 +90,6 @@ export class MapState {
 	paletteOpen = $state(false);
 	/** The "clean map" confirmation, opened from the status bar hint or the map menu. */
 	cleanPrompt = $state(false);
-	// Layout edit mode, the breakpoint being edited, and the working copy of the
-	// arrangement. The draft is what the grid renders, so a drag shows immediately; it is
-	// only persisted on Save, which is what makes Discard possible.
-	editingLayout = $state(false);
-	/** Raised when leaving edit mode with unsaved changes, so nothing is lost silently. */
-	layoutExitPrompt = $state(false);
-	layoutBreakpoint = $state<BreakpointKey>('lg');
-	layoutDraft = $state<PanelLayouts | null>(null);
-	/** The last saved arrangement, for dirty-tracking and for reverting to.  */
-	layoutSaved = $state<PanelLayouts | null>(null);
 	// The connection details popover: which edge, anchored at which screen point.
 	connectionPopover = $state<{ id: number; x: number; y: number } | null>(null);
 	// Where a search-added system should land (world coords, top-left). Set by the
@@ -181,30 +103,13 @@ export class MapState {
 	// When set, a search pick says which system this ghost placement turned out to be,
 	// instead of placing a new one.
 	assignGhostId = $state<number | null>(null);
-	// Route planner: origin/destination (solar system ids) and the computed path, set by
-	// the navigation card. The path drives the edge highlight.
-	routeFromId = $state<number | null>(null);
-	routeToId = $state<number | null>(null);
-	routePath = $state<number[]>([]);
-	// A row hovered in a side panel: the node it names lights up, and its route temporarily
-	// replaces the pinned A→B highlight. Owned here so any card can point at the map.
+	// A row hovered in a side panel: the node it names lights up. Owned here so any card
+	// can point at the map.
 	hoveredSystemId = $state<number | null>(null);
-	hoverPath = $state<number[] | null>(null);
-	// Systems the router steers around (per map, persisted locally).
-	ignoredSystems = $state<Set<number>>(new Set());
 	// Display data for systems a side panel names but the map does not hold: a pilot in
 	// known space, a skyhook out in sov null. Fetched once each and kept, because the
 	// context menu needs the same shape wherever a system is shown.
 	resolvedSystems = $state<Map<number, SystemSearchResult>>(new Map());
-	// The static routing data, fetched once and shared: the navigation card plans routes
-	// with it, and the pilots card measures distances with it. One home, one fetch.
-	stargates = $state<Map<number, number[]> | null>(null);
-	security = $state<Map<number, number>>(new Map());
-	joveSystems = $state<Set<number>>(new Set());
-	stationSystems = $state<Set<number>>(new Set());
-	/** A named set of stations to search for: what a station does, or who owns it. */
-	serviceOptions = $state<StationGroup[]>([]);
-	corporationOptions = $state<StationGroup[]>([]);
 
 	// The history tree plus where the map sits in it, and the live socket state behind
 	// the status dot.
@@ -214,8 +119,6 @@ export class MapState {
 	// Connections critical for over an hour, offered for a one-click sweep.
 	stale = $state<StaleConnection[]>([]);
 	socket = $state<SocketState>('connecting');
-	/** The canvas's rendered size, kept current by a ResizeObserver on the viewport. */
-	viewportSize = $state({ width: 1200, height: 1400 });
 	// The page holds a loader until both the graph and the arrangement have arrived, so
 	// tiles are never painted in the built-in positions and then moved.
 	loaded = $state(false);
@@ -243,38 +146,6 @@ export class MapState {
 	});
 	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
 
-	/** Stargates plus the chain's own edges. `null` until the static data has arrived. */
-	graph = $derived.by<RouteGraph | null>(() => {
-		const stargates = this.stargates;
-		if (!stargates) return null;
-		// Ghosts are left out: a hole whose far side is unknown leads nowhere the router
-		// could take you.
-		const placementSystem = new Map<number, number>();
-		for (const s of this.systems) {
-			if (s.kind === 'system') placementSystem.set(s.id, s.solar_system_id);
-		}
-		const edges: DynamicEdge[] = [];
-		for (const c of this.connections) {
-			if (c.kind !== 'wormhole') continue;
-			const a = placementSystem.get(c.from_system);
-			const b = placementSystem.get(c.to_system);
-			if (a === undefined || b === undefined || a === b) continue;
-			edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
-		}
-		if (this.useEveScout) {
-			for (const e of this.eveScout) {
-				edges.push({
-					a: e.hub_solar_system_id,
-					b: e.solar_system_id,
-					via: 'evescout',
-					mass: e.mass_status as MassStatus,
-					time: e.time_status as TimeStatus,
-				});
-			}
-		}
-		return { stargates, dynamic: buildDynamicAdjacency(edges), security: this.security };
-	});
-
 	// Undo and redo move the map's cursor through the history tree rather than recording
 	// anything, so the server is the only thing that decides whether they are available.
 	entries = $derived(this.history?.entries ?? []);
@@ -284,26 +155,6 @@ export class MapState {
 	headEntry = $derived(this.entries.find((e) => e.id === this.history?.head_event_id) ?? null);
 	redoEntry = $derived(this.entries.find((e) => e.id === this.history?.redo_target) ?? null);
 
-	private ignoreStorageKey(): string {
-		return `route-ignored-${this.mapId}`;
-	}
-
-	loadIgnored() {
-		this.ignoredSystems = new Set(readStored(this.ignoreStorageKey(), v.array(v.number()), []));
-	}
-
-	ignoreSystem(id: number) {
-		const next = new Set(this.ignoredSystems);
-		next.add(id);
-		this.ignoredSystems = next;
-		localStorage.setItem(this.ignoreStorageKey(), JSON.stringify([...next]));
-	}
-
-	clearIgnored() {
-		this.ignoredSystems = new Set();
-		localStorage.removeItem(this.ignoreStorageKey());
-	}
-
 	async loadEveScout() {
 		try {
 			this.eveScout = await api.eveScout();
@@ -311,26 +162,15 @@ export class MapState {
 			this.eveScout = [];
 		}
 	}
+
+	/** EVE Scout is scouted by hand, so it changes on the order of minutes at best. */
+	startEveScoutPolling(): () => void {
+		this.loadEveScout();
+		const timer = setInterval(() => this.loadEveScout(), 5 * 60_000);
+		return () => clearInterval(timer);
+	}
 	connections = $derived(this.data?.connections ?? []);
 	nodeH = $derived(2 * this.grid.cell_size);
-
-	// Connections on the active route: endpoints at adjacent path indices (legacy rule).
-	routeConnectionIds = $derived.by(() => {
-		const out = new Set<number>();
-		if (this.routePath.length < 2) return out;
-		const index = new Map<number, number>();
-		this.routePath.forEach((id, i) => index.set(id, i));
-		const placementSystem = new Map<number, number>();
-		for (const s of this.systems) {
-			if (s.kind === 'system') placementSystem.set(s.id, s.solar_system_id);
-		}
-		for (const c of this.connections) {
-			const a = index.get(placementSystem.get(c.from_system) ?? -1);
-			const b = index.get(placementSystem.get(c.to_system) ?? -1);
-			if (a !== undefined && b !== undefined && Math.abs(a - b) === 1) out.add(c.id);
-		}
-		return out;
-	});
 
 	/**
 	 * How this map is placed for this viewer: the map's own mode, unless it hands the
@@ -397,14 +237,7 @@ export class MapState {
 		const tree = this.treePositions;
 		if (tree) return tree;
 		const out = new Map<number, { x: number; y: number }>();
-		const dragged = new Map<number, { x: number; y: number }>();
-		if (this.drag) {
-			const d = this.drag;
-			const start = d.members.find((m) => m.id === d.primary);
-			const dx = d.x - (start?.sx ?? d.x);
-			const dy = d.y - (start?.sy ?? d.y);
-			for (const m of d.members) dragged.set(m.id, { x: m.sx + dx, y: m.sy + dy });
-		}
+		const dragged = this.drag ? draggedPositions(this.drag) : new Map<number, Vec2>();
 		for (const s of this.systems) {
 			out.set(
 				s.id,
@@ -420,9 +253,10 @@ export class MapState {
 	 */
 	signedIn = $state(true);
 
-	private fetchTimers = new Map<Slice, ReturnType<typeof setTimeout>>();
-	private fetching = new Set<Slice>();
-	private refetchAfter = new Set<Slice>();
+	/** Editing takes the member role; below it the map is read-only. */
+	canWrite = $derived(atLeast(this.data?.role, 'member'));
+
+	private slices = new SliceFetcher((slice) => this.fetchSlice(slice));
 
 	/** True until the first refetch, so a seeded graph is not fetched twice on open. */
 	private seeded = false;
@@ -436,6 +270,24 @@ export class MapState {
 		},
 	) {
 		this.mapId = mapId;
+		this.camera = new MapCamera(mapId);
+		this.panelLayout = new PanelLayoutStore({
+			hiddenPanels: () => this.userSettings?.hidden_panels ?? null,
+			setHiddenPanels: (panels) => {
+				if (this.userSettings) {
+					this.userSettings = { ...this.userSettings, hidden_panels: panels };
+				}
+			},
+			save: (layouts, hidden) => {
+				const write = this.patchUserSettings({
+					layout_breakpoints: layouts,
+					hidden_panels: hidden,
+				}).then((saved) => saved.layout_breakpoints ?? null);
+				this.run('saveLayout', write);
+				return write;
+			},
+		});
+		this.route = new RoutePlanner(this);
 		this.signedIn = signedIn;
 		// Seeded from the page's load, so the first frame already has the chain and the
 		// arrangement. Both are starting points: the socket and the refetch take over.
@@ -446,8 +298,7 @@ export class MapState {
 		}
 		if (seed.settings) {
 			this.userSettings = seed.settings;
-			this.layoutSaved = seed.settings.layout_breakpoints ?? null;
-			this.layoutDraft = structuredClone(seed.settings.layout_breakpoints ?? null);
+			this.panelLayout.seed(seed.settings.layout_breakpoints ?? null);
 			this.settingsLoaded = true;
 		}
 	}
@@ -514,37 +365,98 @@ export class MapState {
 			.catch(() => {});
 	}
 
-	/** The static routing tables (stargates, security, Jove/station/service indexes). */
-	private routingLoad: Promise<void> | null = null;
+	// --- routing, delegated to the planner ---
 
-	/**
-	 * Resolves once the static routing tables are in. Jump tracking waits on this rather
-	 * than reading `stargates` directly, since a jump taken seconds after the map opens
-	 * would otherwise be judged against an empty gate table.
-	 */
+	get routeFromId() {
+		return this.route.routeFromId;
+	}
+
+	set routeFromId(id: number | null) {
+		this.route.routeFromId = id;
+	}
+
+	get routeToId() {
+		return this.route.routeToId;
+	}
+
+	set routeToId(id: number | null) {
+		this.route.routeToId = id;
+	}
+
+	get routePath() {
+		return this.route.routePath;
+	}
+
+	set routePath(path: number[]) {
+		this.route.routePath = path;
+	}
+
+	get hoverPath() {
+		return this.route.hoverPath;
+	}
+
+	set hoverPath(path: number[] | null) {
+		this.route.hoverPath = path;
+	}
+
+	get ignoredSystems() {
+		return this.route.ignoredSystems;
+	}
+
+	loadIgnored() {
+		this.route.loadIgnored();
+	}
+
+	ignoreSystem(id: number) {
+		this.route.ignoreSystem(id);
+	}
+
+	clearIgnored() {
+		this.route.clearIgnored();
+	}
+
+	get stargates() {
+		return this.route.stargates;
+	}
+
+	get security() {
+		return this.route.security;
+	}
+
+	get joveSystems() {
+		return this.route.joveSystems;
+	}
+
+	get stationSystems() {
+		return this.route.stationSystems;
+	}
+
+	get serviceOptions() {
+		return this.route.serviceOptions;
+	}
+
+	get corporationOptions() {
+		return this.route.corporationOptions;
+	}
+
+	get graph() {
+		return this.route.graph;
+	}
+
+	get routeConnectionIds() {
+		return this.route.routeConnectionIds;
+	}
+
 	whenRoutingLoaded(): Promise<void> {
-		return this.routingLoad ?? this.loadRoutingGraph();
+		return this.route.whenLoaded();
 	}
 
-	async loadRoutingGraph() {
-		this.routingLoad ??= this.fetchRoutingGraph();
-		return this.routingLoad;
+	loadRoutingGraph() {
+		return this.route.load();
 	}
 
-	private async fetchRoutingGraph() {
-		try {
-			const g = await api.routingGraph();
-			this.stargates = new Map(
-				Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]]),
-			);
-			this.security = new Map(Object.entries(g.security).map(([k, v]) => [Number(k), v]));
-			this.joveSystems = new Set(g.jove ?? []);
-			this.stationSystems = new Set(g.stations ?? []);
-			this.serviceOptions = (g.services ?? []).map(stationGroup);
-			this.corporationOptions = (g.corporations ?? []).map(stationGroup);
-		} catch {
-			// No graph means no routing; the cards fall back to showing no distances.
-		}
+	withSignatures(steps: RouteStep[]) {
+		return this.route.withSignatures(steps);
 	}
 
 	/** Bumped by every write, so a fetch that started earlier cannot land afterwards. */
@@ -561,8 +473,7 @@ export class MapState {
 		const version = this.settingsVersion;
 		try {
 			const settings = await api.mapUserSettings(this.mapId);
-			this.layoutSaved = settings.layout_breakpoints ?? null;
-			this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
+			this.panelLayout.seed(settings.layout_breakpoints ?? null);
 			if (version !== this.settingsVersion) return;
 			this.userSettings = settings;
 		} catch {
@@ -572,112 +483,74 @@ export class MapState {
 		}
 	}
 
-	// --- layout ---
+	// --- layout, delegated to the panel layout store ---
 
-	private hiddenDirty = $state(false);
-	layoutDirty = $derived(
-		JSON.stringify(this.layoutDraft) !== JSON.stringify(this.layoutSaved) || this.hiddenDirty,
-	);
+	get editingLayout() {
+		return this.panelLayout.editing;
+	}
 
-	/**
-	 * `items` only covers the visible panels; the hidden ones are carried over, since their
-	 * stored positions are what put them back when they are unhidden.
-	 */
+	set editingLayout(on: boolean) {
+		this.panelLayout.editing = on;
+	}
+
+	get layoutExitPrompt() {
+		return this.panelLayout.exitPrompt;
+	}
+
+	set layoutExitPrompt(on: boolean) {
+		this.panelLayout.exitPrompt = on;
+	}
+
+	get layoutBreakpoint() {
+		return this.panelLayout.breakpoint;
+	}
+
+	set layoutBreakpoint(key: BreakpointKey) {
+		this.panelLayout.breakpoint = key;
+	}
+
+	get layoutDraft() {
+		return this.panelLayout.draft;
+	}
+
+	get layoutDirty() {
+		return this.panelLayout.dirty;
+	}
+
 	setLayoutItems(key: BreakpointKey, items: GridItem[]) {
-		const base = resolveLayouts(this.layoutDraft);
-		const hidden = new Set(this.userSettings?.hidden_panels ?? []);
-		const kept = base[key].items.filter((i) => hidden.has(i.i));
-		this.layoutDraft = { ...base, [key]: { ...base[key], items: [...items, ...kept] } };
+		this.panelLayout.setItems(key, items);
 	}
 
 	setLayout(layouts: PanelLayouts) {
-		this.layoutDraft = layouts;
+		this.panelLayout.set(layouts);
 	}
 
 	hidePanel(id: string) {
-		if (!this.userSettings || this.userSettings.hidden_panels.includes(id)) return;
-		this.userSettings = {
-			...this.userSettings,
-			hidden_panels: [...this.userSettings.hidden_panels, id],
-		};
-		this.hiddenDirty = true;
+		this.panelLayout.hidePanel(id);
 	}
 
 	showPanel(id: string) {
-		if (!this.userSettings) return;
-		// Put it back at the bottom of every breakpoint, so unhiding never drops a tile
-		// into a hole left by something that has since moved.
-		const base = resolveLayouts(this.layoutDraft);
-		for (const key of Object.keys(base)) {
-			base[key] = placeAtBottom(base[key], id as PanelId);
-		}
-		this.layoutDraft = base;
-		this.userSettings = {
-			...this.userSettings,
-			hidden_panels: this.userSettings.hidden_panels.filter((p) => p !== id),
-		};
-		this.hiddenDirty = true;
+		this.panelLayout.showPanel(id);
 	}
 
 	saveLayout() {
-		const layouts = resolveLayouts(this.layoutDraft);
-		this.run(
-			'saveLayout',
-			this.patchUserSettings({
-				layout_breakpoints: layouts,
-				hidden_panels: this.userSettings?.hidden_panels ?? [],
-			}).then((saved) => {
-				this.layoutSaved = saved.layout_breakpoints ?? null;
-				this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
-				this.hiddenDirty = false;
-				this.editingLayout = false;
-			}),
-		);
+		this.panelLayout.save();
 	}
 
-	/** Leave arrange mode; unsaved changes raise the prompt instead of vanishing. */
 	exitLayoutEdit() {
-		if (this.layoutDirty) {
-			this.layoutExitPrompt = true;
-			return;
-		}
-		this.editingLayout = false;
+		this.panelLayout.exitEdit();
 	}
 
-	/** Answer the prompt: keep the changes, or throw them away. */
 	resolveLayoutExit(save: boolean) {
-		this.layoutExitPrompt = false;
-		if (save) {
-			this.saveLayout();
-			return;
-		}
-		this.revertLayout();
-		this.editingLayout = false;
+		this.panelLayout.resolveExit(save);
 	}
-
-	/** Throw the working copy away and go back to what was last saved. */
-	revertLayout() {
-		this.layoutDraft = structuredClone($state.snapshot(this.layoutSaved));
-		if (this.userSettings) {
-			this.userSettings = {
-				...this.userSettings,
-				hidden_panels: this.layoutSavedHidden,
-			};
-		}
-		this.hiddenDirty = false;
-	}
-
-	/** Hidden panels as of the last save, so a revert restores them too. */
-	private layoutSavedHidden: string[] = [];
 
 	rememberHidden() {
-		this.layoutSavedHidden = [...(this.userSettings?.hidden_panels ?? [])];
+		this.panelLayout.rememberHidden();
 	}
 
-	/** Put one breakpoint back to the built-in arrangement. */
 	resetLayout(key: BreakpointKey) {
-		const base = resolveLayouts(this.layoutDraft);
-		this.layoutDraft = { ...base, [key]: structuredClone(DEFAULT_LAYOUTS[key]) };
+		this.panelLayout.reset(key);
 	}
 
 	async loadGrid() {
@@ -784,80 +657,14 @@ export class MapState {
 		}
 	}
 
-	/**
-	 * Ask for a slice, soon. Two guards, because the server is chatty in bursts: pasting a
-	 * scan publishes a frame per system, per connection and per placement it touched, all
-	 * within a few milliseconds. The timer collapses the burst into one request, and the
-	 * in-flight set stops a second one overlapping the first — with a single re-run queued
-	 * behind it, so a change that landed mid-request is not missed.
-	 */
-	private schedule(slice: Slice) {
-		clearTimeout(this.fetchTimers.get(slice));
-		this.fetchTimers.set(
-			slice,
-			setTimeout(() => {
-				this.fetchTimers.delete(slice);
-				void this.runSlice(slice);
-			}, BURST_MS),
-		);
-	}
-
-	private scheduleAll() {
-		for (const slice of SLICES) this.schedule(slice);
-	}
-
-	private async runSlice(slice: Slice) {
-		if (this.fetching.has(slice)) {
-			this.refetchAfter.add(slice);
+	/** Refetch what one socket frame invalidated; [`slicesFor`] holds the table. */
+	applyEvent(event: MapEvent) {
+		// A kill changes nothing about the graph; only the killmail card reacts.
+		if (event.type === 'killmail_received') {
+			this.killmailTick += 1;
 			return;
 		}
-		this.fetching.add(slice);
-		try {
-			await this.fetchSlice(slice);
-		} finally {
-			this.fetching.delete(slice);
-			if (this.refetchAfter.delete(slice)) this.schedule(slice);
-		}
-	}
-
-	/**
-	 * What one frame off the map socket actually invalidates.
-	 *
-	 * The event says what changed and this believes it, rather than reloading the map five
-	 * ways over. Two things ride along wider than they look: the graph follows a signature
-	 * change because `ghost::reconcile` can raise or drop a node as a side effect of one,
-	 * and the history follows any command because the journal grows without announcing it.
-	 */
-	applyEvent(event: MapEvent) {
-		switch (event.type) {
-			case 'characters_changed':
-				return this.schedule('characters');
-			// A kill changes nothing about the graph; only the killmail card reacts.
-			case 'killmail_received':
-				this.killmailTick += 1;
-				return;
-			case 'watchlist_changed':
-				return this.schedule('watchlist');
-			// Undo, redo and jumping to a step all publish this, and moving the cursor can
-			// touch anything the steps it crosses did — the server says so where it
-			// publishes it. So this one really does mean everything.
-			case 'history_changed':
-				return this.scheduleAll();
-			case 'signature_changed':
-				this.schedule('signatures');
-				this.schedule('graph');
-				return this.schedule('history');
-			case 'connection_changed':
-				this.schedule('graph');
-				this.schedule('stale');
-				return this.schedule('history');
-			case 'map_updated':
-			case 'access_changed':
-				return this.schedule('graph');
-			default:
-				this.schedule('graph');
-				return this.schedule('history');
-		}
+		for (const slice of slicesFor(event)) this.slices.schedule(slice);
 	}
 
 	/** Everything, for the first load. After that the socket says what to ask for. */
@@ -901,57 +708,62 @@ export class MapState {
 		return `${entry.label} · ${timeAgo(entry.created_at)}`;
 	}
 
-	/**
-	 * The signature to warp to for a wormhole hop. A connection has one at each end; the
-	 * one that matters is on the side you are leaving, which is the one in your scanner.
-	 */
-	wormholeSignature(from: number, to: number): string | null {
-		const system = new Map(this.systems.map((s) => [s.id, solarSystemId(s)]));
-		const conn = this.connections.find((c) => {
-			const a = system.get(c.from_system);
-			const b = system.get(c.to_system);
-			return (a === from && b === to) || (a === to && b === from);
-		});
-		if (!conn) return null;
-		return (
-			this.sigs.find((sig) => sig.connection_id === conn.id && sig.solar_system_id === from)
-				?.signature_id ?? null
-		);
+	// --- geometry, delegated to the camera ---
+
+	get viewportEl() {
+		return this.camera.viewportEl;
 	}
 
-	/** Route steps with the signature attached to each wormhole hop. */
-	withSignatures(steps: RouteStep[]): (RouteStep & { signature: string | null })[] {
-		return steps.map((step, i) => ({
-			...step,
-			signature:
-				step.via === 'wormhole' && i > 0 ? this.wormholeSignature(steps[i - 1].id, step.id) : null,
-		}));
+	set viewportEl(el: HTMLElement | null) {
+		this.camera.viewportEl = el;
 	}
 
-	// --- geometry ---
-
-	viewportRect(): ViewportRect {
-		const r = this.viewportEl?.getBoundingClientRect();
-		return {
-			// Position is read live: it only matters during a pointer event, and it moves
-			// with scrolling rather than with the element's own size.
-			left: r?.left ?? 0,
-			top: r?.top ?? 0,
-			// Size comes from the observer instead of the rect, because a rect read is not
-			// reactive: anything derived from it (the scrollbar thumbs) would keep the
-			// value it had when the canvas was first measured.
-			width: this.viewportSize.width,
-			height: this.viewportSize.height,
-		};
+	get pan() {
+		return this.camera.pan;
 	}
 
-	/** Screen (client) point → world coords, accounting for pan + zoom. */
+	set pan(v: Vec2) {
+		this.camera.pan = v;
+	}
+
+	get zoom() {
+		return this.camera.zoom;
+	}
+
+	get scrollbarsVisible() {
+		return this.camera.scrollbarsVisible;
+	}
+
+	get viewportSize() {
+		return this.camera.viewportSize;
+	}
+
+	set viewportSize(size: { width: number; height: number }) {
+		this.camera.viewportSize = size;
+	}
+
+	viewportRect() {
+		return this.camera.viewportRect();
+	}
+
 	toWorld(clientX: number, clientY: number): Vec2 {
-		const r = this.viewportRect();
-		return {
-			x: (clientX - r.left - this.pan.x) / this.zoom,
-			y: (clientY - r.top - this.pan.y) / this.zoom,
-		};
+		return this.camera.toWorld(clientX, clientY);
+	}
+
+	panBy(dx: number, dy: number) {
+		this.camera.panBy(dx, dy);
+	}
+
+	wakeScrollbars() {
+		this.camera.wakeScrollbars();
+	}
+
+	zoomBy(steps: number) {
+		this.camera.zoomBy(steps);
+	}
+
+	restoreZoom() {
+		this.camera.restoreZoom();
 	}
 
 	/**
@@ -990,52 +802,6 @@ export class MapState {
 			api.removeSystems({ map_id: this.mapId, map_solar_system_ids: ids }),
 			`${ids.length} ${ids.length === 1 ? 'system' : 'systems'}`,
 		);
-	}
-
-	/** Shift the view by a screen-pixel delta (wheel, scrollbar, drag). */
-	panBy(dx: number, dy: number) {
-		this.pan = { x: this.pan.x + dx, y: this.pan.y + dy };
-		this.wakeScrollbars();
-	}
-
-	/** Shown while the view is moving or the cursor is over the canvas, then faded out. */
-	wakeScrollbars() {
-		this.scrollbarsVisible = true;
-		if (this.hideScrollbars) clearTimeout(this.hideScrollbars);
-		this.hideScrollbars = setTimeout(() => {
-			this.scrollbarsVisible = false;
-			this.hideScrollbars = null;
-		}, SCROLLBAR_LINGER_MS);
-	}
-
-	private hideScrollbars: ReturnType<typeof setTimeout> | null = null;
-
-	/** Zoom by whole steps, keeping the middle of the viewport where it is. */
-	zoomBy(steps: number) {
-		const next = Math.round((this.zoom + steps * ZOOM_STEP) * 10) / 10;
-		const nz = clamp(next, ZOOM_MIN, ZOOM_MAX);
-		if (nz === this.zoom) return;
-		const z = this.zoom;
-		const r = this.viewportRect();
-		const cx = r.width / 2;
-		const cy = r.height / 2;
-		const wx = (cx - this.pan.x) / z;
-		const wy = (cy - this.pan.y) / z;
-		this.pan = { x: cx - wx * nz, y: cy - wy * nz };
-		this.zoom = nz;
-		this.rememberZoom();
-		this.wakeScrollbars();
-	}
-
-	/** Per map and per browser: how far out you want to be depends on the screen. */
-	restoreZoom() {
-		if (!browser) return;
-		const saved = Number(localStorage.getItem(`map-zoom-${this.mapId}`));
-		if (saved >= ZOOM_MIN && saved <= ZOOM_MAX) this.zoom = saved;
-	}
-
-	private rememberZoom() {
-		if (browser) localStorage.setItem(`map-zoom-${this.mapId}`, String(this.zoom));
 	}
 
 	snap(v: number): number {
