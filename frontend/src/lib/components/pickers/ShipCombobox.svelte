@@ -2,6 +2,7 @@
 	// An inline ship-type search (Command-driven: arrow keys + Enter to pick), with the
 	// ship's icon and group. Results come from the local SDE search endpoint.
 	import { api } from '$lib/api/client';
+	import { latest } from '$lib/latest';
 	import type { ShipSearchResult } from '$lib/api/types/ShipSearchResult';
 	import * as Command from '$lib/components/ui/command';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -16,7 +17,7 @@
 
 	let term = $state('');
 	let results = $state<ShipSearchResult[]>([]);
-	let generation = 0;
+	const search = latest(api.searchShips, (found) => (results = found));
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 	$effect(() => {
@@ -26,15 +27,7 @@
 			results = [];
 			return;
 		}
-		searchTimer = setTimeout(() => {
-			const request = ++generation;
-			api
-				.searchShips(text)
-				.then((found) => {
-					if (generation === request) results = found;
-				})
-				.catch(() => {});
-		}, 200);
+		searchTimer = setTimeout(() => search(text), 200);
 	});
 </script>
 

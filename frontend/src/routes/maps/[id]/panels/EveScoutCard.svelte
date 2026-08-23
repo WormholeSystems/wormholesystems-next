@@ -3,20 +3,20 @@
 	// at a time: a Thera hole is not an alternative route to a Turnur one.
 	// The jump count is measured through your own chain, which is the reason to look, so rows
 	// sort by it by default.
-	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import { solarSystemId } from '$lib/map/system';
 
-	import { api } from '$lib/api/client';
 	import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import { resolveCache } from '$lib/resolve-cache.svelte';
+	import { sortState } from '$lib/sort-state.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { classMeta } from '$lib/map/classes';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import SortHeader from '$lib/components/map-ui/SortHeader.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -31,48 +31,27 @@
 
 	let { map }: { map: MapState } = $props();
 
-	type Column = 'jumps' | 'system' | 'region' | 'signature' | 'type' | 'ttl';
+	const SORT_COLUMNS = ['jumps', 'system', 'region', 'signature', 'type', 'ttl'] as const;
+	type Column = (typeof SORT_COLUMNS)[number];
 	type Hub = 'Thera' | 'Turnur';
 
 	const HUBS: Hub[] = ['Thera', 'Turnur'];
 
-	let connections = $state<EveScoutConnection[]>([]);
+	const connections = $derived(map.eveScout);
 	let hub = $state<Hub>('Thera');
-	let column = $state<Column>('jumps');
-	let ascending = $state(true);
+	const sort = sortState('evescout-sort', SORT_COLUMNS, { column: 'jumps', direction: 'asc' });
 	let now = $state(new Date());
 
-	function load() {
-		api
-			.eveScout()
-			.then((rows) => (connections = rows))
-			.catch(() => {});
-	}
-
 	$effect(() => {
-		load();
-		// EVE Scout is scouted by hand, so it changes on the order of minutes at best.
-		const poll = setInterval(load, 5 * 60_000);
 		const clock = setInterval(() => (now = new Date()), 60_000);
-		return () => {
-			clearInterval(poll);
-			clearInterval(clock);
-		};
+		return () => clearInterval(clock);
 	});
 
 	// The hubs are resolved along with the far sides, so a row whose destination is the other
 	// hub still renders.
-	let systems = $state<Map<number, SystemSearchResult>>(new Map());
-	const wanted = $derived(
-		[...new Set(connections.map((c) => c.solar_system_id))].sort((a, b) => a - b).join(','),
-	);
+	const systems = resolveCache();
 	$effect(() => {
-		const ids = wanted ? wanted.split(',').map(Number) : [];
-		if (ids.length === 0) return;
-		api
-			.resolveSystems(ids)
-			.then((rows) => (systems = new Map(rows.map((r) => [r.id, r]))))
-			.catch(() => {});
+		systems.ensure(connections.map((c) => c.solar_system_id));
 	});
 
 	// One search from the origin covers every row. The hub itself is excluded as a stepping
@@ -144,7 +123,7 @@
 					jumps: route?.jumps ?? null,
 				};
 			});
-		const direction = ascending ? 1 : -1;
+		const direction = sort.current.direction === 'asc' ? 1 : -1;
 		const name = (r: Row) => r.system?.name ?? '';
 		const compare = {
 			jumps: byJumps,
@@ -157,22 +136,13 @@
 			ttl: (a, b) => (a.connection.remaining_hours ?? 999) - (b.connection.remaining_hours ?? 999),
 		} satisfies Record<Column, (a: Row, b: Row) => number>;
 		return rows.sort((a, b) => {
-			const primary = compare[column](a, b) * direction;
+			const primary = compare[sort.current.column](a, b) * direction;
 			if (primary) return primary;
 			// Ties fall back to class then name, so a column of equal values (no origin, so no
 			// jumps) still reads as sorted rather than in EVE Scout's order.
 			return bySystem(a, b) || name(a).localeCompare(name(b));
 		});
 	});
-
-	function sortBy(next: Column) {
-		if (column === next) {
-			ascending = !ascending;
-			return;
-		}
-		column = next;
-		ascending = true;
-	}
 
 	function hover(row: Row, on: boolean) {
 		const placed = map.systems.find((s) => solarSystemId(s) === row.connection.solar_system_id);
@@ -202,15 +172,9 @@
 </script>
 
 {#snippet heading(key: Column, label: string, extra = '')}
-	<button
-		class={cn('flex items-center gap-1 hover:text-foreground', extra)}
-		onclick={() => sortBy(key)}
-	>
+	<SortHeader column={key} sort={sort.current} onsort={sort.toggle} class={extra}>
 		<span>{label}</span>
-		{#if column === key}
-			{#if ascending}<ArrowUpIcon class="size-3" />{:else}<ArrowDownIcon class="size-3" />{/if}
-		{/if}
-	</button>
+	</SortHeader>
 {/snippet}
 
 <Tooltip.Provider delayDuration={300}>

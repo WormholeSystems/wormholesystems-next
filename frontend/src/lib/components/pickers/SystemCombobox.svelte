@@ -8,6 +8,7 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 
 	import { api } from '$lib/api/client';
+	import { latest } from '$lib/latest';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
@@ -35,8 +36,8 @@
 	let open = $state(false);
 	let query = $state('');
 	let results = $state<SystemSearchResult[]>([]);
-	// Monotonic request id: drop responses that arrive out of order while typing.
-	let generation = 0;
+	// `latest` drops responses that arrive out of order while typing.
+	const search = latest(api.searchSystems, (found) => (results = found));
 	let label = $state('');
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -69,15 +70,7 @@
 			results = [];
 			return;
 		}
-		searchTimer = setTimeout(() => {
-			const request = ++generation;
-			api
-				.searchSystems(text)
-				.then((found) => {
-					if (generation === request) results = found;
-				})
-				.catch(() => {});
-		}, 150);
+		searchTimer = setTimeout(() => search(text), 150);
 	});
 
 	// See `pickers/columns.ts`: the list owns the tracks and rows are subgrids. The trailing

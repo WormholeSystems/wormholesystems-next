@@ -13,17 +13,15 @@
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { NODE_W, centerWorld, freePosition, heuristicSize } from '$lib/map/helpers';
+	import { latest } from '$lib/latest';
 	import type { MapState } from './map-state.svelte';
-	import { atLeast } from '$lib/map/roles';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
 
 	let query = $state('');
 	let results = $state<MapSearchHit[]>([]);
-	// Monotonic request id: drop responses that arrive out of order while typing.
-	let generation = 0;
 
-	const canWrite = $derived(atLeast(map.data?.role, 'member'));
+	const canWrite = $derived(map.canWrite);
 	// Threat hits answer a different question (where does this corp operate), so they get
 	// their own section rather than mixing into results that matched by name.
 	const threats = $derived(results.filter((h) => h.threat));
@@ -79,15 +77,12 @@
 		}
 	});
 
+	const search = latest(
+		(text: string) => api.searchMap(map.mapId, text),
+		(found) => (results = found),
+	);
 	$effect(() => {
-		const text = query;
-		const request = ++generation;
-		api
-			.searchMap(map.mapId, text)
-			.then((found) => {
-				if (generation === request) results = found;
-			})
-			.catch(() => {});
+		search(query);
 	});
 
 	/** Why this row matched, when it was not the name. */

@@ -22,9 +22,16 @@
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { isWormholeClass } from '$lib/map/classes';
+	import {
+		dotlanJumpRangeUrl,
+		dotlanRegionMapUrl,
+		dotlanSystemUrl,
+		zkillboardConstellationUrl,
+		zkillboardRegionUrl,
+		zkillboardSystemUrl,
+	} from '$lib/map/external-links';
 	import { centerWorld, freePosition } from '$lib/map/helpers';
 	import type { MapState } from '../../../routes/maps/[id]/map-state.svelte';
-	import { atLeast } from '$lib/map/roles';
 
 	let {
 		system,
@@ -42,9 +49,8 @@
 	const map = $derived(getMap?.());
 
 	const isWormhole = $derived(isWormholeClass(system.wormhole_class_id));
-	const underscore = (s: string) => s.replaceAll(' ', '_');
 
-	const canWrite = $derived(map !== undefined && atLeast(map.data?.role, 'member'));
+	const canWrite = $derived(map !== undefined && map.canWrite);
 	const placement = $derived(map?.systems.find((s) => solarSystemId(s) === system.id) ?? null);
 	const onlineCharacters = $derived(map?.myCharacters.filter((c) => c.online) ?? []);
 	const watched = $derived(map?.watchlist.some((w) => w.solar_system_id === system.id) ?? false);
@@ -155,12 +161,7 @@
 				</ContextMenu.Label>
 				<ContextMenu.Item>
 					{#snippet child({ props })}
-						<a
-							{...props}
-							target="_blank"
-							rel="noopener"
-							href="https://evemaps.dotlan.net/system/{underscore(system.name)}"
-						>
+						<a {...props} target="_blank" rel="noopener" href={dotlanSystemUrl(system.name)}>
 							<GlobeIcon class="size-4" />
 							System
 						</a>
@@ -172,9 +173,7 @@
 							{...props}
 							target="_blank"
 							rel="noopener"
-							href="https://evemaps.dotlan.net/map/{underscore(system.region)}/{underscore(
-								system.name,
-							)}"
+							href={dotlanRegionMapUrl(system.region, system.name)}
 						>
 							<MapIcon class="size-4" />
 							Region Map
@@ -184,12 +183,7 @@
 				{#if !isWormhole}
 					<ContextMenu.Item>
 						{#snippet child({ props })}
-							<a
-								{...props}
-								target="_blank"
-								rel="noopener"
-								href="https://evemaps.dotlan.net/range/Revelation,5/{underscore(system.name)}"
-							>
+							<a {...props} target="_blank" rel="noopener" href={dotlanJumpRangeUrl(system.name)}>
 								<CircleIcon class="size-4" />
 								Jump Range
 							</a>
@@ -203,12 +197,7 @@
 				</ContextMenu.Label>
 				<ContextMenu.Item>
 					{#snippet child({ props })}
-						<a
-							{...props}
-							target="_blank"
-							rel="noopener"
-							href="https://zkillboard.com/system/{system.id}/"
-						>
+						<a {...props} target="_blank" rel="noopener" href={zkillboardSystemUrl(system.id)}>
 							<GlobeIcon class="size-4" />
 							System
 						</a>
@@ -220,7 +209,7 @@
 							{...props}
 							target="_blank"
 							rel="noopener"
-							href="https://zkillboard.com/constellation/{system.constellation_id}/"
+							href={zkillboardConstellationUrl(system.constellation_id)}
 						>
 							<CompassIcon class="size-4" />
 							Constellation
@@ -233,7 +222,7 @@
 							{...props}
 							target="_blank"
 							rel="noopener"
-							href="https://zkillboard.com/region/{system.region_id}/"
+							href={zkillboardRegionUrl(system.region_id)}
 						>
 							<MapIcon class="size-4" />
 							Region

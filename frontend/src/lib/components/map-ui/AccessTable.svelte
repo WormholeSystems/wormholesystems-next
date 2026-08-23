@@ -5,7 +5,6 @@
 	// Takes the grants and the writes it can make rather than the page around it, so the
 	// settings screen and any read-only rendering of it are the same component and cannot
 	// drift apart. With no `actions` nothing here can be written.
-	import ArrowIcon from '@lucide/svelte/icons/arrow-up';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
@@ -15,6 +14,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
+	import SortHeader from './SortHeader.svelte';
 	import { ROLE_LABEL } from '$lib/map/roles';
 
 	export type SortKey = 'name' | 'subject_type' | 'role' | 'expires_at';
@@ -36,7 +36,7 @@
 		entries: AccessEntry[];
 		canManage?: boolean;
 		/** Omitted where the header is not sortable, which leaves the arrows off. */
-		sort?: { key: SortKey; descending: boolean };
+		sort?: { column: SortKey; direction: 'asc' | 'desc' };
 		onsort?: (key: SortKey) => void;
 		actions?: AccessActions;
 	} = $props();
@@ -58,18 +58,9 @@
 			{#each COLUMNS as column (column.key)}
 				<Table.Head>
 					{#if onsort}
-						<button
-							class="flex items-center gap-1 hover:text-foreground"
-							data-testid="sort-{column.key}"
-							onclick={() => onsort?.(column.key)}
-						>
+						<SortHeader column={column.key} {sort} {onsort} testid="sort-{column.key}">
 							{column.label}
-							{#if sort?.key === column.key}
-								<ArrowIcon
-									class="size-3 {sort.descending ? 'rotate-180' : ''} transition-transform"
-								/>
-							{/if}
-						</button>
+						</SortHeader>
 					{:else}
 						{column.label}
 					{/if}

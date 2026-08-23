@@ -10,6 +10,11 @@
 	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { destClassMeta, effectTextColor, isWormholeClass } from '$lib/map/classes';
+	import {
+		dotlanRegionMapUrl,
+		dotlanSystemUrl,
+		zkillboardSystemUrl,
+	} from '$lib/map/external-links';
 
 	let { system }: { system: MapSystemView } = $props();
 
@@ -17,7 +22,6 @@
 	const mapped = $derived(system.kind === 'system' ? system : null);
 
 	const isWormhole = $derived(isWormholeClass(mapped?.wormhole_class_id ?? null));
-	const underscore = (s: string) => s.replaceAll(' ', '_');
 
 	const effectColor = $derived(effectTextColor(mapped?.effect_name ?? null));
 
@@ -36,8 +40,8 @@
 	const dotlanUrl = $derived.by(() => {
 		if (!mapped) return null;
 		return isWormhole
-			? `https://evemaps.dotlan.net/system/${underscore(mapped.name)}`
-			: `https://evemaps.dotlan.net/map/${underscore(mapped.region)}/${underscore(mapped.name)}`;
+			? dotlanSystemUrl(mapped.name)
+			: dotlanRegionMapUrl(mapped.region, mapped.name);
 	});
 </script>
 
@@ -85,7 +89,7 @@
 					<span class="text-border">·</span>
 					<a
 						class="transition-colors hover:text-foreground"
-						href="https://zkillboard.com/system/{mapped.solar_system_id}/"
+						href={zkillboardSystemUrl(mapped.solar_system_id)}
 						target="_blank"
 						rel="noopener">zKill</a
 					>

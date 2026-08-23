@@ -6,6 +6,7 @@
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { Signature } from '$lib/api/types/Signature';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { LIFETIME_OPTIONS, MASS_OPTIONS } from '$lib/map/connection-status';
 
 	let { connection, sigs }: { connection: MapConnection; sigs: Signature[] } = $props();
 
@@ -20,28 +21,31 @@
 			? { label: 'Stargate', text: 'text-sky-500', dot: 'bg-sky-500' }
 			: { label: 'Wormhole', text: 'text-foreground', dot: 'bg-neutral-500' },
 	);
+	// The shared vocabulary names the states; a status readout paints the healthy ones green
+	// rather than neutral.
 	const lifetimeMeta = $derived.by(() => {
-		switch (connection.time_status) {
+		const option =
+			LIFETIME_OPTIONS.find((o) => o.value === connection.time_status) ?? LIFETIME_OPTIONS[0];
+		const label = option.hint ? `${option.label} (${option.hint})` : option.label;
+		switch (option.value) {
 			case 'eol':
-				return { label: 'End of Life (<4h)', text: 'text-purple-500', dot: 'bg-purple-500' };
+				return { label, text: 'text-purple-500', dot: 'bg-purple-500' };
 			case 'critical':
-				return { label: 'Critical (<1h)', text: 'text-red-500', dot: 'bg-red-500' };
-			case 'stable':
-				return { label: 'Healthy', text: 'text-green-500', dot: 'bg-green-500' };
+				return { label, text: 'text-red-500', dot: 'bg-red-500' };
 			default:
-				return { label: 'Healthy', text: 'text-green-500', dot: 'bg-green-500' };
+				return { label, text: 'text-green-500', dot: 'bg-green-500' };
 		}
 	});
 	const massMeta = $derived.by(() => {
-		switch (connection.mass_status) {
-			case 'stable':
-				return { label: 'Fresh', text: 'text-green-500', dot: 'bg-green-500' };
+		const option = MASS_OPTIONS.find((o) => o.value === connection.mass_status);
+		if (!option) return { label: 'Unknown', text: 'text-muted-foreground', dot: 'bg-neutral-500' };
+		switch (option.value) {
 			case 'reduced':
-				return { label: 'Reduced', text: 'text-amber-500', dot: 'bg-amber-500' };
+				return { label: option.label, text: 'text-amber-500', dot: 'bg-amber-500' };
 			case 'critical':
-				return { label: 'Critical', text: 'text-red-500', dot: 'bg-red-500' };
+				return { label: option.label, text: 'text-red-500', dot: 'bg-red-500' };
 			default:
-				return { label: 'Unknown', text: 'text-muted-foreground', dot: 'bg-neutral-500' };
+				return { label: option.label, text: 'text-green-500', dot: 'bg-green-500' };
 		}
 	});
 

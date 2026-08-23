@@ -4,7 +4,6 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 
-	import { api } from '$lib/api/client';
 	import type { AlertDelivery } from '$lib/api/types/AlertDelivery';
 	import type { AlertKind } from '$lib/api/types/AlertKind';
 	import type { AlertMention } from '$lib/api/types/AlertMention';
@@ -16,7 +15,7 @@
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import type { Side } from '$lib/api/types/Side';
 	import type { Subject } from '$lib/api/types/Subject';
-	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import { resolveCache } from '$lib/resolve-cache.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
@@ -109,18 +108,11 @@
 	];
 
 	// The picker wants a resolved system for its label; the alert only stores the id.
-	let targetSystem = $state<SystemSearchResult | null>(null);
+	const systems = resolveCache();
 	$effect(() => {
-		const id = target;
-		if (id === null) {
-			targetSystem = null;
-			return;
-		}
-		api
-			.resolveSystems([id])
-			.then(([hit]) => (targetSystem = hit ?? null))
-			.catch(() => {});
+		if (target !== null) systems.ensure([target]);
 	});
+	const targetSystem = $derived(target === null ? null : (systems.get(target) ?? null));
 
 	function addRule() {
 		filters = [...filters, { subject: 'alliance', side: 'either', mode: 'include', ids: [] }];

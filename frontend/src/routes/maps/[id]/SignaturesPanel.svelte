@@ -6,12 +6,10 @@
 	import Rows2Icon from '@lucide/svelte/icons/rows-2';
 	import Rows3Icon from '@lucide/svelte/icons/rows-3';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
-	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import * as v from 'valibot';
-	import { readStored, sortSchema } from '$lib/storage';
+	import { readStored } from '$lib/storage';
+	import { sortState } from '$lib/sort-state.svelte';
 
-	import { browser } from '$app/environment';
 	import { toast } from 'svelte-sonner';
 
 	import { api } from '$lib/api/client';
@@ -26,16 +24,19 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import { CATEGORIES, loadCatalog, parseScan, typeById } from '$lib/map/signatures';
+	import {
+		CATEGORIES,
+		compareSignatures,
+		formatSignatureId,
+		loadCatalog,
+		parseScan,
+		typeById,
+	} from '$lib/map/signatures';
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
 	import type { SignatureContext } from '$lib/map/signature-context';
-	import SignatureColumns, {
-		SORT_COLUMNS,
-		type SortColumn,
-	} from '$lib/components/map-ui/SignatureColumns.svelte';
+	import SignatureColumns, { SORT_COLUMNS } from '$lib/components/map-ui/SignatureColumns.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
-	import { atLeast } from '$lib/map/roles';
 	import { solarSystemId, systemName } from '$lib/map/system';
 
 	let {
@@ -89,7 +90,7 @@
 	// A ghost has no system to scan against, so the panel says so instead of offering a
 	// paste box that the server would refuse.
 	const systemId = $derived(solarSystemId(system));
-	const canWrite = $derived(atLeast(map.data?.role, 'member') && systemId !== null);
+	const canWrite = $derived(map.canWrite && systemId !== null);
 	const compact = $derived(map.userSettings?.compact_signature_list ?? false);
 	const targetLabel = $derived.by(() => {
 		const name = systemName(system);
@@ -110,21 +111,7 @@
 	);
 
 	// Default: id desc, ties by id ascending, nulls last.
-	let sort = $state(
-		readStored('signatures-sort', sortSchema(SORT_COLUMNS), {
-			column: 'id',
-			direction: 'desc',
-		}),
-	);
-	$effect(() => {
-		localStorage.setItem('signatures-sort', JSON.stringify(sort));
-	});
-	function handleSort(column: SortColumn) {
-		sort =
-			sort.column === column
-				? { column, direction: sort.direction === 'asc' ? 'desc' : 'asc' }
-				: { column, direction: 'asc' };
-	}
+	const sort = sortState('signatures-sort', SORT_COLUMNS, { column: 'id', direction: 'desc' });
 
 	const mySigs = $derived(map.sigs.filter((s) => s.solar_system_id === systemId));
 	const filtered = $derived(mySigs.filter((s) => !hidden.includes(s.group)));
@@ -133,39 +120,11 @@
 	function typeName(s: Signature): string | null {
 		return (catalog && typeById(catalog, s.signature_type_id)?.name) ?? s.name;
 	}
-	// Wormhole ages run from creation; site ages from the last update.
-	function modifiedDate(s: Signature): number {
-		return Date.parse(s.group === 'wormhole' ? s.created_at : s.updated_at);
-	}
-	function cmpNullableStrings(a: string | null, b: string | null): number {
-		if (a === null && b === null) return 0;
-		if (a === null) return 1;
-		if (b === null) return -1;
-		return a.localeCompare(b);
-	}
 
 	const sorted = $derived.by(() => {
-		const dir = sort.direction === 'asc' ? 1 : -1;
+		const dir = sort.current.direction === 'asc' ? 1 : -1;
 		return filtered.toSorted((a, b) => {
-			let cmp = 0;
-			switch (sort.column) {
-				case 'id':
-					cmp = a.signature_id.localeCompare(b.signature_id);
-					break;
-				case 'category':
-					cmp = cmpNullableStrings(
-						a.group === 'unknown' ? null : a.group,
-						b.group === 'unknown' ? null : b.group,
-					);
-					break;
-				case 'type':
-					cmp = cmpNullableStrings(typeName(a), typeName(b));
-					break;
-				case 'age':
-					// Newest first in ascending order.
-					cmp = modifiedDate(b) - modifiedDate(a);
-					break;
-			}
+			const cmp = compareSignatures(a, b, sort.current.column, typeName);
 			if (cmp !== 0) return cmp * dir;
 			return a.signature_id.localeCompare(b.signature_id);
 		});
@@ -276,11 +235,6 @@
 		creating = true;
 		newId = '';
 		setTimeout(() => newInput?.focus());
-	}
-
-	function formatId(raw: string): string {
-		const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-		return clean.length >= 4 ? `${clean.slice(0, 3)}-${clean.slice(3, 6)}` : clean;
 	}
 
 	function saveNew() {
@@ -416,7 +370,7 @@
 			</div>
 		{:else}
 			<Tooltip.Provider delayDuration={300}>
-				<SignatureColumns {compact} {sort} onsort={handleSort} />
+				<SignatureColumns {compact} sort={sort.current} onsort={sort.toggle} />
 
 				{#if creating}
 					<div
@@ -428,7 +382,7 @@
 							<Input
 								bind:ref={newInput}
 								value={newId}
-								oninput={(e) => (newId = formatId(e.currentTarget.value))}
+								oninput={(e) => (newId = formatSignatureId(e.currentTarget.value))}
 								onblur={saveNew}
 								onkeydown={(e) => {
 									if (e.key === 'Enter') saveNew();
