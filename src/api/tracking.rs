@@ -9,7 +9,6 @@ use axum_extra::extract::CookieJar;
 use super::ApiResult;
 use super::extract::acting_on;
 use crate::auth::AppState;
-use crate::maps::MapEvent;
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/api/maps/{id}/track-jump", post(track_jump))
@@ -26,6 +25,5 @@ pub async fn track_jump(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::tracking::track_jump(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
 }

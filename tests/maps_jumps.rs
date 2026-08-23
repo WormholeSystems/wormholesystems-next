@@ -10,7 +10,7 @@ use wormholesystems::maps::jumps::{
     claim_pending, list_jumps, prune_unclaimed, record_transit, remove_jump, update_jump,
 };
 use wormholesystems::maps::solar_system::{AddSystem, add_system};
-use wormholesystems::maps::{Actor, ConnectionType, MapError, MapHub, Role};
+use wormholesystems::maps::{Actor, ConnectionType, MapError, Role};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     add_system(
@@ -239,7 +239,6 @@ async fn manual_jump_crud(pool: PgPool) {
 #[sqlx::test]
 async fn transit_capture_and_claiming(pool: PgPool) {
     let w = world(&pool).await;
-    let hub = MapHub::new();
     seed_ship(&pool, 587, "Rifter", 1_067_000.0).await;
     set_ship(&pool, w.owner.character_id, 587).await;
     allow_tracking(&pool, w.map_id, w.owner.user_id).await;
@@ -259,7 +258,7 @@ async fn transit_capture_and_claiming(pool: PgPool) {
     .execute(&pool)
     .await
     .unwrap();
-    record_transit(&pool, &hub, w.owner.character_id, SYS_A, SYS_C)
+    record_transit(&pool, w.owner.character_id, SYS_A, SYS_C)
         .await
         .unwrap();
     let count: i64 = sqlx::query_scalar("select count(*) from map_connection_jumps")
@@ -269,7 +268,7 @@ async fn transit_capture_and_claiming(pool: PgPool) {
     assert_eq!(count, 0);
 
     // A transit over the mapped hole lands claimed, with the tracked ship's mass.
-    record_transit(&pool, &hub, w.owner.character_id, SYS_B, SYS_A)
+    record_transit(&pool, w.owner.character_id, SYS_B, SYS_A)
         .await
         .unwrap();
     let row = sqlx::query!(
@@ -286,7 +285,7 @@ async fn transit_capture_and_claiming(pool: PgPool) {
 
     // An unmapped hole from a placed origin leaves a pending row, which a connection
     // created shortly after claims.
-    record_transit(&pool, &hub, w.owner.character_id, SYS_B, SYS_C)
+    record_transit(&pool, w.owner.character_id, SYS_B, SYS_C)
         .await
         .unwrap();
     let pending: i64 =
@@ -310,7 +309,7 @@ async fn transit_capture_and_claiming(pool: PgPool) {
         .execute(&pool)
         .await
         .unwrap();
-    record_transit(&pool, &hub, w.owner.character_id, SYS_A, SYS_B)
+    record_transit(&pool, w.owner.character_id, SYS_A, SYS_B)
         .await
         .unwrap();
     let total: i64 = sqlx::query_scalar("select count(*) from map_connection_jumps")

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select ss.id as \"solar_system_id!\", ss.name as \"name!\", r.name as \"region!\",\n                  ss.security_status as \"security!\", ss.region_id, ss.constellation_id,\n                  ss.wormhole_class_id, ws.effect_name,\n                  case\n                      when sov.alliance_id is not null then 'alliance'\n                      when sov.corporation_id is not null then 'corporation'\n                      when sov.faction_id is not null then 'faction'\n                  end as \"sov_kind?\",\n                  coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n                  coalesce(al.name, co.name, f.name) as \"sov_name?\",\n                  coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n           from solar_systems ss\n           join regions r on r.id = ss.region_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty sov on sov.solar_system_id = ss.id\n           left join alliances al on al.id = sov.alliance_id\n           left join corporations co on co.id = sov.corporation_id\n           left join factions f on f.id = sov.faction_id\n           where ss.name ilike $1 and ss.id <> all($2)\n           order by (ss.name ilike $3) desc, length(ss.name), ss.name\n           limit 10",
+  "query": "select ss.id as \"solar_system_id!\", ss.name as \"name!\", r.name as \"region!\",\n                  ss.security_status as \"security!\", ss.region_id, ss.constellation_id,\n                  ss.wormhole_class_id, ws.effect_name,\n                  sov.kind as \"sov_kind?\", sov.entity_id as \"sov_id?\",\n                  sov.name as \"sov_name?\", sov.ticker as \"sov_ticker?\"\n           from solar_systems ss\n           join regions r on r.id = ss.region_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id\n           where ss.name ilike $1 and ss.id <> all($2)\n           order by (ss.name ilike $3) desc, length(ss.name), ss.name\n           limit 10",
   "describe": {
     "columns": [
       {
@@ -95,25 +95,45 @@
         "ordinal": 8,
         "name": "sov_kind?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "kind"
+          }
+        }
       },
       {
         "ordinal": 9,
         "name": "sov_id?",
         "type_info": "Int8",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "entity_id"
+          }
+        }
       },
       {
         "ordinal": 10,
         "name": "sov_name?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "name"
+          }
+        }
       },
       {
         "ordinal": 11,
         "name": "sov_ticker?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "ticker"
+          }
+        }
       }
     ],
     "parameters": {
@@ -132,11 +152,11 @@
       false,
       true,
       true,
-      null,
-      null,
-      null,
-      null
+      true,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "7f214fe2ee7e6db7e0ce74e748e861c4818290a6bed05bc4ed4bf6f794fa1e5e"
+  "hash": "bc0d8dbf08f1c96bb02d34c343e5faa5ae0ebc9dff62ac8d8426769ce1a620f3"
 }

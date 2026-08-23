@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into map_connections (map_id, from_system, to_system, type, size)\n           values ($1, $2, $3, $4, $5)\n           returning id, map_id, from_system, to_system, type as kind,\n                     mass_status,\n                     time_status,\n                     size,\n                     (select count(*) from map_connection_jumps j\n                      where j.connection_id = map_connections.id) as \"jumps_count!\",\n                     coalesce((select sum(j.mass) from map_connection_jumps j\n                               where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                     preserve_mass, time_status_updated_at, created_at, updated_at",
+  "query": "select id, map_id, from_system, to_system, type as kind,\n                  mass_status,\n                  time_status,\n                  size,\n                  (select count(*) from map_connection_jumps j\n                   where j.connection_id = map_connections.id) as \"jumps_count!\",\n                  coalesce((select sum(j.mass) from map_connection_jumps j\n                            where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                  preserve_mass, time_status_updated_at, created_at, updated_at\n           from map_connections\n           where map_id = $1 and ($2::bigint is null or id = $2)\n           order by id",
   "describe": {
     "columns": [
       {
@@ -195,32 +195,7 @@
     "parameters": {
       "Left": [
         "Int8",
-        "Int8",
-        "Int8",
-        {
-          "Custom": {
-            "name": "connection_type",
-            "kind": {
-              "Enum": [
-                "wormhole",
-                "stargate"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "wormhole_size",
-            "kind": {
-              "Enum": [
-                "xl",
-                "large",
-                "medium",
-                "small"
-              ]
-            }
-          }
-        }
+        "Int8"
       ]
     },
     "nullable": [
@@ -240,5 +215,5 @@
       false
     ]
   },
-  "hash": "e24cc59e0db60067adcdae9a7443966d1f917ce08f5a6e57a954149eb8a8b33e"
+  "hash": "d11aaf9fcafb554399b0aee5e2952b52aed23b94171bcf49dda8f13fe1409b8c"
 }

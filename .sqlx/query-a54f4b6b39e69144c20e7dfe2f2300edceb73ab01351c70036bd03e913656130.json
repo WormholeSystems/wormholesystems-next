@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        -- `!` on what the inner join makes certain: sqlx reads nullability out of the query\n        -- plan, which changes shape on a table with no rows, so without these the build\n        -- depends on whether the universe happens to be seeded yet.\n        select s.id              as \"id!\",\n               s.name            as \"name!\",\n               s.security_status as \"security!\",\n               r.name            as \"region!\",\n               s.region_id       as \"region_id!\",\n               s.constellation_id as \"constellation_id!\",\n               s.wormhole_class_id,\n               ws.effect_name,\n               case\n                   when sov.alliance_id is not null then 'alliance'\n                   when sov.corporation_id is not null then 'corporation'\n                   when sov.faction_id is not null then 'faction'\n               end as \"sov_kind?\",\n               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n               coalesce(al.name, co.name, f.name) as \"sov_name?\",\n               coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n        from solar_systems s\n        join regions r on r.id = s.region_id\n        left join wormhole_systems ws on ws.solar_system_id = s.id\n        left join system_sovereignty sov on sov.solar_system_id = s.id\n        left join alliances al on al.id = sov.alliance_id\n        left join corporations co on co.id = sov.corporation_id\n        left join factions f on f.id = sov.faction_id\n        where s.id = any($1)",
+  "query": "\n        -- `!` on what the inner join makes certain: sqlx reads nullability out of the query\n        -- plan, which changes shape on a table with no rows, so without these the build\n        -- depends on whether the universe happens to be seeded yet.\n        select s.id              as \"id!\",\n               s.name            as \"name!\",\n               s.security_status as \"security!\",\n               r.name            as \"region!\",\n               s.region_id       as \"region_id!\",\n               s.constellation_id as \"constellation_id!\",\n               s.wormhole_class_id,\n               ws.effect_name,\n               sov.kind as \"sov_kind?\", sov.entity_id as \"sov_id?\",\n               sov.name as \"sov_name?\", sov.ticker as \"sov_ticker?\"\n        from solar_systems s\n        join regions r on r.id = s.region_id\n        left join wormhole_systems ws on ws.solar_system_id = s.id\n        left join system_sovereignty_resolved sov on sov.solar_system_id = s.id\n        where s.id = any($1)",
   "describe": {
     "columns": [
       {
@@ -95,25 +95,45 @@
         "ordinal": 8,
         "name": "sov_kind?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "kind"
+          }
+        }
       },
       {
         "ordinal": 9,
         "name": "sov_id?",
         "type_info": "Int8",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "entity_id"
+          }
+        }
       },
       {
         "ordinal": 10,
         "name": "sov_name?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "name"
+          }
+        }
       },
       {
         "ordinal": 11,
         "name": "sov_ticker?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "ticker"
+          }
+        }
       }
     ],
     "parameters": {
@@ -130,11 +150,11 @@
       false,
       true,
       true,
-      null,
-      null,
-      null,
-      null
+      true,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "76c95f74fb34a0c57f0055bb4fbfc59177289fa81c9310c60b84110059bb47a5"
+  "hash": "a54f4b6b39e69144c20e7dfe2f2300edceb73ab01351c70036bd03e913656130"
 }

@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use super::access::require_role;
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::{Actor, Role};
+use super::{Actor, MapEvent, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -82,7 +82,8 @@ pub(super) async fn apply_add_entry(tx: &mut Tx<'_>, cmd: AddWatchlistEntry) -> 
         "watched a system",
         CommandOutput::Watchlist(Box::new(entry)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(MapEvent::WatchlistChanged { map_id: cmd.map_id }))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -131,7 +132,8 @@ pub(super) async fn apply_set_pinned(tx: &mut Tx<'_>, cmd: SetWatchlistPinned) -
         label,
         CommandOutput::Watchlist(Box::new(entry)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(MapEvent::WatchlistChanged { map_id: cmd.map_id }))
 }
 
 fn label_kind(pinned: bool) -> &'static str {
@@ -181,5 +183,6 @@ pub(super) async fn apply_remove_entry(
         "unwatched a system",
         CommandOutput::None,
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(MapEvent::WatchlistChanged { map_id: cmd.map_id }))
 }

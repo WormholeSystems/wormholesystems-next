@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select\n               mss.id, mss.map_id, mss.solar_system_id, mss.position_x, mss.position_y,\n               mss.alias, mss.is_home, mss.is_rally, mss.is_pinned,\n               coalesce(d.status, 'unknown') as \"status!: super::SystemStatus\",\n               d.occupying_group,\n               ss.name as \"name?\", ss.security_status as \"security_status?\",\n               ss.wormhole_class_id,\n               r.name as \"region?\", ss.region_id as \"region_id?\",\n               ss.constellation_id as \"constellation_id?\", c.name as \"constellation?\",\n               ws.effect_name,\n               coalesce(ws.is_shattered, false) as \"is_shattered!\",\n               ws.threat_level as \"threat_level?: super::ThreatLevel\",\n               -- Sovereignty holder, alliance preferred over corp over faction.\n               case\n                   when sov.alliance_id is not null then 'alliance'\n                   when sov.corporation_id is not null then 'corporation'\n                   when sov.faction_id is not null then 'faction'\n               end as \"sov_kind?\",\n               coalesce(sov.alliance_id, sov.corporation_id, sov.faction_id) as \"sov_id?\",\n               coalesce(al.name, co.name, f.name) as \"sov_name?\",\n               coalesce(al.ticker, co.ticker) as \"sov_ticker?\"\n           from map_solar_systems mss\n           -- Left joins throughout: a ghost placement has no system to join to.\n           left join solar_systems ss on ss.id = mss.solar_system_id\n           left join regions r on r.id = ss.region_id\n           left join constellations c on c.id = ss.constellation_id\n           left join map_solar_system_details d\n               on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty sov on sov.solar_system_id = ss.id\n           left join alliances al on al.id = sov.alliance_id\n           left join corporations co on co.id = sov.corporation_id\n           left join factions f on f.id = sov.faction_id\n           where mss.map_id = $1\n           order by mss.id",
+  "query": "select\n               mss.id, mss.map_id, mss.solar_system_id, mss.position_x, mss.position_y,\n               mss.alias, mss.is_home, mss.is_rally, mss.is_pinned,\n               coalesce(d.status, 'unknown') as \"status!: super::SystemStatus\",\n               d.occupying_group,\n               ss.name as \"name?\", ss.security_status as \"security_status?\",\n               ss.wormhole_class_id,\n               r.name as \"region?\", ss.region_id as \"region_id?\",\n               ss.constellation_id as \"constellation_id?\", c.name as \"constellation?\",\n               ws.effect_name,\n               coalesce(ws.is_shattered, false) as \"is_shattered!\",\n               ws.threat_level as \"threat_level?: super::ThreatLevel\",\n               sov.kind as \"sov_kind?\", sov.entity_id as \"sov_id?\",\n               sov.name as \"sov_name?\", sov.ticker as \"sov_ticker?\"\n           from map_solar_systems mss\n           -- Left joins throughout: a ghost placement has no system to join to.\n           left join solar_systems ss on ss.id = mss.solar_system_id\n           left join regions r on r.id = ss.region_id\n           left join constellations c on c.id = ss.constellation_id\n           left join map_solar_system_details d\n               on d.map_id = mss.map_id and d.solar_system_id = mss.solar_system_id\n           left join wormhole_systems ws on ws.solar_system_id = ss.id\n           left join system_sovereignty_resolved sov on sov.solar_system_id = ss.id\n           where mss.map_id = $1\n           order by mss.id",
   "describe": {
     "columns": [
       {
@@ -253,25 +253,45 @@
         "ordinal": 21,
         "name": "sov_kind?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "kind"
+          }
+        }
       },
       {
         "ordinal": 22,
         "name": "sov_id?",
         "type_info": "Int8",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "entity_id"
+          }
+        }
       },
       {
         "ordinal": 23,
         "name": "sov_name?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "name"
+          }
+        }
       },
       {
         "ordinal": 24,
         "name": "sov_ticker?",
         "type_info": "Text",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "system_sovereignty_resolved",
+            "name": "ticker"
+          }
+        }
       }
     ],
     "parameters": {
@@ -301,11 +321,11 @@
       true,
       null,
       false,
-      null,
-      null,
-      null,
-      null
+      true,
+      true,
+      true,
+      true
     ]
   },
-  "hash": "f2521b9cb1b61344d9f899bfffe0ec65cae1c0943ca0ebe0c23e43c339040216"
+  "hash": "fd16a15190f7edf895a48318dfa5a945c76028cbe78e33f66f2ba6b2a5194bc2"
 }

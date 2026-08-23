@@ -152,7 +152,7 @@ async fn main() {
     );
     let auth = Arc::new(Auth::new(sso.clone(), esi.clone()));
 
-    let hub = wormholesystems::maps::MapHub::new();
+    let hub = wormholesystems::maps::hub().clone();
     let user_hub = wormholesystems::user_channel::UserHub::new();
 
     // Background: is Tranquility up? Everything below that talks to ESI gates on it, so it

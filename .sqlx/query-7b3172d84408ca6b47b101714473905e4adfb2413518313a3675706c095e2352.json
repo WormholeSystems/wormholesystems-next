@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update map_connections\n         set type = $1, mass_status = $2, time_status = $3, size = $4, preserve_mass = $5\n         where id = $6 and map_id = $7",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7b3172d84408ca6b47b101714473905e4adfb2413518313a3675706c095e2352"
+}

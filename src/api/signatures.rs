@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use super::extract::{ShareQuery, acting_on, read_map_as};
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
+use crate::maps::Signature;
 use crate::maps::signatures::{
     AddSignature, LinkSignature, PasteSignatures, RemoveSignature, RemoveSignatures,
     UnlinkSignature, UpdateSignature,
 };
-use crate::maps::{MapEvent, Signature};
 
 /// A cosmic-signature category from the seeded catalog.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -90,10 +90,6 @@ pub async fn add_signature(
 ) -> ApiResult<Signature> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::add_signature(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SignatureChanged {
-        map_id: sig.map_id,
-        solar_system_id: sig.solar_system_id,
-    });
     Ok(Json(sig))
 }
 
@@ -104,12 +100,7 @@ pub async fn paste_signatures(
     Json(cmd): Json<PasteSignatures>,
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
-    let solar_system_id = cmd.solar_system_id;
     crate::maps::signatures::paste_signatures(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SignatureChanged {
-        map_id,
-        solar_system_id,
-    });
     Ok(Json(()))
 }
 
@@ -121,16 +112,6 @@ pub async fn update_signature(
 ) -> ApiResult<Signature> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::update_signature(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SignatureChanged {
-        map_id: sig.map_id,
-        solar_system_id: sig.solar_system_id,
-    });
-    if let Some(connection_id) = sig.connection_id {
-        state.hub.publish(MapEvent::ConnectionChanged {
-            map_id: sig.map_id,
-            connection_id,
-        });
-    }
     Ok(Json(sig))
 }
 
@@ -141,16 +122,7 @@ pub async fn link_signature(
     Json(cmd): Json<LinkSignature>,
 ) -> ApiResult<Signature> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
-    let connection_id = cmd.connection_id;
     let sig = crate::maps::signatures::link_signature(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SignatureChanged {
-        map_id: sig.map_id,
-        solar_system_id: sig.solar_system_id,
-    });
-    state.hub.publish(MapEvent::ConnectionChanged {
-        map_id: sig.map_id,
-        connection_id,
-    });
     Ok(Json(sig))
 }
 
@@ -162,10 +134,6 @@ pub async fn unlink_signature(
 ) -> ApiResult<Signature> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::unlink_signature(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SignatureChanged {
-        map_id: sig.map_id,
-        solar_system_id: sig.solar_system_id,
-    });
     Ok(Json(sig))
 }
 
@@ -176,23 +144,7 @@ pub async fn remove_signature(
     Json(cmd): Json<RemoveSignature>,
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
-    let outcome = crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::SignatureChanged {
-        map_id,
-        solar_system_id: outcome.solar_system_id,
-    });
-    if let Some(connection_id) = outcome.removed_connection_id {
-        state.hub.publish(MapEvent::ConnectionChanged {
-            map_id,
-            connection_id,
-        });
-    }
-    for map_solar_system_id in outcome.removed_placement_ids {
-        state.hub.publish(MapEvent::SystemRemoved {
-            map_id,
-            map_solar_system_id,
-        });
-    }
+    crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
@@ -205,25 +157,7 @@ pub async fn remove_signatures_bulk(
     Json(cmd): Json<RemoveSignatures>,
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
-    let outcome = crate::maps::signatures::remove_signatures(&state.db, actor, cmd).await?;
-    for solar_system_id in outcome.systems {
-        state.hub.publish(MapEvent::SignatureChanged {
-            map_id,
-            solar_system_id,
-        });
-    }
-    for connection_id in outcome.removed_connection_ids {
-        state.hub.publish(MapEvent::ConnectionChanged {
-            map_id,
-            connection_id,
-        });
-    }
-    for map_solar_system_id in outcome.removed_placement_ids {
-        state.hub.publish(MapEvent::SystemRemoved {
-            map_id,
-            map_solar_system_id,
-        });
-    }
+    crate::maps::signatures::remove_signatures(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 

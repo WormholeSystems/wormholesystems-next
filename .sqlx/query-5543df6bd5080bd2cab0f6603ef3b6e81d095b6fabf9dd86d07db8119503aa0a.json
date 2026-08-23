@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into signatures\n               (map_id, solar_system_id, signature_id, \"group\", signature_type_id, name,\n                size, mass_status, time_status, time_status_updated_at)\n           values ($1, $2, $3, $4, $5, $6, $7, $8, $9,\n                   -- $9 is the lifetime, whose type the parameter already fixes; naming it\n                   -- again as text is what made the two deductions disagree.\n                   case when $9::time_status is not null then now() end)\n           returning id, map_id, solar_system_id, signature_id, \"group\",\n                     signature_type_id, name, size,\n                     mass_status,\n                     time_status,\n                     time_status_updated_at, connection_id, created_at, updated_at",
+  "query": "insert into signatures\n               (map_id, solar_system_id, signature_id, \"group\", signature_type_id, name,\n                size, mass_status, time_status, time_status_updated_at)\n           values ($1, $2, $3, $4, $5, $6, $7, $8, $9,\n                   case when $9::time_status is not null then now() end)\n           returning id, map_id, solar_system_id, signature_id, \"group\",\n                     signature_type_id, name, size,\n                     mass_status,\n                     time_status,\n                     time_status_updated_at, connection_id, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -288,5 +288,5 @@
       false
     ]
   },
-  "hash": "476732eefbcb7389a48d785e5d7ada0d090e60a4ccbee13a0511904c9c109425"
+  "hash": "5543df6bd5080bd2cab0f6603ef3b6e81d095b6fabf9dd86d07db8119503aa0a"
 }

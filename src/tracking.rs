@@ -286,8 +286,7 @@ async fn poll_location_ship(
         if let Some(prev) = row.prev_solar_system_id
             && prev != location.solar_system_id
             && let Err(err) =
-                crate::maps::jumps::record_transit(&pool, &maps, id, prev, location.solar_system_id)
-                    .await
+                crate::maps::jumps::record_transit(&pool, id, prev, location.solar_system_id).await
         {
             eprintln!("jump capture failed for character {id}: {err}");
         }

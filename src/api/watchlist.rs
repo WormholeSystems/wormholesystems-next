@@ -9,7 +9,6 @@ use axum_extra::extract::CookieJar;
 use super::ApiResult;
 use super::extract::{ShareQuery, acting_on, read_map_as};
 use crate::auth::AppState;
-use crate::maps::MapEvent;
 use crate::maps::watchlist::{
     AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned, WatchlistEntry,
 };
@@ -48,7 +47,6 @@ pub async fn add_watchlist_entry(
 ) -> ApiResult<WatchlistEntry> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let entry = crate::maps::watchlist::add_watchlist_entry(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::WatchlistChanged { map_id });
     Ok(Json(entry))
 }
 
@@ -60,7 +58,6 @@ pub async fn set_watchlist_pinned(
 ) -> ApiResult<WatchlistEntry> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let entry = crate::maps::watchlist::set_watchlist_pinned(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::WatchlistChanged { map_id });
     Ok(Json(entry))
 }
 
@@ -72,6 +69,5 @@ pub async fn remove_watchlist_entry(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::watchlist::remove_watchlist_entry(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::WatchlistChanged { map_id });
     Ok(Json(()))
 }

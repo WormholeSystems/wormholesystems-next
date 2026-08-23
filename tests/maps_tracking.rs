@@ -276,7 +276,6 @@ async fn a_viewer_cannot_build_the_chain(pool: PgPool) {
 #[sqlx::test]
 async fn the_connection_claims_the_transit_recorded_before_it_existed(pool: PgPool) {
     let w = world(&pool).await;
-    let hub = wormholesystems::maps::MapHub::new();
     let a = place(&pool, w.owner, w.map_id, SYS_A, 0.0).await;
 
     sqlx::query(
@@ -316,7 +315,7 @@ async fn the_connection_claims_the_transit_recorded_before_it_existed(pool: PgPo
     .unwrap();
 
     // The pilot flies through before the hole is on the map.
-    wormholesystems::maps::jumps::record_transit(&pool, &hub, w.owner.character_id, SYS_A, SYS_B)
+    wormholesystems::maps::jumps::record_transit(&pool, w.owner.character_id, SYS_A, SYS_B)
         .await
         .unwrap();
     let pending: i64 =

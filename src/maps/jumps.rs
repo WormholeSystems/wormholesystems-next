@@ -17,7 +17,7 @@ use sqlx::PgPool;
 use super::access::{effective_role, require_role};
 use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
-use super::{Actor, MapEvent, MapHub, Role};
+use super::{Actor, MapEvent, Role};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -155,12 +155,17 @@ pub(super) async fn apply_add_jump(tx: &mut Tx<'_>, cmd: AddConnectionJump) -> R
         map_id: cmd.map_id,
         jump_pk: id,
     });
+    let event = MapEvent::ConnectionChanged {
+        map_id: cmd.map_id,
+        connection_id: cmd.connection_id,
+    };
     Ok(Effect::new(
         "jumps.logged",
         "logged a jump",
         CommandOutput::Jump(Box::new(jump)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(event))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -254,12 +259,17 @@ pub(super) async fn apply_update_jump(
         ship_type_id: Some(current.ship_type_id),
         mass: Some(current.mass),
     });
+    let event = MapEvent::ConnectionChanged {
+        map_id: cmd.map_id,
+        connection_id,
+    };
     Ok(Effect::new(
         "jumps.updated",
         "edited a jump",
         CommandOutput::Jump(Box::new(jump)),
     )
-    .undo_with(inverse))
+    .undo_with(inverse)
+    .emit(event))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -294,11 +304,18 @@ pub(super) async fn apply_remove_jump(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(MapError::NotFound)?;
-    Ok(Effect::new(
+    let mut effect = Effect::new(
         "jumps.removed",
         "removed a jump",
         CommandOutput::Count(row.connection_id.unwrap_or(0) as u64),
-    ))
+    );
+    if let Some(connection_id) = row.connection_id {
+        effect = effect.emit(MapEvent::ConnectionChanged {
+            map_id: cmd.map_id,
+            connection_id,
+        });
+    }
+    Ok(effect)
 }
 
 /// The latest 10 jumps of a connection, newest first (the counts on the connection are
@@ -372,7 +389,6 @@ const UNCLAIMED_LIFETIME_MINUTES: i32 = 10;
 /// callers log-and-continue.
 pub async fn record_transit(
     pool: &PgPool,
-    hub: &MapHub,
     character_id: i64,
     from_solar_system_id: i64,
     to_solar_system_id: i64,
@@ -490,7 +506,7 @@ pub async fn record_transit(
         .execute(pool)
         .await?;
         if let Some(connection_id) = connection_id {
-            hub.publish(MapEvent::ConnectionChanged {
+            super::hub().publish(MapEvent::ConnectionChanged {
                 map_id,
                 connection_id,
             });
