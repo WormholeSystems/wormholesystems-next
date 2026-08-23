@@ -37,7 +37,7 @@ cat ~/.ssh/id_ed25519.pub
 Install `wsctl`, the setup tool:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://install.wormhole.systems | sh
+curl --proto '=https' --tlsv1.2 -sSf https://install-next.wormhole.systems | sh
 ```
 
 It works out this machine's platform, drops the binary in `/usr/local/bin`, and offers to

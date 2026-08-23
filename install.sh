@@ -1,7 +1,7 @@
 #!/bin/sh
 # One-line installer for wsctl, the WormholeSystems setup tool:
 #
-#   curl --proto '=https' --tlsv1.2 -sSf https://install.wormhole.systems | sh
+#   curl --proto '=https' --tlsv1.2 -sSf https://install-next.wormhole.systems | sh
 #
 # Pin a version with WSCTL_VERSION=v0.1.0. Choose where it lands with WSCTL_BIN_DIR.
 set -eu
