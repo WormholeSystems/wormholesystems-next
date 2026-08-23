@@ -136,29 +136,46 @@ async fn load(pool: &PgPool, map_id: i64) -> Result<Vec<MapAlert>, ApiError> {
     .await?;
     Ok(rows
         .into_iter()
-        .map(|row| MapAlert {
-            id: row.id,
-            map_id: row.map_id,
-            name: row.name,
-            kind: AlertKind::parse(&row.kind).unwrap_or(AlertKind::Killmail),
-            delivery: AlertDelivery::parse(&row.delivery).unwrap_or(AlertDelivery::Webhook),
-            map_webhook_id: row.map_webhook_id,
-            webhook_name: row.webhook_name,
-            discord_channel_id: row.discord_channel_id,
-            map_webhook_role_id: row.map_webhook_role_id,
-            role_name: row.role_name,
-            mention: AlertMention::parse(&row.mention).unwrap_or(AlertMention::None),
-            target_solar_system_id: row.target_solar_system_id,
-            target_system_name: row.target_system_name,
-            max_jumps: row.max_jumps,
-            ship_type: row.ship_type.as_deref().and_then(JumpShip::parse),
-            jdc_level: row.jdc_level,
-            filters: serde_json::from_value(row.filters).unwrap_or_default(),
-            filter_match: filters::Match::parse(&row.filter_match).unwrap_or(filters::Match::Any),
-            is_active: row.is_active,
-            disabled_reason: row.disabled_reason,
-            last_fired_at: row.last_fired_at,
-            created_at: row.created_at,
+        .filter_map(|row| {
+            // Same rule as `alerts::active`: a row that no longer decodes is skipped
+            // loudly, never shown with made-up settings the next save would write back.
+            let (Some(kind), Some(delivery), Some(mention), Some(filter_match), Ok(filters)) = (
+                AlertKind::from_db(&row.kind),
+                AlertDelivery::from_db(&row.delivery),
+                AlertMention::from_db(&row.mention),
+                filters::Match::from_db(&row.filter_match),
+                serde_json::from_value(row.filters),
+            ) else {
+                eprintln!(
+                    "alerts: hiding alert {} ({}): row does not decode",
+                    row.id, row.name
+                );
+                return None;
+            };
+            Some(MapAlert {
+                id: row.id,
+                map_id: row.map_id,
+                name: row.name,
+                kind,
+                delivery,
+                map_webhook_id: row.map_webhook_id,
+                webhook_name: row.webhook_name,
+                discord_channel_id: row.discord_channel_id,
+                map_webhook_role_id: row.map_webhook_role_id,
+                role_name: row.role_name,
+                mention,
+                target_solar_system_id: row.target_solar_system_id,
+                target_system_name: row.target_system_name,
+                max_jumps: row.max_jumps,
+                ship_type: row.ship_type.as_deref().and_then(JumpShip::from_db),
+                jdc_level: row.jdc_level,
+                filters,
+                filter_match,
+                is_active: row.is_active,
+                disabled_reason: row.disabled_reason,
+                last_fired_at: row.last_fired_at,
+                created_at: row.created_at,
+            })
         })
         .collect())
 }

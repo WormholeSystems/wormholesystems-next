@@ -38,29 +38,11 @@ pub enum Mode {
     Exclude,
 }
 
-/// How include rules combine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum Match {
-    Any,
-    All,
-}
-
-impl Match {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Match::Any => "any",
-            Match::All => "all",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<Match> {
-        match value {
-            "any" => Some(Match::Any),
-            "all" => Some(Match::All),
-            _ => None,
-        }
+crate::maps::text_enum! {
+    /// How include rules combine.
+    pub enum Match {
+        Any => "any",
+        All => "all",
     }
 }
 

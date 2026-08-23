@@ -12,7 +12,6 @@ pub mod place;
 pub mod proximity;
 pub mod ships;
 
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 /// The stargate graph and HTTP client, held for the life of the process so neither is
@@ -85,69 +84,31 @@ pub fn start(pool: PgPool, hub: crate::maps::MapHub, runtime: std::sync::Arc<Run
     });
 }
 
-/// What an alert watches for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum AlertKind {
-    /// Something died within reach of the chain.
-    Killmail,
-    /// A system came within reach of the chain.
-    Proximity,
-    /// A system came within capital jump range of a k-space exit.
-    JumpRange,
-}
-
-impl AlertKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            AlertKind::Killmail => "killmail",
-            AlertKind::Proximity => "proximity",
-            AlertKind::JumpRange => "jump_range",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<AlertKind> {
-        match value {
-            "killmail" => Some(AlertKind::Killmail),
-            "proximity" => Some(AlertKind::Proximity),
-            "jump_range" => Some(AlertKind::JumpRange),
-            _ => None,
-        }
+crate::maps::text_enum! {
+    /// What an alert watches for.
+    pub enum AlertKind {
+        /// Something died within reach of the chain.
+        Killmail => "killmail",
+        /// A system came within reach of the chain.
+        Proximity => "proximity",
+        /// A system came within capital jump range of a k-space exit.
+        JumpRange => "jump_range",
     }
 }
 
-/// Where the message goes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum AlertDelivery {
-    /// A channel webhook URL, which needs no bot and no permissions.
-    Webhook,
-    /// A direct message to whoever created the alert.
-    DiscordDm,
-    /// A channel the bot can post in.
-    DiscordChannel,
+crate::maps::text_enum! {
+    /// Where the message goes.
+    pub enum AlertDelivery {
+        /// A channel webhook URL, which needs no bot and no permissions.
+        Webhook => "webhook",
+        /// A direct message to whoever created the alert.
+        DiscordDm => "discord_dm",
+        /// A channel the bot can post in.
+        DiscordChannel => "discord_channel",
+    }
 }
 
 impl AlertDelivery {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            AlertDelivery::Webhook => "webhook",
-            AlertDelivery::DiscordDm => "discord_dm",
-            AlertDelivery::DiscordChannel => "discord_channel",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<AlertDelivery> {
-        match value {
-            "webhook" => Some(AlertDelivery::Webhook),
-            "discord_dm" => Some(AlertDelivery::DiscordDm),
-            "discord_channel" => Some(AlertDelivery::DiscordChannel),
-            _ => None,
-        }
-    }
-
     /// Whether delivery needs the bot rather than a webhook URL.
     pub fn needs_bot(self) -> bool {
         matches!(
@@ -157,59 +118,26 @@ impl AlertDelivery {
     }
 }
 
-/// Who gets pinged when an alert fires.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum AlertMention {
-    None,
-    /// Whoever created the alert, by their linked Discord account.
-    Creator,
-    /// The configured role.
-    Role,
-    Everyone,
-}
-
-impl AlertMention {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            AlertMention::None => "none",
-            AlertMention::Creator => "creator",
-            AlertMention::Role => "role",
-            AlertMention::Everyone => "everyone",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<AlertMention> {
-        match value {
-            "none" => Some(AlertMention::None),
-            "creator" => Some(AlertMention::Creator),
-            "role" => Some(AlertMention::Role),
-            "everyone" => Some(AlertMention::Everyone),
-            _ => None,
-        }
+crate::maps::text_enum! {
+    /// Who gets pinged when an alert fires.
+    pub enum AlertMention {
+        None => "none",
+        /// Whoever created the alert, by their linked Discord account.
+        Creator => "creator",
+        /// The configured role.
+        Role => "role",
+        Everyone => "everyone",
     }
 }
 
-/// Why an alert stopped firing, so the settings page can say more than "off".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DisabledReason {
-    Manual,
-    DiscordUnlinked,
-    AccessRevoked,
-    DestinationGone,
-    DeliveryFailed,
-}
-
-impl DisabledReason {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            DisabledReason::Manual => "manual",
-            DisabledReason::DiscordUnlinked => "discord_unlinked",
-            DisabledReason::AccessRevoked => "access_revoked",
-            DisabledReason::DestinationGone => "destination_gone",
-            DisabledReason::DeliveryFailed => "delivery_failed",
-        }
+crate::maps::text_enum! {
+    /// Why an alert stopped firing, so the settings page can say more than "off".
+    pub enum DisabledReason {
+        Manual => "manual",
+        DiscordUnlinked => "discord_unlinked",
+        AccessRevoked => "access_revoked",
+        DestinationGone => "destination_gone",
+        DeliveryFailed => "delivery_failed",
     }
 }
 
@@ -242,7 +170,7 @@ pub struct Alert {
 /// killmail arrives without knowing which maps care, and there are tens of alerts in total.
 pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> {
     let rows = sqlx::query!(
-        r#"select a.id, a.map_id, a.created_by_user_id, a.name, a.kind, a.delivery,
+        r#"select a.id, a.map_id, a.created_by_user_id, a.name, a.delivery,
                   w.url as "webhook_url?",
                   a.discord_guild_id, a.discord_channel_id,
                   r.discord_role_id as "discord_role_id?",
@@ -259,25 +187,42 @@ pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> 
     .await?;
     Ok(rows
         .into_iter()
-        .map(|row| Alert {
-            id: row.id,
-            map_id: row.map_id,
-            created_by_user_id: row.created_by_user_id,
-            name: row.name,
-            kind: AlertKind::parse(&row.kind).unwrap_or(kind),
-            delivery: AlertDelivery::parse(&row.delivery).unwrap_or(AlertDelivery::Webhook),
-            webhook_url: row.webhook_url,
-            discord_guild_id: row.discord_guild_id,
-            discord_channel_id: row.discord_channel_id,
-            discord_role_id: row.discord_role_id,
-            mention: AlertMention::parse(&row.mention).unwrap_or(AlertMention::None),
-            target_solar_system_id: row.target_solar_system_id,
-            max_jumps: row.max_jumps,
-            ship_type: row.ship_type.as_deref().and_then(ships::JumpShip::parse),
-            jdc_level: row.jdc_level,
-            filters: serde_json::from_value(row.filters).unwrap_or_default(),
-            filter_match: filters::Match::parse(&row.filter_match).unwrap_or(filters::Match::Any),
-            is_active: row.is_active,
+        .filter_map(|row| {
+            // A row that no longer decodes is skipped loudly rather than coerced into a
+            // default: a corrupt `delivery` must not quietly become a webhook post, and
+            // corrupt `filters` must not become "match every kill".
+            let (Some(delivery), Some(mention), Some(filter_match), Ok(filters)) = (
+                AlertDelivery::from_db(&row.delivery),
+                AlertMention::from_db(&row.mention),
+                filters::Match::from_db(&row.filter_match),
+                serde_json::from_value(row.filters),
+            ) else {
+                eprintln!(
+                    "alerts: skipping alert {} ({}): row does not decode",
+                    row.id, row.name
+                );
+                return None;
+            };
+            Some(Alert {
+                id: row.id,
+                map_id: row.map_id,
+                created_by_user_id: row.created_by_user_id,
+                name: row.name,
+                kind,
+                delivery,
+                webhook_url: row.webhook_url,
+                discord_guild_id: row.discord_guild_id,
+                discord_channel_id: row.discord_channel_id,
+                discord_role_id: row.discord_role_id,
+                mention,
+                target_solar_system_id: row.target_solar_system_id,
+                max_jumps: row.max_jumps,
+                ship_type: row.ship_type.as_deref().and_then(ships::JumpShip::from_db),
+                jdc_level: row.jdc_level,
+                filters,
+                filter_match,
+                is_active: row.is_active,
+            })
         })
         .collect())
 }

@@ -4,20 +4,17 @@
 //! reaches the same distance, so the choice a person makes is "a dreadnought", not "a
 //! Naglfar". Jump Drive Calibration then adds 20% of the base range per level.
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
-#[serde(rename_all = "snake_case")]
-#[ts(export)]
-pub enum JumpShip {
-    Dreadnought,
-    Carrier,
-    ForceAuxiliary,
-    Supercarrier,
-    Titan,
-    JumpFreighter,
-    Rorqual,
-    BlackOps,
+crate::maps::text_enum! {
+    pub enum JumpShip {
+        Dreadnought => "dreadnought",
+        Carrier => "carrier",
+        ForceAuxiliary => "force_auxiliary",
+        Supercarrier => "supercarrier",
+        Titan => "titan",
+        JumpFreighter => "jump_freighter",
+        Rorqual => "rorqual",
+        BlackOps => "black_ops",
+    }
 }
 
 impl JumpShip {
@@ -31,23 +28,6 @@ impl JumpShip {
         JumpShip::Rorqual,
         JumpShip::BlackOps,
     ];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            JumpShip::Dreadnought => "dreadnought",
-            JumpShip::Carrier => "carrier",
-            JumpShip::ForceAuxiliary => "force_auxiliary",
-            JumpShip::Supercarrier => "supercarrier",
-            JumpShip::Titan => "titan",
-            JumpShip::JumpFreighter => "jump_freighter",
-            JumpShip::Rorqual => "rorqual",
-            JumpShip::BlackOps => "black_ops",
-        }
-    }
-
-    pub fn parse(value: &str) -> Option<JumpShip> {
-        JumpShip::ALL.into_iter().find(|s| s.as_str() == value)
-    }
 
     pub fn label(self) -> &'static str {
         match self {
@@ -143,8 +123,8 @@ mod tests {
     #[test]
     fn every_ship_round_trips_through_its_stored_name() {
         for ship in JumpShip::ALL {
-            assert_eq!(JumpShip::parse(ship.as_str()), Some(ship));
+            assert_eq!(JumpShip::from_db(ship.as_str()), Some(ship));
         }
-        assert_eq!(JumpShip::parse("frigate"), None);
+        assert_eq!(JumpShip::from_db("frigate"), None);
     }
 }

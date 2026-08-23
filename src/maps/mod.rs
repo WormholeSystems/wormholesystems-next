@@ -40,10 +40,12 @@ where
 }
 
 /// A Rust enum stored as `text` (per the schema's [enum convention](../../docs/database/README.md)).
-/// Generates the variants, `as_str` / `from_db`, and the sqlx glue so the enum binds and
-/// decodes directly in queries. Variant order is the `Ord` order: used for `Role`.
+/// Generates the variants, `as_str` / `from_db`, and (for the `as "pg_type"` form) the sqlx
+/// glue so the enum binds and decodes directly in queries. Columns typed plain `text` use
+/// the form without a pg type and go through `as_str` / `from_db` by hand. Variant order is
+/// the `Ord` order: used for `Role`.
 macro_rules! text_enum {
-    ($(#[$m:meta])* $vis:vis enum $name:ident as $pg:literal { $($variant:ident => $s:literal),+ $(,)? }) => {
+    ($(#[$m:meta])* $vis:vis enum $name:ident as $pg:literal { $($(#[$vm:meta])* $variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
         // snake_case rather than lowercase: it agrees with the string each variant maps to,
         // which lowercase does not once a variant is two words (`LessSecure`). serde and
@@ -52,8 +54,20 @@ macro_rules! text_enum {
         #[serde(rename_all = "snake_case")]
         #[sqlx(type_name = $pg, rename_all = "snake_case")]
         #[ts(export)]
-        $vis enum $name { $($variant),+ }
+        $vis enum $name { $($(#[$vm])* $variant),+ }
 
+        crate::maps::text_enum!(@impl $name { $($variant => $s),+ });
+    };
+    ($(#[$m:meta])* $vis:vis enum $name:ident { $($(#[$vm:meta])* $variant:ident => $s:literal),+ $(,)? }) => {
+        $(#[$m])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+        #[serde(rename_all = "snake_case")]
+        #[ts(export)]
+        $vis enum $name { $($(#[$vm])* $variant),+ }
+
+        crate::maps::text_enum!(@impl $name { $($variant => $s),+ });
+    };
+    (@impl $name:ident { $($variant:ident => $s:literal),+ }) => {
         impl $name {
             /// The label, for the places that are writing it out rather than binding it.
             pub fn as_str(self) -> &'static str {
@@ -65,6 +79,8 @@ macro_rules! text_enum {
         }
     };
 }
+
+pub(crate) use text_enum;
 
 text_enum! {
     /// A map access role, ordered `Viewer < Member < Manager < Owner`.
