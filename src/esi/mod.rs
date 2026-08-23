@@ -19,7 +19,6 @@ pub mod sovereignty;
 pub mod status;
 pub mod ui;
 
-#[allow(unused_imports)]
 pub use {
     character::{CharacterLocation, CharacterOnline, CharacterPublic, CharacterShip},
     entities::{Affiliation, Alliance, Corporation},
