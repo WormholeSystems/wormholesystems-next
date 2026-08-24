@@ -1,10 +1,11 @@
 <script lang="ts">
 	// The signature panel's own rows, driven by static data and given no actions, so what a
 	// visitor sees is what the product renders rather than a mock-up of it.
-	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import SignatureColumns from '$lib/components/map-ui/SignatureColumns.svelte';
-	import { loadCatalog } from '$lib/map/signatures';
 	import type { SignatureContext } from '$lib/map/signature-context';
 	import SignatureRow from './maps/[id]/signatures/SignatureRow.svelte';
 	import { DEMO_CONNECTIONS, DEMO_SIGNATURES, DEMO_SYSTEMS, HOME_SYSTEM } from './demo-chain';
@@ -17,12 +18,8 @@
 	};
 	const system = HOME_SYSTEM;
 
-	let catalog = $state<SignatureCatalog | null>(null);
-	$effect(() => {
-		loadCatalog()
-			.then((c) => (catalog = c))
-			.catch(() => {});
-	});
+	const catalogQuery = createQuery(() => q.signatureCatalog());
+	const catalog = $derived(catalogQuery.data ?? null);
 </script>
 
 <div class="overflow-hidden rounded border border-border bg-card">

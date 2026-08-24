@@ -53,7 +53,7 @@
 		map
 			.patchUserSettings({ [key]: !current[key] })
 			.then(() => {
-				if (key === 'tracking_allowed') map.fetchCharacters();
+				if (key === 'tracking_allowed') map.refreshCharacters();
 			})
 			.catch(() => {});
 	}

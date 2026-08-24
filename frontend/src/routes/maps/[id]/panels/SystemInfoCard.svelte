@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { api } from '$lib/api/client';
-	import type { EffectModifier } from '$lib/api/types/EffectModifier';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import * as Popover from '$lib/components/ui/popover';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -25,17 +26,11 @@
 
 	const effectColor = $derived(effectTextColor(mapped?.effect_name ?? null));
 
-	let mods = $state<EffectModifier[]>([]);
-	$effect(() => {
-		mods = [];
-		const effect = mapped?.effect_name;
-		if (effect) {
-			api
-				.effectModifiers(effect, mapped?.wormhole_class_id ?? 0)
-				.then((m) => (mods = m))
-				.catch(() => {});
-		}
-	});
+	const modsQuery = createQuery(() => ({
+		...q.effectModifiers(mapped?.effect_name ?? '', mapped?.wormhole_class_id ?? 0),
+		enabled: Boolean(mapped?.effect_name),
+	}));
+	const mods = $derived(mapped?.effect_name ? (modsQuery.data ?? []) : []);
 
 	const dotlanUrl = $derived.by(() => {
 		if (!mapped) return null;

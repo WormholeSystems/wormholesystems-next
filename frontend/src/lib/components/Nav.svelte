@@ -5,9 +5,13 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
+	import { createMutation, createQuery } from '@tanstack/svelte-query';
+	import { toast } from 'svelte-sonner';
+
+	import { browser } from '$app/environment';
 	import { page } from '$app/state';
-	import { api } from '$lib/api/client';
-	import type { CharacterRef } from '$lib/api/types/CharacterRef';
+	import { api, errorMessage } from '$lib/api/client';
+	import { q } from '$lib/api/queries';
 	import type { CharacterSummary } from '$lib/api/types/CharacterSummary';
 	import type { MapEntry } from '$lib/api/types/MapEntry';
 	import type { ServerStatus as ServerState } from '$lib/api/types/ServerStatus';
@@ -24,18 +28,20 @@
 		status = null,
 	}: { me: CharacterSummary | null; maps?: MapEntry[]; status?: ServerState | null } = $props();
 
-	// The shortcuts are a view of the list the layout already loads, not a second fetch.
-	const pinned = $derived(maps.filter((m) => m.is_pinned && !m.is_archived));
+	// The shortcuts start from the list the layout already loads; after that the cache owns
+	// it, so a pin toggled on /maps shows up here without a navigation.
+	const mapsQuery = createQuery(() => ({
+		...q.myMaps(),
+		enabled: browser && me !== null,
+		initialData: maps.length > 0 ? maps : undefined,
+	}));
+	const pinned = $derived((mapsQuery.data ?? maps).filter((m) => m.is_pinned && !m.is_archived));
 
-	let characters = $state<CharacterRef[]>([]);
-
-	$effect(() => {
-		if (!me) return;
-		api
-			.myCharacters()
-			.then((list) => (characters = list))
-			.catch(() => {});
-	});
+	const charactersQuery = createQuery(() => ({
+		...q.myCharacters(),
+		enabled: browser && me !== null,
+	}));
+	const characters = $derived(charactersQuery.data ?? []);
 
 	// Three fit without the names being squeezed to nothing; the rest go behind a count.
 	const INLINE = 3;
@@ -43,14 +49,20 @@
 	const overflow = $derived(pinned.slice(INLINE));
 	const here = $derived(page.url.pathname);
 
-	async function switchCharacter(id: number) {
-		await api.switchCharacter(id);
-		location.reload();
+	// The reload is deliberate: every cached read is scoped to the signed-in identity, and
+	// the open page (sockets included) was built for the old one.
+	const identity = createMutation(() => ({
+		mutationFn: (work: () => Promise<unknown>) => work(),
+		onSuccess: () => location.reload(),
+		onError: (err: unknown) => toast.error(errorMessage(err)),
+	}));
+
+	function switchCharacter(id: number) {
+		identity.mutate(() => api.switchCharacter(id));
 	}
 
-	async function removeCharacter(id: number) {
-		await api.removeCharacter(id);
-		location.reload();
+	function removeCharacter(id: number) {
+		identity.mutate(() => api.removeCharacter(id));
 	}
 </script>
 

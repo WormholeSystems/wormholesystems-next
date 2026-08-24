@@ -15,7 +15,7 @@
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import type { Side } from '$lib/api/types/Side';
 	import type { Subject } from '$lib/api/types/Subject';
-	import { resolveCache } from '$lib/resolve-cache.svelte';
+	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
@@ -108,7 +108,7 @@
 	];
 
 	// The picker wants a resolved system for its label; the alert only stores the id.
-	const systems = resolveCache();
+	const systems = systemResolver;
 	$effect(() => {
 		if (target !== null) systems.ensure([target]);
 	});

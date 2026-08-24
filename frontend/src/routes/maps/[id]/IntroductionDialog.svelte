@@ -20,10 +20,11 @@
 	import WorkflowIcon from '@lucide/svelte/icons/workflow';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 
+	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
-	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
+	import { q } from '$lib/api/queries';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Switch } from '$lib/components/ui/switch';
@@ -82,15 +83,8 @@
 	];
 
 	let step = $state(1);
-	let scopes = $state<ScopeStatus[]>([]);
-
-	$effect(() => {
-		if (!map.signedIn) return;
-		api
-			.myScopes()
-			.then((rows) => (scopes = rows))
-			.catch(() => {});
-	});
+	const scopesQuery = createQuery(() => ({ ...q.myScopes(), enabled: map.signedIn }));
+	const scopes = $derived(scopesQuery.data ?? []);
 
 	const granted = $derived(new Set(scopes.filter((s) => s.granted).map((s) => s.scope)));
 	const missing = $derived(SCOPES.filter((s) => !granted.has(s.scope)));
@@ -137,7 +131,7 @@
 		map
 			.patchUserSettings(patch)
 			.then(() => {
-				if ('tracking_allowed' in patch) map.fetchCharacters();
+				if ('tracking_allowed' in patch) map.refreshCharacters();
 			})
 			.catch((err) => toast.error(`setup: ${errorMessage(err)}`));
 	}

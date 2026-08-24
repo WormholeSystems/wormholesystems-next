@@ -11,10 +11,13 @@
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
-	import { goto, invalidateAll } from '$app/navigation';
+	import { createMutation, createQuery } from '@tanstack/svelte-query';
+	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 
 	import { api, errorMessage } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { MapEntry } from '$lib/api/types/MapEntry';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -28,8 +31,10 @@
 
 	let { data }: { data: { maps: MapEntry[] } } = $props();
 
-	const maps = $derived(data.maps);
-	let error = $state('');
+	// The load's list is the first frame; after that the cache owns it, and the top bar's
+	// pinned shortcuts read the same entry.
+	const mapsQuery = createQuery(() => ({ ...q.myMaps(), initialData: data.maps }));
+	const maps = $derived(mapsQuery.data);
 	let query = $state('');
 	let showArchived = $state(false);
 	let now = $state(new Date());
@@ -37,7 +42,6 @@
 	let creating = $state(false);
 	let newName = $state('');
 	let newDescription = $state('');
-	let busy = $state(false);
 
 	// The whole entry, not just an id, so the dialog can name what it is about to destroy.
 	let deleting = $state<MapEntry | null>(null);
@@ -73,53 +77,48 @@
 		pilots: active.reduce((n, m) => n + m.pilots_online, 0),
 	});
 
-	async function create() {
-		const name = newName.trim();
-		if (!name || busy) return;
-		busy = true;
-		try {
-			const map = await api.createMap(name, newDescription.trim() || undefined);
+	// Needs the created map's id for the navigation, so it is its own mutation rather
+	// than an apiAction.
+	const createMut = createMutation(() => ({
+		mutationFn: (vars: { name: string; description?: string }) =>
+			api.createMap(vars.name, vars.description),
+		onSuccess: async (map) => {
 			creating = false;
 			newName = '';
 			newDescription = '';
 			await goto(`/maps/${map.id}`);
-		} catch (err) {
-			error = errorMessage(err);
-		} finally {
-			busy = false;
-		}
+		},
+		onError: (err: unknown) => toast.error(errorMessage(err)),
+	}));
+
+	function create() {
+		const name = newName.trim();
+		if (!name || createMut.isPending) return;
+		createMut.mutate({ name, description: newDescription.trim() || undefined });
 	}
 
-	// The list and the top bar's shortcuts both come from loads, so one refresh does both.
-	async function setPinned(map: MapEntry, value: boolean) {
-		try {
-			await api.updateMapUserSettings(map.id, { is_pinned: value });
-			await invalidateAll();
-			toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`);
-		} catch (err) {
-			error = errorMessage(err);
-		}
+	// The list and the top bar's shortcuts read the same cache entry, so one invalidation
+	// does both.
+	const act = apiAction(() => [key.maps]);
+
+	function setPinned(map: MapEntry, value: boolean) {
+		act
+			.mutateAsync(() => api.updateMapUserSettings(map.id, { is_pinned: value }))
+			.then(() =>
+				toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`),
+			)
+			.catch(() => {});
 	}
 
-	async function setArchived(map: MapEntry, value: boolean) {
-		try {
-			await api.updateMapUserSettings(map.id, { is_archived: value });
-			await invalidateAll();
-		} catch (err) {
-			error = errorMessage(err);
-		}
+	function setArchived(map: MapEntry, value: boolean) {
+		act.mutate(() => api.updateMapUserSettings(map.id, { is_archived: value }));
 	}
 
-	async function confirmDelete() {
+	function confirmDelete() {
 		const map = deleting;
 		if (!map) return;
 		deleting = null;
-		try {
-			await api.deleteMap(map.id);
-			await invalidateAll();
-		} catch (err) {
-			error = errorMessage(err);
-		}
+		act.mutate(() => api.deleteMap(map.id));
 	}
 
 	const ROLE_TONE: Record<string, string> = {
@@ -260,10 +259,6 @@
 		</Button>
 	</div>
 
-	{#if error}
-		<p class="text-sm text-destructive" data-testid="maps-error">{error}</p>
-	{/if}
-
 	{#if maps.length > 0}
 		<div class="flex w-fit divide-x divide-border border border-border">
 			{#each [{ label: 'Maps', value: totals.maps }, { label: 'Systems', value: totals.systems }, { label: 'Pilots online', value: totals.pilots }] as stat (stat.label)}
@@ -378,7 +373,11 @@
 			</Field.FieldGroup>
 			<Dialog.Footer class="mt-4">
 				<Button type="button" variant="ghost" onclick={() => (creating = false)}>Cancel</Button>
-				<Button type="submit" disabled={!newName.trim() || busy} data-testid="new-map-create">
+				<Button
+					type="submit"
+					disabled={!newName.trim() || createMut.isPending}
+					data-testid="new-map-create"
+				>
 					Create
 				</Button>
 			</Dialog.Footer>

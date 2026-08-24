@@ -21,7 +21,6 @@ import type { ServerStatus } from '$lib/api/types/ServerStatus';
 import type { MapEntry } from '$lib/api/types/MapEntry';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
-import type { AccessEntry } from '$lib/api/types/AccessEntry';
 
 const base = () => env.API_BASE ?? 'http://127.0.0.1:3000';
 
@@ -66,11 +65,6 @@ export function mapUserSettings(event: RequestEvent, mapId: number): Promise<Map
 	return get<MapUserSettings>(event, `/api/maps/${mapId}/settings/user`);
 }
 
-/** Who has been granted access to a map. */
-export function accessList(event: RequestEvent, mapId: number): Promise<AccessEntry[]> {
-	return get<AccessEntry[]>(event, `/api/maps/${mapId}/access`);
-}
-
 /**
  * How much static data this install has seeded, for the landing page. A failure falls back
  * to zeroes, which the page renders as a row it simply does not draw.
@@ -90,15 +84,4 @@ export function referenceCounts(event: RequestEvent): Promise<ReferenceCounts> {
  */
 export function serverStatus(event: RequestEvent): Promise<ServerStatus | null> {
 	return get<ServerStatus>(event, '/api/server-status').catch(() => null);
-}
-
-/**
- * The load every per-viewer settings page shares: its own dependency key, so saving a
- * toggle refetches the settings and not the whole chain the section's layout holds.
- */
-export async function userSettingsLoad(
-	event: RequestEvent & { depends: (...deps: string[]) => void },
-) {
-	event.depends('ws:user-settings');
-	return { settings: await mapUserSettings(event, Number(event.params.id)).catch(() => null) };
 }

@@ -8,7 +8,7 @@
 
 	import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
-	import { resolveCache } from '$lib/resolve-cache.svelte';
+	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import { sortState } from '$lib/sort-state.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { classMeta } from '$lib/map/classes';
@@ -49,7 +49,7 @@
 
 	// The hubs are resolved along with the far sides, so a row whose destination is the other
 	// hub still renders.
-	const systems = resolveCache();
+	const systems = systemResolver;
 	$effect(() => {
 		systems.ensure(connections.map((c) => c.solar_system_id));
 	});

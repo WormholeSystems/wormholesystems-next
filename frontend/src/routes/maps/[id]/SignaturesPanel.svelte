@@ -13,10 +13,13 @@
 	import { toast } from 'svelte-sonner';
 
 	import { api } from '$lib/api/client';
+	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { PastedSignature } from '$lib/api/types/PastedSignature';
 	import type { Signature } from '$lib/api/types/Signature';
-	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
@@ -82,10 +85,8 @@
 		},
 	};
 
-	let catalog = $state<SignatureCatalog | null>(null);
-	$effect(() => {
-		loadCatalog().then((c) => (catalog = c));
-	});
+	const catalogQuery = createQuery(() => q.signatureCatalog());
+	const catalog = $derived(catalogQuery.data ?? null);
 
 	// A ghost has no system to scan against, so the panel says so instead of offering a
 	// paste box that the server would refuse.
@@ -161,7 +162,7 @@
 
 	async function handlePasteText(text: string) {
 		if (!canWrite) return;
-		const rows = parseScan(text, await loadCatalog());
+		const rows = parseScan(text, await loadCatalog(map.queries.client));
 		if (rows.length === 0) {
 			toast.error('Nothing in that paste looked like a signature');
 			return;
@@ -169,10 +170,9 @@
 		const active = map.myCharacters.find((c) => c.is_active);
 		if (active?.solar_system_id != null && active.solar_system_id !== systemId) {
 			pending = rows;
-			api
-				.resolveSystems([active.solar_system_id])
-				.then((r) => (mismatchSystem = r[0]?.name ?? 'Unknown'))
-				.catch(() => (mismatchSystem = 'Unknown'))
+			systemResolver
+				.resolve(active.solar_system_id)
+				.then((hit) => (mismatchSystem = hit?.name ?? 'Unknown'))
 				.finally(() => (mismatchOpen = true));
 			return;
 		}

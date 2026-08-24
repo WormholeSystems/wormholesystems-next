@@ -7,9 +7,12 @@
 	import NavigationIcon from '@lucide/svelte/icons/navigation';
 	import PinIcon from '@lucide/svelte/icons/pin';
 
-	import { api } from '$lib/api/client';
-	import { latest } from '$lib/latest';
+	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
+	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import { debounced } from '$lib/debounced.svelte';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
@@ -35,42 +38,31 @@
 
 	let open = $state(false);
 	let query = $state('');
-	let results = $state<SystemSearchResult[]>([]);
-	// `latest` drops responses that arrive out of order while typing.
-	const search = latest(api.searchSystems, (found) => (results = found));
 	let label = $state('');
-	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 	/** Suggestions stand in for results until the query is long enough to search on. */
 	const searching = $derived(query.trim().length >= 2);
 	const offered = $derived(suggestions.filter((s) => s.system.id !== value));
+
+	const settled = debounced(() => query.trim(), 150);
+	// Keyed by term, so a slow reply can never land on a newer search.
+	const search = createQuery(() => ({
+		...q.searchSystems(settled.current),
+		enabled: open && settled.current.length >= 2,
+		placeholderData: keepPreviousData,
+	}));
+	const results = $derived(searching ? (search.data ?? []) : []);
 
 	$effect(() => {
 		if (value === null) {
 			label = '';
 			return;
 		}
-		api
-			.resolveSystems([value])
-			.then((rows) => (label = rows[0]?.name ?? String(value)))
-			.catch(() => (label = String(value)));
+		systemResolver.resolve(value).then((hit) => (label = hit?.name ?? String(value)));
 	});
 
 	$effect(() => {
-		if (open) {
-			query = '';
-			results = [];
-		}
-	});
-
-	$effect(() => {
-		const text = query.trim();
-		clearTimeout(searchTimer);
-		if (!text) {
-			results = [];
-			return;
-		}
-		searchTimer = setTimeout(() => search(text), 150);
+		if (open) query = '';
 	});
 
 	// See `pickers/columns.ts`: the list owns the tracks and rows are subgrids. The trailing

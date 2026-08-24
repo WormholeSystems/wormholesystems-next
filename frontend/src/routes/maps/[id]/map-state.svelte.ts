@@ -1,20 +1,18 @@
 // The map page's shared state. Interaction state is owned here, never derived from the
-// fetched data, so it survives refetches.
+// fetched data, so it survives refetches. The fetched data itself lives in the query
+// cache ([`createMapQueries`]); the fields here are views over it, so a refetch can
+// never clobber a drag, a selection, or an open menu.
+
+import { untrack } from 'svelte';
 
 import { api, errorMessage } from '$lib/api/client';
+import { key } from '$lib/api/queries';
 import type { GridConfig } from '$lib/api/types/GridConfig';
-import type { CharacterRef } from '$lib/api/types/CharacterRef';
-import type { MapCharacter } from '$lib/api/types/MapCharacter';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { UpdateMapUserSettings } from '$lib/api/types/UpdateMapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
-import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
-import type { Signature } from '$lib/api/types/Signature';
 import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
-import type { MapHistory } from '$lib/api/types/MapHistory';
-import type { StaleConnection } from '$lib/api/types/StaleConnection';
-import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 import type { SocketState } from '$lib/ws';
 import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
 import type { GridItem } from '$lib/layout/grid';
@@ -26,18 +24,35 @@ import type { Vec2 } from '$lib/map/helpers';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
 import { orphanedSystems } from '$lib/map/orphans';
 import { toast } from 'svelte-sonner';
-import { MAP_ACTIONS, type MapAction } from './actions';
+import { type MapAction } from './actions';
 import { MapCamera } from './map-camera.svelte';
+import { createMapQueries, type MapQueries } from './map-queries.svelte';
 import { PanelLayoutStore } from './panel-layout.svelte';
 import { RoutePlanner } from './route-planner.svelte';
-import { SliceFetcher, slicesFor, type Slice } from './slices.svelte';
 import type { MapEvent } from '$lib/api/types/MapEvent';
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
 import { timeAgo } from '$lib/format';
 import { solarSystemId } from '$lib/map/system';
 import { atLeast } from '$lib/map/roles';
+import { systemResolver } from '$lib/resolve-cache.svelte';
 
 export type { Drag };
+
+/** A placed system in the shape the resolver serves, so both sides answer alike. */
+function searchResultOf(placed: Extract<MapSystemView, { kind: 'system' }>): SystemSearchResult {
+	return {
+		id: placed.solar_system_id,
+		name: placed.name,
+		security: placed.security_status,
+		region: placed.region,
+		region_id: placed.region_id,
+		constellation_id: placed.constellation_id,
+		wormhole_class_id: placed.wormhole_class_id,
+		effect_name: placed.effect_name,
+		sovereignty: placed.sovereignty,
+		statics: placed.statics,
+	};
+}
 
 /** An in-progress connection drag: from this placement to the current cursor (world coords). */
 export interface Linking {
@@ -68,15 +83,32 @@ export class MapState {
 	camera: MapCamera;
 	panelLayout: PanelLayoutStore;
 	route: RoutePlanner;
+	queries: MapQueries;
 
-	data = $state<MapView | null>(null);
-	grid = $state<GridConfig>(defaultGrid);
-	sigs = $state<Signature[]>([]);
-	watchlist = $state<WatchlistEntry[]>([]);
-	eveScout = $state<EveScoutConnection[]>([]);
-	characters = $state<MapCharacter[]>([]);
-	myCharacters = $state<CharacterRef[]>([]);
-	userSettings = $state<MapUserSettings | null>(null);
+	get data() {
+		return this.queries.graph.data ?? null;
+	}
+	get grid() {
+		return this.queries.grid.data ?? defaultGrid;
+	}
+	get sigs() {
+		return this.queries.signatures.data ?? [];
+	}
+	get watchlist() {
+		return this.queries.watchlist.data ?? [];
+	}
+	get eveScout() {
+		return this.queries.eveScout.data ?? [];
+	}
+	get characters() {
+		return this.queries.characters.data ?? [];
+	}
+	get myCharacters() {
+		return this.queries.myCharacters.data ?? [];
+	}
+	get userSettings() {
+		return this.queries.settings.data ?? null;
+	}
 
 	selected = $state<Set<number>>(new Set());
 	drag = $state<Drag | null>(null);
@@ -106,25 +138,35 @@ export class MapState {
 	// A row hovered in a side panel: the node it names lights up. Owned here so any card
 	// can point at the map.
 	hoveredSystemId = $state<number | null>(null);
-	// Display data for systems a side panel names but the map does not hold: a pilot in
-	// known space, a skyhook out in sov null. Fetched once each and kept, because the
-	// context menu needs the same shape wherever a system is shown.
-	resolvedSystems = $state<Map<number, SystemSearchResult>>(new Map());
-
 	// The history tree plus where the map sits in it, and the live socket state behind
 	// the status dot.
-	history = $state<MapHistory | null>(null);
-	/** Bumped when a kill lands in one of this map's systems, so cards can refetch. */
-	killmailTick = $state(0);
+	get history() {
+		return this.queries.history.data ?? null;
+	}
 	// Connections critical for over an hour, offered for a one-click sweep.
-	stale = $state<StaleConnection[]>([]);
+	get stale() {
+		return this.queries.stale.data ?? [];
+	}
 	socket = $state<SocketState>('connecting');
 	// The page holds a loader until both the graph and the arrangement have arrived, so
 	// tiles are never painted in the built-in positions and then moved.
-	loaded = $state(false);
-	settingsLoaded = $state(false);
-	loadError = $state('');
-	ready = $derived(this.loaded && this.settingsLoaded);
+	get loaded() {
+		return this.queries.graph.data !== undefined;
+	}
+	// A disabled query stays pending forever, so the signed-out case answers first.
+	get settingsLoaded() {
+		return !this.signedIn || !this.queries.settings.isPending;
+	}
+	// Only a first load with nothing to show gates the page; a later failure leaves the
+	// view briefly stale instead, because the cache keeps the last good data.
+	get loadError() {
+		return this.queries.graph.data === undefined && this.queries.graph.isError
+			? errorMessage(this.queries.graph.error)
+			: '';
+	}
+	get ready() {
+		return this.loaded && this.settingsLoaded;
+	}
 
 	systems = $derived(this.data?.systems ?? []);
 	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
@@ -155,20 +197,6 @@ export class MapState {
 	headEntry = $derived(this.entries.find((e) => e.id === this.history?.head_event_id) ?? null);
 	redoEntry = $derived(this.entries.find((e) => e.id === this.history?.redo_target) ?? null);
 
-	async loadEveScout() {
-		try {
-			this.eveScout = await api.eveScout();
-		} catch {
-			this.eveScout = [];
-		}
-	}
-
-	/** EVE Scout is scouted by hand, so it changes on the order of minutes at best. */
-	startEveScoutPolling(): () => void {
-		this.loadEveScout();
-		const timer = setInterval(() => this.loadEveScout(), 5 * 60_000);
-		return () => clearInterval(timer);
-	}
 	connections = $derived(this.data?.connections ?? []);
 	nodeH = $derived(2 * this.grid.cell_size);
 
@@ -256,11 +284,6 @@ export class MapState {
 	/** Editing takes the member role; below it the map is read-only. */
 	canWrite = $derived(atLeast(this.data?.role, 'member'));
 
-	private slices = new SliceFetcher((slice) => this.fetchSlice(slice));
-
-	/** True until the first refetch, so a seeded graph is not fetched twice on open. */
-	private seeded = false;
-
 	constructor(
 		mapId: number,
 		signedIn = true,
@@ -271,13 +294,12 @@ export class MapState {
 	) {
 		this.mapId = mapId;
 		this.camera = new MapCamera(mapId);
+		this.signedIn = signedIn;
+		this.queries = createMapQueries(mapId, signedIn, seed, () => this.socket === 'open');
 		this.panelLayout = new PanelLayoutStore({
 			hiddenPanels: () => this.userSettings?.hidden_panels ?? null,
-			setHiddenPanels: (panels) => {
-				if (this.userSettings) {
-					this.userSettings = { ...this.userSettings, hidden_panels: panels };
-				}
-			},
+			setHiddenPanels: (panels) =>
+				this.queries.patchSettingsLocal((s) => ({ ...s, hidden_panels: panels })),
 			save: (layouts, hidden) => {
 				const write = this.patchUserSettings({
 					layout_breakpoints: layouts,
@@ -287,42 +309,45 @@ export class MapState {
 				return write;
 			},
 		});
-		this.route = new RoutePlanner(this);
-		this.signedIn = signedIn;
-		// Seeded from the page's load, so the first frame already has the chain and the
-		// arrangement. Both are starting points: the socket and the refetch take over.
-		if (seed.view) {
-			this.data = seed.view;
-			this.loaded = true;
-			this.seeded = true;
-		}
-		if (seed.settings) {
-			this.userSettings = seed.settings;
-			this.panelLayout.seed(seed.settings.layout_breakpoints ?? null);
-			this.settingsLoaded = true;
-		}
+		this.route = new RoutePlanner(this, this.queries.client);
+		// Seeded from the page's load, so the first frame already has the arrangement; a
+		// map opened without a seed gets it once the settings query lands.
+		let layoutsSeeded = seed.settings != null;
+		if (seed.settings) this.panelLayout.seed(seed.settings.layout_breakpoints ?? null);
+		$effect(() => {
+			const settings = this.queries.settings.data;
+			if (!settings || layoutsSeeded) return;
+			layoutsSeeded = true;
+			this.panelLayout.seed(settings.layout_breakpoints ?? null);
+		});
+
+		// Each graph payload's arrival: the resolver learns the placed systems, and a
+		// pending move is dropped once the server position matches it (ours landed) or
+		// the system is gone.
+		$effect(() => {
+			const data = this.queries.graph.data;
+			if (!data) return;
+			this.shareResolved();
+			const pending = { ...untrack(() => this.pending) };
+			let changed = false;
+			for (const [id, p] of Object.entries(pending)) {
+				const s = data.systems.find((s) => s.id === Number(id));
+				if (!s || (Math.abs(s.position_x - p.x) <= 0.5 && Math.abs(s.position_y - p.y) <= 0.5)) {
+					delete pending[Number(id)];
+					changed = true;
+				}
+			}
+			if (changed) this.pending = pending;
+		});
 	}
 
 	/** Panels there is nobody to fill in: both of these are about the account, not the map. */
 	unavailablePanels = $derived(new Set<PanelId>(this.signedIn ? [] : ['characters', 'skyhooks']));
 
-	/** Presence: fails silently for viewers (403) and anonymous races. */
-	async fetchCharacters() {
+	/** Ask for fresh presence, soon: who is on the map, and where this account's pilots are. */
+	refreshCharacters() {
 		if (!this.signedIn) return;
-		try {
-			this.characters = await api.mapCharacters(this.mapId);
-		} catch {
-			this.characters = [];
-		}
-	}
-
-	async loadMyCharacters() {
-		if (!this.signedIn) return;
-		try {
-			this.myCharacters = await api.myCharacters();
-		} catch {
-			this.myCharacters = [];
-		}
+		void this.queries.client.invalidateQueries({ queryKey: key.mapCharacters(this.mapId) });
 	}
 
 	/**
@@ -331,38 +356,20 @@ export class MapState {
 	 */
 	systemInfo(id: number): SystemSearchResult | null {
 		const placed = this.systems.find((s) => solarSystemId(s) === id);
-		if (placed?.kind === 'system') {
-			return {
-				id,
-				name: placed.name,
-				security: placed.security_status,
-				region: placed.region,
-				region_id: placed.region_id,
-				constellation_id: placed.constellation_id,
-				wormhole_class_id: placed.wormhole_class_id,
-				effect_name: placed.effect_name,
-				sovereignty: placed.sovereignty,
-				statics: placed.statics,
-			};
-		}
-		return this.resolvedSystems.get(id) ?? null;
+		if (placed?.kind === 'system') return searchResultOf(placed);
+		return systemResolver.get(id) ?? null;
 	}
 
 	/** Fetch display data for any of `ids` that is neither on the map nor already known. */
 	ensureResolved(ids: number[]) {
-		const placed = new Set(this.systems.map(solarSystemId).filter((id) => id !== null));
-		const missing = [
-			...new Set(ids.filter((id) => !placed.has(id) && !this.resolvedSystems.has(id))),
-		];
-		if (missing.length === 0) return;
-		api
-			.resolveSystems(missing)
-			.then((rows) => {
-				const next = new Map(this.resolvedSystems);
-				for (const row of rows) next.set(row.id, row);
-				this.resolvedSystems = next;
-			})
-			.catch(() => {});
+		systemResolver.ensure(ids);
+	}
+
+	/** Placed systems arrive with the graph; the resolver learns them so no panel refetches one. */
+	private shareResolved() {
+		systemResolver.seed(
+			this.systems.flatMap((s) => (s.kind === 'system' ? [searchResultOf(s)] : [])),
+		);
 	}
 
 	// --- routing, delegated to the planner ---
@@ -459,30 +466,6 @@ export class MapState {
 		return this.route.withSignatures(steps);
 	}
 
-	/** Bumped by every write, so a fetch that started earlier cannot land afterwards. */
-	private settingsVersion = 0;
-
-	async loadUserSettings() {
-		// Already seeded by the page's load, or nobody to have settings: either way the page
-		// is not waiting on this. A watcher still has to be marked done, or nothing is ready.
-		if (this.settingsLoaded) return;
-		if (!this.signedIn) {
-			this.settingsLoaded = true;
-			return;
-		}
-		const version = this.settingsVersion;
-		try {
-			const settings = await api.mapUserSettings(this.mapId);
-			this.panelLayout.seed(settings.layout_breakpoints ?? null);
-			if (version !== this.settingsVersion) return;
-			this.userSettings = settings;
-		} catch {
-			// No access yet; the page falls back to the built-in arrangement.
-		} finally {
-			this.settingsLoaded = true;
-		}
-	}
-
 	// --- layout, delegated to the panel layout store ---
 
 	get editingLayout() {
@@ -553,34 +536,8 @@ export class MapState {
 		this.panelLayout.reset(key);
 	}
 
-	async loadGrid() {
-		try {
-			this.grid = await api.gridConfig();
-		} catch {
-			// keep the defaults
-		}
-	}
-
-	async fetchStale() {
-		if (!this.signedIn) return;
-		try {
-			this.stale = await api.listStaleConnections(this.mapId);
-		} catch {
-			this.stale = [];
-		}
-	}
-
 	cleanStale() {
 		this.run('cleanStale', api.cleanStaleConnections({ map_id: this.mapId }));
-	}
-
-	async fetchHistory() {
-		if (!this.signedIn) return;
-		try {
-			this.history = await api.mapHistory(this.mapId);
-		} catch {
-			this.history = null;
-		}
 	}
 
 	// Undo and redo are read before they run: the step being walked past is the head now,
@@ -604,102 +561,22 @@ export class MapState {
 		);
 	}
 
-	/** The graph itself, and the optimistic move overrides it settles. */
-	private async fetchGraph() {
-		// A seeded graph is as fresh as the page: skip the request, once.
-		const data = this.seeded ? this.data! : await api.fetchMap(this.mapId);
-		this.seeded = false;
-		this.data = data;
-		// Drop a pending move once the server position matches it (ours landed) or the
-		// system is gone.
-		const pending = { ...this.pending };
-		for (const [id, p] of Object.entries(pending)) {
-			const s = data.systems.find((s) => s.id === Number(id));
-			if (!s || (Math.abs(s.position_x - p.x) <= 0.5 && Math.abs(s.position_y - p.y) <= 0.5)) {
-				delete pending[Number(id)];
-			}
-		}
-		this.pending = pending;
-		this.loaded = true;
-		this.loadError = '';
+	/** Refetch what one socket frame invalidated; the table lives in [`keysFor`]. */
+	applyEvent(event: MapEvent | null) {
+		this.queries.applyEvent(event);
 	}
 
-	private async fetchSignatures() {
-		this.sigs = await api.listSignatures(this.mapId);
-	}
-
-	private async fetchWatchlist() {
-		this.watchlist = await api.listWatchlist(this.mapId);
-	}
-
-	private async fetchSlice(slice: Slice) {
-		try {
-			switch (slice) {
-				case 'graph':
-					return await this.fetchGraph();
-				case 'signatures':
-					return await this.fetchSignatures();
-				case 'watchlist':
-					return await this.fetchWatchlist();
-				case 'history':
-					return await this.fetchHistory();
-				case 'stale':
-					return await this.fetchStale();
-				case 'characters':
-					return await this.fetchCharacters();
-			}
-		} catch (err) {
-			const message = errorMessage(err);
-			toast.error(`load: ${message}`);
-			// Only the first load can leave the page with nothing to show; a later failure
-			// just means the view is briefly stale.
-			if (!this.loaded) this.loadError = message;
-		}
-	}
-
-	/** Refetch what one socket frame invalidated; [`slicesFor`] holds the table. */
-	applyEvent(event: MapEvent) {
-		// A kill changes nothing about the graph; only the killmail card reacts.
-		if (event.type === 'killmail_received') {
-			this.killmailTick += 1;
-			return;
-		}
-		for (const slice of slicesFor(event)) this.slices.schedule(slice);
-	}
-
-	/** Everything, for the first load. After that the socket says what to ask for. */
-	async refetch() {
-		const rest = [
-			this.fetchSlice('signatures'),
-			this.fetchSlice('watchlist'),
-			this.fetchSlice('history'),
-			this.fetchSlice('stale'),
-		];
-		// The page waits on the graph only: the panels can fill in a moment later, and
-		// holding first paint for every list makes the map feel slow for no benefit.
-		await this.fetchSlice('graph');
-		await Promise.all(rest);
+	/** Refetch the whole map subtree; resolves once the active refetches settle. */
+	refetch() {
+		return this.queries.invalidateAll();
 	}
 
 	/**
 	 * Run an action and say how it went. What it says lives in [`MAP_ACTIONS`] rather than
-	 * at the call site.
-	 *
-	 * The write is not followed by a refetch while the socket is up: the server echoes the
-	 * change back like it does to everyone else, and `applyEvent` asks for exactly the part
-	 * that moved. Refetching here as well meant the person doing the editing paid twice for
-	 * every write. With the socket down there is no echo, so the fallback stands in.
+	 * at the call site; the refetch policy lives on the mutation, in [`createMapQueries`].
 	 */
 	run(action: MapAction, promise: Promise<unknown>, detail?: string) {
-		const copy = MAP_ACTIONS[action];
-		promise
-			.then(() => {
-				if ('done' in copy && copy.done) {
-					toast.success(copy.done, { description: detail });
-				}
-				if (this.socket !== 'open') return this.refetch();
-			})
-			.catch((err) => toast.error(copy.failed, { description: errorMessage(err) }));
+		this.queries.write.mutate({ action, exec: () => promise, detail });
 	}
 
 	/** What a history step was, for saying which one was just walked past. */
@@ -772,23 +649,18 @@ export class MapState {
 	 */
 	setLayoutOverride(mode: 'manual' | 'tree') {
 		const own = mode === this.data?.map.layout ? null : mode;
-		if (this.userSettings) {
-			this.userSettings = { ...this.userSettings, layout_override: own ?? undefined };
-		}
+		this.queries.patchSettingsLocal((s) => ({ ...s, layout_override: own ?? undefined }));
 		this.patchUserSettings({ layout_override: own }).catch((err) =>
 			toast.error(`placement: ${errorMessage(err)}`),
 		);
 	}
 
 	/**
-	 * Write one or more of the viewer's own settings. Everything goes through here so the
-	 * version guard covers every write, not just the one that happened to have it.
+	 * Write one or more of the viewer's own settings. Everything goes through the one
+	 * mutation, which also holds the write against a slower read already on the wire.
 	 */
-	async patchUserSettings(patch: UpdateMapUserSettings): Promise<MapUserSettings> {
-		this.settingsVersion++;
-		const saved = await api.updateMapUserSettings(this.mapId, patch);
-		this.userSettings = saved;
-		return saved;
+	patchUserSettings(patch: UpdateMapUserSettings): Promise<MapUserSettings> {
+		return this.queries.saveSettings.mutateAsync(patch);
 	}
 
 	orphaned = $derived(orphanedSystems(this.systems, this.connections));

@@ -1,0 +1,149 @@
+// The map page's server data, as queries. Socket frames become invalidations here, and
+// the two mutations carry the policy every map write shares. Component init only: the
+// queries need the provider's client.
+
+import { createMutation, createQuery, useQueryClient, type QueryKey } from '@tanstack/svelte-query';
+import { toast } from 'svelte-sonner';
+
+import { api, errorMessage } from '$lib/api/client';
+import { key, q } from '$lib/api/queries';
+import type { MapEvent } from '$lib/api/types/MapEvent';
+import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+import type { MapView } from '$lib/api/types/MapView';
+import type { UpdateMapUserSettings } from '$lib/api/types/UpdateMapUserSettings';
+import { MAP_ACTIONS, type MapAction } from './actions';
+import { keysFor } from './invalidations';
+
+/** One write through the shared mutation: what to run, and which action's copy to speak. */
+interface MapWrite {
+	action: MapAction;
+	exec: () => Promise<unknown>;
+	detail?: string;
+}
+
+/**
+ * How long to wait before acting on a frame. The server is chatty in bursts: pasting a
+ * scan publishes a frame per system, connection and placement it touched, all within a
+ * few milliseconds, and invalidating per frame would abort and restart the same fetch
+ * over and over. Long enough to swallow the burst, short enough that nobody notices.
+ */
+const BURST_MS = 60;
+
+export function createMapQueries(
+	mapId: number,
+	signedIn: boolean,
+	seed: { view: MapView | null; settings: MapUserSettings | null },
+	/** Whether the map socket is open, and the server echo will drive the refetch. */
+	isLive: () => boolean,
+) {
+	const client = useQueryClient();
+
+	// Seed once, via setQueryData rather than initialData: initialData is ignored whenever
+	// the cache entry already exists (revisiting a map), which would silently discard the
+	// fresh payload this navigation's load just fetched. Stamped fresh-now, so staleTime
+	// suppresses the mount refetch, while a socket-driven invalidation always refetches.
+	if (seed.view) client.setQueryData(key.mapView(mapId), seed.view);
+	if (seed.settings) client.setQueryData(key.userSettings(mapId), seed.settings);
+
+	const graph = createQuery(() => ({ ...q.mapView(mapId), meta: { toastOnError: true } }));
+	const signatures = createQuery(() => ({
+		...q.listSignatures(mapId),
+		meta: { toastOnError: true },
+	}));
+	const watchlist = createQuery(() => ({
+		...q.listWatchlist(mapId),
+		meta: { toastOnError: true },
+	}));
+	// Everything below fails silently, as the old fetchers did: a watcher's 403 or a blip
+	// leaves the panel empty rather than raising a toast.
+	const history = createQuery(() => ({ ...q.mapHistory(mapId), enabled: signedIn }));
+	const stale = createQuery(() => ({ ...q.listStaleConnections(mapId), enabled: signedIn }));
+	const settings = createQuery(() => ({ ...q.mapUserSettings(mapId), enabled: signedIn }));
+	const characters = createQuery(() => ({
+		...q.mapCharacters(mapId),
+		enabled: signedIn,
+		// Movement arrives over the sockets; this is only the net under a dropped frame.
+		refetchInterval: 120_000,
+		refetchIntervalInBackground: true,
+	}));
+	const grid = createQuery(() => q.gridConfig());
+	const eveScout = createQuery(() => q.eveScout());
+	// The focus trigger lives in the map session (a window listener), not here: the jump
+	// tracker wants window focus, and the query's own option watches visibilitychange.
+	const myCharacters = createQuery(() => ({
+		...q.myCharacters(),
+		enabled: signedIn,
+		// Movement arrives over the sockets; the interval is the net under a dropped frame.
+		refetchInterval: 120_000,
+		refetchIntervalInBackground: true,
+	}));
+
+	// Burst coalescing: one timer collects the keys a burst of frames names, then each is
+	// invalidated once. The cache itself serialises the refetches, and an aborted fetch
+	// never lands, so the old in-flight/queued-rerun bookkeeping has no replacement here.
+	const pending = new Map<string, QueryKey>();
+	let timer: ReturnType<typeof setTimeout> | null = null;
+	function schedule(queryKey: QueryKey) {
+		pending.set(JSON.stringify(queryKey), queryKey);
+		timer ??= setTimeout(() => {
+			timer = null;
+			const keys = [...pending.values()];
+			pending.clear();
+			for (const k of keys) void client.invalidateQueries({ queryKey: k });
+		}, BURST_MS);
+	}
+
+	const invalidateAll = () => client.invalidateQueries({ queryKey: key.map(mapId) });
+
+	const write = createMutation(() => ({
+		mutationFn: (vars: MapWrite) => vars.exec(),
+		onSuccess: (_data: unknown, vars: MapWrite) => {
+			const copy = MAP_ACTIONS[vars.action];
+			if ('done' in copy && copy.done) toast.success(copy.done, { description: vars.detail });
+			// While the socket is open the server echoes the change back and `applyEvent`
+			// refetches exactly the part that moved; refetching here as well would make the
+			// person doing the editing pay twice for every write. No echo without a socket,
+			// so the fallback stands in.
+			if (!isLive()) void invalidateAll();
+		},
+		onError: (err: unknown, vars: MapWrite) =>
+			toast.error(MAP_ACTIONS[vars.action].failed, { description: errorMessage(err) }),
+	}));
+
+	const saveSettings = createMutation(() => ({
+		// A fetch already on the wire could land after this write with older data; cancel
+		// it rather than letting the slower read win.
+		onMutate: () => client.cancelQueries({ queryKey: key.userSettings(mapId) }),
+		mutationFn: (patch: UpdateMapUserSettings) => api.updateMapUserSettings(mapId, patch),
+		onSuccess: (saved: MapUserSettings) => client.setQueryData(key.userSettings(mapId), saved),
+	}));
+
+	return {
+		client,
+		graph,
+		signatures,
+		watchlist,
+		history,
+		stale,
+		settings,
+		characters,
+		grid,
+		eveScout,
+		myCharacters,
+		write,
+		saveSettings,
+		invalidateAll,
+		/** Refetch what one socket frame invalidated; [`keysFor`] holds the table. */
+		applyEvent(event: MapEvent | null) {
+			for (const k of keysFor(mapId, event)) schedule(k);
+		},
+		/** An optimistic local edit of the viewer's settings, without a round trip. */
+		patchSettingsLocal(update: (s: MapUserSettings) => MapUserSettings) {
+			client.setQueryData(key.userSettings(mapId), (s: MapUserSettings | undefined) =>
+				s ? update(s) : s,
+			);
+		},
+	};
+}
+
+export type MapQueries = ReturnType<typeof createMapQueries>;

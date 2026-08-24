@@ -1,10 +1,10 @@
 <script lang="ts">
 	// What the map shows you, per viewer. Placement is the exception: the mode is the map's,
 	// and the row only appears when the map hands the choice to each viewer.
+	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
-	import { saveUserSettings } from '$lib/map/user-settings';
-	import { api } from '$lib/api/client';
-	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+	import { userSettingsSaver } from '$lib/map/user-settings';
+	import { q } from '$lib/api/queries';
 	import type { MapView } from '$lib/api/types/MapView';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -14,11 +14,15 @@
 	import type { KillmailScope } from '$lib/api/types/KillmailScope';
 	import { oneOf } from '$lib/enums';
 
-	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
+	let { data }: { data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	const settings = $derived(data.settings);
-	const view = $derived(data.view);
+	const settingsQuery = createQuery(() => q.mapUserSettings(mapId));
+	const settings = $derived(settingsQuery.data ?? null);
+	const viewQuery = createQuery(() => ({ ...q.mapView(mapId), initialData: data.view }));
+	const view = $derived(viewQuery.data);
+
+	const saveUserSettings = userSettingsSaver(() => mapId);
 
 	// `map` is not a layout, it is the absence of an override: this viewer follows whatever
 	// the map itself is set to.
@@ -54,7 +58,7 @@
 				<Switch
 					checked={settings?.show_threat_level ?? true}
 					aria-label="Threat level on nodes"
-					onCheckedChange={(v) => saveUserSettings(mapId, { show_threat_level: v })}
+					onCheckedChange={(v) => saveUserSettings({ show_threat_level: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -68,7 +72,7 @@
 				<Switch
 					checked={settings?.show_statics_first ?? false}
 					aria-label="Statics first in the wormhole list"
-					onCheckedChange={(v) => saveUserSettings(mapId, { show_statics_first: v })}
+					onCheckedChange={(v) => saveUserSettings({ show_statics_first: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -82,7 +86,7 @@
 				<Switch
 					checked={settings?.compact_signature_list ?? false}
 					aria-label="Compact signature list"
-					onCheckedChange={(v) => saveUserSettings(mapId, { compact_signature_list: v })}
+					onCheckedChange={(v) => saveUserSettings({ compact_signature_list: v })}
 				/>
 			{/snippet}
 		</SettingRow>
@@ -100,7 +104,7 @@
 						onValueChange={(v) => {
 							const picked = oneOf(PLACEMENT_VALUES, v);
 							if (picked) {
-								saveUserSettings(mapId, {
+								saveUserSettings({
 									layout_override: picked === 'map' ? null : picked,
 								});
 							}
@@ -134,7 +138,7 @@
 					value={filter}
 					onValueChange={(v) => {
 						const picked = oneOf(FILTER_VALUES, v);
-						if (picked) saveUserSettings(mapId, { killmail_filter: picked });
+						if (picked) saveUserSettings({ killmail_filter: picked });
 					}}
 				>
 					<Select.Trigger class="w-52" data-testid="killmail-filter-select">

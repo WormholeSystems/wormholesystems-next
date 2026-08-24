@@ -1,11 +1,13 @@
 <script lang="ts">
 	// An inline ship-type search (Command-driven: arrow keys + Enter to pick), with the
 	// ship's icon and group. Results come from the local SDE search endpoint.
-	import { api } from '$lib/api/client';
-	import { latest } from '$lib/latest';
+	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import type { ShipSearchResult } from '$lib/api/types/ShipSearchResult';
 	import * as Command from '$lib/components/ui/command';
 	import EveImage from '$lib/components/EveImage.svelte';
+	import { debounced } from '$lib/debounced.svelte';
 
 	let {
 		onpick,
@@ -16,19 +18,15 @@
 	} = $props();
 
 	let term = $state('');
-	let results = $state<ShipSearchResult[]>([]);
-	const search = latest(api.searchShips, (found) => (results = found));
-	let searchTimer: ReturnType<typeof setTimeout> | undefined;
-
-	$effect(() => {
-		const text = term.trim();
-		clearTimeout(searchTimer);
-		if (!text) {
-			results = [];
-			return;
-		}
-		searchTimer = setTimeout(() => search(text), 200);
-	});
+	const settled = debounced(() => term.trim(), 200);
+	// Keyed by term, so a slow reply can never land on a newer search; the previous list
+	// stays painted while the next one fetches.
+	const search = createQuery(() => ({
+		...q.searchShips(settled.current),
+		enabled: settled.current.length > 0,
+		placeholderData: keepPreviousData,
+	}));
+	const results = $derived(settled.current.length > 0 ? (search.data ?? []) : []);
 </script>
 
 <Command.Root shouldFilter={false} class="rounded-md border bg-transparent">

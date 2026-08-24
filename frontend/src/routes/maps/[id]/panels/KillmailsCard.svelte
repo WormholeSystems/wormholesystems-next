@@ -5,7 +5,10 @@
 	import { solarSystemId } from '$lib/map/system';
 	import type { KillmailScope } from '$lib/api/types/KillmailScope';
 
+	import { createQuery } from '@tanstack/svelte-query';
+
 	import { api } from '$lib/api/client';
+	import { key } from '$lib/api/queries';
 	import type { MapKillmail } from '$lib/api/types/MapKillmail';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
@@ -23,7 +26,6 @@
 
 	let { map }: { map: MapState } = $props();
 
-	let kills = $state<MapKillmail[]>([]);
 	let now = $state(new Date());
 
 	const filter = $derived(map.userSettings?.killmail_filter ?? 'all');
@@ -32,13 +34,6 @@
 		{ value: 'jspace', label: 'Wormhole space only' },
 		{ value: 'kspace', label: 'Known space only' },
 	] as const satisfies readonly { value: KillmailScope; label: string }[];
-
-	function load() {
-		api
-			.mapKillmails(map.mapId)
-			.then((rows) => (kills = rows))
-			.catch(() => {});
-	}
 
 	$effect(() => {
 		// The list itself arrives by push; this is only the clock.
@@ -56,18 +51,14 @@
 			.join(','),
 	);
 
-	$effect(() => {
-		// The list is scoped to the map's systems, so adding one is as much a change as a fresh
-		// kill arriving. Read here to register the dependency: the reads are the point, which
-		// is exactly what an unused-expression check cannot know.
-		// oxlint-disable-next-line no-unused-expressions
-		filter;
-		// oxlint-disable-next-line no-unused-expressions
-		systemKey;
-		// oxlint-disable-next-line no-unused-expressions
-		map.killmailTick;
-		load();
-	});
+	// The list is scoped to the map's systems, so adding one is as much a change as a
+	// fresh kill arriving: both are part of the key. A kill frame off the socket
+	// invalidates the killmails prefix, which this key sits under.
+	const killsQuery = createQuery(() => ({
+		queryKey: [...key.killmails(map.mapId), filter, systemKey],
+		queryFn: () => api.mapKillmails(map.mapId),
+	}));
+	const kills = $derived(killsQuery.data ?? []);
 
 	function setFilter(value: KillmailScope) {
 		map.patchUserSettings({ killmail_filter: value }).catch(() => {});

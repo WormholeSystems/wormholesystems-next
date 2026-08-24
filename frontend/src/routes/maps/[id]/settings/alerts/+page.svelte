@@ -6,21 +6,20 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { lookup } from '$lib/enums';
 
+	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { api, errorMessage } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { AlertDelivery } from '$lib/api/types/AlertDelivery';
 	import type { AlertKind } from '$lib/api/types/AlertKind';
 	import type { AlertMention } from '$lib/api/types/AlertMention';
 	import type { MapAlert } from '$lib/api/types/MapAlert';
-	import type { MapAlertEvent } from '$lib/api/types/MapAlertEvent';
-	import type { MapWebhook } from '$lib/api/types/MapWebhook';
-	import type { MapWebhookRole } from '$lib/api/types/MapWebhookRole';
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import InstanceNotice from '$lib/components/InstanceNotice.svelte';
-	import type { Instance } from '$lib/api/types/Instance';
 	import { Switch } from '$lib/components/ui/switch';
 	import { timeAgo } from '$lib/format';
 	import { cn } from '$lib/utils';
@@ -29,63 +28,43 @@
 
 	const mapId = $derived(Number(page.params.id));
 
-	let alerts = $state<MapAlert[]>([]);
-	let events = $state<MapAlertEvent[]>([]);
-	let webhooks = $state<MapWebhook[]>([]);
-	let roles = $state<MapWebhookRole[]>([]);
-	let error = $state<string | null>(null);
 	let editing = $state<MapAlert | null>(null);
 	let creating = $state(false);
+
+	// A deployment without a Discord bot can still post to a webhook, so this only dims the
+	// half that needs one rather than the whole page.
+	const instanceQuery = createQuery(() => q.instance());
+	const alertsQuery = createQuery(() => q.listAlerts(mapId));
+	const eventsQuery = createQuery(() => q.alertEvents(mapId));
+	const webhooksQuery = createQuery(() => q.listWebhooks(mapId));
+	const rolesQuery = createQuery(() => q.listAlertRoles(mapId));
+
+	const instance = $derived(instanceQuery.data ?? null);
+	const alerts = $derived(alertsQuery.data ?? []);
+	const events = $derived(eventsQuery.data ?? []);
+	const webhooks = $derived(webhooksQuery.data ?? []);
+	const roles = $derived(rolesQuery.data ?? []);
 	// The server is the authority on who may manage alerts, so nothing renders until the list
 	// comes back: otherwise the controls would offer buttons that 403.
-	let canManage = $state(false);
+	const canManage = $derived(alertsQuery.isSuccess);
+	const error = $derived(alertsQuery.error ? errorMessage(alertsQuery.error) : null);
 
-	let instance = $state<Instance | null>(null);
+	const act = apiAction(() => [key.alerting(mapId)]);
 
-	async function load() {
-		try {
-			// A deployment without a Discord bot can still post to a webhook, so this only
-			// dims the half that needs one rather than the whole page.
-			instance = await api.instance().catch(() => null);
-			[alerts, events, webhooks, roles] = await Promise.all([
-				api.listAlerts(mapId),
-				api.alertEvents(mapId),
-				api.listWebhooks(mapId),
-				api.listAlertRoles(mapId),
-			]);
-			error = null;
-			canManage = true;
-		} catch (err) {
-			error = errorMessage(err);
-			canManage = false;
-		}
-	}
-
-	$effect(() => {
-		void mapId;
-		load();
-	});
-
-	async function act(work: Promise<unknown>) {
-		try {
-			await work;
-			error = null;
-			await load();
-		} catch (err) {
-			error = errorMessage(err);
-		}
-	}
-
-	async function save(body: SaveAlert) {
+	function save(body: SaveAlert) {
 		const id = editing?.id;
-		await act(id ? api.updateAlert(mapId, id, body) : api.createAlert(mapId, body));
-		editing = null;
-		creating = false;
+		return act
+			.mutateAsync(() => (id ? api.updateAlert(mapId, id, body) : api.createAlert(mapId, body)))
+			.then(() => {
+				editing = null;
+				creating = false;
+			})
+			.catch(() => {});
 	}
 
 	function remove(alert: MapAlert) {
 		if (!confirm(`Delete "${alert.name}"?`)) return;
-		act(api.deleteAlert(mapId, alert.id));
+		act.mutate(() => api.deleteAlert(mapId, alert.id));
 	}
 
 	const KIND_LABEL = {
@@ -245,7 +224,8 @@
 							<Switch
 								checked={alert.is_active}
 								aria-label="Enable {alert.name}"
-								onCheckedChange={(value) => act(api.setAlertActive(mapId, alert.id, value))}
+								onCheckedChange={(value) =>
+									act.mutate(() => api.setAlertActive(mapId, alert.id, value))}
 							/>
 							<Button
 								variant="ghost"
@@ -273,7 +253,7 @@
 	</Card.Root>
 
 	{#if canManage}
-		<DestinationsCard {mapId} {webhooks} {roles} onchange={load} />
+		<DestinationsCard {mapId} {webhooks} {roles} />
 	{/if}
 
 	<Card.Root>

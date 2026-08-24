@@ -9,7 +9,10 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
+	import { createQuery } from '@tanstack/svelte-query';
+
 	import { api } from '$lib/api/client';
+	import { key, q } from '$lib/api/queries';
 	import type { ConnectionJump } from '$lib/api/types/ConnectionJump';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
@@ -38,19 +41,23 @@
 	} = $props();
 
 	let logOpen = $state(false);
-	let jumps = $state<ConnectionJump[]>([]);
-	async function refreshLog() {
-		try {
-			jumps = await api.listConnectionJumps(map.mapId, connection.id);
-		} catch {
-			jumps = [];
-		}
+	// Fetched on open; invalidating while closed is a no-op that just marks it stale.
+	const jumpsQuery = createQuery(() => ({
+		...q.listConnectionJumps(map.mapId, connection.id),
+		enabled: logOpen,
+	}));
+	const jumps = $derived(jumpsQuery.data ?? []);
+	function refreshLog() {
+		void map.queries.client.invalidateQueries({
+			queryKey: key.connectionJumps(map.mapId, connection.id),
+		});
 	}
-	// New transits arrive with the map refetch, so an open log has to be re-read.
+	// New transits arrive with the map refetch: the counters changing is the signal that
+	// the log behind them moved.
 	$effect(() => {
 		void connection.jumps_count;
 		void connection.jumps_mass_sum;
-		if (logOpen) refreshLog();
+		refreshLog();
 	});
 
 	function isOutbound(jump: ConnectionJump): boolean {

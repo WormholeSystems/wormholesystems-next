@@ -1,7 +1,9 @@
 // Route planning over the chain: the static universe tables, the graph derived from them
 // plus the map's own edges, and the pinned A→B route with its hover override.
 
-import { api } from '$lib/api/client';
+import type { QueryClient } from '@tanstack/svelte-query';
+
+import { q } from '$lib/api/queries';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import type { DynamicEdge, RouteGraph, RouteStep } from '$lib/routing/algorithm';
@@ -62,8 +64,11 @@ export class RoutePlanner {
 	serviceOptions = $state<StationGroup[]>([]);
 	corporationOptions = $state<StationGroup[]>([]);
 
-	constructor(map: MapState) {
+	private client: QueryClient;
+
+	constructor(map: MapState, client: QueryClient) {
 		this.map = map;
+		this.client = client;
 	}
 
 	/** Stargates plus the chain's own edges. `null` until the static data has arrived. */
@@ -155,7 +160,9 @@ export class RoutePlanner {
 
 	private async fetchGraph() {
 		try {
-			const g = await api.routingGraph();
+			// Cached forever in the client, so map switches reuse the tables; `routingLoad`
+			// only guards this instance's parse of them.
+			const g = await this.client.ensureQueryData(q.routingGraph());
 			this.stargates = new Map(
 				Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]]),
 			);

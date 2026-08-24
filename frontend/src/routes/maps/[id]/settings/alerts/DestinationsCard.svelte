@@ -5,7 +5,9 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
-	import { api, errorMessage } from '$lib/api/client';
+	import { api } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key } from '$lib/api/queries';
 	import type { MapWebhook } from '$lib/api/types/MapWebhook';
 	import type { MapWebhookRole } from '$lib/api/types/MapWebhookRole';
 	import { Button } from '$lib/components/ui/button';
@@ -16,42 +18,42 @@
 		mapId,
 		webhooks,
 		roles,
-		onchange,
 	}: {
 		mapId: number;
 		webhooks: MapWebhook[];
 		roles: MapWebhookRole[];
-		onchange: () => void;
 	} = $props();
 
 	let webhookName = $state('');
 	let webhookUrl = $state('');
 	let roleName = $state('');
 	let roleId = $state('');
-	let error = $state<string | null>(null);
 
-	async function act(work: Promise<unknown>) {
-		try {
-			await work;
-			error = null;
-			onchange();
-		} catch (err) {
-			error = errorMessage(err);
-		}
+	// Deleting a webhook can delete alerts with it, so the whole alerting prefix refetches.
+	const act = apiAction(() => [key.alerting(mapId)]);
+
+	function addWebhook() {
+		act
+			.mutateAsync(() =>
+				api.createWebhook(mapId, { name: webhookName.trim(), url: webhookUrl.trim() }),
+			)
+			.then(() => {
+				webhookName = '';
+				webhookUrl = '';
+			})
+			.catch(() => {});
 	}
 
-	async function addWebhook() {
-		await act(api.createWebhook(mapId, { name: webhookName.trim(), url: webhookUrl.trim() }));
-		webhookName = '';
-		webhookUrl = '';
-	}
-
-	async function addRole() {
-		await act(
-			api.createAlertRole(mapId, { name: roleName.trim(), discord_role_id: roleId.trim() }),
-		);
-		roleName = '';
-		roleId = '';
+	function addRole() {
+		act
+			.mutateAsync(() =>
+				api.createAlertRole(mapId, { name: roleName.trim(), discord_role_id: roleId.trim() }),
+			)
+			.then(() => {
+				roleName = '';
+				roleId = '';
+			})
+			.catch(() => {});
 	}
 
 	function removeWebhook(webhook: MapWebhook) {
@@ -60,7 +62,7 @@
 				? `Delete "${webhook.name}"? ${webhook.alert_count} alert${webhook.alert_count === 1 ? '' : 's'} posting there will be deleted too.`
 				: `Delete "${webhook.name}"?`;
 		if (!confirm(warning)) return;
-		act(api.deleteWebhook(mapId, webhook.id));
+		act.mutate(() => api.deleteWebhook(mapId, webhook.id));
 	}
 </script>
 
@@ -72,10 +74,6 @@
 		</Card.Description>
 	</Card.Header>
 	<Card.Content class="flex flex-col gap-6">
-		{#if error}
-			<p class="text-sm text-destructive" data-testid="destinations-error">{error}</p>
-		{/if}
-
 		<div class="flex flex-col gap-2">
 			<span class="text-sm font-medium">Destinations</span>
 			{#each webhooks as webhook (webhook.id)}
@@ -156,7 +154,7 @@
 						size="icon"
 						class="size-8 shrink-0"
 						aria-label="Delete {role.name}"
-						onclick={() => act(api.deleteAlertRole(mapId, role.id))}
+						onclick={() => act.mutate(() => api.deleteAlertRole(mapId, role.id))}
 					>
 						<TrashIcon />
 					</Button>

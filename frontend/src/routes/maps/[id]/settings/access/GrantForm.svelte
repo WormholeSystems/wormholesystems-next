@@ -4,7 +4,9 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import { getLocalTimeZone, today, type DateValue } from '@internationalized/date';
 
-	import { api } from '$lib/api/client';
+	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import type { AccessSubject } from '$lib/api/types/AccessSubject';
 	import type { Role } from '$lib/api/types/Role';
 	import EveImage from '$lib/components/EveImage.svelte';
@@ -13,7 +15,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
-	import { latest } from '$lib/latest';
+	import { debounced } from '$lib/debounced.svelte';
 	import { ROLE_HELP, ROLE_LABEL } from '$lib/map/roles';
 
 	let {
@@ -29,7 +31,6 @@
 	} = $props();
 
 	let query = $state('');
-	let matches = $state<AccessSubject[]>([]);
 	let picked = $state<AccessSubject | null>(null);
 	let picking = $state(false);
 	let newRole = $state<Role>('member');
@@ -38,16 +39,13 @@
 	const ROLES: Role[] = ['viewer', 'member', 'manager'];
 	const ALL_ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
 
-	const search = latest(api.searchAccessSubjects, (found) => (matches = found));
-	$effect(() => {
-		const q = query.trim();
-		if (q.length < 2) {
-			search.cancel();
-			matches = [];
-			return;
-		}
-		search(q);
-	});
+	const settled = debounced(() => query.trim(), 150);
+	const search = createQuery(() => ({
+		...q.searchAccessSubjects(settled.current),
+		enabled: settled.current.length >= 2,
+		placeholderData: keepPreviousData,
+	}));
+	const matches = $derived(query.trim().length >= 2 ? (search.data ?? []) : []);
 
 	function choose(subject: AccessSubject) {
 		picked = subject;
@@ -100,13 +98,14 @@
 			subject_id: subject.subject_id,
 			role: newRole,
 			expires_at: ends?.toISOString() ?? null,
-		}).then(() => {
-			query = '';
-			picked = null;
-			matches = [];
-			ends = null;
-			customDate = undefined;
-		});
+		})
+			.then(() => {
+				query = '';
+				picked = null;
+				ends = null;
+				customDate = undefined;
+			})
+			.catch(() => {});
 	}
 </script>
 

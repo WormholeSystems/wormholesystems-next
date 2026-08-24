@@ -8,12 +8,15 @@
 
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
-	import { goto, invalidate } from '$app/navigation';
+	import { createQuery } from '@tanstack/svelte-query';
+	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
-	import { api, errorMessage } from '$lib/api/client';
-	import type { AccessEntry } from '$lib/api/types/AccessEntry';
+	import { api } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { MapView } from '$lib/api/types/MapView';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -27,16 +30,18 @@
 	let { data }: { data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	const view = $derived(data.view);
+	// The layout's load is the first frame; after a save the cache owns the value, so
+	// everything mutable reads the query, not `data`.
+	const viewQuery = createQuery(() => ({ ...q.mapView(mapId), initialData: data.view }));
+	const view = $derived(viewQuery.data);
 
 	// Seeded from the map and re-seeded whenever it changes underneath, so a save landing
 	// or somebody else's rename does not leave a stale draft in the fields.
 	let name = $state(untrack(() => data.view.map.name));
 	let description = $state(untrack(() => data.view.map.description ?? ''));
-	let error = $state('');
 	$effect(() => {
-		name = data.view.map.name;
-		description = data.view.map.description ?? '';
+		name = view.map.name;
+		description = view.map.description ?? '';
 	});
 
 	const canManage = $derived(atLeast(view.role, 'manager'));
@@ -45,15 +50,7 @@
 		name.trim() !== view.map.name || description.trim() !== (view.map.description ?? ''),
 	);
 
-	async function act(work: Promise<unknown>) {
-		try {
-			await work;
-			error = '';
-			await invalidate('ws:map');
-		} catch (err) {
-			error = errorMessage(err);
-		}
-	}
+	const act = apiAction(() => [key.mapView(mapId)]);
 
 	const PLACEMENTS = [
 		{ value: 'manual', label: 'Custom placement', hint: 'Everyone drags the chain into shape' },
@@ -65,7 +62,7 @@
 
 	function save() {
 		if (!name.trim() || !dirty) return;
-		act(
+		act.mutate(() =>
 			api.updateMap({
 				map_id: mapId,
 				name: name.trim(),
@@ -75,52 +72,43 @@
 	}
 
 	// Who the map could be handed to: the characters already granted access.
-	let access = $state<AccessEntry[]>([]);
+	const accessQuery = createQuery(() => ({
+		...q.listAccess(mapId),
+		enabled: browser && mapId > 0 && isOwner,
+	}));
+	const access = $derived(accessQuery.data ?? []);
 	let heir = $state('');
 	const candidates = $derived(
 		access.filter((e) => e.subject_type === 'character' && e.role !== 'owner'),
 	);
 
-	$effect(() => {
-		if (!mapId || !isOwner) return;
-		api
-			.listAccess(mapId)
-			.then((a) => (access = a))
-			.catch(() => {});
-	});
-
-	async function transfer() {
+	function transfer() {
 		const subject = Number(heir);
-		const name = candidates.find((c) => c.subject_id === subject)?.name ?? 'them';
-		if (!subject || !confirm(`Hand "${view.map.name}" to ${name}? You stay on as a manager.`)) {
+		const heirName = candidates.find((c) => c.subject_id === subject)?.name ?? 'them';
+		if (!subject || !confirm(`Hand "${view.map.name}" to ${heirName}? You stay on as a manager.`)) {
 			return;
 		}
-		try {
-			await api.transferOwnership({ map_id: mapId, subject_id: subject });
-			heir = '';
-			toast.success(`${name} owns this map now`);
-			await invalidate('ws:map');
-		} catch (err) {
-			error = errorMessage(err);
-		}
+		act
+			.mutateAsync(() => api.transferOwnership({ map_id: mapId, subject_id: subject }))
+			.then(() => {
+				heir = '';
+				toast.success(`${heirName} owns this map now`);
+			})
+			.catch(() => {});
 	}
 
-	async function destroy() {
+	const remove = apiAction(
+		() => [key.maps],
+		() => goto('/maps'),
+	);
+
+	function destroy() {
 		if (!confirm(`Delete "${view?.map.name}"? This cannot be undone.`)) return;
-		try {
-			await api.deleteMap(mapId);
-			goto('/maps');
-		} catch (err) {
-			error = errorMessage(err);
-		}
+		remove.mutate(() => api.deleteMap(mapId));
 	}
 </script>
 
 <div class="flex flex-col gap-6">
-	{#if error}
-		<p class="text-sm text-destructive" data-testid="settings-error">{error}</p>
-	{/if}
-
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Map</Card.Title>
@@ -179,7 +167,7 @@
 						disabled={!canManage}
 						onValueChange={(v) => {
 							const picked = oneOf(PLACEMENT_VALUES, v);
-							if (picked) act(api.updateMap({ map_id: mapId, layout: picked }));
+							if (picked) act.mutate(() => api.updateMap({ map_id: mapId, layout: picked }));
 						}}
 					>
 						<Select.Trigger class="w-56" data-testid="map-layout-select">
@@ -213,7 +201,8 @@
 						checked={allowOverride}
 						disabled={!canManage}
 						aria-label="Let people choose their own placement"
-						onCheckedChange={(v) => act(api.updateMap({ map_id: mapId, allow_layout_override: v }))}
+						onCheckedChange={(v) =>
+							act.mutate(() => api.updateMap({ map_id: mapId, allow_layout_override: v }))}
 					/>
 				{/snippet}
 			</SettingRow>

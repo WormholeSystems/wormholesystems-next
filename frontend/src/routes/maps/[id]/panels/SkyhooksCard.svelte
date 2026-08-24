@@ -6,12 +6,13 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import { solarSystemId } from '$lib/map/system';
 
-	import { api } from '$lib/api/client';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import type { PlanetKind } from '$lib/api/types/PlanetKind';
 	import type { Skyhook } from '$lib/api/types/Skyhook';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
-	import EveImage from '$lib/components/EveImage.svelte';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
@@ -40,7 +41,10 @@
 
 	type Column = 'jumps' | 'planet' | 'region' | 'timer';
 
-	let skyhooks = $state<Skyhook[]>([]);
+	// The server mirrors ESI every five minutes, so the query's own interval asks no more
+	// often than that.
+	const skyhooksQuery = createQuery(() => q.skyhooks());
+	const skyhooks = $derived(skyhooksQuery.data ?? []);
 	let now = $state(new Date());
 	// Skyhooks only go on reagent planets, so lava and ice is the whole vocabulary. Shown one
 	// kind at a time, because the reagent is what the trip was for.
@@ -50,23 +54,10 @@
 	let column = $state<Column>('jumps');
 	let ascending = $state(true);
 
-	function load() {
-		api
-			.skyhooks()
-			.then((rows) => (skyhooks = rows))
-			.catch(() => {});
-	}
-
 	$effect(() => {
-		load();
-		// The server mirrors ESI every five minutes, so asking more often learns nothing.
-		const poll = setInterval(load, 5 * 60_000);
 		// Timers are read to the minute, so half a minute keeps them honest without churn.
 		const clock = setInterval(() => (now = new Date()), 30_000);
-		return () => {
-			clearInterval(poll);
-			clearInterval(clock);
-		};
+		return () => clearInterval(clock);
 	});
 
 	// One search from the origin covers every skyhook, rather than one per row.

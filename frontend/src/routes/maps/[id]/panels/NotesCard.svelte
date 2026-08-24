@@ -4,8 +4,12 @@
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import { marked } from 'marked';
 
+	import { createQuery } from '@tanstack/svelte-query';
+
 	import { api, ApiError } from '$lib/api/client';
+	import { q } from '$lib/api/queries';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
+	import type { SystemDetails } from '$lib/api/types/SystemDetails';
 	import { Button } from '$lib/components/ui/button';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
@@ -21,32 +25,23 @@
 		system: MapSystemView;
 	} = $props();
 
-	let notes = $state<string | null>(null);
-	let hidden = $state(false);
 	let editing = $state(false);
 	let draft = $state('');
 
-	// Which system the notes below belong to. Plain, not `$state`: it is bookkeeping for the
-	// effect, and making it reactive would have the effect depend on its own write.
-	let loadedFor: number | null = null;
+	// Keyed by the placement id, so the wholesale replacement of `map.systems` on every
+	// refetch never re-asks or closes the editor; only looking at a different system does.
+	const details = createQuery(() => q.systemDetails(map.mapId, system.id));
+	const notes = $derived(details.data?.notes ?? null);
+	// Member-gated: a viewer's 403 (or a 404) hides the panel rather than erroring.
+	const hidden = $derived(
+		details.error instanceof ApiError &&
+			(details.error.status === 403 || details.error.status === 404),
+	);
 
 	$effect(() => {
-		const mss = system.id;
-		// Only when the panel is looking at a different system. `map.systems` is replaced
-		// wholesale on every refetch, so this prop gets a new identity whenever anyone
-		// touches the map — and closing the editor then would take the note out from under
-		// somebody in the middle of typing it.
-		if (loadedFor === mss) return;
-		loadedFor = mss;
+		// The id is a value, so this fires once per distinct system, not per refetch.
+		void system.id;
 		editing = false;
-		notes = null;
-		hidden = false;
-		api
-			.systemDetails(map.mapId, mss)
-			.then((d) => (notes = d.notes))
-			.catch((err) => {
-				if (err instanceof ApiError && (err.status === 403 || err.status === 404)) hidden = true;
-			});
 	});
 
 	const rendered = $derived.by(() => {
@@ -66,7 +61,11 @@
 			'setNotes',
 			api.setNotes({ map_id: map.mapId, map_solar_system_id: system.id, notes: value }),
 		);
-		notes = value;
+		// The local echo, so the note reads back before the server confirms it.
+		map.queries.client.setQueryData(
+			q.systemDetails(map.mapId, system.id).queryKey,
+			(d: SystemDetails | undefined) => d && { ...d, notes: value },
+		);
 		editing = false;
 	}
 </script>

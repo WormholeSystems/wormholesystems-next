@@ -10,7 +10,9 @@ import LandmarkIcon from '@lucide/svelte/icons/landmark';
 import ShieldIcon from '@lucide/svelte/icons/shield';
 import SwordsIcon from '@lucide/svelte/icons/swords';
 
-import { api } from '$lib/api/client';
+import type { QueryClient } from '@tanstack/svelte-query';
+
+import { q } from '$lib/api/queries';
 import type { PastedSignature } from '$lib/api/types/PastedSignature';
 import type { Signature } from '$lib/api/types/Signature';
 import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
@@ -104,12 +106,9 @@ export function groupForCategoryId(categoryId: number): SignatureGroup {
 	return CATEGORIES.find((c) => c.categoryId === categoryId)?.group ?? 'unknown';
 }
 
-let catalogPromise: Promise<SignatureCatalog> | null = null;
-
-/** The signature type catalog, fetched once per session. */
-export function loadCatalog(): Promise<SignatureCatalog> {
-	catalogPromise ??= api.signatureCatalog();
-	return catalogPromise;
+/** The signature type catalog, cached forever in the query client. */
+export function loadCatalog(client: QueryClient): Promise<SignatureCatalog> {
+	return client.ensureQueryData(q.signatureCatalog());
 }
 
 /**

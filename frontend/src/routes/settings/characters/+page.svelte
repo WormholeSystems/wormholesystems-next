@@ -8,18 +8,24 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import { lookup } from '$lib/enums';
 
+	import { createQuery } from '@tanstack/svelte-query';
+
 	import { api, errorMessage } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { CharacterRef } from '$lib/api/types/CharacterRef';
-	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { cn } from '$lib/utils';
 
-	let characters = $state<CharacterRef[]>([]);
-	let scopes = $state<ScopeStatus[]>([]);
-	let error = $state<string | null>(null);
+	const charactersQuery = createQuery(() => q.myCharacters());
+	const scopesQuery = createQuery(() => q.myScopes());
+	const characters = $derived(charactersQuery.data ?? []);
+	const scopes = $derived(scopesQuery.data ?? []);
+	const loadError = $derived(charactersQuery.error ?? scopesQuery.error);
+	const error = $derived(loadError ? errorMessage(loadError) : null);
 
 	const SCOPES = {
 		'esi-location.read_location.v1': {
@@ -40,31 +46,11 @@
 		},
 	} satisfies Record<string, { name: string; blurb: string }>;
 
-	async function load() {
-		try {
-			[characters, scopes] = await Promise.all([api.myCharacters(), api.myScopes()]);
-			error = null;
-		} catch (err) {
-			error = errorMessage(err);
-		}
-	}
-
-	$effect(() => {
-		load();
-	});
-
-	async function act(work: Promise<unknown>) {
-		try {
-			await work;
-			await load();
-		} catch (err) {
-			error = errorMessage(err);
-		}
-	}
+	const act = apiAction(() => [key.me]);
 
 	function remove(character: CharacterRef) {
 		if (!confirm(`Remove ${character.name} from this account?`)) return;
-		act(api.removeCharacter(character.character_id));
+		act.mutate(() => api.removeCharacter(character.character_id));
 	}
 
 	const missing = $derived(scopes.filter((s) => !s.granted));
@@ -133,7 +119,7 @@
 							size="icon"
 							class="size-8 text-muted-foreground/50 hover:text-foreground"
 							aria-label="Start new sessions as {character.name}"
-							onclick={() => act(api.setPreferredCharacter(character.character_id))}
+							onclick={() => act.mutate(() => api.setPreferredCharacter(character.character_id))}
 							data-testid="prefer-character"
 						>
 							<StarIcon class="size-4" />
@@ -148,7 +134,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
-							onclick={() => act(api.switchCharacter(character.character_id))}
+							onclick={() => act.mutate(() => api.switchCharacter(character.character_id))}
 							data-testid="switch-character">Act as</Button
 						>
 						<Button

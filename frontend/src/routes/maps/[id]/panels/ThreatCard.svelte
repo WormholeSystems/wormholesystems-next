@@ -3,9 +3,10 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 
-	import { api } from '$lib/api/client';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
-	import type { ThreatAnalysis } from '$lib/api/types/ThreatAnalysis';
 	import { Badge } from '$lib/components/ui/badge';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
@@ -19,17 +20,12 @@
 	// Threat comes from killmails in a system, so a hole nobody has been through has none.
 	const mapped = $derived(system.kind === 'system' ? system : null);
 
-	let analysis = $state<ThreatAnalysis | null>(null);
-
-	$effect(() => {
-		const target = mapped;
-		analysis = null;
-		if (!target || !isWormholeClass(target.wormhole_class_id)) return;
-		api
-			.threatAnalysis(target.solar_system_id)
-			.then((a) => (analysis = a))
-			.catch(() => {});
-	});
+	// Threat is only tracked in wormhole space, so k-space never even asks.
+	const analysisQuery = createQuery(() => ({
+		...q.threatAnalysis(mapped?.solar_system_id ?? 0),
+		enabled: mapped !== null && isWormholeClass(mapped.wormhole_class_id),
+	}));
+	const analysis = $derived(analysisQuery.data ?? null);
 
 	const badgeClass = $derived.by(() => {
 		switch (analysis?.threat_level) {

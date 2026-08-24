@@ -2,10 +2,12 @@
 	// Connection details, anchored at the click on the edge. Read-mostly: the only writes are
 	// in the jump log, every other mutation stays in the context menu.
 	import type { Signature } from '$lib/api/types/Signature';
-	import type { SignatureCatalog } from '$lib/api/types/SignatureCatalog';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { q } from '$lib/api/queries';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { loadCatalog, typeById } from '$lib/map/signatures';
+	import { typeById } from '$lib/map/signatures';
 	import ConnectionStatus from './connection/ConnectionStatus.svelte';
 	import MassTracking from './connection/MassTracking.svelte';
 	import SignatureSection from './connection/SignatureSection.svelte';
@@ -14,10 +16,8 @@
 
 	let { map }: { map: MapState } = $props();
 
-	let catalog = $state<SignatureCatalog | null>(null);
-	$effect(() => {
-		loadCatalog().then((c) => (catalog = c));
-	});
+	const catalogQuery = createQuery(() => q.signatureCatalog());
+	const catalog = $derived(catalogQuery.data ?? null);
 
 	const popover = $derived(map.connectionPopover);
 	// Resolved live so refetches keep it current; a deleted connection closes it.

@@ -66,8 +66,8 @@
 				return;
 			}
 			map.setLayout(resolveLayouts(data.breakpoints));
-			if (map.userSettings && Array.isArray(data.hidden)) {
-				map.userSettings = { ...map.userSettings, hidden_panels: data.hidden };
+			if (Array.isArray(data.hidden)) {
+				map.queries.patchSettingsLocal((s) => ({ ...s, hidden_panels: data.hidden }));
 			}
 		} catch {
 			pasteError = 'That does not look like a layout.';

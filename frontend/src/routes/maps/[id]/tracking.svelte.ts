@@ -4,6 +4,8 @@
 // rather than guessed at.
 
 import { api } from '$lib/api/client';
+import { key } from '$lib/api/queries';
+import { systemResolver } from '$lib/resolve-cache.svelte';
 import { solarSystemId, type MappedSystem } from '$lib/map/system';
 import type { ResolveGhostSystem } from '$lib/api/types/ResolveGhostSystem';
 import type { Signature } from '$lib/api/types/Signature';
@@ -55,31 +57,27 @@ export class JumpTracker {
 	private seenCharacterId: number | null = null;
 	private seenSystemId: number | null = null;
 
-	// Refreshes are serialised: two in flight can come back out of order, and an older reply
-	// landing after a newer one reads as a jump in the wrong direction.
-	private refreshing: Promise<void> | null = null;
-	private pending = false;
-
 	constructor(map: MapState) {
 		this.map = map;
+		// Every fresh reading is observed as it lands, whatever triggered the fetch.
+		// Structural sharing means this fires only when the payload actually changed.
+		$effect(() => {
+			void this.map.myCharacters;
+			this.observe();
+		});
 	}
 
 	private get enabled(): boolean {
 		return this.map.userSettings?.tracking_allowed === true;
 	}
 
-	/** Safe to call from several triggers at once. */
+	/**
+	 * Ask for a fresh reading. Safe to call from several triggers at once: the cache runs
+	 * one fetch per key and an aborted fetch never lands, so replies cannot come back out
+	 * of order and read as a jump in the wrong direction.
+	 */
 	refresh(): Promise<void> {
-		this.pending = true;
-		if (this.refreshing) return this.refreshing;
-		this.refreshing = (async () => {
-			while (this.pending) {
-				this.pending = false;
-				await this.map.loadMyCharacters();
-				this.observe();
-			}
-		})().finally(() => (this.refreshing = null));
-		return this.refreshing;
+		return this.map.queries.client.invalidateQueries({ queryKey: key.myCharacters });
 	}
 
 	/**
@@ -159,7 +157,7 @@ export class JumpTracker {
 		// Already mapped and already explained: there is nothing left to record.
 		if (linked?.signature) return;
 
-		const catalog = await loadCatalog();
+		const catalog = await loadCatalog(map.queries.client);
 		const originSignatures = map.sigs.filter((s) => s.solar_system_id === fromSystemId);
 		const target = await this.describeTarget(toSystemId, existing);
 		if (!target) return;
@@ -231,13 +229,9 @@ export class JumpTracker {
 				security: existing.security_status,
 			};
 		}
-		try {
-			const [hit] = await api.resolveSystems([id]);
-			if (!hit) return null;
-			return { name: hit.name, classId: hit.wormhole_class_id, security: hit.security };
-		} catch {
-			return null;
-		}
+		const hit = await systemResolver.resolve(id);
+		if (!hit) return null;
+		return { name: hit.name, classId: hit.wormhole_class_id, security: hit.security };
 	}
 
 	private suggestAliasFor(

@@ -4,13 +4,13 @@
 	//
 	// The scanning card is the map's setting, not this viewer's: an unmapped hole put on the
 	// map is a node everyone sees.
-	import { invalidate } from '$app/navigation';
+	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
-	import { saveUserSettings } from '$lib/map/user-settings';
+	import { userSettingsSaver } from '$lib/map/user-settings';
 	import { api } from '$lib/api/client';
-	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { MapView } from '$lib/api/types/MapView';
-	import type { ScopeStatus } from '$lib/api/types/ScopeStatus';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
@@ -18,28 +18,25 @@
 
 	const LOCATION_SCOPE = 'esi-location.read_location.v1';
 
-	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
+	let { data }: { data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	let scopes = $state<ScopeStatus[]>([]);
-
-	$effect(() => {
-		api
-			.myScopes()
-			.then((s) => (scopes = s))
-			.catch(() => {});
-	});
+	const scopesQuery = createQuery(() => q.myScopes());
+	const scopes = $derived(scopesQuery.data ?? []);
+	const settingsQuery = createQuery(() => q.mapUserSettings(mapId));
+	const settings = $derived(settingsQuery.data ?? null);
+	const viewQuery = createQuery(() => ({ ...q.mapView(mapId), initialData: data.view }));
 
 	const hasLocation = $derived(scopes.some((s) => s.scope === LOCATION_SCOPE && s.granted));
-	const tracking = $derived(data.settings?.tracking_allowed ?? false);
-	const canManage = $derived(atLeast(data.view.role, 'manager'));
-	const ghosting = $derived(data.view.map.ghost_unlinked_wormholes);
+	const tracking = $derived(settings?.tracking_allowed ?? false);
+	const canManage = $derived(atLeast(viewQuery.data.role, 'manager'));
+	const ghosting = $derived(viewQuery.data.map.ghost_unlinked_wormholes);
+
+	const saveUserSettings = userSettingsSaver(() => mapId);
+	const mapAct = apiAction(() => [key.mapView(mapId)]);
 
 	function updateMap(ghost: boolean) {
-		api
-			.updateMap({ map_id: mapId, ghost_unlinked_wormholes: ghost })
-			.then(() => invalidate('ws:map'))
-			.catch(() => {});
+		mapAct.mutate(() => api.updateMap({ map_id: mapId, ghost_unlinked_wormholes: ghost }));
 	}
 </script>
 
@@ -88,7 +85,7 @@
 						checked={tracking && hasLocation}
 						disabled={!hasLocation}
 						aria-label="Share my location on this map"
-						onCheckedChange={(v) => saveUserSettings(mapId, { tracking_allowed: v })}
+						onCheckedChange={(v) => saveUserSettings({ tracking_allowed: v })}
 					/>
 				{/snippet}
 			</SettingRow>
@@ -102,10 +99,10 @@
 			>
 				{#snippet control()}
 					<Switch
-						checked={(data.settings?.prompt_for_signature ?? true) && tracking}
+						checked={(settings?.prompt_for_signature ?? true) && tracking}
 						disabled={!tracking}
 						aria-label="Ask which signature I jumped"
-						onCheckedChange={(v) => saveUserSettings(mapId, { prompt_for_signature: v })}
+						onCheckedChange={(v) => saveUserSettings({ prompt_for_signature: v })}
 					/>
 				{/snippet}
 			</SettingRow>
@@ -119,10 +116,10 @@
 			>
 				{#snippet control()}
 					<Switch
-						checked={(data.settings?.suggest_alias ?? true) && tracking}
+						checked={(settings?.suggest_alias ?? true) && tracking}
 						disabled={!tracking}
 						aria-label="Name new systems for me"
-						onCheckedChange={(v) => saveUserSettings(mapId, { suggest_alias: v })}
+						onCheckedChange={(v) => saveUserSettings({ suggest_alias: v })}
 					/>
 				{/snippet}
 			</SettingRow>

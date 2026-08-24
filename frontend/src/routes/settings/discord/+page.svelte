@@ -4,47 +4,32 @@
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 
+	import { createQuery } from '@tanstack/svelte-query';
+
 	import { page } from '$app/state';
 	import { api, errorMessage } from '$lib/api/client';
-	import type { DiscordAccount } from '$lib/api/types/DiscordAccount';
+	import { apiAction } from '$lib/api/mutations';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import InstanceNotice from '$lib/components/InstanceNotice.svelte';
-	import type { Instance } from '$lib/api/types/Instance';
+	import { q } from '$lib/api/queries';
 
-	let account = $state<DiscordAccount | null>(null);
-	let instance = $state<Instance | null>(null);
-	let loaded = $state(false);
-	let error = $state<string | null>(null);
+	// What this deployment configured, not what the account did: a self-hosted instance may
+	// have no Discord application at all.
+	const instanceQuery = createQuery(() => q.instance());
+	const accountQuery = createQuery(() => q.myDiscord());
+	const instance = $derived(instanceQuery.data ?? null);
+	const account = $derived(accountQuery.data ?? null);
+	const loaded = $derived(!accountQuery.isPending);
+	const error = $derived(accountQuery.error ? errorMessage(accountQuery.error) : null);
 
 	const justLinked = $derived(page.url.searchParams.get('linked') === '1');
 
-	async function load() {
-		try {
-			// What this deployment configured, not what the account did: a self-hosted
-			// instance may have no Discord application at all.
-			instance = await api.instance().catch(() => null);
-			account = await api.myDiscord();
-			error = null;
-		} catch (err) {
-			error = errorMessage(err);
-		} finally {
-			loaded = true;
-		}
-	}
+	const act = apiAction(() => [q.myDiscord().queryKey]);
 
-	$effect(() => {
-		load();
-	});
-
-	async function unlink() {
+	function unlink() {
 		if (!confirm('Unlink Discord? Alerts that direct-message you will stop.')) return;
-		try {
-			await api.unlinkDiscord();
-			await load();
-		} catch (err) {
-			error = errorMessage(err);
-		}
+		act.mutate(() => api.unlinkDiscord());
 	}
 </script>
 

@@ -6,20 +6,29 @@
 	// Command's own filtering is off and the rows arrive already ranked.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
+	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
+
 	import { api } from '$lib/api/client';
+	import { q } from '$lib/api/queries';
 	import type { MapSearchHit } from '$lib/api/types/MapSearchHit';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Command from '$lib/components/ui/command';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { NODE_W, centerWorld, freePosition, heuristicSize } from '$lib/map/helpers';
-	import { latest } from '$lib/latest';
 	import type { MapState } from './map-state.svelte';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
 
 	let query = $state('');
-	let results = $state<MapSearchHit[]>([]);
+	// Keyed by the term, so a slow reply can never land on a newer search. Undebounced,
+	// like the palette always was; the previous list stays painted while the next fetches.
+	const searchQuery = createQuery(() => ({
+		...q.searchMap(map.mapId, query),
+		enabled: open,
+		placeholderData: keepPreviousData,
+	}));
+	const results = $derived(open ? (searchQuery.data ?? []) : []);
 
 	const canWrite = $derived(map.canWrite);
 	// Threat hits answer a different question (where does this corp operate), so they get
@@ -72,7 +81,6 @@
 	$effect(() => {
 		if (open) {
 			query = '';
-			results = [];
 		} else {
 			// Closing without picking drops the pending placement, so the next Cmd+K is a
 			// plain search again rather than quietly still linking.
@@ -80,14 +88,6 @@
 			map.assignGhostId = null;
 			map.searchAnchor = null;
 		}
-	});
-
-	const search = latest(
-		(text: string) => api.searchMap(map.mapId, text),
-		(found) => (results = found),
-	);
-	$effect(() => {
-		search(query);
 	});
 
 	/** Why this row matched, when it was not the name. */

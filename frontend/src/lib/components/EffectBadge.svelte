@@ -5,8 +5,10 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 
-	import { api } from '$lib/api/client';
-	import type { EffectModifier } from '$lib/api/types/EffectModifier';
+	import { createQuery } from '@tanstack/svelte-query';
+
+	import { browser } from '$app/environment';
+	import { q } from '$lib/api/queries';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 
@@ -21,16 +23,13 @@
 	const letter = $derived(name === 'Wolf-Rayet Star' ? 'W' : name.charAt(0).toUpperCase());
 	const darkText = $derived(name === 'Cataclysmic Variable');
 
-	let mods = $state<EffectModifier[]>([]);
 	let open = $state(false);
 
-	$effect(() => {
-		if (!open) return;
-		api
-			.effectModifiers(name, wormholeClassId)
-			.then((m) => (mods = m))
-			.catch(() => {});
-	});
+	const modsQuery = createQuery(() => ({
+		...q.effectModifiers(name, wormholeClassId),
+		enabled: browser && open,
+	}));
+	const mods = $derived(modsQuery.data ?? []);
 </script>
 
 {#snippet circle()}

@@ -2,29 +2,28 @@
 	// The header's "+": search any system and put it on the shared watchlist.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
+	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
+
 	import { api } from '$lib/api/client';
-	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import { q } from '$lib/api/queries';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
-	import { latest } from '$lib/latest';
+	import { debounced } from '$lib/debounced.svelte';
 	import type { MapState } from '../map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
 
 	let addOpen = $state(false);
 	let addQuery = $state('');
-	let addResults = $state<SystemSearchResult[]>([]);
-	const addSearch = latest(api.searchSystems, (found) => (addResults = found));
-	$effect(() => {
-		const text = addQuery.trim();
-		if (!text) {
-			addResults = [];
-			return;
-		}
-		addSearch(text);
-	});
+	const settled = debounced(() => addQuery.trim(), 150);
+	const addSearchQuery = createQuery(() => ({
+		...q.searchSystems(settled.current),
+		enabled: addOpen && settled.current.length > 0,
+		placeholderData: keepPreviousData,
+	}));
+	const addResults = $derived(addQuery.trim() ? (addSearchQuery.data ?? []) : []);
 	function addToWatchlist(id: number) {
 		map.run('watch', api.addWatchlistEntry({ map_id: map.mapId, solar_system_id: id }));
 		addOpen = false;

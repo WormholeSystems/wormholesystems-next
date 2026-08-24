@@ -2,11 +2,13 @@
 	// Who can see the map, and what they may do on it. A grant can target a character,
 	// their corporation or their alliance, and the server refuses anything that would leave
 	// the map without an owner.
-	import { invalidate } from '$app/navigation';
+	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { toast } from 'svelte-sonner';
 
-	import { api, errorMessage } from '$lib/api/client';
+	import { api } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { MapView } from '$lib/api/types/MapView';
 	import { Button } from '$lib/components/ui/button';
@@ -21,12 +23,15 @@
 	import { atLeast, byRole, ROLE_LABEL } from '$lib/map/roles';
 	import GrantForm from './GrantForm.svelte';
 
-	let { data }: { data: { view: MapView; access: AccessEntry[] } } = $props();
+	let { data }: { data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	const view = $derived(data.view);
-	const access = $derived(data.access);
-	let error = $state('');
+	// Share token and the public flag change on this page, so the query owns the view after
+	// the layout's first frame.
+	const viewQuery = createQuery(() => ({ ...q.mapView(mapId), initialData: data.view }));
+	const view = $derived(viewQuery.data);
+	const accessQuery = createQuery(() => q.listAccess(mapId));
+	const access = $derived(accessQuery.data ?? []);
 
 	const canManage = $derived(atLeast(view.role, 'manager'));
 
@@ -74,7 +79,7 @@
 		const entry = clearing;
 		clearing = null;
 		if (!entry) return;
-		act(
+		act.mutate(() =>
 			api.setAccess({
 				map_id: mapId,
 				subject_type: entry.subject_type,
@@ -92,12 +97,18 @@
 	);
 
 	function rotateShare() {
-		act(api.shareMap(mapId)).then(() => toast.success('Share link ready'));
+		act
+			.mutateAsync(() => api.shareMap(mapId))
+			.then(() => toast.success('Share link ready'))
+			.catch(() => {});
 	}
 
 	function revokeShare() {
 		revoking = false;
-		act(api.unshareMap(mapId)).then(() => toast.success('Share link withdrawn'));
+		act
+			.mutateAsync(() => api.unshareMap(mapId))
+			.then(() => toast.success('Share link withdrawn'))
+			.catch(() => {});
 	}
 
 	async function copyShare() {
@@ -109,20 +120,9 @@
 		}
 	}
 
-	async function act(work: Promise<unknown>) {
-		try {
-			await work;
-			error = '';
-			await Promise.all([invalidate('ws:access'), invalidate('ws:map')]);
-		} catch (err) {
-			error = errorMessage(err);
-		}
-	}
+	// Grants change the access list, and rotating the share link changes the view.
+	const act = apiAction(() => [key.access(mapId), key.mapView(mapId)]);
 </script>
-
-{#if error}
-	<p class="mb-4 text-sm text-destructive" data-testid="settings-error">{error}</p>
-{/if}
 
 <Card.Root>
 	<Card.Header>
@@ -132,7 +132,9 @@
 	</Card.Header>
 	<Card.Content class="flex flex-col gap-4">
 		{#if canManage}
-			<GrantForm ongrant={(grant) => act(api.setAccess({ map_id: mapId, ...grant }))} />
+			<GrantForm
+				ongrant={(grant) => act.mutateAsync(() => api.setAccess({ map_id: mapId, ...grant }))}
+			/>
 		{/if}
 
 		<div class="flex items-center gap-2">
@@ -154,7 +156,7 @@
 			onsort={sort.toggle}
 			actions={{
 				setRole: (entry, role) =>
-					act(
+					act.mutate(() =>
 						api.setAccess({
 							map_id: mapId,
 							subject_type: entry.subject_type,
@@ -162,7 +164,8 @@
 							role,
 						}),
 					),
-				revoke: (entry) => act(api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id })),
+				revoke: (entry) =>
+					act.mutate(() => api.revokeAccess({ map_id: mapId, subject_id: entry.subject_id })),
 				clearExpiry: (entry) => (clearing = entry),
 			}}
 		/>
@@ -225,7 +228,8 @@
 						checked={view.map.is_public}
 						aria-label="Public map"
 						data-testid="share-public"
-						onCheckedChange={(v) => act(api.updateMap({ map_id: mapId, is_public: v }))}
+						onCheckedChange={(v) =>
+							act.mutate(() => api.updateMap({ map_id: mapId, is_public: v }))}
 					/>
 				{/snippet}
 			</SettingRow>

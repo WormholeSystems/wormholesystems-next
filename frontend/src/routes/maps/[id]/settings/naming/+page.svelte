@@ -3,12 +3,13 @@
 	//
 	// Mixed ownership: the names are the map's and Manager+, the clipboard toggle is yours.
 	// Non-managers still see the names read-only.
-	import { invalidate } from '$app/navigation';
+	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
-	import { saveUserSettings } from '$lib/map/user-settings';
-	import { api, errorMessage } from '$lib/api/client';
+	import { userSettingsSaver } from '$lib/map/user-settings';
+	import { api } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { MapNaming } from '$lib/api/types/MapNaming';
-	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -16,31 +17,26 @@
 	import NamingCard from './NamingCard.svelte';
 	import { atLeast } from '$lib/map/roles';
 
-	let { data }: { data: { view: MapView; settings: MapUserSettings | null } } = $props();
+	let { data }: { data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
-	let error = $state('');
+	const viewQuery = createQuery(() => ({ ...q.mapView(mapId), initialData: data.view }));
+	const settingsQuery = createQuery(() => q.mapUserSettings(mapId));
+	const settings = $derived(settingsQuery.data ?? null);
 
-	const canManage = $derived(atLeast(data.view.role, 'manager'));
-	const tracking = $derived(data.settings?.tracking_allowed ?? false);
+	const canManage = $derived(atLeast(viewQuery.data.role, 'manager'));
+	const tracking = $derived(settings?.tracking_allowed ?? false);
 
-	async function saveNaming(naming: MapNaming) {
-		try {
-			await api.updateMap({ map_id: mapId, naming });
-			error = '';
-			await invalidate('ws:map');
-		} catch (err) {
-			error = errorMessage(err);
-		}
+	const saveUserSettings = userSettingsSaver(() => mapId);
+	const mapAct = apiAction(() => [key.mapView(mapId)]);
+
+	function saveNaming(naming: MapNaming) {
+		mapAct.mutate(() => api.updateMap({ map_id: mapId, naming }));
 	}
 </script>
 
 <div class="flex flex-col gap-6">
-	{#if error}
-		<p class="text-sm text-destructive" data-testid="settings-error">{error}</p>
-	{/if}
-
-	<NamingCard naming={data.view.map.naming} disabled={!canManage} onsave={saveNaming} />
+	<NamingCard naming={viewQuery.data.map.naming} disabled={!canManage} onsave={saveNaming} />
 
 	<Card.Root>
 		<Card.Header>
@@ -57,10 +53,10 @@
 			>
 				{#snippet control()}
 					<Switch
-						checked={(data.settings?.copy_bookmark ?? false) && tracking}
+						checked={(settings?.copy_bookmark ?? false) && tracking}
 						disabled={!tracking}
 						aria-label="Copy a bookmark when I map a hole"
-						onCheckedChange={(v) => saveUserSettings(mapId, { copy_bookmark: v })}
+						onCheckedChange={(v) => saveUserSettings({ copy_bookmark: v })}
 					/>
 				{/snippet}
 			</SettingRow>

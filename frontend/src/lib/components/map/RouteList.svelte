@@ -3,8 +3,7 @@
 	// and an optional ignore button. One grid owns the tracks, rows are subgrids.
 	import XIcon from '@lucide/svelte/icons/x';
 
-	import { api } from '$lib/api/client';
-	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -23,18 +22,8 @@
 		onignore?: (id: number) => void;
 	} = $props();
 
-	let resolved = $state<Map<number, SystemSearchResult>>(new Map());
 	$effect(() => {
-		const ids = steps.map((s) => s.id).filter((id) => !resolved.has(id));
-		if (ids.length === 0) return;
-		api
-			.resolveSystems(ids)
-			.then((rows) => {
-				const next = new Map(resolved);
-				for (const r of rows) next.set(r.id, r);
-				resolved = next;
-			})
-			.catch(() => {});
+		systemResolver.ensure(steps.map((s) => s.id));
 	});
 </script>
 
@@ -47,7 +36,7 @@
 		data-testid="route-list"
 	>
 		{#each steps as step, i (i)}
-			{@const r = resolved.get(step.id)}
+			{@const r = systemResolver.get(step.id)}
 			<li class="col-span-full grid grid-cols-subgrid items-center gap-x-2 text-xs">
 				{#if r}
 					<SystemMenu system={r} class="col-span-full grid grid-cols-subgrid items-center gap-x-2">

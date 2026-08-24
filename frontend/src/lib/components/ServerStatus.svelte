@@ -2,9 +2,10 @@
 	// Tranquility, in the header: whether the server is up and what time it is in EVE. The
 	// clock is there because the game runs on UTC (downtime, timers, other timezones) and the
 	// browser's clock does not. Everything past that lives in the tooltip.
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { untrack } from 'svelte';
 
-	import { api } from '$lib/api/client';
+	import { key, q } from '$lib/api/queries';
 	import type { ServerState } from '$lib/api/types/ServerState';
 	import type { ServerStatus } from '$lib/api/types/ServerStatus';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -13,9 +14,13 @@
 	let { signedIn = false, initial = null }: { signedIn?: boolean; initial?: ServerStatus | null } =
 		$props();
 
-	// Seeded by the layout's load, so the headcount is there in the first frame rather than
-	// arriving after it. The poll and the socket take it from there.
-	let status = $state<ServerStatus | null>(untrack(() => initial));
+	// Layout seed, 60s poll and socket push all converge on the one cache entry.
+	const client = useQueryClient();
+	const statusQuery = createQuery(() => ({
+		...q.serverStatus(),
+		initialData: untrack(() => initial) ?? undefined,
+	}));
+	const status = $derived(statusQuery.data ?? null);
 	let now = $state(new Date());
 
 	const STATES = {
@@ -68,31 +73,20 @@
 		return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 	});
 
-	function refresh() {
-		api
-			.serverStatus()
-			.then((s) => (status = s))
-			.catch(() => {});
-	}
-
+	// Minutes are all that shows, but ticking faster stops the clock sitting a minute behind
+	// after the tab has been asleep.
 	$effect(() => {
-		// Seeded by the layout, so the first fetch is the poll's, not a repeat of it.
-		if (!status) refresh();
-		// Minutes are all that shows, but ticking faster stops the clock sitting a minute behind
-		// after the tab has been asleep.
 		const clock = setInterval(() => (now = new Date()), 10_000);
-		// Fallback for anyone the push cannot reach, since signed-out visitors have no socket.
-		const poll = setInterval(refresh, 60_000);
-		return () => {
-			clearInterval(clock);
-			clearInterval(poll);
-		};
+		return () => clearInterval(clock);
 	});
 
+	// The query's own interval is the fallback for anyone this push cannot reach, since
+	// signed-out visitors have no socket.
 	$effect(() => {
 		if (!signedIn) return;
 		return openUserSocket((event) => {
-			if (event.type === 'server_status_changed') refresh();
+			if (event.type === 'server_status_changed')
+				client.invalidateQueries({ queryKey: key.serverStatus });
 		});
 	});
 </script>
