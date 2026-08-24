@@ -15,7 +15,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 
 	let {
 		map,

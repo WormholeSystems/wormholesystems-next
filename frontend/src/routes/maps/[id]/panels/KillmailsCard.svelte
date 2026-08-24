@@ -24,7 +24,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { formatIsk, iskSeverity, timeAgo } from '$lib/format';
 	import { cn } from '$lib/utils';
-	import { clearHover, hoverSystem } from '../map-hover';
+	import { clearHover, hoverSystem } from '../state/map-hover';
 	import {
 		ISK_TONE,
 		crowdLabel,
@@ -33,7 +33,7 @@
 		partyOrg,
 		systemKey,
 	} from './killmail-presentation';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
 

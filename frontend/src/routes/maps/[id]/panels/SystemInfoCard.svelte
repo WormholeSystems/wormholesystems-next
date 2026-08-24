@@ -8,7 +8,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import StaticDetails from '$lib/components/map/StaticDetails.svelte';
+	import StaticDetails from '$lib/components/StaticDetails.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { destClassMeta, effectTextColor, isWormholeClass } from '$lib/map/classes';
 	import {

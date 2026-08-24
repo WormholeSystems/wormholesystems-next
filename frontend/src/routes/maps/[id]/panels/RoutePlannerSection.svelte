@@ -6,10 +6,10 @@
 
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import { Button } from '$lib/components/ui/button';
-	import RouteList from '$lib/components/map/RouteList.svelte';
-	import SystemCombobox from '$lib/components/pickers/SystemCombobox.svelte';
+	import RouteList from './RouteList.svelte';
+	import SystemCombobox from '../pickers/SystemCombobox.svelte';
 	import { findRoute, jumpTone as badgeTone, type RouteGraph } from '$lib/routing/algorithm';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 
 	let { map, graph }: { map: MapState; graph: RouteGraph | null } = $props();
 

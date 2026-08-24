@@ -2,7 +2,7 @@
 	// Cards that count jumps all measure from one origin, which is the route's From when
 	// one is set and otherwise wherever the pilot is. Without saying so, a stale From makes
 	// every number on the page quietly wrong, so each of those cards names it.
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 
 	let { map }: { map: MapState } = $props();

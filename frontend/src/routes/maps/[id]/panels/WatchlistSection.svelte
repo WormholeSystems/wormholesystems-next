@@ -5,10 +5,10 @@
 
 	import { api } from '$lib/api/client';
 	import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
-	import SortHeader from '$lib/components/map-ui/SortHeader.svelte';
+	import SortHeader from '$lib/components/SortHeader.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
-	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
-	import { SYSTEM_CELLS_4, SYSTEM_LIST_ACTIONS, SYSTEM_ROW } from '$lib/components/pickers/columns';
+	import SystemRow from '../pickers/SystemRow.svelte';
+	import { SYSTEM_CELLS_4, SYSTEM_LIST_ACTIONS, SYSTEM_ROW } from '../pickers/columns';
 	import { compareWatchlistEntries } from '$lib/map/watchlist';
 	import {
 		findRoutes,
@@ -17,7 +17,7 @@
 		type RouteResult,
 	} from '$lib/routing/algorithm';
 	import { sortState } from '$lib/sort-state.svelte';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
 	let { map, graph, origin }: { map: MapState; graph: RouteGraph | null; origin: number | null } =

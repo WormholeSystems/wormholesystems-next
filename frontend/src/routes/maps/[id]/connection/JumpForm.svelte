@@ -15,9 +15,9 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import EveImage from '$lib/components/EveImage.svelte';
-	import ShipCombobox from '$lib/components/pickers/ShipCombobox.svelte';
+	import ShipCombobox from '../pickers/ShipCombobox.svelte';
 	import { solarSystemId, systemName } from '$lib/map/system';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 
 	let {
 		map,

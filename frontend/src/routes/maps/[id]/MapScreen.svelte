@@ -4,7 +4,7 @@
 	// and selection live outside the fetched data and nodes are keyed by id, so a refetch
 	// keeps interaction state.
 	import { solarSystemId } from '$lib/map/system';
-	import { deepLinkTarget, systemParamUrl } from './deep-link';
+	import { deepLinkTarget, systemParamUrl } from './state/deep-link';
 
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -17,26 +17,26 @@
 	import { NODE_W, railEndpoint, gridBackground } from '$lib/map/helpers';
 	import { connectionCountByPlacement, pilotsBySystem, sigCountsBySystem } from '$lib/map/grouping';
 	import { curveBetween } from '$lib/map/edges';
-	import CanvasControls from './CanvasControls.svelte';
-	import ConnectionPopover from './ConnectionPopover.svelte';
-	import ContextMenu from './ContextMenu.svelte';
-	import LoadingCover from './LoadingCover.svelte';
-	import MapEdge from './MapEdge.svelte';
-	import { MapGestures } from './map-gestures.svelte';
+	import CanvasControls from './canvas/CanvasControls.svelte';
+	import ConnectionPopover from './connection/ConnectionPopover.svelte';
+	import ContextMenu from './menus/ContextMenu.svelte';
+	import LoadingCover from './canvas/LoadingCover.svelte';
+	import MapEdge from './canvas/MapEdge.svelte';
+	import { MapGestures } from './state/map-gestures.svelte';
 	import { setMapContext } from '$lib/components/system-menu/context';
-	import { connectMapSession } from './map-session.svelte';
-	import { MapState } from './map-state.svelte';
-	import Scrollbars from './Scrollbars.svelte';
-	import RallyBadge from './RallyBadge.svelte';
-	import SystemNode from './SystemNode.svelte';
-	import CommandPalette from './CommandPalette.svelte';
+	import { connectMapSession } from './state/map-session.svelte';
+	import { MapState } from './state/map-state.svelte';
+	import Scrollbars from './canvas/Scrollbars.svelte';
+	import RallyBadge from './canvas/RallyBadge.svelte';
+	import SystemNode from './canvas/SystemNode.svelte';
+	import CommandPalette from './overlays/CommandPalette.svelte';
 	import LayoutToolbar from './panels/LayoutToolbar.svelte';
 	import PanelGrid from './panels/PanelGrid.svelte';
-	import CleanMapDialog from './CleanMapDialog.svelte';
-	import IntroductionDialog from './IntroductionDialog.svelte';
-	import StatusBar from './StatusBar.svelte';
-	import TrackingDialog from './TrackingDialog.svelte';
-	import { JumpTracker } from './tracking.svelte';
+	import CleanMapDialog from './overlays/CleanMapDialog.svelte';
+	import IntroductionDialog from './overlays/IntroductionDialog.svelte';
+	import StatusBar from './canvas/StatusBar.svelte';
+	import TrackingDialog from './tracking/TrackingDialog.svelte';
+	import { JumpTracker } from './state/tracking.svelte';
 
 	// Mounted under `{#key mapId}`, so every map gets a fresh instance and construction
 	// happens at component init, where queries and effects are legal.

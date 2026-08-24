@@ -25,7 +25,7 @@
 	import { cn } from '$lib/utils';
 	import { decodeLayout, encodeLayout } from './layout-codec';
 	import { BREAKPOINTS, PANELS, type BreakpointKey, resolveLayouts } from './registry';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
 

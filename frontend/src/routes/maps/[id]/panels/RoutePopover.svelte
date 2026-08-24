@@ -9,9 +9,9 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Popover from '$lib/components/ui/popover';
 	import EveImage from '$lib/components/EveImage.svelte';
-	import RouteList from '$lib/components/map/RouteList.svelte';
+	import RouteList from './RouteList.svelte';
 	import { onlineCharacters, setWaypoint, setWaypointAll } from '$lib/map/waypoints';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 
 	let {
 		map,

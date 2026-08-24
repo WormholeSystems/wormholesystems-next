@@ -20,7 +20,7 @@
 	import SkyhooksCard from './SkyhooksCard.svelte';
 	import SystemInfoCard from './SystemInfoCard.svelte';
 	import ThreatCard from './ThreatCard.svelte';
-	import SignaturesPanel from '../SignaturesPanel.svelte';
+	import SignaturesPanel from '../signatures/SignaturesPanel.svelte';
 	import {
 		type BreakpointKey,
 		type PanelId,
@@ -36,7 +36,7 @@
 		type GridMetrics,
 		type PanelGesture,
 	} from './panel-gestures';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import type { Snippet } from 'svelte';
 
 	let { map, canvas }: { map: MapState; canvas: Snippet } = $props();

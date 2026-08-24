@@ -16,7 +16,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import SortHeader from '$lib/components/map-ui/SortHeader.svelte';
+	import SortHeader from '$lib/components/SortHeader.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -26,7 +26,7 @@
 	import { jumpTone } from '$lib/routing/algorithm';
 	import type { RouteResult } from '$lib/routing/algorithm';
 	import { cn } from '$lib/utils';
-	import { clearHover, hoverSystem } from '../map-hover';
+	import { clearHover, hoverSystem } from '../state/map-hover';
 	import {
 		EVESCOUT_COLUMNS,
 		EVESCOUT_COMPARATORS,
@@ -38,8 +38,8 @@
 		type EveScoutColumn,
 		type EveScoutRow,
 	} from './evescout-rows';
-	import { routeBatch } from '../route-batch.svelte';
-	import type { MapState } from '../map-state.svelte';
+	import { routeBatch } from '../state/route-batch.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
 	let { map }: { map: MapState } = $props();

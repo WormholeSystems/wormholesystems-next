@@ -16,8 +16,8 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import SortHeader from '$lib/components/map-ui/SortHeader.svelte';
-	import SovereigntyBadge from '$lib/components/map-ui/SovereigntyBadge.svelte';
+	import SortHeader from '$lib/components/SortHeader.svelte';
+	import SovereigntyBadge from '$lib/components/SovereigntyBadge.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
@@ -32,7 +32,7 @@
 		type SkyhookStatus,
 	} from '$lib/skyhooks/timer';
 	import { cn } from '$lib/utils';
-	import { clearHover, hoverSystem } from '../map-hover';
+	import { clearHover, hoverSystem } from '../state/map-hover';
 	import {
 		buildSkyhookRows,
 		liveSkyhookRows,
@@ -43,8 +43,8 @@
 		type SkyhookColumn,
 		type SkyhookRow,
 	} from './skyhook-rows';
-	import { routeBatch } from '../route-batch.svelte';
-	import type { MapState } from '../map-state.svelte';
+	import { routeBatch } from '../state/route-batch.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 

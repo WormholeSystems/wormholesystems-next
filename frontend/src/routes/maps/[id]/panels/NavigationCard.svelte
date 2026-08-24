@@ -5,7 +5,7 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import FindSection from './FindSection.svelte';
 	import RoutePlannerSection from './RoutePlannerSection.svelte';
 	import RouteSettings from './RouteSettings.svelte';

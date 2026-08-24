@@ -2,7 +2,7 @@
 	// The settings screen's own access table, given grants and no actions. What a visitor
 	// sees here is the component the app renders, not a second drawing of it.
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
-	import AccessTable from '$lib/components/map-ui/AccessTable.svelte';
+	import AccessTable from '$lib/components/AccessTable.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import { ROLE_HELP, ROLE_LABEL, ROLES_ASCENDING } from '$lib/map/roles';
 	import { DEMO_ACCESS } from './demo-chain';

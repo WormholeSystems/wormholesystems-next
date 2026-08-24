@@ -15,9 +15,9 @@
 	import type { RouteResult } from '$lib/routing/algorithm';
 	import { isIdle, isScanner, orderPilots } from '$lib/characters/order';
 	import { cn } from '$lib/utils';
-	import { clearHover, hoverSystem } from '../map-hover';
-	import { routeBatch } from '../route-batch.svelte';
-	import type { MapState } from '../map-state.svelte';
+	import { clearHover, hoverSystem } from '../state/map-hover';
+	import { routeBatch } from '../state/route-batch.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import { solarSystemId as solarSystemIdOf } from '$lib/map/system';

@@ -17,7 +17,7 @@
 
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Input } from '$lib/components/ui/input';
-	import AccessTable from '$lib/components/map-ui/AccessTable.svelte';
+	import AccessTable from '$lib/components/AccessTable.svelte';
 	import { sortState } from '$lib/sort-state.svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';

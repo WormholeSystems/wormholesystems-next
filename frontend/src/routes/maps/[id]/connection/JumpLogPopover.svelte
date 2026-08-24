@@ -24,7 +24,7 @@
 	import { tickingMs } from '$lib/now.svelte';
 	import { formatKt } from '$lib/map/helpers';
 	import { solarSystemId } from '$lib/map/system';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import JumpForm from './JumpForm.svelte';
 
 	let {

@@ -5,10 +5,10 @@
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { SignatureTypeInfo } from '$lib/api/types/SignatureTypeInfo';
-	import MassBar from '$lib/components/map-ui/MassBar.svelte';
+	import MassBar from '$lib/components/MassBar.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { formatKt, remainingMass } from '$lib/map/helpers';
-	import type { MapState } from '../map-state.svelte';
+	import type { MapState } from '../state/map-state.svelte';
 	import JumpLogPopover from './JumpLogPopover.svelte';
 
 	let {

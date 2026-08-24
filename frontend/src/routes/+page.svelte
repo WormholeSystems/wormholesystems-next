@@ -12,7 +12,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
-	import MassBar from '$lib/components/map-ui/MassBar.svelte';
+	import MassBar from '$lib/components/MassBar.svelte';
 	import AccessDemo from './AccessDemo.svelte';
 	import CountUp from './CountUp.svelte';
 	import LandingChain from './LandingChain.svelte';
