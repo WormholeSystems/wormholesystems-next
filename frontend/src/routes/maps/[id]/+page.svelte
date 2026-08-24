@@ -3,7 +3,7 @@
 
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
-	import MapScreen from './MapScreen.svelte';
+	import MapScreen from './components/MapScreen.svelte';
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	let { data }: { data: { view: MapView | null; settings: MapUserSettings | null } } = $props();

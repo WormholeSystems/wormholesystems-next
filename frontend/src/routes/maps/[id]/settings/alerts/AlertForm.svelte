@@ -29,7 +29,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import SystemCombobox from '../../pickers/SystemCombobox.svelte';
+	import SystemCombobox from '../../components/pickers/SystemCombobox.svelte';
 
 	let {
 		alert,

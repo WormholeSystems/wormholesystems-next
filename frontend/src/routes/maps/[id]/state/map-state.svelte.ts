@@ -15,7 +15,7 @@ import type { MapView } from '$lib/api/types/MapView';
 import type { SystemDetails } from '$lib/api/types/SystemDetails';
 import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 import type { SocketState } from '$lib/ws';
-import type { PanelId } from '../panels/registry';
+import type { PanelId } from '../components/panels/registry';
 import type { RoutingSettings } from '$lib/routing/algorithm';
 import { NODE_W, clamp, heuristicSize } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';

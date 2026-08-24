@@ -1,0 +1,135 @@
+// The systems domain: the nodes on the map and every verb that changes them. Components
+// read `map.systems.all` and call these; nothing outside `state/` builds api requests.
+
+import { api } from '$lib/api/client';
+import type { GridConfig } from '$lib/api/types/GridConfig';
+import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import type { SystemStatus } from '$lib/api/types/SystemStatus';
+import type { MapAction } from '$lib/map/actions';
+import { centerWorld, freePosition, heuristicSize, type Vec2 } from '$lib/map/helpers';
+import type { MapCamera } from './map-camera.svelte';
+
+export interface SystemsHost {
+	mapId: number;
+	camera: MapCamera;
+	all(): MapSystemView[];
+	grid(): GridConfig;
+	run(action: MapAction, promise: Promise<unknown>, detail?: string): void;
+	/** The local echo for a saved note, so it reads back before the server confirms it. */
+	notesLocal(mapSolarSystemId: number, notes: string | null): void;
+}
+
+export class SystemsApi {
+	constructor(private host: SystemsHost) {}
+
+	/** Every node on the map, ghosts included. */
+	get all(): MapSystemView[] {
+		return this.host.all();
+	}
+
+	/**
+	 * Place a system at a free spot near `anchor` (default: the middle of the view);
+	 * `connectFrom` also links the new placement to an existing node in the same action.
+	 */
+	add(solarSystemId: number, opts: { anchor?: Vec2 | null; connectFrom?: number | null } = {}) {
+		const base =
+			opts.anchor ??
+			centerWorld(this.host.camera.pan, this.host.camera.zoom, this.host.camera.viewportRect());
+		const at = freePosition(this.all, base, this.host.grid());
+		const from = opts.connectFrom ?? null;
+		this.host.run(
+			'addSystem',
+			(async () => {
+				const placed = await api.addSystem({
+					map_id: this.host.mapId,
+					solar_system_id: solarSystemId,
+					x: at.x,
+					y: at.y,
+					alias: null,
+				});
+				if (from !== null && from !== placed.id) {
+					await api.addConnection({
+						map_id: this.host.mapId,
+						from_system: from,
+						to_system: placed.id,
+						kind: 'wormhole',
+						size: heuristicSize(this.all, from, placed.id),
+					});
+				}
+			})(),
+		);
+	}
+
+	/** Move placements to where a drag dropped them; the optimistic override is the caller's. */
+	move(moves: { map_solar_system_id: number; x: number; y: number }[]) {
+		this.host.run('moveSystems', api.moveSystems({ map_id: this.host.mapId, moves }));
+	}
+
+	remove(mapSolarSystemIds: number[]) {
+		this.host.run(
+			'removeSystems',
+			api.removeSystems({ map_id: this.host.mapId, map_solar_system_ids: mapSolarSystemIds }),
+		);
+	}
+
+	/** Say which system a ghost placement turned out to be. */
+	assignGhost(mapSolarSystemId: number, solarSystemId: number) {
+		this.host.run(
+			'assignSystem',
+			api.resolveGhostSystem({
+				map_id: this.host.mapId,
+				map_solar_system_id: mapSolarSystemId,
+				solar_system_id: solarSystemId,
+			}),
+		);
+	}
+
+	/** The alias, and for a real system who holds it; a ghost owns only the alias. */
+	rename(system: MapSystemView, alias: string | null, occupier: string | null) {
+		const writes = [
+			api.setAlias({ map_id: this.host.mapId, map_solar_system_id: system.id, alias }),
+		];
+		if (system.kind === 'system') {
+			writes.push(
+				api.setOccupier({ map_id: this.host.mapId, map_solar_system_id: system.id, occupier }),
+			);
+		}
+		this.host.run('setAlias', Promise.all(writes));
+	}
+
+	saveNotes(mapSolarSystemId: number, notes: string | null) {
+		this.host.run(
+			'setNotes',
+			api.setNotes({ map_id: this.host.mapId, map_solar_system_id: mapSolarSystemId, notes }),
+		);
+		this.host.notesLocal(mapSolarSystemId, notes);
+	}
+
+	setStatus(mapSolarSystemId: number, status: SystemStatus) {
+		this.host.run(
+			'setStatus',
+			api.setStatus({ map_id: this.host.mapId, map_solar_system_id: mapSolarSystemId, status }),
+		);
+	}
+
+	setPinned(mapSolarSystemId: number, value: boolean) {
+		this.host.run(
+			'setPinned',
+			api.setPinned({ map_id: this.host.mapId, map_solar_system_id: mapSolarSystemId, value }),
+		);
+	}
+
+	setHome(mapSolarSystemId: number, value: boolean) {
+		this.host.run(
+			'setHome',
+			api.setHome({ map_id: this.host.mapId, map_solar_system_id: mapSolarSystemId, value }),
+		);
+	}
+
+	setRally(mapSolarSystemId: number, value: boolean) {
+		this.host.run(
+			'setRally',
+			api.setRally({ map_id: this.host.mapId, map_solar_system_id: mapSolarSystemId, value }),
+		);
+	}
+}
