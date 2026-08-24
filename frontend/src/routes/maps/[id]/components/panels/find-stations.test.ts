@@ -66,9 +66,18 @@ describe('stationFilter', () => {
 		expect(stationFilter(null, null, CORPS, [repair])).toBeNull();
 	});
 
-	it('answers a lone service or corporation with its own group', () => {
+	it('answers a lone service or corporation with its own stations', () => {
 		expect(stationFilter(null, 7, CORPS, [repair])).toBe(repair);
-		expect(stationFilter({ kind: 'corp', id: navy.id }, null, CORPS, [repair])).toBe(navy);
+		const alone = stationFilter({ kind: 'corp', id: navy.id }, null, CORPS, [repair]);
+		expect(alone?.systems).toEqual(navy.systems);
+		expect(alone?.stationsBySystem).toEqual(navy.stationsBySystem);
+	});
+
+	it('matches nothing for a dangling owner pick, corp or faction alike', () => {
+		expect(stationFilter({ kind: 'corp', id: 999 }, null, CORPS, [repair])?.systems.size).toBe(0);
+		expect(stationFilter({ kind: 'faction', id: 999 }, null, CORPS, [repair])?.systems.size).toBe(
+			0,
+		);
 	});
 
 	it('merges a faction from its member corporations', () => {

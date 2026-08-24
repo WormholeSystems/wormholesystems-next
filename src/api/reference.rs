@@ -236,29 +236,37 @@ pub struct StationRef {
 }
 
 /// The graph is immutable SDE data, so it is built and serialized once per process
-/// rather than recomputed for every cold client load.
-static ROUTING_GRAPH_JSON: tokio::sync::OnceCell<std::sync::Arc<String>> =
+/// rather than recomputed for every cold client load. `Bytes` clones are refcounted,
+/// so a request never copies the multi-megabyte payload.
+static ROUTING_GRAPH_JSON: tokio::sync::OnceCell<axum::body::Bytes> =
     tokio::sync::OnceCell::const_new();
 
 /// `GET /api/routing-graph`. Static reference data: cacheable for a day.
 pub async fn routing_graph(
     State(state): State<AppState>,
 ) -> Result<impl axum::response::IntoResponse, ApiError> {
-    let body = ROUTING_GRAPH_JSON
-        .get_or_try_init(|| async {
+    let body = match ROUTING_GRAPH_JSON.get() {
+        Some(body) => body.clone(),
+        None => {
             let graph = build_routing_graph(&state.db).await?;
-            Ok::<_, ApiError>(std::sync::Arc::new(
+            let body = axum::body::Bytes::from(
                 serde_json::to_string(&graph).expect("routing graph serializes"),
-            ))
-        })
-        .await?
-        .clone();
+            );
+            // An empty adjacency means the SDE is not seeded yet. Serving it is fine;
+            // pinning it for the process lifetime would keep the planner empty until
+            // a restart, so only a real graph is cached.
+            if !graph.adjacency.is_empty() {
+                let _ = ROUTING_GRAPH_JSON.set(body.clone());
+            }
+            body
+        }
+    };
     Ok((
         [
             (axum::http::header::CACHE_CONTROL, "public, max-age=86400"),
             (axum::http::header::CONTENT_TYPE, "application/json"),
         ],
-        body.to_string(),
+        body,
     ))
 }
 

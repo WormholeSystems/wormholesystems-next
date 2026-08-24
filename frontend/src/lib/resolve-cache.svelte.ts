@@ -5,32 +5,44 @@ import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
  * A grow-only, request-deduplicating cache over a batch resolver. Factory-shaped so a
  * test can construct a fresh one with a stub fetcher; the app shares the singleton below.
  */
+/** The server truncates a resolve request at this many ids; bigger asks are split. */
+const CHUNK = 200;
+
 export function createSystemResolver(fetchRows: (ids: number[]) => Promise<SystemSearchResult[]>) {
 	let resolved = $state(new Map<number, SystemSearchResult>());
 	// One promise per id currently on the wire, so concurrent asks share the fetch.
 	const pending = new Map<number, Promise<void>>();
+	// Ids a successful fetch did not answer: the server does not know them, and asking
+	// again would loop forever, since a reactive read retriggers on every cache change.
+	const unknown = new Set<number>();
 
 	async function fetchMissing(ids: number[]): Promise<void> {
 		const waits: Promise<void>[] = [];
 		const missing: number[] = [];
 		for (const id of new Set(ids)) {
-			if (resolved.has(id)) continue;
+			if (resolved.has(id) || unknown.has(id)) continue;
 			const wait = pending.get(id);
 			if (wait) waits.push(wait);
 			else missing.push(id);
 		}
-		if (missing.length > 0) {
-			const batch = fetchRows(missing)
+		for (let at = 0; at < missing.length; at += CHUNK) {
+			const chunk = missing.slice(at, at + CHUNK);
+			const batch = fetchRows(chunk)
 				.then((rows) => {
 					const next = new Map(resolved);
 					for (const row of rows) next.set(row.id, row);
-					resolved = next;
+					for (const id of chunk) {
+						if (!next.has(id)) unknown.add(id);
+					}
+					// Reassigning invalidates every derived reading the cache, so an
+					// all-unknown answer must not write, or those reads would loop.
+					if (rows.length > 0) resolved = next;
 				})
 				.catch(() => {})
 				.finally(() => {
-					for (const id of missing) pending.delete(id);
+					for (const id of chunk) pending.delete(id);
 				});
-			for (const id of missing) pending.set(id, batch);
+			for (const id of chunk) pending.set(id, batch);
 			waits.push(batch);
 		}
 		await Promise.all(waits);
@@ -42,7 +54,7 @@ export function createSystemResolver(fetchRows: (ids: number[]) => Promise<Syste
 	let flushScheduled = false;
 	function enqueue(ids: number[]) {
 		for (const id of ids) {
-			if (!resolved.has(id) && !pending.has(id)) queued.add(id);
+			if (!resolved.has(id) && !pending.has(id) && !unknown.has(id)) queued.add(id);
 		}
 		if (queued.size === 0 || flushScheduled) return;
 		flushScheduled = true;

@@ -70,10 +70,13 @@ export function stationFilter(
 	const service = serviceId === null ? null : (services.find((s) => s.id === serviceId) ?? null);
 	let picked: StationGroup | null = null;
 	if (owner?.kind === 'corp') {
-		picked = corporations.find((c) => c.id === owner.id) ?? null;
+		// A pick naming a corporation the list does not carry matches nothing, the same
+		// as a dangling faction: an owner constraint never silently widens.
+		const group = corporations.filter((c) => c.id === owner.id);
+		picked = merged(group, owner.id, group[0]?.name ?? '…');
 	} else if (owner?.kind === 'faction') {
 		const members = corporations.filter((c) => c.faction?.id === owner.id);
-		picked = merged(members, owner.id, members[0]?.faction?.name ?? 'Faction');
+		picked = merged(members, owner.id, members[0]?.faction?.name ?? '…');
 	}
 	if (picked === null) return service;
 	if (service === null) return picked;
