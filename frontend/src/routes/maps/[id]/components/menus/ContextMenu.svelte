@@ -10,7 +10,7 @@
 
 	const connection = $derived(
 		menu.target.kind === 'connection'
-			? (map.connections.find((c) => c.id === (menu.target as { id: number }).id) ?? null)
+			? (map.connections.all.find((c) => c.id === (menu.target as { id: number }).id) ?? null)
 			: null,
 	);
 </script>

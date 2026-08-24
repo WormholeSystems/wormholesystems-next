@@ -36,9 +36,9 @@
 
 	// Resolved against the map's own systems for the class chip; a pilot outside the chain
 	// still gets their system id.
-	const pilot = $derived(map.myCharacters.find((c) => c.is_active) ?? null);
+	const pilot = $derived(map.characters.mine.find((c) => c.is_active) ?? null);
 	const pilotSystem = $derived(
-		map.systems.find((s) => solarSystemId(s) === pilot?.solar_system_id) ?? null,
+		map.systems.all.find((s) => solarSystemId(s) === pilot?.solar_system_id) ?? null,
 	);
 
 	const socketLabel = {
@@ -53,7 +53,7 @@
 		map
 			.patchUserSettings({ [key]: !current[key] })
 			.then(() => {
-				if (key === 'tracking_allowed') map.refreshCharacters();
+				if (key === 'tracking_allowed') map.characters.refresh();
 			})
 			.catch(() => {});
 	}

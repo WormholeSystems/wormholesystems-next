@@ -13,7 +13,6 @@
 	import ExternalLinksSubmenu from './ExternalLinksSubmenu.svelte';
 	import WaypointSubmenus from './WaypointSubmenus.svelte';
 	import { solarSystemId } from '$lib/map/system';
-	import { addToMap, addToWatchlist, setRally } from '$lib/map/system-actions';
 
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
@@ -36,8 +35,10 @@
 	const map = $derived(getMap?.());
 
 	const canWrite = $derived(map !== undefined && map.canWrite);
-	const placement = $derived(map?.systems.find((s) => solarSystemId(s) === system.id) ?? null);
-	const watched = $derived(map?.watchlist.some((w) => w.solar_system_id === system.id) ?? false);
+	const placement = $derived(map?.systems.all.find((s) => solarSystemId(s) === system.id) ?? null);
+	const watched = $derived(
+		map?.watchlist.all.some((w) => w.solar_system_id === system.id) ?? false,
+	);
 
 	const groups = $derived(
 		systemLinkGroups({
@@ -58,14 +59,14 @@
 	<ContextMenu.Content class="w-52" data-testid="system-menu">
 		{#if map !== undefined && canWrite && (placement === null || !watched)}
 			{#if placement === null}
-				<ContextMenu.Item onclick={() => addToMap(map, system.id)} data-testid="menu-add-to-map">
+				<ContextMenu.Item onclick={() => map.systems.add(system.id)} data-testid="menu-add-to-map">
 					<PlusIcon class="size-4" />
 					Add to map
 				</ContextMenu.Item>
 			{/if}
 			{#if !watched}
 				<ContextMenu.Item
-					onclick={() => addToWatchlist(map, system.id)}
+					onclick={() => map.watchlist.add(system.id)}
 					data-testid="menu-add-to-watchlist"
 				>
 					<EyeIcon class="size-4" />
@@ -99,7 +100,7 @@
 			{#if canWrite && placement !== null}
 				<ContextMenu.Separator />
 				<ContextMenu.Item
-					onclick={() => setRally(map, placement.id, !placement.is_rally)}
+					onclick={() => map.systems.setRally(placement.id, !placement.is_rally)}
 					data-testid="menu-rally"
 				>
 					<FlagIcon class="size-4" />

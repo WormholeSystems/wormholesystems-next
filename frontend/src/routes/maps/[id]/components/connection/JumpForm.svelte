@@ -5,7 +5,6 @@
 	import MoveRightIcon from '@lucide/svelte/icons/move-right';
 	import XIcon from '@lucide/svelte/icons/x';
 
-	import { api } from '$lib/api/client';
 	import type { ConnectionJump } from '$lib/api/types/ConnectionJump';
 	import type { JumpDirection } from '$lib/api/types/JumpDirection';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
@@ -74,31 +73,23 @@
 	function submitForm() {
 		if (!canSubmit) return;
 		if (editing) {
-			map.run(
-				'updateJump',
-				api
-					.updateConnectionJump({
-						map_id: map.mapId,
-						jump_pk: editing.id,
-						direction,
-						ship_type_id: shipTypeId,
-						...(massKg !== undefined ? { mass: massKg } : {}),
-					})
-					.then(ondone),
-			);
+			void map.connections
+				.updateJump({
+					jump_pk: editing.id,
+					direction,
+					ship_type_id: shipTypeId,
+					...(massKg !== undefined ? { mass: massKg } : {}),
+				})
+				.then(ondone, () => {});
 		} else {
-			map.run(
-				'addJump',
-				api
-					.addConnectionJump({
-						map_id: map.mapId,
-						connection_id: connection.id,
-						direction,
-						...(shipTypeId !== null ? { ship_type_id: shipTypeId } : {}),
-						...(massKg !== undefined ? { mass: massKg } : {}),
-					})
-					.then(ondone),
-			);
+			void map.connections
+				.addJump({
+					connection_id: connection.id,
+					direction,
+					...(shipTypeId !== null ? { ship_type_id: shipTypeId } : {}),
+					...(massKg !== undefined ? { mass: massKg } : {}),
+				})
+				.then(ondone, () => {});
 		}
 	}
 </script>

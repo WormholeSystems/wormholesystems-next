@@ -6,7 +6,6 @@
 	// Command's own filtering is off and the rows arrive already ranked.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
-	import { api } from '$lib/api/client';
 	import { q } from '$lib/api/queries';
 	import { searchQuery } from '$lib/search-query.svelte';
 	import { matchHint, partitionHits } from './palette';
@@ -16,7 +15,7 @@
 	import SystemRow from '../pickers/SystemRow.svelte';
 	import { SYSTEM_CELLS_5, SYSTEM_LIST_HINT, SYSTEM_ROW } from '../pickers/columns';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
-	import { NODE_W, centerWorld, freePosition, heuristicSize } from '$lib/map/helpers';
+	import { NODE_W } from '$lib/map/helpers';
 	import type { MapState } from '../../state/map-state.svelte';
 
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
@@ -75,7 +74,7 @@
 		map.activeId = hit.map_solar_system_id;
 		open = false;
 		// Pan the node into the middle, so a jump from the palette actually shows it.
-		const system = map.systems.find((s) => s.id === hit.map_solar_system_id);
+		const system = map.systems.all.find((s) => s.id === hit.map_solar_system_id);
 		if (!system) return;
 		const r = map.camera.viewportRect();
 		map.camera.pan = {
@@ -89,7 +88,7 @@
 		const from = map.linkFrom;
 		open = false;
 		if (from === null || from === target) return;
-		map.connectSystems(from, target);
+		map.connections.add(from, target);
 	}
 
 	/** Say which system a ghost turned out to be. */
@@ -98,14 +97,7 @@
 		map.assignGhostId = null;
 		open = false;
 		if (ghost === null) return;
-		map.run(
-			'assignSystem',
-			api.resolveGhostSystem({
-				map_id: map.mapId,
-				map_solar_system_id: ghost,
-				solar_system_id: solarSystemId,
-			}),
-		);
+		map.systems.assignGhost({ map_solar_system_id: ghost, solar_system_id: solarSystemId });
 	}
 
 	/** Jump to it if it is already placed, otherwise put it on the map. */
@@ -124,34 +116,10 @@
 			assign(hit.system.id);
 			return;
 		}
-		const from = map.linkFrom;
+		open = false;
 		// The anchor is where the canvas was right-clicked. Plain Cmd+K has none, so the system
 		// lands in the middle of the view.
-		const base =
-			map.searchAnchor ?? centerWorld(map.camera.pan, map.camera.zoom, map.camera.viewportRect());
-		open = false;
-		const at = freePosition(map.systems, base, map.grid);
-		map.run(
-			'addSystem',
-			(async () => {
-				const placed = await api.addSystem({
-					map_id: map.mapId,
-					solar_system_id: hit.system.id,
-					x: at.x,
-					y: at.y,
-					alias: null,
-				});
-				if (from !== null && from !== placed.id) {
-					await api.addConnection({
-						map_id: map.mapId,
-						from_system: from,
-						to_system: placed.id,
-						kind: 'wormhole',
-						size: heuristicSize(map.systems, from, placed.id),
-					});
-				}
-			})(),
-		);
+		map.systems.add(hit.system.id, { anchor: map.searchAnchor, connectFrom: map.linkFrom });
 	}
 </script>
 

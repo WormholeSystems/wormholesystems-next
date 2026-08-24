@@ -35,11 +35,11 @@ function pointer(clientX: number, clientY: number, button = 0): PointerEvent {
 function fakeHost(systems: MapSystemView[], over: Partial<GestureHost> = {}) {
 	const camera = new MapCamera(1);
 	camera.viewportSize = { width: 800, height: 600 };
-	const moveSystems = vi.fn();
-	const connectSystems = vi.fn();
+	const move = vi.fn();
+	const connect = vi.fn();
 	const host: GestureHost = {
 		camera,
-		systems,
+		systems: { all: systems, move },
 		positions: new Map(systems.map((s) => [s.id, { x: s.position_x, y: s.position_y }])),
 		nodeH: 40,
 		grid: GRID,
@@ -55,18 +55,17 @@ function fakeHost(systems: MapSystemView[], over: Partial<GestureHost> = {}) {
 		clampNodeX: (x) => x,
 		clampNodeY: (y) => y,
 		closeMenu: vi.fn(),
-		moveSystems,
-		connectSystems,
+		connections: { add: connect },
 		...over,
 	};
-	return { host, moveSystems, connectSystems };
+	return { host, move, connect };
 }
 
 describe('MapGestures', () => {
 	it('keeps a grab a tap under the hysteresis, then commits the drag past it', () => {
 		const { host } = fakeHost([system(1, 100, 100)]);
 		const gestures = new MapGestures(host);
-		gestures.onNodeDown(pointer(50, 50), host.systems[0]);
+		gestures.onNodeDown(pointer(50, 50), host.systems.all[0]);
 		gestures.onPointerMove(pointer(53, 50));
 		expect(host.drag).toBeNull();
 		gestures.onPointerMove(pointer(54, 50));
@@ -75,13 +74,13 @@ describe('MapGestures', () => {
 	});
 
 	it('seeds the optimistic override and issues one move on drop', () => {
-		const { host, moveSystems } = fakeHost([system(1, 100, 100)]);
+		const { host, move } = fakeHost([system(1, 100, 100)]);
 		const gestures = new MapGestures(host);
-		gestures.onNodeDown(pointer(50, 50), host.systems[0]);
+		gestures.onNodeDown(pointer(50, 50), host.systems.all[0]);
 		gestures.onPointerMove(pointer(150, 50));
 		gestures.onPointerUp(pointer(150, 50));
-		expect(moveSystems).toHaveBeenCalledOnce();
-		const moves = moveSystems.mock.calls[0][0];
+		expect(move).toHaveBeenCalledOnce();
+		const moves = move.mock.calls[0][0];
 		expect(moves[0].map_solar_system_id).toBe(1);
 		expect(host.pending[1]).toEqual({ x: moves[0].x, y: moves[0].y });
 		expect(host.drag).toBeNull();
@@ -89,16 +88,16 @@ describe('MapGestures', () => {
 
 	it('connects a link drop on a real system, but never on a ghost', () => {
 		const systems = [system(1, 0, 0), system(2, 200, 0), ghost(3, 400, 0)];
-		const { host, connectSystems } = fakeHost(systems);
+		const { host, connect } = fakeHost(systems);
 		const gestures = new MapGestures(host);
 
 		host.linking = { from: 1, x: 0, y: 0 };
 		gestures.onPointerUp(pointer(210, 10));
-		expect(connectSystems).toHaveBeenCalledWith(1, 2);
+		expect(connect).toHaveBeenCalledWith(1, 2);
 
 		host.linking = { from: 1, x: 0, y: 0 };
 		gestures.onPointerUp(pointer(410, 10));
-		expect(connectSystems).toHaveBeenCalledOnce();
+		expect(connect).toHaveBeenCalledOnce();
 	});
 
 	it('clears the selection on a background tap that never became a band', () => {
@@ -122,7 +121,7 @@ describe('MapGestures', () => {
 	it('refuses a node drag without write access', () => {
 		const { host } = fakeHost([system(1, 100, 100)], { canWrite: false });
 		const gestures = new MapGestures(host);
-		gestures.onNodeDown(pointer(50, 50), host.systems[0]);
+		gestures.onNodeDown(pointer(50, 50), host.systems.all[0]);
 		gestures.onPointerMove(pointer(150, 50));
 		expect(host.drag).toBeNull();
 	});

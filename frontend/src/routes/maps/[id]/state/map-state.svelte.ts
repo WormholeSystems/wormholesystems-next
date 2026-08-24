@@ -1,7 +1,8 @@
 // The map page's shared state. Interaction state is owned here, never derived from the
 // fetched data, so it survives refetches. The fetched data itself lives in the query
-// cache ([`createMapQueries`]); the fields here are views over it, so a refetch can
-// never clobber a drag, a selection, or an open menu.
+// cache ([`createMapQueries`]); the domain namespaces (`systems`, `connections`, ...)
+// are views over it plus every verb that changes it, so components read `map.x.all`
+// and call `map.x.verb()` without ever touching the api or the cache themselves.
 
 import { untrack } from 'svelte';
 
@@ -17,7 +18,7 @@ import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 import type { SocketState } from '$lib/ws';
 import type { PanelId } from '../components/panels/registry';
 import type { RoutingSettings } from '$lib/routing/algorithm';
-import { NODE_W, clamp, heuristicSize } from '$lib/map/helpers';
+import { NODE_W, clamp } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
 import { draggedPositions, type Drag } from '$lib/map/gestures';
 import type { Vec2 } from '$lib/map/helpers';
@@ -39,6 +40,12 @@ import { loadCatalog } from '$lib/map/signatures';
 import { solarSystemId } from '$lib/map/system';
 import { atLeast } from '$lib/map/roles';
 import { systemResolver } from '$lib/resolve-cache.svelte';
+import { CharactersApi } from './characters';
+import { ConnectionsApi } from './connections';
+import { SignaturesApi } from './signatures';
+import { SystemsApi } from './systems';
+import { WatchlistApi } from './watchlist';
+import { WaypointsApi } from './waypoints';
 
 export type { Drag };
 
@@ -89,26 +96,22 @@ export class MapState {
 	route: RoutePlanner;
 	queries: MapQueries;
 
+	// The domain namespaces: data plus verbs, one per noun.
+	systems: SystemsApi;
+	connections: ConnectionsApi;
+	signatures: SignaturesApi;
+	watchlist: WatchlistApi;
+	characters: CharactersApi;
+	waypoints: WaypointsApi;
+
 	get data() {
 		return this.queries.graph.data ?? null;
 	}
 	get grid() {
 		return this.queries.grid.data ?? defaultGrid;
 	}
-	get sigs() {
-		return this.queries.signatures.data ?? [];
-	}
-	get watchlist() {
-		return this.queries.watchlist.data ?? [];
-	}
 	get eveScout() {
 		return this.queries.eveScout.data ?? [];
-	}
-	get characters() {
-		return this.queries.characters.data ?? [];
-	}
-	get myCharacters() {
-		return this.queries.myCharacters.data ?? [];
 	}
 	get userSettings() {
 		return this.queries.settings.data ?? null;
@@ -145,10 +148,6 @@ export class MapState {
 	// The history tree plus where the map sits in it (`history.data`), and the cursor
 	// controls over it.
 	history: HistoryStore;
-	// Connections critical for over an hour, offered for a one-click sweep.
-	get stale() {
-		return this.queries.stale.data ?? [];
-	}
 	socket = $state<SocketState>('connecting');
 	// The page holds a loader until both the graph and the arrangement have arrived, so
 	// tiles are never painted in the built-in positions and then moved.
@@ -170,13 +169,14 @@ export class MapState {
 		return this.loaded && this.settingsLoaded;
 	}
 
-	systems = $derived(this.data?.systems ?? []);
-	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
+	private systemsView = $derived(this.data?.systems ?? []);
+	private connectionsView = $derived(this.data?.connections ?? []);
+	activeSystem = $derived(this.systemsView.find((s) => s.id === this.activeId) ?? null);
 	routeOrigin = $derived.by(() =>
 		routeOrigin(
 			this.route.fromId,
 			this.activeSystem ? solarSystemId(this.activeSystem) : null,
-			this.myCharacters,
+			this.characters.mine,
 		),
 	);
 
@@ -188,7 +188,6 @@ export class MapState {
 	});
 	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
 
-	connections = $derived(this.data?.connections ?? []);
 	nodeH = $derived(2 * this.grid.cell_size);
 
 	layout = $derived.by(() =>
@@ -201,13 +200,13 @@ export class MapState {
 	/** Derived from the shape of the chain, recomputed only when that shape changes. */
 	treePositions = $derived.by(() => {
 		if (this.layout !== 'tree') return null;
-		const systems = new Map(this.systems.map((s) => [s.id, s]));
+		const systems = new Map(this.systemsView.map((s) => [s.id, s]));
 		return computeTreeLayout(
 			{
-				nodeIds: this.systems.map((s) => s.id),
-				edges: this.connections.map((c) => ({ from: c.from_system, to: c.to_system })),
-				rootIds: this.systems.filter((s) => s.is_pinned).map((s) => s.id),
-				homeId: this.systems.find((s) => s.is_home)?.id ?? null,
+				nodeIds: this.systemsView.map((s) => s.id),
+				edges: this.connectionsView.map((c) => ({ from: c.from_system, to: c.to_system })),
+				rootIds: this.systemsView.filter((s) => s.is_pinned).map((s) => s.id),
+				homeId: this.systemsView.find((s) => s.is_home)?.id ?? null,
 				fallbackRootId: null,
 				compareNodes: compareForTree(systems),
 			},
@@ -215,13 +214,15 @@ export class MapState {
 		);
 	});
 
-	ghostSignatures = $derived.by(() => ghostSignatureIds(this.systems, this.connections, this.sigs));
+	ghostSignatures = $derived.by(() =>
+		ghostSignatureIds(this.systemsView, this.connectionsView, this.queries.signatures.data ?? []),
+	);
 
 	/** Every connection's line and badge anchor, routed the way this layout draws them. */
 	edgeGeometry = $derived.by<Map<number, EdgeGeometry>>(() =>
 		this.layout === 'tree'
-			? treeEdges(this.connections, this.positions, this.nodeH)
-			: freeEdges(this.connections, this.positions, this.nodeH),
+			? treeEdges(this.connectionsView, this.positions, this.nodeH)
+			: freeEdges(this.connectionsView, this.positions, this.nodeH),
 	);
 
 	// Position lookup: the automatic layout when one is active; else live drag, then an
@@ -231,7 +232,7 @@ export class MapState {
 		if (tree) return tree;
 		const out = new Map<number, { x: number; y: number }>();
 		const dragged = this.drag ? draggedPositions(this.drag) : new Map<number, Vec2>();
-		for (const s of this.systems) {
+		for (const s of this.systemsView) {
 			out.set(
 				s.id,
 				dragged.get(s.id) ?? this.pending[s.id] ?? { x: s.position_x, y: s.position_y },
@@ -261,11 +262,58 @@ export class MapState {
 		this.camera = new MapCamera(mapId);
 		this.signedIn = signedIn;
 		this.queries = createMapQueries(mapId, signedIn, seed, () => this.socket === 'open');
+		const run = (action: MapAction, promise: Promise<unknown>, detail?: string) =>
+			this.run(action, promise, detail);
+		this.systems = new SystemsApi({
+			mapId,
+			camera: this.camera,
+			all: () => this.systemsView,
+			grid: () => this.grid,
+			run,
+			notesLocal: (id, notes) =>
+				this.queries.client.setQueryData(
+					q.systemDetails(mapId, id).queryKey,
+					(d: SystemDetails | undefined) => d && { ...d, notes },
+				),
+		});
+		this.connections = new ConnectionsApi({
+			mapId,
+			all: () => this.connectionsView,
+			stale: () => this.queries.stale.data ?? [],
+			systems: () => this.systemsView,
+			run,
+			refreshJumps: (connectionId) =>
+				void this.queries.client.invalidateQueries({
+					queryKey: key.connectionJumps(mapId, connectionId),
+				}),
+		});
+		this.signatures = new SignaturesApi({
+			mapId,
+			all: () => this.queries.signatures.data ?? [],
+			run,
+		});
+		this.watchlist = new WatchlistApi({
+			mapId,
+			all: () => this.queries.watchlist.data ?? [],
+			run,
+		});
+		this.characters = new CharactersApi({
+			all: () => this.queries.characters.data ?? [],
+			mine: () => this.queries.myCharacters.data ?? [],
+			refresh: () => {
+				if (this.signedIn)
+					void this.queries.client.invalidateQueries({ queryKey: key.mapCharacters(mapId) });
+			},
+			refreshMine: () => {
+				if (this.signedIn)
+					void this.queries.client.invalidateQueries({ queryKey: key.myCharacters });
+			},
+		});
+		this.waypoints = new WaypointsApi({ run });
 		this.history = new HistoryStore({
 			mapId,
 			data: () => this.queries.history.data ?? null,
-			run: (action: MapAction, promise: Promise<unknown>, detail?: string) =>
-				this.run(action, promise, detail),
+			run,
 		});
 		this.panels = new PanelLayoutStore({
 			hiddenPanels: () => this.userSettings?.hidden_panels ?? null,
@@ -312,43 +360,9 @@ export class MapState {
 		});
 	}
 
-	/** Move placements to where a drag dropped them; the optimistic override is the caller's. */
-	moveSystems(moves: { map_solar_system_id: number; x: number; y: number }[]) {
-		this.run('moveSystems', api.moveSystems({ map_id: this.mapId, moves }));
-	}
-
-	/** Join two placements with a wormhole, sized by what the two systems suggest. */
-	connectSystems(from: number, to: number) {
-		this.run(
-			'addConnection',
-			api.addConnection({
-				map_id: this.mapId,
-				from_system: from,
-				to_system: to,
-				kind: 'wormhole',
-				size: heuristicSize(this.systems, from, to),
-			}),
-		);
-	}
-
 	/** The signature type catalog, cached forever in the query client. */
 	loadCatalog() {
 		return loadCatalog(this.queries.client);
-	}
-
-	/** Ask for a fresh jump log for one connection; a closed popover just goes stale. */
-	refreshConnectionJumps(connectionId: number) {
-		void this.queries.client.invalidateQueries({
-			queryKey: key.connectionJumps(this.mapId, connectionId),
-		});
-	}
-
-	/** The local echo for a saved note, so it reads back before the server confirms it. */
-	setSystemNotesLocal(mapSolarSystemId: number, notes: string | null) {
-		this.queries.client.setQueryData(
-			q.systemDetails(this.mapId, mapSolarSystemId).queryKey,
-			(d: SystemDetails | undefined) => d && { ...d, notes },
-		);
 	}
 
 	/** An optimistic local edit of the viewer's settings, without a round trip. */
@@ -356,19 +370,13 @@ export class MapState {
 		this.queries.patchSettingsLocal(update);
 	}
 
-	/** Ask for a fresh reading of this account's pilots, soon; the tracker observes it. */
-	refreshMyCharacters() {
-		if (!this.signedIn) return;
-		void this.queries.client.invalidateQueries({ queryKey: key.myCharacters });
-	}
-
 	/** The jump tracker's narrow view of this map, commands included. */
 	trackerHost(): TrackerHost {
 		return {
-			myCharacters: () => this.myCharacters,
-			systems: () => this.systems,
-			connections: () => this.connections,
-			sigs: () => this.sigs,
+			myCharacters: () => this.characters.mine,
+			systems: () => this.systemsView,
+			connections: () => this.connectionsView,
+			sigs: () => this.signatures.all,
 			grid: () => this.grid,
 			settings: () => this.userSettings,
 			naming: () => this.data?.map.naming ?? null,
@@ -376,9 +384,8 @@ export class MapState {
 			whenRoutingLoaded: () => this.route.whenLoaded(),
 			loadCatalog: () => loadCatalog(this.queries.client),
 			resolveSystem: (id) => systemResolver.resolve(id),
-			trackJump: (cmd) => this.run('trackJump', api.trackJump({ ...cmd, map_id: this.mapId })),
-			resolveGhost: (cmd) =>
-				this.run('assignSystem', api.resolveGhostSystem({ ...cmd, map_id: this.mapId })),
+			trackJump: (cmd) => this.connections.trackJump(cmd),
+			resolveGhost: (cmd) => this.systems.assignGhost(cmd),
 		};
 	}
 
@@ -386,9 +393,9 @@ export class MapState {
 	private routeHost(): RouteHost {
 		return {
 			mapId: this.mapId,
-			systems: () => this.systems,
-			connections: () => this.connections,
-			sigs: () => this.sigs,
+			systems: () => this.systemsView,
+			connections: () => this.connectionsView,
+			sigs: () => this.signatures.all,
 			eveScout: () => this.eveScout,
 			useEveScout: () => this.useEveScout,
 			loadTables: () => this.queries.client.ensureQueryData(q.routingGraph()),
@@ -398,18 +405,12 @@ export class MapState {
 	/** Panels there is nobody to fill in: both of these are about the account, not the map. */
 	unavailablePanels = $derived(new Set<PanelId>(this.signedIn ? [] : ['characters', 'skyhooks']));
 
-	/** Ask for fresh presence, soon: who is on the map, and where this account's pilots are. */
-	refreshCharacters() {
-		if (!this.signedIn) return;
-		void this.queries.client.invalidateQueries({ queryKey: key.mapCharacters(this.mapId) });
-	}
-
 	/**
 	 * A system in the shape every picker and the context menu expect, whether or not it is
 	 * on the map. Returns null until [`ensureResolved`] has fetched an off-map one.
 	 */
 	systemInfo(id: number): SystemSearchResult | null {
-		const placed = this.systems.find((s) => solarSystemId(s) === id);
+		const placed = this.systemsView.find((s) => solarSystemId(s) === id);
 		if (placed?.kind === 'system') return searchResultOf(placed);
 		return systemResolver.get(id) ?? null;
 	}
@@ -422,12 +423,8 @@ export class MapState {
 	/** Placed systems arrive with the graph; the resolver learns them so no panel refetches one. */
 	private shareResolved() {
 		systemResolver.seed(
-			this.systems.flatMap((s) => (s.kind === 'system' ? [searchResultOf(s)] : [])),
+			this.systemsView.flatMap((s) => (s.kind === 'system' ? [searchResultOf(s)] : [])),
 		);
-	}
-
-	cleanStale() {
-		this.run('cleanStale', api.cleanStaleConnections({ map_id: this.mapId }));
 	}
 
 	/** Refetch what one socket frame invalidated; the table lives in [`keysFor`]. */
@@ -443,9 +440,15 @@ export class MapState {
 	/**
 	 * Run an action and say how it went. What it says lives in [`MAP_ACTIONS`] rather than
 	 * at the call site; the refetch policy lives on the mutation, in [`createMapQueries`].
+	 * Private on purpose: components go through the domain namespaces.
 	 */
-	run(action: MapAction, promise: Promise<unknown>, detail?: string) {
+	private run(action: MapAction, promise: Promise<unknown>, detail?: string) {
 		this.queries.write.mutate({ action, exec: () => promise, detail });
+	}
+
+	/** Take everything off the map. */
+	clear() {
+		this.run('clearMap', api.clearMap({ map_id: this.mapId }));
 	}
 
 	/**
@@ -460,6 +463,11 @@ export class MapState {
 		);
 	}
 
+	/** The map's own placement mode, set from the introduction. */
+	setPlacement(layout: 'manual' | 'tree') {
+		this.run('setPlacement', api.updateMap({ map_id: this.mapId, layout }));
+	}
+
 	/**
 	 * Write one or more of the viewer's own settings. Everything goes through the one
 	 * mutation, which also holds the write against a slower read already on the wire.
@@ -468,7 +476,7 @@ export class MapState {
 		return this.queries.saveSettings.mutateAsync(patch);
 	}
 
-	orphaned = $derived(orphanedSystems(this.systems, this.connections));
+	orphaned = $derived(orphanedSystems(this.systemsView, this.connectionsView));
 
 	/** Take the dead branches off the map. */
 	cleanMap() {

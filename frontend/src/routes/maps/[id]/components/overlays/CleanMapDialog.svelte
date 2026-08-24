@@ -10,9 +10,10 @@
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
 
 	const going = $derived(map.orphaned);
-	const anchors = $derived(map.systems.filter((s) => s.is_pinned || s.is_home));
+	const anchors = $derived(map.systems.all.filter((s) => s.is_pinned || s.is_home));
 	const signatures = $derived(
-		map.sigs.filter((sig) => going.some((s) => solarSystemId(s) === sig.solar_system_id)).length,
+		map.signatures.all.filter((sig) => going.some((s) => solarSystemId(s) === sig.solar_system_id))
+			.length,
 	);
 
 	function clean() {

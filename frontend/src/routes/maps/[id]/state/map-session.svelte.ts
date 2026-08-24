@@ -18,15 +18,15 @@ export function connectMapSession(map: MapState): (() => void) | undefined {
 	// Below here is about the pilot at the keyboard: jump tracking and the private
 	// channel. A watcher has none of it.
 	if (!map.signedIn) return () => closeWs();
-	map.refreshMyCharacters();
+	map.characters.refreshMine();
 	// The character's own status change is how a jump is normally noticed within seconds.
 	const closeUserWs = openUserSocket((event) => {
-		if (event.type === 'character_status_changed') map.refreshMyCharacters();
+		if (event.type === 'character_status_changed') map.characters.refreshMine();
 	});
 	// Flying happens in the game client, so a jump has usually already happened by the
 	// time the tab is looked at again. An explicit listener, not the query's own focus
 	// refetching: that watches visibilitychange, and this is about window focus.
-	const observe = () => map.refreshMyCharacters();
+	const observe = () => map.characters.refreshMine();
 	window.addEventListener('focus', observe);
 	return () => {
 		window.removeEventListener('focus', observe);

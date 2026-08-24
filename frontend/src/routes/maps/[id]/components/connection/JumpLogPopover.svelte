@@ -11,7 +11,6 @@
 
 	import { createQuery } from '@tanstack/svelte-query';
 
-	import { api } from '$lib/api/client';
 	import { key, q } from '$lib/api/queries';
 	import type { ConnectionJump } from '$lib/api/types/ConnectionJump';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
@@ -49,7 +48,7 @@
 	}));
 	const jumps = $derived(jumpsQuery.data ?? []);
 	function refreshLog() {
-		map.refreshConnectionJumps(connection.id);
+		map.connections.refreshJumps(connection.id);
 	}
 	// New transits arrive with the map refetch: the counters changing is the signal that
 	// the log behind them moved.
@@ -86,10 +85,7 @@
 	}
 
 	function deleteJump(jump: ConnectionJump) {
-		map.run(
-			'removeJump',
-			api.removeConnectionJump({ map_id: map.mapId, jump_pk: jump.id }).then(refreshLog),
-		);
+		void map.connections.removeJump(jump.id).then(refreshLog, () => {});
 	}
 </script>
 

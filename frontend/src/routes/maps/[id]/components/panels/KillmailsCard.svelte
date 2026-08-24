@@ -47,7 +47,7 @@
 	// fresh kill arriving: both are part of the key. A kill frame off the socket
 	// invalidates the killmails prefix, which this key sits under.
 	const killsQuery = createQuery(() => ({
-		queryKey: [...key.killmails(map.mapId), filter, systemKey(map.systems)],
+		queryKey: [...key.killmails(map.mapId), filter, systemKey(map.systems.all)],
 		queryFn: () => api.mapKillmails(map.mapId),
 	}));
 	const kills = $derived(killsQuery.data ?? []);
@@ -69,7 +69,7 @@
 
 	/** The map's own name for the system, when it has one. */
 	function aliasOf(kill: MapKillmail): string | null {
-		return map.systems.find((s) => solarSystemId(s) === kill.solar_system_id)?.alias ?? null;
+		return map.systems.all.find((s) => solarSystemId(s) === kill.solar_system_id)?.alias ?? null;
 	}
 
 	function hover(kill: MapKillmail, on: boolean) {

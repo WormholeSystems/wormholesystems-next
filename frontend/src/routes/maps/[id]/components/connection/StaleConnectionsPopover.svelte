@@ -12,7 +12,7 @@
 	const canWrite = $derived(map.canWrite);
 </script>
 
-{#if map.stale.length > 0}
+{#if map.connections.stale.length > 0}
 	<Popover.Root>
 		<Popover.Trigger>
 			{#snippet child({ props })}
@@ -23,7 +23,7 @@
 					data-testid="stale-badge"
 				>
 					<TriangleAlertIcon />
-					{map.stale.length} stale
+					{map.connections.stale.length} stale
 				</Badge>
 			{/snippet}
 		</Popover.Trigger>
@@ -32,7 +32,7 @@
 				Critical for over an hour, so probably long gone.
 			</div>
 			<ul class="max-h-64 overflow-y-auto py-1" data-testid="stale-list">
-				{#each map.stale as s (s.connection_id)}
+				{#each map.connections.stale as s (s.connection_id)}
 					<li class="px-3 py-1 text-xs">
 						{s.from_name}
 						<span class="text-muted-foreground">to</span>
@@ -47,9 +47,9 @@
 						size="sm"
 						class="w-full"
 						data-testid="clean-stale"
-						onclick={() => map.cleanStale()}
+						onclick={() => map.connections.cleanStale()}
 					>
-						Remove {map.stale.length === 1 ? 'it' : 'them'}
+						Remove {map.connections.stale.length === 1 ? 'it' : 'them'}
 					</Button>
 				</div>
 			{/if}

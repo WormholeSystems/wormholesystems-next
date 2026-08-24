@@ -1,29 +1,31 @@
 // The slice of the map the shared system menus read, declared here so `$lib` never
-// imports from `routes/`. The map page's `MapState` satisfies it structurally.
+// imports from `routes/`. The map page's `MapState` satisfies it structurally: each
+// member is one of its domain namespaces, narrowed to what the menus use.
 
 import { getContext, setContext } from 'svelte';
 
 import type { CharacterRef } from '$lib/api/types/CharacterRef';
-import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
-import type { MapAction } from '$lib/map/actions';
-import type { Vec2 } from '$lib/map/helpers';
 
 export interface MapContext {
 	mapId: number;
 	readonly canWrite: boolean;
-	readonly systems: MapSystemView[];
-	readonly myCharacters: CharacterRef[];
-	readonly watchlist: WatchlistEntry[];
-	readonly grid: GridConfig;
-	camera: {
-		pan: Vec2;
-		readonly zoom: number;
-		viewportRect(): { left: number; top: number; width: number; height: number };
+	systems: {
+		readonly all: MapSystemView[];
+		add(solarSystemId: number): void;
+		setRally(mapSolarSystemId: number, value: boolean): void;
+	};
+	watchlist: {
+		readonly all: WatchlistEntry[];
+		add(solarSystemId: number): void;
+	};
+	characters: { readonly online: CharacterRef[] };
+	waypoints: {
+		set(destinationId: number, characterId: number, clearOthers: boolean): void;
+		setAll(destinationId: number, clearOthers: boolean): void;
 	};
 	route: { fromId: number | null; toId: number | null };
-	run(action: MapAction, promise: Promise<unknown>, detail?: string): void;
 }
 
 const KEY = 'map-state';

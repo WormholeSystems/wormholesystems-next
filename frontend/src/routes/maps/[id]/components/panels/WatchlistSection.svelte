@@ -3,7 +3,6 @@
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
-	import { api } from '$lib/api/client';
 	import type { WatchlistEntry } from '$lib/api/types/WatchlistEntry';
 	import SortHeader from '$lib/components/SortHeader.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
@@ -28,7 +27,7 @@
 	$effect(() => {
 		map.ensureResolved([
 			...(origin === null ? [] : [origin]),
-			...map.watchlist.map((w) => w.solar_system_id),
+			...map.watchlist.all.map((w) => w.solar_system_id),
 		]);
 	});
 
@@ -37,7 +36,7 @@
 		return findRoutes(
 			graph,
 			origin,
-			map.watchlist.map((w) => w.solar_system_id),
+			map.watchlist.all.map((w) => w.solar_system_id),
 			map.routingSettings,
 			map.route.ignoredSystems,
 		);
@@ -52,7 +51,7 @@
 
 	const sortedWatchlist = $derived.by(() => {
 		const dir = sort.current.direction === 'asc' ? 1 : -1;
-		return map.watchlist.toSorted(
+		return map.watchlist.all.toSorted(
 			(a, b) =>
 				compareWatchlistEntries(a, b, sort.current.column, (id) => map.systemInfo(id), jumpsOf) *
 				dir,
@@ -128,15 +127,7 @@
 							: ''}"
 						title={entry.is_pinned ? 'Unpin' : 'Pin as quick-pick'}
 						aria-label="Pin {r?.name ?? entry.solar_system_id}"
-						onclick={() =>
-							map.run(
-								'setPinned',
-								api.setWatchlistPinned({
-									map_id: map.mapId,
-									entry_id: entry.id,
-									value: !entry.is_pinned,
-								}),
-							)}
+						onclick={() => map.watchlist.setPinned(entry.id, !entry.is_pinned)}
 					>
 						<PinIcon class="size-3" />
 					</button>
@@ -144,11 +135,7 @@
 						class="text-muted-foreground hover:text-destructive"
 						title="Remove from watchlist"
 						aria-label="Remove {r?.name ?? entry.solar_system_id}"
-						onclick={() =>
-							map.run(
-								'unwatch',
-								api.removeWatchlistEntry({ map_id: map.mapId, entry_id: entry.id }),
-							)}
+						onclick={() => map.watchlist.remove(entry.id)}
 					>
 						<Trash2Icon class="size-3" />
 					</button>

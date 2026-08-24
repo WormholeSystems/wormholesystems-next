@@ -9,14 +9,12 @@
 	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 	import WeightIcon from '@lucide/svelte/icons/weight';
 
-	import { api } from '$lib/api/client';
 	import type { ConnectionType } from '$lib/api/types/ConnectionType';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { LIFETIME_OPTIONS, MASS_OPTIONS, SIZE_OPTIONS } from '$lib/map/connection-status';
-	import { patchConnection } from '$lib/map/connection-actions';
 	import type { MapState } from '../../state/map-state.svelte';
 	import { item, panel, sub } from './chrome';
 
@@ -29,27 +27,27 @@
 	}
 
 	function setKind(kind: ConnectionType) {
-		patchConnection(map, cid, { kind });
+		map.connections.patch(cid, { kind });
 		close();
 	}
 
 	function setMass(mass: MassStatus) {
-		patchConnection(map, cid, { mass_status: mass });
+		map.connections.patch(cid, { mass_status: mass });
 		close();
 	}
 
 	function setLifetime(time: TimeStatus) {
-		patchConnection(map, cid, { time_status: time });
+		map.connections.patch(cid, { time_status: time });
 		close();
 	}
 
 	function setSize(size: WormholeSize) {
-		patchConnection(map, cid, { size });
+		map.connections.patch(cid, { size });
 		close();
 	}
 
 	function removeConnection() {
-		map.run('removeConnection', api.removeConnection({ map_id: map.mapId, connection_id: cid }));
+		map.connections.remove(cid);
 		close();
 	}
 </script>

@@ -9,7 +9,6 @@
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 
-	import { api } from '$lib/api/client';
 	import { Button } from '$lib/components/ui/button';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
@@ -59,7 +58,7 @@
 	// Every fresh reading is observed as it lands, whatever triggered the fetch.
 	// Structural sharing means this fires only when the payload actually changed.
 	$effect(() => {
-		void map.myCharacters;
+		void map.characters.mine;
 		tracker.observe();
 	});
 	const gestures = new MapGestures(map);
@@ -96,7 +95,7 @@
 		if (deepLinkApplied || !map.loaded) return;
 		deepLinkApplied = true;
 		if (map.activeId === null) {
-			map.activeId = deepLinkTarget(map.systems, page.url.searchParams.get('system'));
+			map.activeId = deepLinkTarget(map.systems.all, page.url.searchParams.get('system'));
 		}
 	});
 
@@ -153,10 +152,7 @@
 			if (ids.length > 0) {
 				ev.preventDefault();
 				map.selected = new Set();
-				map.run(
-					'removeSystems',
-					api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }),
-				);
+				map.systems.remove(ids);
 			}
 		}
 	}
@@ -169,17 +165,12 @@
 		map.activeId = s.id;
 	}
 
-	const sigCounts = $derived(sigCountsBySystem(map.sigs));
-	const pilots = $derived(pilotsBySystem(map.characters));
-	const connCounts = $derived(connectionCountByPlacement(map.connections));
+	const sigCounts = $derived(sigCountsBySystem(map.signatures.all));
+	const pilots = $derived(pilotsBySystem(map.characters.all));
+	const connCounts = $derived(connectionCountByPlacement(map.connections.all));
 
 	function saveAlias(s: MapSystemView, alias: string | null, occupier: string | null) {
-		// A ghost holds no system yet, so only the alias is its own.
-		const writes = [api.setAlias({ map_id: map.mapId, map_solar_system_id: s.id, alias })];
-		if (s.kind === 'system') {
-			writes.push(api.setOccupier({ map_id: map.mapId, map_solar_system_id: s.id, occupier }));
-		}
-		map.run('setAlias', Promise.all(writes));
+		map.systems.rename(s, alias, occupier);
 	}
 </script>
 
@@ -264,7 +255,7 @@
 				style:width="{map.grid.world_width}px"
 				style:height="{map.grid.world_height}px"
 			>
-				{#each map.connections as c (c.id)}
+				{#each map.connections.all as c (c.id)}
 					{@const geometry = map.edgeGeometry.get(c.id)}
 					{#if geometry}
 						<MapEdge {map} connection={c} {geometry} />
@@ -306,7 +297,7 @@
 			</svg>
 
 			<!-- Keyed by id so a refetch diffs in place. -->
-			{#each map.systems as s (s.id)}
+			{#each map.systems.all as s (s.id)}
 				<SystemNode
 					node={s}
 					nodeH={map.nodeH}

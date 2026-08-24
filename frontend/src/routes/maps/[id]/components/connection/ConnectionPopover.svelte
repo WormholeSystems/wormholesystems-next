@@ -22,20 +22,24 @@
 	const popover = $derived(map.connectionPopover);
 	// Resolved live so refetches keep it current; a deleted connection closes it.
 	const connection = $derived(
-		popover === null ? null : (map.connections.find((c) => c.id === popover.id) ?? null),
+		popover === null ? null : (map.connections.all.find((c) => c.id === popover.id) ?? null),
 	);
 	$effect(() => {
 		if (popover !== null && connection === null) map.connectionPopover = null;
 	});
 
 	const source = $derived(
-		connection === null ? null : (map.systems.find((s) => s.id === connection.from_system) ?? null),
+		connection === null
+			? null
+			: (map.systems.all.find((s) => s.id === connection.from_system) ?? null),
 	);
 	const target = $derived(
-		connection === null ? null : (map.systems.find((s) => s.id === connection.to_system) ?? null),
+		connection === null
+			? null
+			: (map.systems.all.find((s) => s.id === connection.to_system) ?? null),
 	);
 	const sigs = $derived(
-		connection === null ? [] : map.sigs.filter((s) => s.connection_id === connection.id),
+		connection === null ? [] : map.signatures.all.filter((s) => s.connection_id === connection.id),
 	);
 
 	function codeOf(sig: Signature): string | null {

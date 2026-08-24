@@ -2,7 +2,6 @@
 	// The header's "+": search any system and put it on the shared watchlist.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
-	import { api } from '$lib/api/client';
 	import { q } from '$lib/api/queries';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
@@ -24,7 +23,7 @@
 	});
 	const addResults = $derived(addSearch.results);
 	function addToWatchlist(id: number) {
-		map.run('watch', api.addWatchlistEntry({ map_id: map.mapId, solar_system_id: id }));
+		map.watchlist.add(id);
 		addOpen = false;
 	}
 </script>

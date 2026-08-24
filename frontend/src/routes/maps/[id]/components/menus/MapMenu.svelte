@@ -9,7 +9,7 @@
 
 	import { toast } from 'svelte-sonner';
 
-	import { api, errorMessage } from '$lib/api/client';
+	import { errorMessage } from '$lib/api/client';
 	import { confirmDanger } from '$lib/confirm.svelte';
 	import { NODE_W } from '$lib/map/helpers';
 	import type { MapState, Menu } from '../../state/map-state.svelte';
@@ -33,7 +33,7 @@
 	function deleteSelection() {
 		const ids = [...map.selected];
 		map.selected = new Set();
-		map.run('removeSystems', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
+		map.systems.remove(ids);
 		close();
 	}
 
@@ -50,7 +50,7 @@
 			body: 'This removes all systems except home and pinned ones.',
 			action: 'Clear map',
 		});
-		if (sure) map.run('clearMap', api.clearMap({ map_id: map.mapId }));
+		if (sure) map.clear();
 	}
 
 	// Loaded on demand, so none of it reaches a built app.

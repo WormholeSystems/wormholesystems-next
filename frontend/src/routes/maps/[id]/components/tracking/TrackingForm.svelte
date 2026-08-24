@@ -342,8 +342,8 @@
 						{@const leadsTo = connectionDestination(
 							option,
 							prompt.origin.id,
-							map.connections,
-							map.systems,
+							map.connections.all,
+							map.systems.all,
 						)}
 						<label
 							class={cn(

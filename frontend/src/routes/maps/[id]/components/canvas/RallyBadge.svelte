@@ -12,9 +12,9 @@
 
 	let { map }: { map: MapState } = $props();
 
-	const rally = $derived(map.systems.find((s) => s.is_rally && s.kind === 'system') ?? null);
+	const rally = $derived(map.systems.all.find((s) => s.is_rally && s.kind === 'system') ?? null);
 	const homeId = $derived(
-		map.systems
+		map.systems.all
 			.filter((s) => s.is_home)
 			.map(solarSystemId)
 			.find((id) => id !== null) ?? null,

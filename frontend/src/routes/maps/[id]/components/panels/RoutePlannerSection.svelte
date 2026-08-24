@@ -37,14 +37,14 @@
 		if (active?.kind === 'system') {
 			picks.push({ id: active.solar_system_id, reason: 'Selected system', icon: 'selected' });
 		}
-		const character = map.myCharacters.find((c) => c.online && c.solar_system_id !== null);
+		const character = map.characters.mine.find((c) => c.online && c.solar_system_id !== null);
 		if (
 			character?.solar_system_id != null &&
 			!picks.some((p) => p.id === character.solar_system_id)
 		) {
 			picks.push({ id: character.solar_system_id, reason: 'Where you are', icon: 'location' });
 		}
-		for (const entry of map.watchlist.filter((w) => w.is_pinned).slice(0, 5)) {
+		for (const entry of map.watchlist.all.filter((w) => w.is_pinned).slice(0, 5)) {
 			if (picks.some((p) => p.id === entry.solar_system_id)) continue;
 			picks.push({ id: entry.solar_system_id, reason: 'Pinned on the watchlist', icon: 'pinned' });
 		}

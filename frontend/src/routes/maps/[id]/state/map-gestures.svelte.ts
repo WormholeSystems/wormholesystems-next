@@ -18,7 +18,10 @@ const HYSTERESIS = 4;
  */
 export interface GestureHost {
 	camera: MapCamera;
-	readonly systems: MapSystemView[];
+	systems: {
+		readonly all: MapSystemView[];
+		move(moves: { map_solar_system_id: number; x: number; y: number }[]): void;
+	};
 	readonly positions: Map<number, Vec2>;
 	readonly nodeH: number;
 	readonly grid: GridConfig;
@@ -30,12 +33,11 @@ export interface GestureHost {
 	linking: { from: number; x: number; y: number } | null;
 	band: { x0: number; y0: number; x1: number; y1: number } | null;
 	panDrag: { cx: number; cy: number; px: number; py: number } | null;
+	connections: { add(from: number, to: number): void };
 	snap(v: number): number;
 	clampNodeX(x: number): number;
 	clampNodeY(y: number): number;
 	closeMenu(): void;
-	moveSystems(moves: { map_solar_system_id: number; x: number; y: number }[]): void;
-	connectSystems(from: number, to: number): void;
 }
 
 export class MapGestures {
@@ -52,7 +54,7 @@ export class MapGestures {
 		const b = map.band;
 		if (!b) return;
 		// Rendered positions, not stored ones: an automatic layout draws nodes elsewhere.
-		const nodes = map.systems.map((s) => ({
+		const nodes = map.systems.all.map((s) => ({
 			id: s.id,
 			...(map.positions.get(s.id) ?? { x: s.position_x, y: s.position_y }),
 		}));
@@ -116,18 +118,18 @@ export class MapGestures {
 			const pending = { ...map.pending };
 			for (const m of moves) pending[m.map_solar_system_id] = { x: m.x, y: m.y };
 			map.pending = pending;
-			map.moveSystems(moves);
+			map.systems.move(moves);
 		}
 		if (map.linking) {
 			const l = map.linking;
 			map.linking = null;
 			const w = map.camera.toWorld(ev.clientX, ev.clientY);
-			const target = nodeAt(map.systems, w.x, w.y, map.grid, map.positions);
+			const target = nodeAt(map.systems.all, w.x, w.y, map.grid, map.positions);
 			// Dropping onto a ghost is the same claim from the other end, so it is no more
 			// allowed than starting from one.
-			const ghost = map.systems.some((s) => s.id === target && s.kind === 'ghost');
+			const ghost = map.systems.all.some((s) => s.id === target && s.kind === 'ghost');
 			if (target !== null && target !== l.from && !ghost) {
-				map.connectSystems(l.from, target);
+				map.connections.add(l.from, target);
 			}
 		}
 		// A tap (no band committed) clears the selection.
@@ -176,7 +178,7 @@ export class MapGestures {
 		map.closeMenu();
 
 		const cur = map.positions.get(s.id) ?? { x: s.position_x, y: s.position_y };
-		const members = dragMembers({ id: s.id, at: cur }, map.selected, map.systems, map.pending);
+		const members = dragMembers({ id: s.id, at: cur }, map.selected, map.systems.all, map.pending);
 
 		if (!map.selected.has(s.id)) map.selected = new Set();
 		if (s.is_pinned) return;

@@ -3,10 +3,6 @@ import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { Signature } from '$lib/api/types/Signature';
 import type { UpdateSignature } from '$lib/api/types/UpdateSignature';
 
-import { api } from '$lib/api/client';
-import type { MapAction } from '$lib/map/actions';
-import { patchConnection } from '$lib/map/connection-actions';
-
 /**
  * The fields a row may change. Taken from the wire type rather than restated, so a field
  * that changes shape on the server stops compiling here; an open dictionary would have
@@ -39,12 +35,14 @@ export interface SignatureActions {
 	setPreserveMass(connectionId: number, preserve: boolean): void;
 }
 
+/** The map's domain namespaces, narrowed to what the signature rows use. */
 interface SignatureHost {
-	mapId: number;
-	readonly systems: MapSystemView[];
-	readonly connections: MapConnection[];
-	readonly sigs: Signature[];
-	run(action: MapAction, promise: Promise<unknown>, detail?: string): void;
+	systems: { readonly all: MapSystemView[] };
+	connections: {
+		readonly all: MapConnection[];
+		patch(connectionId: number, patch: { preserve_mass: boolean }): void;
+	};
+	signatures: { readonly all: Signature[] } & Omit<SignatureActions, 'setPreserveMass'>;
 }
 
 /**
@@ -55,31 +53,21 @@ interface SignatureHost {
 export function makeSignatureContext(map: SignatureHost): SignatureContext {
 	return {
 		get systems() {
-			return map.systems;
+			return map.systems.all;
 		},
 		get connections() {
-			return map.connections;
+			return map.connections.all;
 		},
 		get sigs() {
-			return map.sigs;
+			return map.signatures.all;
 		},
 		actions: {
-			update: (signature_pk, patch) =>
-				map.run(
-					'updateSignature',
-					api.updateSignature({ map_id: map.mapId, signature_pk, ...patch }),
-				),
-			remove: (signature_pk) =>
-				map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk })),
-			link: (signature_pk, connection_id) =>
-				map.run(
-					'linkSignature',
-					api.linkSignature({ map_id: map.mapId, signature_pk, connection_id }),
-				),
-			unlink: (signature_pk) =>
-				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk })),
-			setPreserveMass: (connection_id, preserve_mass) =>
-				patchConnection(map, connection_id, { preserve_mass }),
+			update: (signaturePk, patch) => map.signatures.update(signaturePk, patch),
+			remove: (signaturePk) => map.signatures.remove(signaturePk),
+			link: (signaturePk, connectionId) => map.signatures.link(signaturePk, connectionId),
+			unlink: (signaturePk) => map.signatures.unlink(signaturePk),
+			setPreserveMass: (connectionId, preserve) =>
+				map.connections.patch(connectionId, { preserve_mass: preserve }),
 		},
 	};
 }

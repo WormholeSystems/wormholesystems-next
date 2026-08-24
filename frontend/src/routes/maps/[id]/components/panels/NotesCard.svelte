@@ -6,7 +6,7 @@
 
 	import { createQuery } from '@tanstack/svelte-query';
 
-	import { api, ApiError } from '$lib/api/client';
+	import { ApiError } from '$lib/api/client';
 	import { q } from '$lib/api/queries';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { SystemDetails } from '$lib/api/types/SystemDetails';
@@ -28,7 +28,7 @@
 	let editing = $state(false);
 	let draft = $state('');
 
-	// Keyed by the placement id, so the wholesale replacement of `map.systems` on every
+	// Keyed by the placement id, so the wholesale replacement of `map.systems.all` on every
 	// refetch never re-asks or closes the editor; only looking at a different system does.
 	const details = createQuery(() => q.systemDetails(map.mapId, system.id));
 	const notes = $derived(details.data?.notes ?? null);
@@ -57,11 +57,7 @@
 
 	function save() {
 		const value = draft.trim() || null;
-		map.run(
-			'setNotes',
-			api.setNotes({ map_id: map.mapId, map_solar_system_id: system.id, notes: value }),
-		);
-		map.setSystemNotesLocal(system.id, value);
+		map.systems.saveNotes(system.id, value);
 		editing = false;
 	}
 </script>

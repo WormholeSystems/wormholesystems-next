@@ -22,8 +22,6 @@
 	import { systemLinkGroups } from '$lib/map/external-links';
 	import { statusColor } from '$lib/map/helpers';
 	import { STATUS_ICONS, STATUS_OPTIONS, statusLabel } from '$lib/map/status';
-	import * as actions from '$lib/map/system-actions';
-	import { onlineCharacters, setWaypoint, setWaypointAll } from '$lib/map/waypoints';
 	import type { MapState } from '../../state/map-state.svelte';
 	import { item, panel, sub } from './chrome';
 	import ExternalLinks from './ExternalLinks.svelte';
@@ -47,14 +45,14 @@
 		map.linkFrom = id;
 		// Anchor on the source node: the placement helper steps out from there and owns the
 		// spacing, so every way of adding a system leaves the same gap.
-		const source = map.systems.find((sys) => sys.id === id);
+		const source = map.systems.all.find((sys) => sys.id === id);
 		map.searchAnchor = source ? { x: source.position_x, y: source.position_y } : null;
 		map.paletteOpen = true;
 		close();
 	}
 
 	function setStatus(id: number, status: SystemStatus) {
-		actions.setStatus(map, id, status);
+		map.systems.setStatus(id, status);
 		close();
 	}
 
@@ -62,19 +60,19 @@
 	function removeSystem(id: number) {
 		const ids = map.selected.size > 0 ? [...map.selected] : [id];
 		map.selected = new Set();
-		actions.removeSystems(map, ids);
+		map.systems.remove(ids);
 		close();
 	}
 
-	const online = $derived(onlineCharacters(map));
+	const online = $derived(map.characters.online);
 
 	function waypoint(characterId: number, destinationId: number, clearOthers: boolean) {
-		setWaypoint(map, destinationId, characterId, clearOthers);
+		map.waypoints.set(destinationId, characterId, clearOthers);
 		close();
 	}
 
 	function waypointAll(destinationId: number, clearOthers: boolean) {
-		setWaypointAll(map, destinationId, clearOthers);
+		map.waypoints.setAll(destinationId, clearOthers);
 		close();
 	}
 </script>
@@ -118,7 +116,7 @@
 	<button
 		class={item}
 		onclick={() => {
-			actions.setPinned(map, s.id, !s.is_pinned);
+			map.systems.setPinned(s.id, !s.is_pinned);
 			close();
 		}}
 	>
@@ -198,7 +196,7 @@
 	<button
 		class={item}
 		onclick={() => {
-			actions.setHome(map, s.id, !s.is_home);
+			map.systems.setHome(s.id, !s.is_home);
 			close();
 		}}
 	>
@@ -208,7 +206,7 @@
 	<button
 		class={item}
 		onclick={() => {
-			actions.setRally(map, s.id, !s.is_rally);
+			map.systems.setRally(s.id, !s.is_rally);
 			close();
 		}}
 	>

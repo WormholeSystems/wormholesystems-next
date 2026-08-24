@@ -7,12 +7,11 @@
 
 	import * as ContextMenu from '$lib/components/ui/context-menu';
 	import EveImage from '$lib/components/EveImage.svelte';
-	import { onlineCharacters, setWaypoint, setWaypointAll } from '$lib/map/waypoints';
 	import type { MapContext } from './context';
 
 	let { map, destinationId }: { map: MapContext; destinationId: number } = $props();
 
-	const online = $derived(onlineCharacters(map));
+	const online = $derived(map.characters.online);
 </script>
 
 {#snippet waypointItems(clearOthers: boolean)}
@@ -21,7 +20,7 @@
 	{:else}
 		{#each online as c (c.character_id)}
 			<ContextMenu.Item
-				onclick={() => setWaypoint(map, destinationId, c.character_id, clearOthers)}
+				onclick={() => map.waypoints.set(destinationId, c.character_id, clearOthers)}
 			>
 				<EveImage kind="character" id={c.character_id} size={32} class="size-5 rounded-lg" />
 				{c.name}
@@ -29,7 +28,7 @@
 		{/each}
 		{#if online.length > 1}
 			<ContextMenu.Separator />
-			<ContextMenu.Item onclick={() => setWaypointAll(map, destinationId, clearOthers)}>
+			<ContextMenu.Item onclick={() => map.waypoints.setAll(destinationId, clearOthers)}>
 				<UsersIcon class="size-4" />
 				All Characters
 			</ContextMenu.Item>

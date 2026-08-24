@@ -24,7 +24,7 @@
 
 	let { map }: { map: MapState } = $props();
 
-	const pilots = $derived(map.characters);
+	const pilots = $derived(map.characters.all);
 	const sorted = $derived(orderPilots(pilots));
 
 	// A pilot outside the mapped chain should still read as a name rather than an id.
@@ -38,7 +38,7 @@
 		if (solarSystemId === null) return null;
 		const info = map.systemInfo(solarSystemId);
 		if (!info) return null;
-		const placed = map.systems.find((s) => solarSystemIdOf(s) === solarSystemId);
+		const placed = map.systems.all.find((s) => solarSystemIdOf(s) === solarSystemId);
 		return {
 			id: placed?.id ?? null,
 			alias: placed?.alias ?? null,

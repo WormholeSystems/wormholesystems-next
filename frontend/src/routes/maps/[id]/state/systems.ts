@@ -3,6 +3,7 @@
 
 import { api } from '$lib/api/client';
 import type { GridConfig } from '$lib/api/types/GridConfig';
+import type { ResolveGhostSystem } from '$lib/api/types/ResolveGhostSystem';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { SystemStatus } from '$lib/api/types/SystemStatus';
 import type { MapAction } from '$lib/map/actions';
@@ -72,16 +73,9 @@ export class SystemsApi {
 		);
 	}
 
-	/** Say which system a ghost placement turned out to be. */
-	assignGhost(mapSolarSystemId: number, solarSystemId: number) {
-		this.host.run(
-			'assignSystem',
-			api.resolveGhostSystem({
-				map_id: this.host.mapId,
-				map_solar_system_id: mapSolarSystemId,
-				solar_system_id: solarSystemId,
-			}),
-		);
+	/** Say which system a ghost placement turned out to be, and what else the jump learned. */
+	assignGhost(cmd: Omit<ResolveGhostSystem, 'map_id'>) {
+		this.host.run('assignSystem', api.resolveGhostSystem({ ...cmd, map_id: this.host.mapId }));
 	}
 
 	/** The alias, and for a real system who holds it; a ghost owns only the alias. */

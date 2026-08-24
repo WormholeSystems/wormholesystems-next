@@ -3,14 +3,12 @@
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import type { Snippet } from 'svelte';
 
-	import { api } from '$lib/api/client';
 	import type { RouteStep } from '$lib/routing/algorithm';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Popover from '$lib/components/ui/popover';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import RouteList from './RouteList.svelte';
-	import { onlineCharacters, setWaypoint, setWaypointAll } from '$lib/map/waypoints';
 	import type { MapState } from '../../state/map-state.svelte';
 
 	let {
@@ -25,7 +23,7 @@
 
 	const jumps = $derived(Math.max(0, steps.length - 1));
 	const destinationId = $derived(steps.at(-1)?.id ?? null);
-	const online = $derived(onlineCharacters(map));
+	const online = $derived(map.characters.online);
 </script>
 
 <Popover.Root>
@@ -69,7 +67,7 @@
 						{#each online as c (c.character_id)}
 							<DropdownMenu.Item
 								class="text-xs"
-								onclick={() => setWaypoint(map, destinationId, c.character_id, true)}
+								onclick={() => map.waypoints.set(destinationId, c.character_id, true)}
 							>
 								<EveImage
 									kind="character"
@@ -84,7 +82,7 @@
 							<DropdownMenu.Separator />
 							<DropdownMenu.Item
 								class="text-xs"
-								onclick={() => setWaypointAll(map, destinationId, true)}
+								onclick={() => map.waypoints.setAll(destinationId, true)}
 							>
 								<UsersIcon class="size-4" />
 								All Characters

@@ -12,7 +12,6 @@
 
 	import { toast } from 'svelte-sonner';
 
-	import { api } from '$lib/api/client';
 	import { readText } from '$lib/clipboard';
 	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
@@ -84,7 +83,7 @@
 	// Default: id desc, ties by id ascending, nulls last.
 	const sort = sortState('signatures-sort', SORT_COLUMNS, { column: 'id', direction: 'desc' });
 
-	const mySigs = $derived(map.sigs.filter((s) => s.solar_system_id === systemId));
+	const mySigs = $derived(map.signatures.all.filter((s) => s.solar_system_id === systemId));
 	const filtered = $derived(mySigs.filter((s) => !hidden.includes(s.group)));
 	const hiddenCount = $derived(mySigs.length - filtered.length);
 
@@ -133,7 +132,7 @@
 			toast.error('Nothing in that paste looked like a signature');
 			return;
 		}
-		const active = map.myCharacters.find((c) => c.is_active);
+		const active = map.characters.mine.find((c) => c.is_active);
 		if (active?.solar_system_id != null && active.solar_system_id !== systemId) {
 			pending = rows;
 			systemResolver
@@ -149,14 +148,7 @@
 		if (systemId === null) return;
 		preIds = new Set(mySigs.map((s) => s.signature_id));
 		pasted = rows;
-		map.run(
-			'pasteSignatures',
-			api.pasteSignatures({
-				map_id: map.mapId,
-				solar_system_id: systemId,
-				signatures: rows,
-			}),
-		);
+		map.signatures.paste(systemId, rows);
 	}
 
 	function onWindowPaste(e: ClipboardEvent) {
@@ -175,13 +167,7 @@
 	}
 
 	function deleteMissing() {
-		map.run(
-			'removeMissingSignatures',
-			api.removeSignaturesBulk({
-				map_id: map.mapId,
-				signature_pks: deletedSigs.map((s) => s.id),
-			}),
-		);
+		map.signatures.removeMissing(deletedSigs.map((s) => s.id));
 		pasted = null;
 	}
 
@@ -201,15 +187,7 @@
 		creating = false;
 		newId = '';
 		if (value.length === 7 && systemId !== null) {
-			map.run(
-				'addSignature',
-				api.addSignature({
-					map_id: map.mapId,
-					solar_system_id: systemId,
-					signature_id: value,
-					group: 'unknown',
-				}),
-			);
+			map.signatures.add(systemId, value);
 		}
 	}
 
