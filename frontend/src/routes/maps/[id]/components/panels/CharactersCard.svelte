@@ -27,13 +27,6 @@
 	const pilots = $derived(map.characters.all);
 	const sorted = $derived(orderPilots(pilots));
 
-	// A pilot outside the mapped chain should still read as a name rather than an id.
-	$effect(() => {
-		map.ensureResolved(
-			pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null),
-		);
-	});
-
 	function place(solarSystemId: number | null) {
 		if (solarSystemId === null) return null;
 		const info = map.systemInfo(solarSystemId);

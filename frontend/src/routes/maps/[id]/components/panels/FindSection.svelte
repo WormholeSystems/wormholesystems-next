@@ -91,9 +91,6 @@
 			map.route.ignoredSystems,
 		);
 	});
-	$effect(() => {
-		map.ensureResolved(findResults.map((r) => r.id));
-	});
 </script>
 
 <div class="flex flex-col">

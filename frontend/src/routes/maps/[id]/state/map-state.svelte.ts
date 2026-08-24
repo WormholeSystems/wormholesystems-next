@@ -407,17 +407,16 @@ export class MapState {
 
 	/**
 	 * A system in the shape every picker and the context menu expect, whether or not it is
-	 * on the map. Returns null until [`ensureResolved`] has fetched an off-map one.
+	 * on the map. Reading an off-map system schedules its (deduplicated, batched) fetch as
+	 * a side effect, so callers just read again: the answer is null until the row lands,
+	 * and the read is reactive, so it lands on its own.
 	 */
 	systemInfo(id: number): SystemSearchResult | null {
 		const placed = this.systemsView.find((s) => solarSystemId(s) === id);
 		if (placed?.kind === 'system') return searchResultOf(placed);
-		return systemResolver.get(id) ?? null;
-	}
-
-	/** Fetch display data for any of `ids` that is neither on the map nor already known. */
-	ensureResolved(ids: number[]) {
-		systemResolver.ensure(ids);
+		const known = systemResolver.get(id);
+		if (known === undefined) systemResolver.ensure([id]);
+		return known ?? null;
 	}
 
 	/** Placed systems arrive with the graph; the resolver learns them so no panel refetches one. */

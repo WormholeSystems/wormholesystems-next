@@ -24,13 +24,6 @@
 
 	const canWrite = $derived(map.canWrite);
 	const originName = $derived(origin === null ? null : (map.systemInfo(origin)?.name ?? '…'));
-	$effect(() => {
-		map.ensureResolved([
-			...(origin === null ? [] : [origin]),
-			...map.watchlist.all.map((w) => w.solar_system_id),
-		]);
-	});
-
 	const watchRoutes = $derived.by(() => {
 		if (!graph || origin === null) return new Map<number, RouteResult>();
 		return findRoutes(

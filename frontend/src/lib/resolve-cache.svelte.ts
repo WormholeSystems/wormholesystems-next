@@ -36,6 +36,24 @@ export function createSystemResolver(fetchRows: (ids: number[]) => Promise<Syste
 		await Promise.all(waits);
 	}
 
+	// Asks are collected per microtask and flushed as one batch: every miss a single
+	// render pass reads coalesces into a single request instead of one per system.
+	let queued = new Set<number>();
+	let flushScheduled = false;
+	function enqueue(ids: number[]) {
+		for (const id of ids) {
+			if (!resolved.has(id) && !pending.has(id)) queued.add(id);
+		}
+		if (queued.size === 0 || flushScheduled) return;
+		flushScheduled = true;
+		queueMicrotask(() => {
+			flushScheduled = false;
+			const batch = [...queued];
+			queued = new Set();
+			void fetchMissing(batch);
+		});
+	}
+
 	return {
 		/** What has arrived (or been seeded) for `id`; undefined until then. */
 		get(id: number): SystemSearchResult | undefined {
@@ -43,7 +61,7 @@ export function createSystemResolver(fetchRows: (ids: number[]) => Promise<Syste
 		},
 		/** Fire-and-forget: fetch whatever of `ids` is neither known nor already on the wire. */
 		ensure(ids: number[]) {
-			void fetchMissing(ids);
+			enqueue(ids);
 		},
 		/** As `ensure`, awaitable for one id. Never throws; undefined when the fetch fails. */
 		async resolve(id: number): Promise<SystemSearchResult | undefined> {

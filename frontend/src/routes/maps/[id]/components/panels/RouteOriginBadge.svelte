@@ -8,9 +8,6 @@
 	let { map }: { map: MapState } = $props();
 
 	const origin = $derived(map.routeOrigin);
-	$effect(() => {
-		if (origin !== null) map.ensureResolved([origin]);
-	});
 	const name = $derived(origin === null ? null : (map.systemInfo(origin)?.name ?? null));
 	const pinned = $derived(map.route.fromId !== null);
 </script>

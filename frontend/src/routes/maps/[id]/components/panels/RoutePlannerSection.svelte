@@ -50,9 +50,6 @@
 		}
 		return picks;
 	});
-	$effect(() => {
-		map.ensureResolved(suggestedIds.map((p) => p.id));
-	});
 	// Only those we can render as a proper row; an unresolved one would show as a bare id.
 	const suggestions = $derived(
 		suggestedIds

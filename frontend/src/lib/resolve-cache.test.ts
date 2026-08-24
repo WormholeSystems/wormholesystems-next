@@ -25,6 +25,18 @@ describe('createSystemResolver', () => {
 		expect(fetchRows).not.toHaveBeenCalled();
 	});
 
+	it('coalesces every ensure from one render pass into a single batch', async () => {
+		const fetchRows = vi.fn(async (ids: number[]) => ids.map(row));
+		const resolver = createSystemResolver(fetchRows);
+		resolver.ensure([1]);
+		resolver.ensure([2, 3]);
+		resolver.ensure([1]);
+		expect(fetchRows).not.toHaveBeenCalled();
+		await Promise.resolve();
+		expect(fetchRows).toHaveBeenCalledOnce();
+		expect(fetchRows).toHaveBeenCalledWith([1, 2, 3]);
+	});
+
 	it('clears the in-flight mark when a batch fails, so a retry can fetch again', async () => {
 		const fetchRows = vi
 			.fn<(ids: number[]) => Promise<SystemSearchResult[]>>()
