@@ -2,8 +2,7 @@
 // component is wiring and markup.
 
 import EyeIcon from '@lucide/svelte/icons/eye';
-import RouteIcon from '@lucide/svelte/icons/route';
-import ShieldIcon from '@lucide/svelte/icons/shield';
+import MousePointerClickIcon from '@lucide/svelte/icons/mouse-pointer-click';
 import SignatureIcon from '@lucide/svelte/icons/scan-line';
 import TagIcon from '@lucide/svelte/icons/tag';
 import type { Component } from 'svelte';
@@ -12,10 +11,6 @@ import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 
 export const INTRO_STEPS = [
 	{
-		title: 'Welcome to the map',
-		blurb: 'A minute of setup, and it maps the chain as you fly it.',
-	},
-	{
 		title: 'Grant permissions',
 		blurb: 'What the map may read from your EVE client. All optional.',
 	},
@@ -23,10 +18,15 @@ export const INTRO_STEPS = [
 	{ title: 'Ready to fly', blurb: 'Here is where everything ended up.' },
 ];
 
-export const INTRO_OPENING: { icon: Component; text: string }[] = [
-	{ icon: ShieldIcon, text: 'The EVE permissions the map can use' },
-	{ icon: EyeIcon, text: 'Whether it may follow you around' },
-	{ icon: RouteIcon, text: 'How much of the mapping it does for you' },
+export const INTRO_TIPS: { icon: Component; text: string }[] = [
+	{
+		icon: SignatureIcon,
+		text: 'Paste a signature scan anywhere on the map to fill in a system.',
+	},
+	{
+		icon: MousePointerClickIcon,
+		text: 'Right-click a system for its menu, and drag between two to connect them.',
+	},
 ];
 
 export function introSummary(

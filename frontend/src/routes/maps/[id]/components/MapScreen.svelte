@@ -33,6 +33,7 @@
 	import PanelGrid from './panels/PanelGrid.svelte';
 	import CleanMapDialog from './overlays/CleanMapDialog.svelte';
 	import IntroductionDialog from './overlays/IntroductionDialog.svelte';
+	import TourOverlay from './overlays/TourOverlay.svelte';
 	import StatusBar from './canvas/StatusBar.svelte';
 	import TrackingDialog from './tracking/TrackingDialog.svelte';
 	import { JumpTracker } from '../state/tracking.svelte';
@@ -66,6 +67,9 @@
 	setMapContext(() => map);
 
 	let viewportEl = $state<HTMLElement | null>(null);
+
+	// The walkthrough hands over to the spotlight tour the moment it closes.
+	let tourOpen = $state(false);
 
 	// The loading cover starts where the map's own chrome does, leaving the app's nav above
 	// it. Measured rather than assumed, since the nav can wrap.
@@ -188,7 +192,8 @@
 />
 
 <div bind:this={chromeEl}>
-	<StatusBar {map} />
+	<StatusBar {map} onstarttour={() => (tourOpen = true)} />
+	<TourOverlay bind:open={tourOpen} />
 </div>
 
 <CommandPalette {map} bind:open={map.paletteOpen} />
@@ -239,7 +244,7 @@
 			map.openMenu(ev.clientX, ev.clientY, { kind: 'map' });
 		}}
 	>
-		<IntroductionDialog {map} />
+		<IntroductionDialog {map} onfinished={() => (tourOpen = true)} />
 
 		<div
 			class="absolute top-0 left-0 origin-top-left"

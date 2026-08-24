@@ -1,8 +1,8 @@
 import { createdId, expect, test } from './fixtures';
 import { createIdentity, grantAccess, setScopes, showIntroduction } from './db';
 
-// The one-time walkthrough a map opens with: welcome, ESI permissions, the preferences
-// those permissions unlock, and a summary.
+// The one-time walkthrough a map opens with: ESI permissions, the preferences those
+// permissions unlock, and a summary.
 //
 // Driven as its own identity throughout. Every other spec has the walkthrough skipped for
 // it, and this one needs to control exactly which scopes the character holds — which is
@@ -64,16 +64,14 @@ test('a new map walks you through permissions and preferences, once', async ({ b
 
 	const dialog = page.getByTestId('introduction');
 	await expect(dialog).toBeVisible();
-	await expect(dialog).toContainText('Welcome to the map');
 
-	// Step 2 lists every permission the app can use. This character holds all of them, so
+	// Step 1 lists every permission the app can use. This character holds all of them, so
 	// each row reports itself granted rather than linking out to the SSO.
-	await dialog.getByTestId('introduction-next').click();
 	await expect(dialog).toContainText('Grant permissions');
 	await expect(dialog.locator('[data-scope]')).toHaveCount(4);
 	await expect(dialog.getByTestId('scope-granted')).toHaveCount(4);
 
-	// Step 3 is the settings those permissions unlock. Location sharing is off on a new
+	// Step 2 is the settings those permissions unlock. Location sharing is off on a new
 	// map, and the two that depend on it stay disabled until it is on.
 	await dialog.getByTestId('introduction-next').click();
 	await expect(dialog).toContainText('Choose what it does');
@@ -83,7 +81,7 @@ test('a new map walks you through permissions and preferences, once', async ({ b
 	await dialog.locator('[data-setting="tracking_allowed"]').getByRole('switch').click();
 	await expect(prompt.getByRole('switch')).toBeEnabled();
 
-	// Step 4 reports where it all ended up.
+	// The finale reports where it all ended up.
 	await dialog.getByTestId('introduction-next').click();
 	await expect(dialog).toContainText('Ready to fly');
 	await expect(dialog).toContainText('All granted');
@@ -107,7 +105,6 @@ test('missing permissions are offered, and the settings that need them are held 
 	const { page, ctx } = await openAsNewcomer(browser, api, 'E2E IntroPartial', 32, scopes);
 
 	const dialog = page.getByTestId('introduction');
-	await dialog.getByTestId('introduction-next').click();
 	await expect(dialog.getByTestId('scope-granted')).toHaveCount(3);
 
 	// The missing one links to consent for itself *plus* everything already granted: SSO
@@ -127,7 +124,6 @@ test('without the location scope, sharing cannot be turned on at all', async ({ 
 	const { page, ctx } = await openAsNewcomer(browser, api, 'E2E IntroNoLoc', 33, [WAYPOINT]);
 
 	const dialog = page.getByTestId('introduction');
-	await dialog.getByTestId('introduction-next').click();
 	await expect(dialog.getByTestId('scope-granted')).toHaveCount(1);
 
 	await dialog.getByTestId('introduction-next').click();
@@ -148,11 +144,12 @@ test('back steps return through the walkthrough', async ({ browser, api }) => {
 	const { page, ctx } = await openAsNewcomer(browser, api, 'E2E IntroBack', 34, ALL_SCOPES);
 
 	const dialog = page.getByTestId('introduction');
+	await expect(dialog).toContainText('Grant permissions');
 	await expect(dialog.getByTestId('introduction-back')).toBeDisabled();
 	await dialog.getByTestId('introduction-next').click();
-	await expect(dialog).toContainText('Grant permissions');
+	await expect(dialog).toContainText('Choose what it does');
 	await dialog.getByTestId('introduction-back').click();
-	await expect(dialog).toContainText('Welcome to the map');
+	await expect(dialog).toContainText('Grant permissions');
 	await expect(dialog.getByTestId('introduction-back')).toBeDisabled();
 	await ctx.close();
 });

@@ -6,6 +6,7 @@
 	// reissues the token wholesale and a per-scope link would drop the rest. The settings step
 	// disables what the missing scopes cannot support rather than offering dead switches.
 	import { errorMessage } from '$lib/api/client';
+	import Logo from '$lib/components/Logo.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
@@ -23,10 +24,10 @@
 	import type { MapState } from '../../state/map-state.svelte';
 	import { atLeast } from '$lib/map/roles';
 	import { ESI_SCOPES } from '$lib/esi/scopes';
-	import { INTRO_OPENING, INTRO_STEPS, introSummary, introToggles } from './introduction-content';
+	import { INTRO_STEPS, INTRO_TIPS, introSummary, introToggles } from './introduction-content';
 	import { PLACEMENTS } from '$lib/map/placement';
 
-	let { map }: { map: MapState } = $props();
+	let { map, onfinished }: { map: MapState; onfinished?: () => void } = $props();
 
 	let step = $state(1);
 	const scopesQuery = createQuery(() => ({ ...q.myScopes(), enabled: map.signedIn }));
@@ -51,8 +52,9 @@
 		return `/auth/login?${params}`;
 	}
 
-	// Placement is the map's, not this viewer's, so only a manager is offered it.
-	const canManage = $derived(atLeast(map.data?.role, 'manager'));
+	// Placement is the map's, not this viewer's. Only the owner is offered it here:
+	// everyone else would meet a choice they cannot make.
+	const isOwner = $derived(map.data?.role === 'owner');
 	const placement = $derived(map.data?.map.layout === 'tree' ? 'tree' : 'manual');
 	function setPlacement(layout: 'manual' | 'tree') {
 		map.setPlacement(layout);
@@ -70,6 +72,7 @@
 	function finish() {
 		closed = true;
 		update({ introduction_confirmed: true });
+		onfinished?.();
 	}
 
 	const summary = $derived(
@@ -80,160 +83,201 @@
 </script>
 
 <Dialog.Root {open} onOpenChange={(v) => !v && open && finish()}>
+	<!-- A fixed height, so stepping through never resizes the dialog; each step scrolls
+	     inside instead. -->
 	<Dialog.Content
-		class="max-h-[90vh] w-full overflow-y-auto md:max-w-2xl"
+		class="h-[40rem] max-h-[85vh] w-full grid-rows-[auto_minmax(0,1fr)_auto] md:max-w-2xl"
 		data-testid="introduction"
 	>
-		<Dialog.Header>
-			<Dialog.Title class="font-heading text-lg">{INTRO_STEPS[step - 1].title}</Dialog.Title>
-			<Dialog.Description>{INTRO_STEPS[step - 1].blurb}</Dialog.Description>
-		</Dialog.Header>
+		<div class="-mx-4 flex flex-col gap-3 border-b border-border/40 px-4 pb-3">
+			<Dialog.Header>
+				<span class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+					Step {step} of {INTRO_STEPS.length}
+				</span>
+				<Dialog.Title class="font-heading text-xl">{INTRO_STEPS[step - 1].title}</Dialog.Title>
+				<Dialog.Description class="text-sm">{INTRO_STEPS[step - 1].blurb}</Dialog.Description>
+			</Dialog.Header>
 
-		<div class="flex items-center gap-1.5" data-testid="introduction-progress">
-			{#each INTRO_STEPS as _, i (i)}
-				<div class={cn('h-1 flex-1', i < step ? 'bg-primary' : 'bg-muted')}></div>
-			{/each}
-			<span class="ml-1 font-mono text-[10px] tabular-nums text-muted-foreground">
-				{step}/{INTRO_STEPS.length}
-			</span>
+			<div class="flex items-center gap-1.5" data-testid="introduction-progress">
+				{#each INTRO_STEPS as _, i (i)}
+					<div class={cn('h-1 flex-1', i < step ? 'bg-primary' : 'bg-muted')}></div>
+				{/each}
+			</div>
 		</div>
 
-		{#if step === 1}
-			<div class="flex flex-col gap-4 text-sm">
-				<p class="text-muted-foreground">
-					WormholeSystems keeps a wormhole chain that several people edit at once. It can also build
-					that chain from where your characters actually are, which is the part worth setting up
-					now.
-				</p>
-				<div class="flex flex-col gap-2 border border-border/60 p-3">
-					{#each INTRO_OPENING as row, i (i)}
-						{@const Icon = row.icon}
-						<span class="flex items-center gap-2 text-xs">
-							<Icon class="size-3.5 text-muted-foreground" />
-							{row.text}
-						</span>
-					{/each}
-				</div>
-				<p class="text-xs text-muted-foreground">
-					Nothing here is permanent. Every one of these can be changed later in the map's settings.
-				</p>
-			</div>
-		{:else if step === 2}
-			<div class="flex flex-col divide-y divide-border/60">
-				{#each ESI_SCOPES as item (item.scope)}
-					{@const Icon = item.icon}
-					{@const ok = granted.has(item.scope)}
-					<div class="flex items-start justify-between gap-3 py-3" data-scope={item.scope}>
-						<span class="flex items-start gap-2.5">
-							<Icon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-							<span>
-								<span class="text-sm font-medium">{item.name}</span>
-								<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{item.body}</p>
-							</span>
-						</span>
-						{#if ok}
-							<span
-								class="flex shrink-0 items-center gap-1 text-xs text-emerald-500"
-								data-testid="scope-granted"
+		<div class="overflow-y-auto">
+			{#if step === 1}
+				<div class="flex flex-col gap-4">
+					<p class="text-sm leading-relaxed text-muted-foreground">
+						WormholeSystems builds the chain from where your characters actually are. Each
+						permission unlocks a piece of that; all are optional, and revocable at any time.
+					</p>
+					<div class="flex flex-col gap-2">
+						{#each ESI_SCOPES as item (item.scope)}
+							{@const Icon = item.icon}
+							{@const ok = granted.has(item.scope)}
+							<div
+								class="flex items-center gap-3 border border-border/60 p-2.5"
+								data-scope={item.scope}
 							>
-								<CheckCircleIcon class="size-3.5" />
-								Granted
-							</span>
-						{:else}
-							<Button variant="outline" size="sm" href={grantUrl([item.scope])} class="shrink-0">
-								<ExternalLinkIcon data-icon="inline-start" />
-								Grant
-							</Button>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		{:else if step === 3}
-			<div class="flex flex-col gap-3">
-				{#if canManage}
-					<div class="flex flex-col gap-2" data-testid="setup-placement">
-						<span class="text-xs text-muted-foreground">
-							How the chain is laid out, for everyone on this map. Changeable later in the map's
-							settings.
-						</span>
-						<div class="grid grid-cols-2 gap-2">
-							{#each PLACEMENTS as option (option.value)}
-								{@const Icon = option.icon}
-								{@const chosen = placement === option.value}
-								<button
-									type="button"
+								<span
 									class={cn(
-										'flex flex-col gap-1 border p-3 text-left transition-colors',
-										chosen
-											? 'border-primary/60 bg-accent/40'
-											: 'border-border/60 hover:bg-accent/20',
+										'flex size-8 shrink-0 items-center justify-center rounded-md',
+										ok ? 'bg-emerald-500/10 text-emerald-500' : 'bg-muted/40 text-muted-foreground',
 									)}
-									aria-pressed={chosen}
-									data-testid="setup-placement-{option.value}"
-									onclick={() => setPlacement(option.value)}
 								>
-									<span class="flex items-center gap-1.5 text-sm font-medium">
-										<Icon class={cn('size-4', chosen ? 'text-primary' : 'text-muted-foreground')} />
-										{option.label}
-									</span>
-									<span class="text-xs leading-relaxed text-muted-foreground">{option.body}</span>
-								</button>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				{#each toggles as row (row.key)}
-					{@const Icon = row.icon}
-					<div
-						class={cn('border border-border/60 p-3', !row.enabled && 'opacity-60')}
-						data-setting={row.key}
-					>
-						<div class="flex items-start justify-between gap-3">
-							<span class="flex items-start gap-2.5">
-								<Icon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-								<span>
-									<span class="text-sm font-medium">{row.name}</span>
-									<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{row.body}</p>
-									{#if !row.enabled}
-										<p class="mt-1 text-xs text-amber-500">{row.blocked}</p>
-									{/if}
+									<Icon class="size-4" />
 								</span>
-							</span>
-							<Switch
-								checked={row.value && row.enabled}
-								disabled={!row.enabled}
-								aria-label={row.name}
-								onCheckedChange={(v) => update({ [row.key]: v })}
-							/>
-						</div>
+								<span class="min-w-0 flex-1">
+									<span class="text-sm font-medium">{item.name}</span>
+									<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{item.body}</p>
+								</span>
+								{#if ok}
+									<span
+										class="flex shrink-0 items-center gap-1 text-xs text-emerald-500"
+										data-testid="scope-granted"
+									>
+										<CheckCircleIcon class="size-3.5" />
+										Granted
+									</span>
+								{:else}
+									<Button
+										variant="outline"
+										size="sm"
+										href={grantUrl([item.scope])}
+										class="shrink-0"
+									>
+										<ExternalLinkIcon data-icon="inline-start" />
+										Grant
+									</Button>
+								{/if}
+							</div>
+						{/each}
 					</div>
-				{/each}
-			</div>
-		{:else}
-			<div class="flex flex-col gap-4">
-				<div class="flex flex-col gap-1.5 border border-border/60 p-3 text-xs">
-					{#each summary as row (row.label)}
-						<span class="flex items-center justify-between">
-							<span class="text-muted-foreground">{row.label}</span>
-							<span class={row.good ? 'text-emerald-500' : 'text-amber-500'}>{row.value}</span>
-						</span>
-					{/each}
 				</div>
-				<div class="flex flex-col gap-2 text-xs text-muted-foreground">
-					<p>
-						Paste a signature scan anywhere on the map to fill in a system. Right-click a system for
-						its menu, and drag between two to connect them.
-					</p>
-					<p>
-						Everything here lives in the map's settings afterwards, along with access for the rest
-						of your corp.
-					</p>
-				</div>
-			</div>
-		{/if}
+			{:else if step === 2}
+				<div class="flex flex-col gap-3.5">
+					{#if isOwner}
+						<div class="flex flex-col gap-2" data-testid="setup-placement">
+							<div class="flex items-baseline justify-between gap-3">
+								<span class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+									Chain placement
+								</span>
+								<span class="text-[11px] text-muted-foreground">
+									For everyone on this map. Changeable later in the map's settings.
+								</span>
+							</div>
+							<div class="grid grid-cols-2 gap-2">
+								{#each PLACEMENTS as option (option.value)}
+									{@const Icon = option.icon}
+									{@const chosen = placement === option.value}
+									<button
+										type="button"
+										class={cn(
+											'flex flex-col gap-1.5 border p-2.5 text-left transition-colors',
+											chosen
+												? 'border-primary/60 bg-primary/5'
+												: 'border-border/60 hover:bg-accent/20',
+										)}
+										aria-pressed={chosen}
+										data-testid="setup-placement-{option.value}"
+										onclick={() => setPlacement(option.value)}
+									>
+										<span class="flex w-full items-center gap-2">
+											<span
+												class={cn(
+													'flex size-8 shrink-0 items-center justify-center rounded-md',
+													chosen
+														? 'bg-primary/10 text-primary'
+														: 'bg-muted/40 text-muted-foreground',
+												)}
+											>
+												<Icon class="size-4" />
+											</span>
+											<span class="text-sm font-medium">{option.label}</span>
+											{#if chosen}
+												<CheckCircleIcon class="ml-auto size-4 shrink-0 text-primary" />
+											{/if}
+										</span>
+										<span class="text-xs leading-relaxed text-muted-foreground">{option.body}</span>
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
 
-		<div class="flex items-center justify-between pt-2">
+					<div class="flex flex-col gap-2">
+						<span class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
+							Automation
+						</span>
+						{#each toggles as row (row.key)}
+							{@const Icon = row.icon}
+							<div
+								class={cn('border border-border/60 p-2.5', !row.enabled && 'opacity-60')}
+								data-setting={row.key}
+							>
+								<div class="flex items-center gap-3">
+									<span
+										class={cn(
+											'flex size-8 shrink-0 items-center justify-center rounded-md',
+											row.value && row.enabled
+												? 'bg-primary/10 text-primary'
+												: 'bg-muted/40 text-muted-foreground',
+										)}
+									>
+										<Icon class="size-4" />
+									</span>
+									<span class="min-w-0 flex-1">
+										<span class="text-sm font-medium">{row.name}</span>
+										<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">{row.body}</p>
+										{#if !row.enabled}
+											<p class="mt-1 text-xs text-amber-500">{row.blocked}</p>
+										{/if}
+									</span>
+									<Switch
+										checked={row.value && row.enabled}
+										disabled={!row.enabled}
+										aria-label={row.name}
+										onCheckedChange={(v) => update({ [row.key]: v })}
+									/>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<div class="flex h-full flex-col items-center justify-center gap-6 text-center">
+					<div
+						class="flex size-16 items-center justify-center rounded-full border border-primary/30 bg-primary/10"
+					>
+						<Logo class="size-8 text-primary" />
+					</div>
+					<div class="flex flex-col gap-1">
+						<p class="font-heading text-2xl">The chain awaits.</p>
+						<p class="text-sm text-muted-foreground">The map is set up: fly, and it follows.</p>
+					</div>
+					<div class="flex w-full max-w-sm flex-col gap-1.5 border border-border/60 p-3 text-xs">
+						{#each summary as row (row.label)}
+							<span class="flex items-center justify-between">
+								<span class="text-muted-foreground">{row.label}</span>
+								<span class={row.good ? 'text-emerald-500' : 'text-amber-500'}>{row.value}</span>
+							</span>
+						{/each}
+					</div>
+					<div class="flex w-full max-w-sm flex-col gap-2">
+						{#each INTRO_TIPS as tip, i (i)}
+							{@const Icon = tip.icon}
+							<span class="flex items-center gap-2.5 text-left text-xs text-muted-foreground">
+								<Icon class="size-3.5 shrink-0" />
+								{tip.text}
+							</span>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		</div>
+
+		<div class="-mx-4 flex items-center justify-between border-t border-border/40 px-4 pt-3">
 			<Button
 				variant="outline"
 				size="sm"
@@ -245,17 +289,17 @@
 				Back
 			</Button>
 			<div class="flex gap-2">
-				{#if step === 2 && missing.length > 0}
+				{#if step === 1 && missing.length > 0}
 					<Button size="sm" href={grantUrl(missing.map((s) => s.scope))}>Grant all</Button>
 				{/if}
 				{#if step < INTRO_STEPS.length}
 					<Button
 						size="sm"
-						variant={step === 2 && missing.length > 0 ? 'outline' : 'default'}
+						variant={step === 1 && missing.length > 0 ? 'outline' : 'default'}
 						onclick={() => (step += 1)}
 						data-testid="introduction-next"
 					>
-						{step === 2 && missing.length > 0 ? 'Skip for now' : 'Next'}
+						{step === 1 && missing.length > 0 ? 'Skip for now' : 'Next'}
 						<ArrowRightIcon data-icon="inline-end" />
 					</Button>
 				{:else}

@@ -8,6 +8,7 @@
 	import RadarIcon from '@lucide/svelte/icons/radar';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import Redo2Icon from '@lucide/svelte/icons/redo-2';
+	import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import BrushCleaningIcon from '@lucide/svelte/icons/brush-cleaning';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -27,7 +28,7 @@
 	import StaleConnectionsPopover from '../connection/StaleConnectionsPopover.svelte';
 	import TrackingSettings from '../tracking/TrackingSettings.svelte';
 
-	let { map }: { map: MapState } = $props();
+	let { map, onstarttour }: { map: MapState; onstarttour?: () => void } = $props();
 
 	const canWrite = $derived(map.canWrite);
 	// Somebody following a share link has no pilot, so the pilot warnings have nobody to be
@@ -213,6 +214,26 @@
 
 		<Separator orientation="vertical" class="h-4" />
 
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon"
+						class="size-7"
+						data-testid="tour-button"
+						onclick={() => onstarttour?.()}
+					>
+						<CircleHelpIcon />
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content>Show me around</Tooltip.Content>
+		</Tooltip.Root>
+
+		<Separator orientation="vertical" class="h-4" />
+
 		{#if map.userSettings}
 			{@render toggle(
 				'Share location',
@@ -240,49 +261,57 @@
 
 		{#if canWrite}
 			<Separator orientation="vertical" class="h-4" />
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="ghost"
-							size="icon"
-							class="size-7"
-							data-testid="undo-button"
-							disabled={!map.history.canUndo}
-							onclick={() => map.history.undo()}
-						>
-							<Undo2Icon />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>
-					{map.history.headEntry ? `Undo: ${map.history.headEntry.label}` : 'Nothing to undo'}
-				</Tooltip.Content>
-			</Tooltip.Root>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Button
-							{...props}
-							variant="ghost"
-							size="icon"
-							class="size-7"
-							data-testid="redo-button"
-							disabled={!map.history.canRedo}
-							onclick={() => map.history.redo()}
-						>
-							<Redo2Icon />
-						</Button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>
-					{map.history.redoEntry ? `Redo: ${map.history.redoEntry.label}` : 'Nothing to redo'}
-				</Tooltip.Content>
-			</Tooltip.Root>
 		{/if}
+		<span class="flex items-center gap-2" data-testid="history-controls">
+			{#if canWrite}
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon"
+								class="size-7"
+								data-testid="undo-button"
+								disabled={!map.history.canUndo}
+								onclick={() => map.history.undo()}
+							>
+								<Undo2Icon />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>
+						{map.history.headEntry ? `Undo: ${map.history.headEntry.label}` : 'Nothing to undo'}
+					</Tooltip.Content>
+				</Tooltip.Root>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon"
+								class="size-7"
+								data-testid="redo-button"
+								disabled={!map.history.canRedo}
+								onclick={() => map.history.redo()}
+							>
+								<Redo2Icon />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>
+						{map.history.redoEntry ? `Redo: ${map.history.redoEntry.label}` : 'Nothing to redo'}
+					</Tooltip.Content>
+				</Tooltip.Root>
+			{/if}
+			{#if !watching}
+				<HistoryPopover {map} />
+			{/if}
+		</span>
 
 		{#if !watching}
+			<Separator orientation="vertical" class="h-4" />
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}
@@ -304,8 +333,6 @@
 					{map.panels.editing ? 'Done arranging panels' : 'Arrange the side panels'}
 				</Tooltip.Content>
 			</Tooltip.Root>
-
-			<HistoryPopover {map} />
 
 			<Tooltip.Root>
 				<Tooltip.Trigger>
