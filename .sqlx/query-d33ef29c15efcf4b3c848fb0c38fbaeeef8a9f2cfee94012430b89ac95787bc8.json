@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select a.id, a.map_id, a.name, a.kind, a.delivery,\n                  a.map_webhook_id, w.name as \"webhook_name?\",\n                  a.discord_channel_id,\n                  a.map_webhook_role_id, r.name as \"role_name?\",\n                  a.mention, a.target_solar_system_id, ss.name as \"target_system_name?\",\n                  a.max_jumps, a.ship_type, a.jdc_level,\n                  a.filters, a.filter_match, a.is_active,\n                  a.disabled_reason, a.last_fired_at, a.created_at\n           from map_alerts a\n           left join solar_systems ss on ss.id = a.target_solar_system_id\n           left join map_webhooks w on w.id = a.map_webhook_id\n           left join map_webhook_roles r on r.id = a.map_webhook_role_id\n           where a.map_id = $1\n           order by a.id",
+  "query": "select a.id, a.map_id, a.name, a.kind, a.delivery,\n                  a.map_webhook_id, w.name as \"webhook_name?\",\n                  a.discord_channel_id,\n                  a.map_webhook_role_id, r.name as \"role_name?\",\n                  a.mention, a.target_solar_system_id, ss.name as \"target_system_name?\",\n                  a.max_jumps, a.ship_type, a.jdc_level,\n                  a.filters, a.filter_match, a.is_active,\n                  a.disabled_reason, a.last_fired_at, a.created_at\n           from map_alerts a\n           left join solar_systems ss on ss.id = a.target_solar_system_id\n           left join map_webhooks w on w.id = a.map_webhook_id\n           left join map_webhook_roles r on r.id = a.map_webhook_role_id\n           where a.map_id = $1 and ($2::bigint is null or a.id = $2)\n           order by a.id",
   "describe": {
     "columns": [
       {
@@ -248,6 +248,7 @@
     ],
     "parameters": {
       "Left": [
+        "Int8",
         "Int8"
       ]
     },
@@ -276,5 +277,5 @@
       false
     ]
   },
-  "hash": "472126c4c5a598c748a978ae9a6c2331a4f3a413851dc6381b2055fdeb7d84c1"
+  "hash": "d33ef29c15efcf4b3c848fb0c38fbaeeef8a9f2cfee94012430b89ac95787bc8"
 }

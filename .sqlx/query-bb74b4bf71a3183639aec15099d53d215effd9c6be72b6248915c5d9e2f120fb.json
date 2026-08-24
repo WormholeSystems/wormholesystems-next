@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select st.owner_corporation_id as \"corporation_id!\", c.name as \"corporation_name!\",\n                  st.id as \"station_id\", st.name as \"station_name\", st.solar_system_id\n           from stations st\n           join corporations c on c.id = st.owner_corporation_id\n           where st.owner_corporation_id is not null\n           order by c.name, st.name",
+  "query": "select st.owner_corporation_id as \"corporation_id!\", c.name as \"corporation_name!\",\n                  c.faction_id, f.name as \"faction_name?\",\n                  st.id as \"station_id\", st.name as \"station_name\", st.solar_system_id\n           from stations st\n           join corporations c on c.id = st.owner_corporation_id\n           left join factions f on f.id = c.faction_id\n           where st.owner_corporation_id is not null\n           order by c.name, st.name",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,28 @@
       },
       {
         "ordinal": 2,
+        "name": "faction_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "corporations",
+            "name": "faction_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "faction_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "factions",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "station_id",
         "type_info": "Int8",
         "origin": {
@@ -37,7 +59,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "station_name",
         "type_info": "Text",
         "origin": {
@@ -48,7 +70,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "solar_system_id",
         "type_info": "Int8",
         "origin": {
@@ -65,10 +87,12 @@
     "nullable": [
       true,
       false,
+      true,
+      false,
       false,
       true,
       false
     ]
   },
-  "hash": "15a76d66cd2fa5181a4286918035e2e5ece87eb504ba854cea90ef76b0e3c89d"
+  "hash": "bb74b4bf71a3183639aec15099d53d215effd9c6be72b6248915c5d9e2f120fb"
 }
