@@ -6,14 +6,15 @@
 	// Command's own filtering is off and the rows arrive already ranked.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
-	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
-
 	import { api } from '$lib/api/client';
 	import { q } from '$lib/api/queries';
+	import { searchQuery } from '$lib/search-query.svelte';
+	import { matchHint, partitionHits } from './palette';
 	import type { MapSearchHit } from '$lib/api/types/MapSearchHit';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Command from '$lib/components/ui/command';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
+	import { SYSTEM_CELLS_5, SYSTEM_LIST_HINT, SYSTEM_ROW } from '$lib/components/pickers/columns';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import { NODE_W, centerWorld, freePosition, heuristicSize } from '$lib/map/helpers';
 	import type { MapState } from './map-state.svelte';
@@ -21,42 +22,22 @@
 	let { map, open = $bindable() }: { map: MapState; open: boolean } = $props();
 
 	let query = $state('');
-	// Keyed by the term, so a slow reply can never land on a newer search. Undebounced,
-	// like the palette always was; the previous list stays painted while the next fetches.
-	const searchQuery = createQuery(() => ({
-		...q.searchMap(map.mapId, query),
-		enabled: open,
-		placeholderData: keepPreviousData,
-	}));
-	const results = $derived(open ? (searchQuery.data ?? []) : []);
+	// Undebounced, like the palette always was: every keystroke searches.
+	const search = searchQuery({
+		term: () => query,
+		query: (settled) => q.searchMap(map.mapId, settled),
+		enabled: () => open,
+		minChars: 0,
+		debounceMs: 0,
+	});
+	const results = $derived(search.results);
 
 	const canWrite = $derived(map.canWrite);
-	// Threat hits answer a different question (where does this corp operate), so they get
-	// their own section rather than mixing into results that matched by name.
-	const threats = $derived(results.filter((h) => h.threat));
-	/** One section per organisation, so the name is not repeated on every row. */
-	const threatGroups = $derived.by(() => {
-		const groups = new Map<
-			number,
-			{ name: string; kind: string; total: number; hits: MapSearchHit[] }
-		>();
-		for (const hit of threats) {
-			const t = hit.threat!;
-			const group = groups.get(t.entity_id) ?? {
-				name: t.name,
-				kind: t.entity_type,
-				total: 0,
-				hits: [],
-			};
-			group.total += t.kills;
-			group.hits.push(hit);
-			groups.set(t.entity_id, group);
-		}
-		return [...groups.entries()].map(([id, group]) => ({ id, ...group }));
-	});
-	const named = $derived(results.filter((h) => !h.threat));
-	/** Matched by what the system is called, not by intel typed onto it. */
-	const byName = (h: MapSearchHit) => h.matched === 'name' || h.matched === 'alias';
+	const partitioned = $derived(partitionHits(results));
+	const threatGroups = $derived(partitioned.threatGroups);
+	const onMap = $derived(partitioned.onMap);
+	const offMap = $derived(partitioned.offMap);
+	const intel = $derived(partitioned.intel);
 	/** Opened from "connect to a new system": every pick becomes a connection as well. */
 	const linking = $derived(map.linkFrom !== null);
 	/**
@@ -64,18 +45,9 @@
 	 * on-map hits included: those merge the ghost into the placement already there.
 	 */
 	const assigning = $derived(map.assignGhostId !== null);
-	const onMap = $derived(named.filter((h) => h.map_solar_system_id !== null && byName(h)));
-	const offMap = $derived(named.filter((h) => h.map_solar_system_id === null));
-	// Occupier and notes matches sit below every system named like the query: the answer to
-	// "rens" is Rens, not the three systems whose intel mentions it.
-	const intel = $derived(named.filter((h) => h.map_solar_system_id !== null && !byName(h)));
 
 	// The list owns the tracks and rows are subgrids of them, so on-map and off-map rows line
 	// up with each other. Tracks: four SystemRow cells, the hint/badge, Command's indicator.
-	const LIST_TRACKS =
-		'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_minmax(0,0.7fr)_min-content] items-center gap-x-2';
-	const ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
-	const CELLS = 'col-span-5 grid grid-cols-subgrid items-center gap-x-2';
 	const HEADING = 'col-span-full px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground';
 
 	$effect(() => {
@@ -89,14 +61,6 @@
 			map.searchAnchor = null;
 		}
 	});
-
-	/** Why this row matched, when it was not the name. */
-	function hint(h: MapSearchHit): string | null {
-		if (h.note_excerpt) return h.note_excerpt;
-		if (h.matched === 'alias') return h.alias;
-		if (h.matched === 'occupier') return h.occupying_group;
-		return null;
-	}
 
 	function activate(hit: MapSearchHit) {
 		if (assigning) {
@@ -113,10 +77,10 @@
 		// Pan the node into the middle, so a jump from the palette actually shows it.
 		const system = map.systems.find((s) => s.id === hit.map_solar_system_id);
 		if (!system) return;
-		const r = map.viewportRect();
-		map.pan = {
-			x: r.width / 2 - (system.position_x + NODE_W / 2) * map.zoom,
-			y: r.height / 2 - (system.position_y + map.nodeH / 2) * map.zoom,
+		const r = map.camera.viewportRect();
+		map.camera.pan = {
+			x: r.width / 2 - (system.position_x + NODE_W / 2) * map.camera.zoom,
+			y: r.height / 2 - (system.position_y + map.nodeH / 2) * map.camera.zoom,
 		};
 	}
 
@@ -125,16 +89,7 @@
 		const from = map.linkFrom;
 		open = false;
 		if (from === null || from === target) return;
-		map.run(
-			'addConnection',
-			api.addConnection({
-				map_id: map.mapId,
-				from_system: from,
-				to_system: target,
-				kind: 'wormhole',
-				size: heuristicSize(map.systems, from, target),
-			}),
-		);
+		map.connectSystems(from, target);
 	}
 
 	/** Say which system a ghost turned out to be. */
@@ -172,7 +127,8 @@
 		const from = map.linkFrom;
 		// The anchor is where the canvas was right-clicked. Plain Cmd+K has none, so the system
 		// lands in the middle of the view.
-		const base = map.searchAnchor ?? centerWorld(map.pan, map.zoom, map.viewportRect());
+		const base =
+			map.searchAnchor ?? centerWorld(map.camera.pan, map.camera.zoom, map.camera.viewportRect());
 		open = false;
 		const at = freePosition(map.systems, base, map.grid);
 		map.run(
@@ -219,7 +175,7 @@
 	/>
 	<!-- Headings are plain cells, not Command.Group: a group wraps its items in an element of
 	     its own, and a subgrid cannot cross that break in the ancestry. -->
-	<Command.List class="p-1 {LIST_TRACKS}" data-testid="palette-list">
+	<Command.List class="p-1 {SYSTEM_LIST_HINT}" data-testid="palette-list">
 		<Command.Empty class="col-span-full">
 			{query.trim().length < 2 ? 'Type at least two characters to search.' : 'Nothing found.'}
 		</Command.Empty>
@@ -229,13 +185,16 @@
 				<Command.Item
 					value={`on-${hit.system.id}`}
 					onSelect={() => activate(hit)}
-					class={ROW}
+					class={SYSTEM_ROW}
 					data-testid="palette-hit"
 				>
-					<SystemMenu system={hit.system} class={CELLS}>
+					<SystemMenu system={hit.system} class={SYSTEM_CELLS_5}>
 						<SystemRow system={hit.system} />
-						<span class="truncate text-xs text-muted-foreground" title={hint(hit) ?? undefined}>
-							{hint(hit) ?? ''}
+						<span
+							class="truncate text-xs text-muted-foreground"
+							title={matchHint(hit) ?? undefined}
+						>
+							{matchHint(hit) ?? ''}
 						</span>
 					</SystemMenu>
 				</Command.Item>
@@ -249,10 +208,10 @@
 				<Command.Item
 					value={`off-${hit.system.id}`}
 					onSelect={() => add(hit)}
-					class={ROW}
+					class={SYSTEM_ROW}
 					data-testid="palette-add"
 				>
-					<SystemMenu system={hit.system} class={CELLS}>
+					<SystemMenu system={hit.system} class={SYSTEM_CELLS_5}>
 						<SystemRow system={hit.system} />
 						{#if assigning}
 							<Badge variant="outline" class="justify-self-end">Assign</Badge>
@@ -272,13 +231,16 @@
 				<Command.Item
 					value={`intel-${hit.system.id}`}
 					onSelect={() => activate(hit)}
-					class={ROW}
+					class={SYSTEM_ROW}
 					data-testid="palette-hit"
 				>
-					<SystemMenu system={hit.system} class={CELLS}>
+					<SystemMenu system={hit.system} class={SYSTEM_CELLS_5}>
 						<SystemRow system={hit.system} />
-						<span class="truncate text-xs text-muted-foreground" title={hint(hit) ?? undefined}>
-							{hint(hit) ?? ''}
+						<span
+							class="truncate text-xs text-muted-foreground"
+							title={matchHint(hit) ?? undefined}
+						>
+							{matchHint(hit) ?? ''}
 						</span>
 					</SystemMenu>
 				</Command.Item>
@@ -299,10 +261,10 @@
 				<Command.Item
 					value={`threat-${group.id}-${hit.system.id}`}
 					onSelect={() => open_(hit)}
-					class={ROW}
+					class={SYSTEM_ROW}
 					data-testid="palette-threat"
 				>
-					<SystemMenu system={hit.system} class={CELLS}>
+					<SystemMenu system={hit.system} class={SYSTEM_CELLS_5}>
 						<SystemRow system={hit.system} />
 						<span
 							class="text-right font-mono text-xs tabular-nums text-muted-foreground"

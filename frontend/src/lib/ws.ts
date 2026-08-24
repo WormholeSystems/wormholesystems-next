@@ -12,6 +12,21 @@ function socketUrl(path: string): string {
 
 export type SocketState = 'connecting' | 'open' | 'reconnecting';
 
+/**
+ * One place for the wire cast. The frames are produced by this repo's own backend and
+ * typed by ts-rs, so a schema would only re-state the generated types and drift on every
+ * change; the guard just refuses frames that are not event-shaped at all.
+ */
+export function parseFrame(raw: string): unknown | null {
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (typeof parsed === 'object' && parsed !== null && 'type' in parsed) return parsed;
+		return null;
+	} catch {
+		return null;
+	}
+}
+
 const FIRST_RETRY_MS = 500;
 const MAX_RETRY_MS = 15_000;
 
@@ -47,12 +62,9 @@ export function openMapSocket(
 			}
 		};
 		ws.onmessage = (frame) => {
-			try {
-				onEvent(JSON.parse(frame.data as string) as MapEvent);
-			} catch {
-				// Unreadable frame: fall back to a full refetch rather than ignoring it.
-				onEvent(null);
-			}
+			const parsed = parseFrame(frame.data as string);
+			// Unreadable frame: fall back to a full refetch rather than ignoring it.
+			onEvent(parsed === null ? null : (parsed as MapEvent));
 		};
 		ws.onclose = () => {
 			if (closed) return;
@@ -82,11 +94,9 @@ export function openMapSocket(
 export function openUserSocket(onEvent: (event: UserEvent) => void): () => void {
 	const ws = new WebSocket(socketUrl('/ws/user'));
 	ws.onmessage = (frame) => {
-		try {
-			onEvent(JSON.parse(frame.data as string) as UserEvent);
-		} catch {
-			// A frame we cannot read is not worth acting on.
-		}
+		// A frame we cannot read is not worth acting on.
+		const parsed = parseFrame(frame.data as string);
+		if (parsed !== null) onEvent(parsed as UserEvent);
 	};
 	return () => ws.close();
 }

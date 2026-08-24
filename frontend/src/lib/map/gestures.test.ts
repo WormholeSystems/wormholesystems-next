@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bandSelection, draggedPositions, type Drag } from './gestures';
+import { dragMembers, bandSelection, draggedPositions, type Drag } from './gestures';
 import { NODE_W } from './helpers';
 
 const NODE_H = 40;
@@ -68,5 +68,39 @@ describe('bandSelection', () => {
 	it('takes everything when the band spans the field', () => {
 		const band = { x0: -10, y0: -10, x1: 600, y1: 600 };
 		expect(bandSelection(band, nodes, NODE_H)).toEqual(new Set([1, 2, 3]));
+	});
+});
+
+describe('dragMembers', () => {
+	const systems = [
+		{ id: 1, position_x: 0, position_y: 0, is_pinned: false },
+		{ id: 2, position_x: 100, position_y: 0, is_pinned: false },
+		{ id: 3, position_x: 200, position_y: 0, is_pinned: true },
+	];
+
+	it('drags only the grabbed node when it is not part of a selection', () => {
+		expect(dragMembers({ id: 1, at: { x: 5, y: 5 } }, new Set([2, 3]), systems, {})).toEqual([
+			{ id: 1, sx: 5, sy: 5 },
+		]);
+	});
+
+	it('co-drags the whole selection, pinned nodes excluded', () => {
+		const members = dragMembers({ id: 1, at: { x: 0, y: 0 } }, new Set([1, 2, 3]), systems, {});
+		expect(members).toEqual([
+			{ id: 1, sx: 0, sy: 0 },
+			{ id: 2, sx: 100, sy: 0 },
+		]);
+	});
+
+	it('starts a member from its pending position over the server one', () => {
+		const members = dragMembers({ id: 1, at: { x: 0, y: 0 } }, new Set([1, 2]), systems, {
+			2: { x: 140, y: 60 },
+		});
+		expect(members).toContainEqual({ id: 2, sx: 140, sy: 60 });
+	});
+
+	it('drops a selected id that no longer exists', () => {
+		const members = dragMembers({ id: 1, at: { x: 0, y: 0 } }, new Set([1, 99]), systems, {});
+		expect(members).toEqual([{ id: 1, sx: 0, sy: 0 }]);
 	});
 });

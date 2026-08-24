@@ -2,13 +2,15 @@
 	// What has died in the chain lately: whether anything is hunting here, and whether it was
 	// worth anything.
 	import FilterIcon from '@lucide/svelte/icons/list-filter';
-	import { solarSystemId } from '$lib/map/system';
+	import { solarSystemId, toSearchResult } from '$lib/map/system';
 	import type { KillmailScope } from '$lib/api/types/KillmailScope';
 
 	import { createQuery } from '@tanstack/svelte-query';
 
 	import { api } from '$lib/api/client';
 	import { key } from '$lib/api/queries';
+	import { KILLMAIL_FILTERS } from '$lib/map/killmails';
+	import { ticking } from '$lib/now.svelte';
 	import type { MapKillmail } from '$lib/api/types/MapKillmail';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
@@ -20,42 +22,32 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { formatIsk, iskTone, timeAgo } from '$lib/format';
+	import { formatIsk, iskSeverity, timeAgo } from '$lib/format';
 	import { cn } from '$lib/utils';
+	import { clearHover, hoverSystem } from '../map-hover';
+	import {
+		ISK_TONE,
+		crowdLabel,
+		crowdTone,
+		partyName,
+		partyOrg,
+		systemKey,
+	} from './killmail-presentation';
 	import type { MapState } from '../map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
 
-	let now = $state(new Date());
+	// The list itself arrives by push; this is only the clock.
+	const clock = ticking(30_000);
+	const now = $derived(clock.current);
 
 	const filter = $derived(map.userSettings?.killmail_filter ?? 'all');
-	const FILTERS = [
-		{ value: 'all', label: 'Everywhere on the map' },
-		{ value: 'jspace', label: 'Wormhole space only' },
-		{ value: 'kspace', label: 'Known space only' },
-	] as const satisfies readonly { value: KillmailScope; label: string }[];
-
-	$effect(() => {
-		// The list itself arrives by push; this is only the clock.
-		const clock = setInterval(() => (now = new Date()), 30_000);
-		return () => clearInterval(clock);
-	});
-
-	// A value rather than an array identity: the graph is refetched constantly, and a new
-	// array each time would refetch kills on every one of them.
-	const systemKey = $derived(
-		map.systems
-			.map(solarSystemId)
-			.filter((id) => id !== null)
-			.sort((a, b) => a - b)
-			.join(','),
-	);
 
 	// The list is scoped to the map's systems, so adding one is as much a change as a
 	// fresh kill arriving: both are part of the key. A kill frame off the socket
 	// invalidates the killmails prefix, which this key sits under.
 	const killsQuery = createQuery(() => ({
-		queryKey: [...key.killmails(map.mapId), filter, systemKey],
+		queryKey: [...key.killmails(map.mapId), filter, systemKey(map.systems)],
 		queryFn: () => api.mapKillmails(map.mapId),
 	}));
 	const kills = $derived(killsQuery.data ?? []);
@@ -66,20 +58,13 @@
 
 	/** The row's system in the shape the context menu wants, from the payload. */
 	function systemOf(kill: MapKillmail): SystemSearchResult {
-		return {
+		return toSearchResult({
 			id: kill.solar_system_id,
 			name: kill.system_name,
 			security: kill.security_status,
 			region: kill.region,
-			// Only needed by the menu's zKillboard links, which the row does not offer.
-			region_id: 0,
-			constellation_id: 0,
 			wormhole_class_id: kill.wormhole_class_id ?? null,
-			effect_name: null,
-			sovereignty: null,
-			// The row names a system it already knows; statics are not part of a kill.
-			statics: [],
-		};
+		});
 	}
 
 	/** The map's own name for the system, when it has one. */
@@ -87,36 +72,9 @@
 		return map.systems.find((s) => solarSystemId(s) === kill.solar_system_id)?.alias ?? null;
 	}
 
-	/** An NPC kill in the chain is noise; a solo kill is a hunter. */
-	function crowdTone(kill: MapKillmail): string {
-		if (kill.is_npc) return 'text-muted-foreground/50';
-		if (kill.is_solo) return 'text-amber-400';
-		return 'text-muted-foreground';
-	}
-
-	function crowdLabel(kill: MapKillmail): string {
-		if (kill.is_npc) return 'Killed by NPCs';
-		if (kill.is_solo) return 'Solo kill';
-		return `${kill.attacker_count} attackers`;
-	}
-
-	function partyName(party: MapKillmail['victim']): string {
-		const ticker = party.alliance_ticker ?? party.corporation_ticker;
-		const who = party.character_name ?? 'Unknown pilot';
-		return ticker ? `${who} [${ticker}]` : who;
-	}
-
-	/** Who they fly for, spelled out. The row has room for a ticker at most. */
-	function partyOrg(party: MapKillmail['victim']): string | null {
-		const corp = party.corporation_name;
-		const alliance = party.alliance_name;
-		if (corp && alliance) return `${corp} · ${alliance}`;
-		return alliance ?? corp ?? null;
-	}
-
 	function hover(kill: MapKillmail, on: boolean) {
-		const placed = map.systems.find((s) => solarSystemId(s) === kill.solar_system_id);
-		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
+		if (on) hoverSystem(map, kill.solar_system_id);
+		else clearHover(map);
 	}
 
 	const zkill = (id: number) => `https://zkillboard.com/kill/${id}/`;
@@ -149,7 +107,7 @@
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end">
 						<DropdownMenu.Group>
-							{#each FILTERS as option (option.value)}
+							{#each KILLMAIL_FILTERS as option (option.value)}
 								<DropdownMenu.CheckboxItem
 									checked={filter === option.value}
 									onCheckedChange={() => setFilter(option.value)}
@@ -280,7 +238,7 @@
 								<a
 									class={cn(
 										'hidden w-14 shrink-0 text-right font-mono text-[10px] tabular-nums hover:underline @min-[380px]:inline',
-										iskTone(kill.total_value),
+										ISK_TONE[iskSeverity(kill.total_value)],
 									)}
 									href={zkill(kill.id)}
 									target="_blank"

@@ -7,17 +7,16 @@
 	import NavigationIcon from '@lucide/svelte/icons/navigation';
 	import PinIcon from '@lucide/svelte/icons/pin';
 
-	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
-
 	import { q } from '$lib/api/queries';
 	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
-	import { debounced } from '$lib/debounced.svelte';
+	import { searchQuery } from '$lib/search-query.svelte';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import SystemRow from './SystemRow.svelte';
+	import { SYSTEM_CELLS_4, SYSTEM_LIST, SYSTEM_ROW } from './columns';
 
 	let {
 		placeholder,
@@ -40,18 +39,16 @@
 	let query = $state('');
 	let label = $state('');
 
-	/** Suggestions stand in for results until the query is long enough to search on. */
-	const searching = $derived(query.trim().length >= 2);
 	const offered = $derived(suggestions.filter((s) => s.system.id !== value));
 
-	const settled = debounced(() => query.trim(), 150);
-	// Keyed by term, so a slow reply can never land on a newer search.
-	const search = createQuery(() => ({
-		...q.searchSystems(settled.current),
-		enabled: open && settled.current.length >= 2,
-		placeholderData: keepPreviousData,
-	}));
-	const results = $derived(searching ? (search.data ?? []) : []);
+	const search = searchQuery({
+		term: () => query,
+		query: (settled) => q.searchSystems(settled),
+		enabled: () => open,
+	});
+	/** Suggestions stand in for results until the query is long enough to search on. */
+	const searching = $derived(search.searching);
+	const results = $derived(search.results);
 
 	$effect(() => {
 		if (value === null) {
@@ -64,13 +61,6 @@
 	$effect(() => {
 		if (open) query = '';
 	});
-
-	// See `pickers/columns.ts`: the list owns the tracks and rows are subgrids. The trailing
-	// track is Command's own check indicator, which it appends to every item.
-	const LIST_TRACKS =
-		'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2';
-	const ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
-	const CELLS = 'col-span-4 grid grid-cols-subgrid items-center gap-x-2';
 
 	function choose(s: SystemSearchResult) {
 		onpick(s.id);
@@ -119,17 +109,17 @@
 						{/each}
 					</div>
 				{/if}
-				<Command.List class="max-h-64 p-1 {LIST_TRACKS}">
+				<Command.List class="max-h-64 p-1 {SYSTEM_LIST}">
 					{#if searching}
 						<Command.Empty class="col-span-full">No systems found.</Command.Empty>
 						{#each results as s (s.id)}
 							<Command.Item
 								value={String(s.id)}
 								onSelect={() => choose(s)}
-								class={ROW}
+								class={SYSTEM_ROW}
 								data-testid="picker-result"
 							>
-								<SystemMenu system={s} class={CELLS}>
+								<SystemMenu system={s} class={SYSTEM_CELLS_4}>
 									<SystemRow system={s} />
 								</SystemMenu>
 							</Command.Item>

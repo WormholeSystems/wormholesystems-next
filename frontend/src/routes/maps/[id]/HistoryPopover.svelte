@@ -13,7 +13,7 @@
 	let { map }: { map: MapState } = $props();
 
 	const canWrite = $derived(map.canWrite);
-	const rows = $derived(historyRows(map.entries));
+	const rows = $derived(historyRows(map.history.entries));
 
 	// The trunk runs oldest-first, so the map's position is near the bottom of a long history.
 	// Binding the marker fires this once the popover's rows are in the DOM, with no timer.
@@ -42,7 +42,7 @@
 			<ul class="max-h-80 overflow-y-auto py-1" data-testid="history-list">
 				{#each rows as row (row.entry.id)}
 					{@const entry = row.entry}
-					{@const isHead = entry.id === map.history?.head_event_id}
+					{@const isHead = entry.id === map.history.data?.head_event_id}
 					{@const navigable = entry.is_step && canWrite && !isHead}
 					<li>
 						<button
@@ -66,7 +66,7 @@
 										? 'Rewind the map to this point'
 										: 'Return to this branch'
 								: 'Recorded automatically; not part of undo'}
-							onclick={() => map.gotoEvent(entry.id)}
+							onclick={() => map.history.gotoEvent(entry.id)}
 						>
 							<!-- A rail for each line still open above this row, then this row's own
 						     dot. Every line is centred in a 16px cell, so a branch's connector
@@ -137,14 +137,14 @@
 					</li>
 				{/each}
 			</ul>
-			{#if canWrite && map.history?.head_event_id != null}
+			{#if canWrite && map.history.data?.head_event_id != null}
 				<div class="border-t border-border/50 p-2">
 					<Button
 						variant="ghost"
 						size="sm"
 						class="w-full text-xs"
 						data-testid="history-rewind"
-						onclick={() => map.gotoEvent(null)}
+						onclick={() => map.history.gotoEvent(null)}
 					>
 						Rewind to the start
 					</Button>

@@ -2,21 +2,48 @@
 // until then a release counts as a tap. What a committed gesture does lives on the map
 // state; this decides which gesture a pointer sequence was.
 
-import { api } from '$lib/api/client';
+import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
-import { bandSelection, draggedPositions, type Drag } from '$lib/map/gestures';
-import { heuristicSize, nodeAt } from '$lib/map/helpers';
-import type { MapState } from './map-state.svelte';
+import { dragMembers, bandSelection, draggedPositions, type Drag } from '$lib/map/gestures';
+import { nodeAt, type Vec2 } from '$lib/map/helpers';
+import type { MapCamera } from './map-camera.svelte';
 
 /** How far a press may wander (screen px) and still count as a tap. */
 const HYSTERESIS = 4;
 
+/**
+ * What the gestures read and write on the map, plus the commands a finished gesture
+ * issues. Narrow on purpose, like [`LayoutHost`]: a test hands in a plain object and a
+ * real camera, and the commands carry no eagerly-built request promises.
+ */
+export interface GestureHost {
+	camera: MapCamera;
+	readonly systems: MapSystemView[];
+	readonly positions: Map<number, Vec2>;
+	readonly nodeH: number;
+	readonly grid: GridConfig;
+	readonly canWrite: boolean;
+	readonly layoutLocked: boolean;
+	selected: Set<number>;
+	drag: Drag | null;
+	pending: Record<number, Vec2>;
+	linking: { from: number; x: number; y: number } | null;
+	band: { x0: number; y0: number; x1: number; y1: number } | null;
+	panDrag: { cx: number; cy: number; px: number; py: number } | null;
+	snap(v: number): number;
+	clampNodeX(x: number): number;
+	clampNodeY(y: number): number;
+	closeMenu(): void;
+	moveSystems(moves: { map_solar_system_id: number; x: number; y: number }[]): void;
+	connectSystems(from: number, to: number): void;
+}
+
 export class MapGestures {
-	private map: MapState;
+	private map: GestureHost;
 	private pendingDrag: { cx: number; cy: number; drag: Drag } | null = null;
 	private pendingBand: { cx: number; cy: number } | null = null;
 
-	constructor(map: MapState) {
+	constructor(map: GestureHost) {
 		this.map = map;
 	}
 
@@ -34,7 +61,7 @@ export class MapGestures {
 
 	onPointerMove(ev: PointerEvent) {
 		const map = this.map;
-		const w = map.toWorld(ev.clientX, ev.clientY);
+		const w = map.camera.toWorld(ev.clientX, ev.clientY);
 		if (this.pendingDrag) {
 			if (
 				Math.hypot(ev.clientX - this.pendingDrag.cx, ev.clientY - this.pendingDrag.cy) >= HYSTERESIS
@@ -50,7 +77,7 @@ export class MapGestures {
 				Math.hypot(ev.clientX - this.pendingBand.cx, ev.clientY - this.pendingBand.cy) >= HYSTERESIS
 			) {
 				map.selected = new Set();
-				const start = map.toWorld(this.pendingBand.cx, this.pendingBand.cy);
+				const start = map.camera.toWorld(this.pendingBand.cx, this.pendingBand.cy);
 				map.band = { x0: start.x, y0: start.y, x1: w.x, y1: w.y };
 				this.pendingBand = null;
 			} else {
@@ -70,8 +97,8 @@ export class MapGestures {
 			this.updateBandSelection();
 		} else if (map.panDrag) {
 			const p = map.panDrag;
-			map.pan = { x: p.px + ev.clientX - p.cx, y: p.py + ev.clientY - p.cy };
-			map.wakeScrollbars();
+			map.camera.pan = { x: p.px + ev.clientX - p.cx, y: p.py + ev.clientY - p.cy };
+			map.camera.wakeScrollbars();
 		}
 	}
 
@@ -89,27 +116,18 @@ export class MapGestures {
 			const pending = { ...map.pending };
 			for (const m of moves) pending[m.map_solar_system_id] = { x: m.x, y: m.y };
 			map.pending = pending;
-			map.run('moveSystems', api.moveSystems({ map_id: map.mapId, moves }));
+			map.moveSystems(moves);
 		}
 		if (map.linking) {
 			const l = map.linking;
 			map.linking = null;
-			const w = map.toWorld(ev.clientX, ev.clientY);
+			const w = map.camera.toWorld(ev.clientX, ev.clientY);
 			const target = nodeAt(map.systems, w.x, w.y, map.grid, map.positions);
 			// Dropping onto a ghost is the same claim from the other end, so it is no more
 			// allowed than starting from one.
 			const ghost = map.systems.some((s) => s.id === target && s.kind === 'ghost');
 			if (target !== null && target !== l.from && !ghost) {
-				map.run(
-					'addConnection',
-					api.addConnection({
-						map_id: map.mapId,
-						from_system: l.from,
-						to_system: target,
-						kind: 'wormhole',
-						size: heuristicSize(map.systems, l.from, target),
-					}),
-				);
+				map.connectSystems(l.from, target);
 			}
 		}
 		// A tap (no band committed) clears the selection.
@@ -130,15 +148,20 @@ export class MapGestures {
 		map.closeMenu();
 		if (ev.button === 1) {
 			ev.preventDefault();
-			map.viewportEl?.setPointerCapture(ev.pointerId);
-			map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
+			map.camera.viewportEl?.setPointerCapture(ev.pointerId);
+			map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.camera.pan.x, py: map.camera.pan.y };
 		} else if (ev.button === 0) {
-			map.viewportEl?.setPointerCapture(ev.pointerId);
+			map.camera.viewportEl?.setPointerCapture(ev.pointerId);
 			// An automatic layout has nothing to drag, so a plain drag pans instead. A selection
 			// modifier still belongs to the rubber band.
 			const selecting = ev.shiftKey || ev.ctrlKey || ev.metaKey;
 			if (map.layoutLocked && !selecting) {
-				map.panDrag = { cx: ev.clientX, cy: ev.clientY, px: map.pan.x, py: map.pan.y };
+				map.panDrag = {
+					cx: ev.clientX,
+					cy: ev.clientY,
+					px: map.camera.pan.x,
+					py: map.camera.pan.y,
+				};
 			} else {
 				this.pendingBand = { cx: ev.clientX, cy: ev.clientY };
 			}
@@ -153,29 +176,13 @@ export class MapGestures {
 		map.closeMenu();
 
 		const cur = map.positions.get(s.id) ?? { x: s.position_x, y: s.position_y };
-		const sel = map.selected;
-		const posOf = (id: number): { x: number; y: number } | null => {
-			const p = map.pending[id];
-			if (p) return p;
-			const sys = map.systems.find((x) => x.id === id);
-			return sys ? { x: sys.position_x, y: sys.position_y } : null;
-		};
-		const pinned = (id: number) => map.systems.some((x) => x.id === id && x.is_pinned);
-		const members =
-			sel.has(s.id) && sel.size > 1
-				? [...sel]
-						.filter((id) => !pinned(id))
-						.flatMap((id) => {
-							const p = posOf(id);
-							return p ? [{ id, sx: p.x, sy: p.y }] : [];
-						})
-				: [{ id: s.id, sx: cur.x, sy: cur.y }];
+		const members = dragMembers({ id: s.id, at: cur }, map.selected, map.systems, map.pending);
 
-		if (!sel.has(s.id)) map.selected = new Set();
+		if (!map.selected.has(s.id)) map.selected = new Set();
 		if (s.is_pinned) return;
-		map.viewportEl?.setPointerCapture(ev.pointerId);
+		map.camera.viewportEl?.setPointerCapture(ev.pointerId);
 		// Record the grab offset so the node does not jump under the cursor.
-		const w = map.toWorld(ev.clientX, ev.clientY);
+		const w = map.camera.toWorld(ev.clientX, ev.clientY);
 		this.pendingDrag = {
 			cx: ev.clientX,
 			cy: ev.clientY,
@@ -194,8 +201,8 @@ export class MapGestures {
 		const map = this.map;
 		ev.stopPropagation();
 		if (!map.canWrite) return;
-		map.viewportEl?.setPointerCapture(ev.pointerId);
-		const w = map.toWorld(ev.clientX, ev.clientY);
+		map.camera.viewportEl?.setPointerCapture(ev.pointerId);
+		const w = map.camera.toWorld(ev.clientX, ev.clientY);
 		map.linking = { from: id, x: w.x, y: w.y };
 	}
 }

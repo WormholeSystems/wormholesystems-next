@@ -4,16 +4,21 @@
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
-	import { lookup } from '$lib/enums';
+	import { lookup } from '$lib/lookup';
 
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { api, errorMessage } from '$lib/api/client';
-	import { apiAction } from '$lib/api/mutations';
+	import { confirmDanger } from '$lib/confirm.svelte';
+	import { after, apiAction } from '$lib/api/mutations';
+	import {
+		DELIVERY_LABEL,
+		DISABLED_REASON,
+		kindLabel,
+		mentionSummary,
+		shipLabel,
+	} from '$lib/alerts/vocabulary';
 	import { key, q } from '$lib/api/queries';
-	import type { AlertDelivery } from '$lib/api/types/AlertDelivery';
-	import type { AlertKind } from '$lib/api/types/AlertKind';
-	import type { AlertMention } from '$lib/api/types/AlertMention';
 	import type { MapAlert } from '$lib/api/types/MapAlert';
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import { Badge } from '$lib/components/ui/badge';
@@ -53,59 +58,24 @@
 
 	function save(body: SaveAlert) {
 		const id = editing?.id;
-		return act
-			.mutateAsync(() => (id ? api.updateAlert(mapId, id, body) : api.createAlert(mapId, body)))
-			.then(() => {
+		after(
+			act.mutateAsync(() => (id ? api.updateAlert(mapId, id, body) : api.createAlert(mapId, body))),
+			() => {
 				editing = null;
 				creating = false;
-			})
-			.catch(() => {});
+			},
+		);
 	}
 
-	function remove(alert: MapAlert) {
-		if (!confirm(`Delete "${alert.name}"?`)) return;
+	async function remove(alert: MapAlert) {
+		if (!(await confirmDanger({ title: `Delete "${alert.name}"?` }))) return;
 		act.mutate(() => api.deleteAlert(mapId, alert.id));
 	}
-
-	const KIND_LABEL = {
-		killmail: 'Kills near the chain',
-		proximity: 'System near the chain',
-		jump_range: 'Capital jump range',
-	} satisfies Record<AlertKind, string>;
-	const DELIVERY_LABEL = {
-		webhook: 'Channel webhook',
-		discord_dm: 'Direct message',
-		discord_channel: 'Bot channel',
-	} satisfies Record<AlertDelivery, string>;
-	const MENTION_LABEL = {
-		none: 'No ping',
-		creator: 'Pings the creator',
-		role: 'Pings a role',
-		everyone: 'Pings everyone',
-	} satisfies Record<AlertMention, string>;
-	const REASON = {
-		manual: 'Turned off by hand',
-		discord_unlinked: 'The creator unlinked their Discord account',
-		access_revoked: 'The creator lost access to this map',
-		destination_gone: 'Discord rejected the destination: the webhook or channel is gone',
-		delivery_failed: 'Too many failed deliveries',
-	} satisfies Record<string, string>;
-
-	const SHIP_LABEL = {
-		dreadnought: 'Dreadnought',
-		carrier: 'Carrier',
-		force_auxiliary: 'Force Auxiliary',
-		supercarrier: 'Supercarrier',
-		titan: 'Titan',
-		jump_freighter: 'Jump Freighter',
-		rorqual: 'Rorqual',
-		black_ops: 'Black Ops',
-	} satisfies Record<string, string>;
 
 	function summary(alert: MapAlert): string {
 		const target = alert.target_system_name ?? 'a system';
 		if (alert.kind === 'jump_range') {
-			const ship = lookup(SHIP_LABEL, alert.ship_type ?? '') ?? 'a capital';
+			const ship = shipLabel(alert.ship_type ?? null) ?? 'a capital';
 			return `An exit within ${ship} range (JDC ${alert.jdc_level ?? 0}) of ${target}`;
 		}
 		const within = `within ${alert.max_jumps} ${alert.max_jumps === 1 ? 'jump' : 'jumps'}`;
@@ -194,7 +164,7 @@
 						<div class="flex min-w-0 flex-col gap-1">
 							<span class="flex items-center gap-2">
 								<span class="truncate text-sm font-medium">{alert.name}</span>
-								<Badge variant="outline" class="shrink-0">{KIND_LABEL[alert.kind]}</Badge>
+								<Badge variant="outline" class="shrink-0">{kindLabel(alert.kind)}</Badge>
 							</span>
 							<span class="text-xs text-muted-foreground">{summary(alert)}</span>
 							<span
@@ -208,7 +178,7 @@
 									<span>@{alert.role_name}</span>
 								{/if}
 								<span>·</span>
-								<span>{MENTION_LABEL[alert.mention]}</span>
+								<span>{mentionSummary(alert.mention)}</span>
 								{#if alert.last_fired_at}
 									<span>·</span>
 									<span data-testid="alert-fired">fired {timeAgo(alert.last_fired_at)}</span>
@@ -216,7 +186,7 @@
 							</span>
 							{#if !alert.is_active && alert.disabled_reason}
 								<span class="text-[11px] text-amber-500" data-testid="alert-reason">
-									{lookup(REASON, alert.disabled_reason) ?? alert.disabled_reason}
+									{lookup(DISABLED_REASON, alert.disabled_reason) ?? alert.disabled_reason}
 								</span>
 							{/if}
 						</div>

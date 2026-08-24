@@ -62,6 +62,22 @@ impl Sso {
         })
     }
 
+    /// A non-functional SSO for the HTTP test harness: handlers under test never touch
+    /// auth, but building an `AppState` still needs one. Any real use fails at the
+    /// network, not before.
+    pub fn stub(http: reqwest::Client, config: SsoConfig) -> Sso {
+        Sso {
+            http,
+            config,
+            metadata: Metadata {
+                issuer: "test".into(),
+                authorization_endpoint: "http://127.0.0.1:0/authorize".into(),
+                token_endpoint: "http://127.0.0.1:0/token".into(),
+                jwks_uri: "http://127.0.0.1:0/jwks".into(),
+            },
+        }
+    }
+
     /// `state` is the CSRF token the caller generates and verifies on the callback.
     pub fn authorize_url(&self, state: &str) -> String {
         self.authorize_url_for(state, &self.config.scopes)

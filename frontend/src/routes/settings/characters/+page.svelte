@@ -6,13 +6,14 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import StarIcon from '@lucide/svelte/icons/star';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
-	import { lookup } from '$lib/enums';
 
 	import { createQuery } from '@tanstack/svelte-query';
 
 	import { api, errorMessage } from '$lib/api/client';
+	import { confirmDanger } from '$lib/confirm.svelte';
 	import { apiAction } from '$lib/api/mutations';
 	import { key, q } from '$lib/api/queries';
+	import { scopeMeta } from '$lib/esi/scopes';
 	import type { CharacterRef } from '$lib/api/types/CharacterRef';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -27,29 +28,14 @@
 	const loadError = $derived(charactersQuery.error ?? scopesQuery.error);
 	const error = $derived(loadError ? errorMessage(loadError) : null);
 
-	const SCOPES = {
-		'esi-location.read_location.v1': {
-			name: 'Character location',
-			blurb: 'Puts you on your system, and measures distances from where you are.',
-		},
-		'esi-location.read_online.v1': {
-			name: 'Online status',
-			blurb: 'Stops the map reporting you as somewhere you left hours ago.',
-		},
-		'esi-location.read_ship_type.v1': {
-			name: 'Ship type',
-			blurb: 'Shows what you are flying, not just that you are there.',
-		},
-		'esi-ui.write_waypoint.v1': {
-			name: 'Set waypoints',
-			blurb: 'Lets the map put a destination straight into your client.',
-		},
-	} satisfies Record<string, { name: string; blurb: string }>;
-
 	const act = apiAction(() => [key.me]);
 
-	function remove(character: CharacterRef) {
-		if (!confirm(`Remove ${character.name} from this account?`)) return;
+	async function remove(character: CharacterRef) {
+		const sure = await confirmDanger({
+			title: `Remove ${character.name} from this account?`,
+			action: 'Remove',
+		});
+		if (!sure) return;
 		act.mutate(() => api.removeCharacter(character.character_id));
 	}
 
@@ -165,7 +151,7 @@
 		</Card.Header>
 		<Card.Content class="flex flex-col divide-y divide-border/40">
 			{#each scopes as scope (scope.scope)}
-				{@const meta = lookup(SCOPES, scope.scope)}
+				{@const meta = scopeMeta(scope.scope)}
 				<div class="flex items-start justify-between gap-4 py-3" data-testid="scope-row">
 					<span class="flex min-w-0 flex-col gap-0.5">
 						<span class="text-sm font-medium">{meta?.name ?? scope.scope}</span>

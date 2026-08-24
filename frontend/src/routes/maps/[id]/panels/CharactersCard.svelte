@@ -11,10 +11,12 @@
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { findRoutes, jumpTone } from '$lib/routing/algorithm';
+	import { jumpTone } from '$lib/routing/algorithm';
 	import type { RouteResult } from '$lib/routing/algorithm';
 	import { isIdle, isScanner, orderPilots } from '$lib/characters/order';
 	import { cn } from '$lib/utils';
+	import { clearHover, hoverSystem } from '../map-hover';
+	import { routeBatch } from '../route-batch.svelte';
 	import type { MapState } from '../map-state.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
@@ -49,24 +51,20 @@
 	}
 
 	// One search from the origin covers every pilot, rather than one per row.
-	const routes = $derived.by<Map<number, RouteResult>>(() => {
-		const graph = map.graph;
-		const origin = map.routeOrigin;
-		if (!graph || origin === null) return new Map();
-		const targets = [
-			...new Set(pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null)),
-		];
-		if (targets.length === 0) return new Map();
-		return findRoutes(graph, origin, targets, map.routingSettings, map.ignoredSystems);
-	});
+	// svelte-ignore state_referenced_locally -- the map instance is stable for this mount.
+	const batch = routeBatch(map, () =>
+		pilots.map((p) => p.solar_system_id).filter((id): id is number => id !== null),
+	);
+	const routes = $derived(batch.routes);
 
 	/** Highlight the pilot's node and draw their route while the row is hovered. */
 	function hover(pilot: MapCharacter, on: boolean) {
-		const target = pilot.solar_system_id;
-		const placed = target === null ? null : map.systems.find((s) => solarSystemIdOf(s) === target);
-		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
-		const route = target === null ? undefined : routes.get(target);
-		map.hoverPath = on ? (route?.route.map((s) => s.id) ?? null) : null;
+		if (!on) {
+			clearHover(map);
+			return;
+		}
+		const route = pilot.solar_system_id === null ? undefined : routes.get(pilot.solar_system_id);
+		hoverSystem(map, pilot.solar_system_id, route);
 	}
 </script>
 

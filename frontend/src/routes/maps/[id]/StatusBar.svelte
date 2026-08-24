@@ -249,15 +249,15 @@
 							size="icon"
 							class="size-7"
 							data-testid="undo-button"
-							disabled={!map.canUndo}
-							onclick={() => map.undo()}
+							disabled={!map.history.canUndo}
+							onclick={() => map.history.undo()}
 						>
 							<Undo2Icon />
 						</Button>
 					{/snippet}
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					{map.headEntry ? `Undo: ${map.headEntry.label}` : 'Nothing to undo'}
+					{map.history.headEntry ? `Undo: ${map.history.headEntry.label}` : 'Nothing to undo'}
 				</Tooltip.Content>
 			</Tooltip.Root>
 			<Tooltip.Root>
@@ -269,15 +269,15 @@
 							size="icon"
 							class="size-7"
 							data-testid="redo-button"
-							disabled={!map.canRedo}
-							onclick={() => map.redo()}
+							disabled={!map.history.canRedo}
+							onclick={() => map.history.redo()}
 						>
 							<Redo2Icon />
 						</Button>
 					{/snippet}
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					{map.redoEntry ? `Redo: ${map.redoEntry.label}` : 'Nothing to redo'}
+					{map.history.redoEntry ? `Redo: ${map.history.redoEntry.label}` : 'Nothing to redo'}
 				</Tooltip.Content>
 			</Tooltip.Root>
 		{/if}
@@ -290,18 +290,18 @@
 							{...props}
 							variant="ghost"
 							size="icon"
-							class={cn('size-7', map.editingLayout && 'bg-accent text-foreground')}
-							aria-pressed={map.editingLayout}
+							class={cn('size-7', map.panels.editing && 'bg-accent text-foreground')}
+							aria-pressed={map.panels.editing}
 							data-testid="layout-toggle"
 							onclick={() =>
-								map.editingLayout ? map.exitLayoutEdit() : (map.editingLayout = true)}
+								map.panels.editing ? map.panels.exitEdit() : (map.panels.editing = true)}
 						>
 							<LayoutGridIcon />
 						</Button>
 					{/snippet}
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					{map.editingLayout ? 'Done arranging panels' : 'Arrange the side panels'}
+					{map.panels.editing ? 'Done arranging panels' : 'Arrange the side panels'}
 				</Tooltip.Content>
 			</Tooltip.Root>
 

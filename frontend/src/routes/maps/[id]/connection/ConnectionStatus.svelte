@@ -6,15 +6,13 @@
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { Signature } from '$lib/api/types/Signature';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { timeAgo, utcShort } from '$lib/format';
 	import { LIFETIME_OPTIONS, MASS_OPTIONS } from '$lib/map/connection-status';
+	import { tickingMs } from '$lib/now.svelte';
 
 	let { connection, sigs }: { connection: MapConnection; sigs: Signature[] } = $props();
 
-	let now = $state(Date.now());
-	$effect(() => {
-		const t = setInterval(() => (now = Date.now()), 1000);
-		return () => clearInterval(t);
-	});
+	const clock = tickingMs();
 
 	const typeMeta = $derived(
 		connection.kind === 'stargate'
@@ -56,24 +54,8 @@
 		Math.max(Date.parse(connection.updated_at), ...sigs.map((s) => Date.parse(s.updated_at))),
 	);
 
-	function fmt(ms: number): string {
-		return new Date(ms).toLocaleString('en-US', {
-			month: 'short',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit',
-			hour12: false,
-			timeZone: 'UTC',
-		});
-	}
-
 	function ago(ms: number): string {
-		const mins = Math.floor((now - ms) / 60_000);
-		if (mins < 1) return 'just now';
-		if (mins < 60) return `${mins}m ago`;
-		const hours = Math.floor(mins / 60);
-		if (hours < 24) return `${hours}h ago`;
-		return `${Math.floor(hours / 24)}d ago`;
+		return timeAgo(ms, new Date(clock.current));
 	}
 
 	const degraded = $derived(
@@ -106,7 +88,7 @@
 				{#if degraded && lifetimeSince !== null}
 					<Tooltip.Root>
 						<Tooltip.Trigger class="cursor-help">{lifetimeMeta.label}</Tooltip.Trigger>
-						<Tooltip.Content>{fmt(lifetimeSince)} ({ago(lifetimeSince)})</Tooltip.Content>
+						<Tooltip.Content>{utcShort(lifetimeSince)} ({ago(lifetimeSince)})</Tooltip.Content>
 					</Tooltip.Root>
 				{:else}
 					<span>{lifetimeMeta.label}</span>
@@ -133,14 +115,14 @@
 			<span>Created</span>
 			<Tooltip.Root>
 				<Tooltip.Trigger class="cursor-help text-right">{ago(createdMs)}</Tooltip.Trigger>
-				<Tooltip.Content>{fmt(createdMs)}</Tooltip.Content>
+				<Tooltip.Content>{utcShort(createdMs)}</Tooltip.Content>
 			</Tooltip.Root>
 		</div>
 		<div class="col-span-full grid grid-cols-subgrid">
 			<span>Updated</span>
 			<Tooltip.Root>
 				<Tooltip.Trigger class="cursor-help text-right">{ago(updatedMs)}</Tooltip.Trigger>
-				<Tooltip.Content>{fmt(updatedMs)}</Tooltip.Content>
+				<Tooltip.Content>{utcShort(updatedMs)}</Tooltip.Content>
 			</Tooltip.Root>
 		</div>
 	</div>

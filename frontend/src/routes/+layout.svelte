@@ -7,6 +7,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { errorMessage } from '$lib/api/client';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Nav from '$lib/components/Nav.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import { Toaster } from '$lib/components/ui/sonner';
@@ -50,6 +51,7 @@
 
 <QueryClientProvider client={queryClient}>
 	<Toaster position="top-center" closeButton />
+	<ConfirmDialog />
 	<Nav me={data.me} maps={data.maps} status={data.status} />
 	<main class={flush ? '' : 'p-6'}>
 		{@render children()}

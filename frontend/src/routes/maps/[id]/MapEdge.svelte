@@ -17,7 +17,7 @@
 
 	const c = $derived(connection);
 	const elbow = $derived(geometry.kind === 'elbow');
-	const onRoute = $derived(map.routeConnectionIds.has(c.id));
+	const onRoute = $derived(map.route.connectionIds.has(c.id));
 	const stroke = $derived(edgeColor(c.kind, c.mass_status, c.time_status, onRoute));
 	const deco = $derived(edgeDecorations(c));
 </script>

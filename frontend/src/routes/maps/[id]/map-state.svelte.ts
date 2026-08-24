@@ -6,32 +6,36 @@
 import { untrack } from 'svelte';
 
 import { api, errorMessage } from '$lib/api/client';
-import { key } from '$lib/api/queries';
+import { key, q } from '$lib/api/queries';
 import type { GridConfig } from '$lib/api/types/GridConfig';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { UpdateMapUserSettings } from '$lib/api/types/UpdateMapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
+import type { SystemDetails } from '$lib/api/types/SystemDetails';
 import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
 import type { SocketState } from '$lib/ws';
-import type { BreakpointKey, PanelId, PanelLayouts } from './panels/registry';
-import type { GridItem } from '$lib/layout/grid';
-import type { RouteStep, RoutingSettings } from '$lib/routing/algorithm';
-import { NODE_W, clamp } from '$lib/map/helpers';
+import type { PanelId } from './panels/registry';
+import type { RoutingSettings } from '$lib/routing/algorithm';
+import { NODE_W, clamp, heuristicSize } from '$lib/map/helpers';
 import { freeEdges, treeEdges, type EdgeGeometry } from '$lib/map/edges';
 import { draggedPositions, type Drag } from '$lib/map/gestures';
 import type { Vec2 } from '$lib/map/helpers';
 import { compareForTree, computeTreeLayout } from '$lib/map/tree';
+import { routeOrigin } from '$lib/routing/origin';
+import { ghostSignatureIds } from '$lib/map/ghosts';
+import { layoutMode } from '$lib/map/layout-mode';
 import { orphanedSystems } from '$lib/map/orphans';
 import { toast } from 'svelte-sonner';
-import { type MapAction } from './actions';
+import { type MapAction } from '$lib/map/actions';
 import { MapCamera } from './map-camera.svelte';
+import { HistoryStore } from './history.svelte';
 import { createMapQueries, type MapQueries } from './map-queries.svelte';
 import { PanelLayoutStore } from './panel-layout.svelte';
-import { RoutePlanner } from './route-planner.svelte';
+import { RoutePlanner, type RouteHost } from './route-planner.svelte';
+import type { TrackerHost } from './tracking.svelte';
 import type { MapEvent } from '$lib/api/types/MapEvent';
-import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
-import { timeAgo } from '$lib/format';
+import { loadCatalog } from '$lib/map/signatures';
 import { solarSystemId } from '$lib/map/system';
 import { atLeast } from '$lib/map/roles';
 import { systemResolver } from '$lib/resolve-cache.svelte';
@@ -81,7 +85,7 @@ const defaultGrid: GridConfig = {
 export class MapState {
 	mapId: number;
 	camera: MapCamera;
-	panelLayout: PanelLayoutStore;
+	panels: PanelLayoutStore;
 	route: RoutePlanner;
 	queries: MapQueries;
 
@@ -138,11 +142,9 @@ export class MapState {
 	// A row hovered in a side panel: the node it names lights up. Owned here so any card
 	// can point at the map.
 	hoveredSystemId = $state<number | null>(null);
-	// The history tree plus where the map sits in it, and the live socket state behind
-	// the status dot.
-	get history() {
-		return this.queries.history.data ?? null;
-	}
+	// The history tree plus where the map sits in it (`history.data`), and the cursor
+	// controls over it.
+	history: HistoryStore;
 	// Connections critical for over an hour, offered for a one-click sweep.
 	get stale() {
 		return this.queries.stale.data ?? [];
@@ -170,14 +172,12 @@ export class MapState {
 
 	systems = $derived(this.data?.systems ?? []);
 	activeSystem = $derived(this.systems.find((s) => s.id === this.activeId) ?? null);
-	/** One origin for watchlist/find distances: route From, else the active system,
-	 *  else the tracked character's location. */
-	routeOrigin = $derived(
-		this.routeFromId ??
-			(this.activeSystem ? solarSystemId(this.activeSystem) : null) ??
-			this.myCharacters.find((c) => c.is_active && c.online)?.solar_system_id ??
-			this.myCharacters.find((c) => c.online && c.solar_system_id !== null)?.solar_system_id ??
-			null,
+	routeOrigin = $derived.by(() =>
+		routeOrigin(
+			this.route.fromId,
+			this.activeSystem ? solarSystemId(this.activeSystem) : null,
+			this.myCharacters,
+		),
 	);
 
 	routingSettings = $derived<RoutingSettings>({
@@ -188,29 +188,12 @@ export class MapState {
 	});
 	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
 
-	// Undo and redo move the map's cursor through the history tree rather than recording
-	// anything, so the server is the only thing that decides whether they are available.
-	entries = $derived(this.history?.entries ?? []);
-	canUndo = $derived(this.history?.can_undo ?? false);
-	canRedo = $derived(this.history?.can_redo ?? false);
-	/** The step the map is sitting on, for labelling the undo button. */
-	headEntry = $derived(this.entries.find((e) => e.id === this.history?.head_event_id) ?? null);
-	redoEntry = $derived(this.entries.find((e) => e.id === this.history?.redo_target) ?? null);
-
 	connections = $derived(this.data?.connections ?? []);
 	nodeH = $derived(2 * this.grid.cell_size);
 
-	/**
-	 * How this map is placed for this viewer: the map's own mode, unless it hands the
-	 * choice over and this viewer has made one.
-	 */
-	layout = $derived.by<'manual' | 'tree'>(() => {
-		const map = this.data?.map;
-		if (!map) return 'manual';
-		const own = this.userSettings?.layout_override;
-		if (map.allow_layout_override && (own === 'manual' || own === 'tree')) return own;
-		return map.layout === 'tree' ? 'tree' : 'manual';
-	});
+	layout = $derived.by(() =>
+		layoutMode(this.data?.map ?? null, this.userSettings?.layout_override),
+	);
 
 	/** Automatic placement owns the positions, so dragging one would fight the layout. */
 	layoutLocked = $derived(this.layout === 'tree');
@@ -232,25 +215,7 @@ export class MapState {
 		);
 	});
 
-	/**
-	 * The scanner id an unmapped hole is known by. A ghost has no name of its own, so the
-	 * signature its connection is linked to is the only thing that identifies it.
-	 */
-	ghostSignatures = $derived.by(() => {
-		const out = new Map<number, string>();
-		const ghosts = new Set(this.systems.filter((s) => s.kind === 'ghost').map((s) => s.id));
-		if (ghosts.size === 0) return out;
-		const byConnection = new Map(
-			this.sigs.filter((s) => s.connection_id !== null).map((s) => [s.connection_id!, s]),
-		);
-		for (const c of this.connections) {
-			const sig = byConnection.get(c.id);
-			if (!sig) continue;
-			if (ghosts.has(c.to_system)) out.set(c.to_system, sig.signature_id);
-			if (ghosts.has(c.from_system)) out.set(c.from_system, sig.signature_id);
-		}
-		return out;
-	});
+	ghostSignatures = $derived.by(() => ghostSignatureIds(this.systems, this.connections, this.sigs));
 
 	/** Every connection's line and badge anchor, routed the way this layout draws them. */
 	edgeGeometry = $derived.by<Map<number, EdgeGeometry>>(() =>
@@ -296,7 +261,13 @@ export class MapState {
 		this.camera = new MapCamera(mapId);
 		this.signedIn = signedIn;
 		this.queries = createMapQueries(mapId, signedIn, seed, () => this.socket === 'open');
-		this.panelLayout = new PanelLayoutStore({
+		this.history = new HistoryStore({
+			mapId,
+			data: () => this.queries.history.data ?? null,
+			run: (action: MapAction, promise: Promise<unknown>, detail?: string) =>
+				this.run(action, promise, detail),
+		});
+		this.panels = new PanelLayoutStore({
 			hiddenPanels: () => this.userSettings?.hidden_panels ?? null,
 			setHiddenPanels: (panels) =>
 				this.queries.patchSettingsLocal((s) => ({ ...s, hidden_panels: panels })),
@@ -309,16 +280,16 @@ export class MapState {
 				return write;
 			},
 		});
-		this.route = new RoutePlanner(this, this.queries.client);
+		this.route = new RoutePlanner(this.routeHost());
 		// Seeded from the page's load, so the first frame already has the arrangement; a
 		// map opened without a seed gets it once the settings query lands.
 		let layoutsSeeded = seed.settings != null;
-		if (seed.settings) this.panelLayout.seed(seed.settings.layout_breakpoints ?? null);
+		if (seed.settings) this.panels.seed(seed.settings.layout_breakpoints ?? null);
 		$effect(() => {
 			const settings = this.queries.settings.data;
 			if (!settings || layoutsSeeded) return;
 			layoutsSeeded = true;
-			this.panelLayout.seed(settings.layout_breakpoints ?? null);
+			this.panels.seed(settings.layout_breakpoints ?? null);
 		});
 
 		// Each graph payload's arrival: the resolver learns the placed systems, and a
@@ -339,6 +310,89 @@ export class MapState {
 			}
 			if (changed) this.pending = pending;
 		});
+	}
+
+	/** Move placements to where a drag dropped them; the optimistic override is the caller's. */
+	moveSystems(moves: { map_solar_system_id: number; x: number; y: number }[]) {
+		this.run('moveSystems', api.moveSystems({ map_id: this.mapId, moves }));
+	}
+
+	/** Join two placements with a wormhole, sized by what the two systems suggest. */
+	connectSystems(from: number, to: number) {
+		this.run(
+			'addConnection',
+			api.addConnection({
+				map_id: this.mapId,
+				from_system: from,
+				to_system: to,
+				kind: 'wormhole',
+				size: heuristicSize(this.systems, from, to),
+			}),
+		);
+	}
+
+	/** The signature type catalog, cached forever in the query client. */
+	loadCatalog() {
+		return loadCatalog(this.queries.client);
+	}
+
+	/** Ask for a fresh jump log for one connection; a closed popover just goes stale. */
+	refreshConnectionJumps(connectionId: number) {
+		void this.queries.client.invalidateQueries({
+			queryKey: key.connectionJumps(this.mapId, connectionId),
+		});
+	}
+
+	/** The local echo for a saved note, so it reads back before the server confirms it. */
+	setSystemNotesLocal(mapSolarSystemId: number, notes: string | null) {
+		this.queries.client.setQueryData(
+			q.systemDetails(this.mapId, mapSolarSystemId).queryKey,
+			(d: SystemDetails | undefined) => d && { ...d, notes },
+		);
+	}
+
+	/** An optimistic local edit of the viewer's settings, without a round trip. */
+	patchSettingsLocal(update: (s: MapUserSettings) => MapUserSettings) {
+		this.queries.patchSettingsLocal(update);
+	}
+
+	/** Ask for a fresh reading of this account's pilots, soon; the tracker observes it. */
+	refreshMyCharacters() {
+		if (!this.signedIn) return;
+		void this.queries.client.invalidateQueries({ queryKey: key.myCharacters });
+	}
+
+	/** The jump tracker's narrow view of this map, commands included. */
+	trackerHost(): TrackerHost {
+		return {
+			myCharacters: () => this.myCharacters,
+			systems: () => this.systems,
+			connections: () => this.connections,
+			sigs: () => this.sigs,
+			grid: () => this.grid,
+			settings: () => this.userSettings,
+			naming: () => this.data?.map.naming ?? null,
+			stargates: () => this.route.stargates,
+			whenRoutingLoaded: () => this.route.whenLoaded(),
+			loadCatalog: () => loadCatalog(this.queries.client),
+			resolveSystem: (id) => systemResolver.resolve(id),
+			trackJump: (cmd) => this.run('trackJump', api.trackJump({ ...cmd, map_id: this.mapId })),
+			resolveGhost: (cmd) =>
+				this.run('assignSystem', api.resolveGhostSystem({ ...cmd, map_id: this.mapId })),
+		};
+	}
+
+	/** The planner's narrow view of this map; tables come from the query cache. */
+	private routeHost(): RouteHost {
+		return {
+			mapId: this.mapId,
+			systems: () => this.systems,
+			connections: () => this.connections,
+			sigs: () => this.sigs,
+			eveScout: () => this.eveScout,
+			useEveScout: () => this.useEveScout,
+			loadTables: () => this.queries.client.ensureQueryData(q.routingGraph()),
+		};
 	}
 
 	/** Panels there is nobody to fill in: both of these are about the account, not the map. */
@@ -372,193 +426,8 @@ export class MapState {
 		);
 	}
 
-	// --- routing, delegated to the planner ---
-
-	get routeFromId() {
-		return this.route.routeFromId;
-	}
-
-	set routeFromId(id: number | null) {
-		this.route.routeFromId = id;
-	}
-
-	get routeToId() {
-		return this.route.routeToId;
-	}
-
-	set routeToId(id: number | null) {
-		this.route.routeToId = id;
-	}
-
-	get routePath() {
-		return this.route.routePath;
-	}
-
-	set routePath(path: number[]) {
-		this.route.routePath = path;
-	}
-
-	get hoverPath() {
-		return this.route.hoverPath;
-	}
-
-	set hoverPath(path: number[] | null) {
-		this.route.hoverPath = path;
-	}
-
-	get ignoredSystems() {
-		return this.route.ignoredSystems;
-	}
-
-	loadIgnored() {
-		this.route.loadIgnored();
-	}
-
-	ignoreSystem(id: number) {
-		this.route.ignoreSystem(id);
-	}
-
-	clearIgnored() {
-		this.route.clearIgnored();
-	}
-
-	get stargates() {
-		return this.route.stargates;
-	}
-
-	get security() {
-		return this.route.security;
-	}
-
-	get joveSystems() {
-		return this.route.joveSystems;
-	}
-
-	get stationSystems() {
-		return this.route.stationSystems;
-	}
-
-	get serviceOptions() {
-		return this.route.serviceOptions;
-	}
-
-	get corporationOptions() {
-		return this.route.corporationOptions;
-	}
-
-	get graph() {
-		return this.route.graph;
-	}
-
-	get routeConnectionIds() {
-		return this.route.routeConnectionIds;
-	}
-
-	whenRoutingLoaded(): Promise<void> {
-		return this.route.whenLoaded();
-	}
-
-	loadRoutingGraph() {
-		return this.route.load();
-	}
-
-	withSignatures(steps: RouteStep[]) {
-		return this.route.withSignatures(steps);
-	}
-
-	// --- layout, delegated to the panel layout store ---
-
-	get editingLayout() {
-		return this.panelLayout.editing;
-	}
-
-	set editingLayout(on: boolean) {
-		this.panelLayout.editing = on;
-	}
-
-	get layoutExitPrompt() {
-		return this.panelLayout.exitPrompt;
-	}
-
-	set layoutExitPrompt(on: boolean) {
-		this.panelLayout.exitPrompt = on;
-	}
-
-	get layoutBreakpoint() {
-		return this.panelLayout.breakpoint;
-	}
-
-	set layoutBreakpoint(key: BreakpointKey) {
-		this.panelLayout.breakpoint = key;
-	}
-
-	get layoutDraft() {
-		return this.panelLayout.draft;
-	}
-
-	get layoutDirty() {
-		return this.panelLayout.dirty;
-	}
-
-	setLayoutItems(key: BreakpointKey, items: GridItem[]) {
-		this.panelLayout.setItems(key, items);
-	}
-
-	setLayout(layouts: PanelLayouts) {
-		this.panelLayout.set(layouts);
-	}
-
-	hidePanel(id: string) {
-		this.panelLayout.hidePanel(id);
-	}
-
-	showPanel(id: string) {
-		this.panelLayout.showPanel(id);
-	}
-
-	saveLayout() {
-		this.panelLayout.save();
-	}
-
-	exitLayoutEdit() {
-		this.panelLayout.exitEdit();
-	}
-
-	resolveLayoutExit(save: boolean) {
-		this.panelLayout.resolveExit(save);
-	}
-
-	rememberHidden() {
-		this.panelLayout.rememberHidden();
-	}
-
-	resetLayout(key: BreakpointKey) {
-		this.panelLayout.reset(key);
-	}
-
 	cleanStale() {
 		this.run('cleanStale', api.cleanStaleConnections({ map_id: this.mapId }));
-	}
-
-	// Undo and redo are read before they run: the step being walked past is the head now,
-	// and after the call it is somewhere else. "Undone" alone leaves you to work out what
-	// went, which on a map somebody else is also editing is not obvious.
-	undo() {
-		this.run('undo', api.undoMapEvent(this.mapId), this.stepDetail(this.headEntry));
-	}
-
-	redo() {
-		this.run('redo', api.redoMapEvent(this.mapId), this.stepDetail(this.redoEntry));
-	}
-
-	/** Jump the map to any step, which is how a branch left behind by an undo is re-entered. */
-	gotoEvent(eventId: number | null) {
-		const target = this.entries.find((e) => e.id === eventId) ?? null;
-		this.run(
-			'goToEvent',
-			api.gotoMapEvent({ map_id: this.mapId, event_id: eventId }),
-			eventId === null ? 'Back to the empty map' : this.stepDetail(target),
-		);
 	}
 
 	/** Refetch what one socket frame invalidated; the table lives in [`keysFor`]. */
@@ -577,70 +446,6 @@ export class MapState {
 	 */
 	run(action: MapAction, promise: Promise<unknown>, detail?: string) {
 		this.queries.write.mutate({ action, exec: () => promise, detail });
-	}
-
-	/** What a history step was, for saying which one was just walked past. */
-	private stepDetail(entry: MapEventEntry | null): string | undefined {
-		if (!entry) return undefined;
-		return `${entry.label} · ${timeAgo(entry.created_at)}`;
-	}
-
-	// --- geometry, delegated to the camera ---
-
-	get viewportEl() {
-		return this.camera.viewportEl;
-	}
-
-	set viewportEl(el: HTMLElement | null) {
-		this.camera.viewportEl = el;
-	}
-
-	get pan() {
-		return this.camera.pan;
-	}
-
-	set pan(v: Vec2) {
-		this.camera.pan = v;
-	}
-
-	get zoom() {
-		return this.camera.zoom;
-	}
-
-	get scrollbarsVisible() {
-		return this.camera.scrollbarsVisible;
-	}
-
-	get viewportSize() {
-		return this.camera.viewportSize;
-	}
-
-	set viewportSize(size: { width: number; height: number }) {
-		this.camera.viewportSize = size;
-	}
-
-	viewportRect() {
-		return this.camera.viewportRect();
-	}
-
-	toWorld(clientX: number, clientY: number): Vec2 {
-		return this.camera.toWorld(clientX, clientY);
-	}
-
-	panBy(dx: number, dy: number) {
-		this.camera.panBy(dx, dy);
-	}
-
-	wakeScrollbars() {
-		this.camera.wakeScrollbars();
-	}
-
-	zoomBy(steps: number) {
-		this.camera.zoomBy(steps);
-	}
-
-	restoreZoom() {
-		this.camera.restoreZoom();
 	}
 
 	/**

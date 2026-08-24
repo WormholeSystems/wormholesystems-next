@@ -4,6 +4,8 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { userSettingsSaver } from '$lib/map/user-settings';
+	import { KILLMAIL_FILTERS } from '$lib/map/killmails';
+	import { PLACEMENTS as BASE_PLACEMENTS } from '$lib/map/placement';
 	import { q } from '$lib/api/queries';
 	import type { MapView } from '$lib/api/types/MapView';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
@@ -12,7 +14,7 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import type { MapLayout } from '$lib/api/types/MapLayout';
 	import type { KillmailScope } from '$lib/api/types/KillmailScope';
-	import { oneOf } from '$lib/enums';
+	import { oneOf } from '$lib/lookup';
 
 	let { data }: { data: { view: MapView } } = $props();
 
@@ -26,20 +28,14 @@
 
 	// `map` is not a layout, it is the absence of an override: this viewer follows whatever
 	// the map itself is set to.
-	const PLACEMENTS = [
+	const PLACEMENTS: readonly { value: MapLayout | 'map'; label: string }[] = [
 		{ value: 'map', label: 'Follow the map' },
-		{ value: 'manual', label: 'Custom placement' },
-		{ value: 'tree', label: 'Automatic placement' },
-	] as const satisfies readonly { value: MapLayout | 'map'; label: string }[];
+		...BASE_PLACEMENTS.map((o) => ({ value: o.value, label: o.label })),
+	];
 	const PLACEMENT_VALUES = PLACEMENTS.map((p) => p.value);
 	const placement = $derived(settings?.layout_override ?? 'map');
 
-	const FILTERS = [
-		{ value: 'all', label: 'Everything' },
-		{ value: 'jspace', label: 'Wormhole space only' },
-		{ value: 'kspace', label: 'Known space only' },
-	] as const satisfies readonly { value: KillmailScope; label: string }[];
-	const FILTER_VALUES = FILTERS.map((f) => f.value);
+	const FILTER_VALUES = KILLMAIL_FILTERS.map((f) => f.value);
 	const filter = $derived(settings?.killmail_filter ?? 'all');
 </script>
 
@@ -142,11 +138,11 @@
 					}}
 				>
 					<Select.Trigger class="w-52" data-testid="killmail-filter-select">
-						{FILTERS.find((f) => f.value === filter)?.label}
+						{KILLMAIL_FILTERS.find((f) => f.value === filter)?.label}
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Group>
-							{#each FILTERS as option (option.value)}
+							{#each KILLMAIL_FILTERS as option (option.value)}
 								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 							{/each}
 						</Select.Group>

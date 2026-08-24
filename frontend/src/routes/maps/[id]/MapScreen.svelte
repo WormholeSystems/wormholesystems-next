@@ -4,8 +4,7 @@
 	// and selection live outside the fetched data and nodes are keyed by id, so a refetch
 	// keeps interaction state.
 	import { solarSystemId } from '$lib/map/system';
-
-	import { setContext } from 'svelte';
+	import { deepLinkTarget, systemParamUrl } from './deep-link';
 
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -24,6 +23,7 @@
 	import LoadingCover from './LoadingCover.svelte';
 	import MapEdge from './MapEdge.svelte';
 	import { MapGestures } from './map-gestures.svelte';
+	import { setMapContext } from '$lib/components/system-menu/context';
 	import { connectMapSession } from './map-session.svelte';
 	import { MapState } from './map-state.svelte';
 	import Scrollbars from './Scrollbars.svelte';
@@ -55,10 +55,16 @@
 	const map = new MapState(mapId, signedIn, seed);
 	const canWrite = $derived(map.canWrite);
 	// Built with the map, so navigating between maps never carries a half-seen jump over.
-	const tracker = new JumpTracker(map);
+	const tracker = new JumpTracker(map.trackerHost());
+	// Every fresh reading is observed as it lands, whatever triggered the fetch.
+	// Structural sharing means this fires only when the payload actually changed.
+	$effect(() => {
+		void map.myCharacters;
+		tracker.observe();
+	});
 	const gestures = new MapGestures(map);
 	// The app-wide system context menu reads the map through this getter.
-	setContext('map-state', () => map);
+	setMapContext(() => map);
 
 	let viewportEl = $state<HTMLElement | null>(null);
 
@@ -76,11 +82,11 @@
 	});
 
 	$effect(() => {
-		map.viewportEl = viewportEl;
+		map.camera.viewportEl = viewportEl;
 	});
 
 	$effect(() => {
-		map.restoreZoom();
+		map.camera.restoreZoom();
 	});
 
 	// A `?system=` deep link activates its system once the graph is in, exactly once:
@@ -89,9 +95,8 @@
 	$effect(() => {
 		if (deepLinkApplied || !map.loaded) return;
 		deepLinkApplied = true;
-		const wanted = Number(page.url.searchParams.get('system'));
-		if (wanted && map.activeId === null) {
-			map.activeId = map.systems.find((x) => solarSystemId(x) === wanted)?.id ?? null;
+		if (map.activeId === null) {
+			map.activeId = deepLinkTarget(map.systems, page.url.searchParams.get('system'));
 		}
 	});
 
@@ -101,14 +106,14 @@
 		if (!el) return;
 		const observer = new ResizeObserver(([entry]) => {
 			const box = entry.contentRect;
-			map.viewportSize = { width: box.width, height: box.height };
+			map.camera.viewportSize = { width: box.width, height: box.height };
 		});
 		observer.observe(el);
 		return () => observer.disconnect();
 	});
 
 	// Realtime: any frame on the map socket means "refetch".
-	$effect(() => connectMapSession(map, tracker));
+	$effect(() => connectMapSession(map));
 
 	// `replaceState` throws until the router has started, which is still mid-hydration on
 	// first paint.
@@ -120,10 +125,8 @@
 	$effect(() => {
 		const active = map.activeSystem;
 		if (!routerReady || active?.kind !== 'system') return;
-		const url = new URL(page.url);
-		if (url.searchParams.get('system') === String(active.solar_system_id)) return;
-		url.searchParams.set('system', String(active.solar_system_id));
-		replaceState(url, {});
+		const url = systemParamUrl(page.url, active.solar_system_id);
+		if (url) replaceState(url, {});
 	});
 
 	// Wheel: plain scrolls the page, ctrl/meta is swallowed so pinch does not zoom the whole
@@ -138,7 +141,7 @@
 			}
 			if (!ev.shiftKey) return;
 			ev.preventDefault();
-			map.panBy(-ev.deltaX, -ev.deltaY);
+			map.camera.panBy(-ev.deltaX, -ev.deltaY);
 		};
 		el.addEventListener('wheel', onWheel, { passive: false });
 		return () => el.removeEventListener('wheel', onWheel);
@@ -221,7 +224,7 @@
 	     while nobody is looking at it, so nothing is ever seen moving into place. -->
 	{#if map.ready}
 		<PanelGrid {map} {canvas} />
-		{#if map.editingLayout}
+		{#if map.panels.editing}
 			<LayoutToolbar {map} />
 		{/if}
 	{/if}
@@ -236,7 +239,7 @@
 		tabindex="0"
 		class="group relative h-full w-full overflow-hidden bg-canvas ring-1 ring-border ring-offset-[-0.5px] outline-none select-none"
 		onpointerdown={(ev) => gestures.onBackgroundDown(ev)}
-		onpointerenter={() => map.wakeScrollbars()}
+		onpointerenter={() => map.camera.wakeScrollbars()}
 		onpointermove={(ev) => gestures.onPointerMove(ev)}
 		onpointerup={(ev) => gestures.onPointerUp(ev)}
 		onkeydown={onKey}
@@ -253,7 +256,8 @@
 			style:height="{map.grid.world_height}px"
 			style:background-image={map.layoutLocked ? undefined : gridBackground()}
 			style:background-size="{map.grid.cell_size}px {map.grid.cell_size}px"
-			style:transform="translate({map.pan.x}px, {map.pan.y}px) scale({map.zoom})"
+			style:transform="translate({map.camera.pan.x}px, {map.camera.pan.y}px) scale({map.camera
+				.zoom})"
 		>
 			<svg
 				class="absolute top-0 left-0 overflow-visible"

@@ -10,6 +10,7 @@
 	import DestinationMenu from '$lib/components/system-menu/DestinationMenu.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
+	import { SYSTEM_CELLS_4, SYSTEM_LIST_ACTIONS, SYSTEM_ROW } from '$lib/components/pickers/columns';
 	import {
 		findClosestSystems,
 		jumpTone as badgeTone,
@@ -22,8 +23,8 @@
 	let { map, graph, origin }: { map: MapState; graph: RouteGraph | null; origin: number | null } =
 		$props();
 
-	const serviceOptions = $derived(map.serviceOptions);
-	const corporationOptions = $derived(map.corporationOptions);
+	const serviceOptions = $derived(map.route.serviceOptions);
+	const corporationOptions = $derived(map.route.corporationOptions);
 
 	let findOpen = $state(false);
 	const CONDITIONS = [
@@ -75,9 +76,9 @@
 	const findResults = $derived.by(() => {
 		if (!findOpen || !graph || origin === null) return [];
 		const matches = findMatcher(condition, {
-			jove: map.joveSystems,
-			stations: map.stationSystems,
-			security: map.security,
+			jove: map.route.joveSystems,
+			stations: map.route.stationSystems,
+			security: map.route.security,
 			services: serviceOptions,
 			corporations: corporationOptions,
 		});
@@ -87,7 +88,7 @@
 			matches,
 			Number(findLimit),
 			map.routingSettings,
-			map.ignoredSystems,
+			map.route.ignoredSystems,
 		);
 	});
 	$effect(() => {
@@ -109,9 +110,7 @@
 		Find
 	</button>
 	{#if findOpen}
-		<div
-			class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2"
-		>
+		<div class={SYSTEM_LIST_ACTIONS}>
 			<div class="col-span-full flex items-center gap-1.5 border-b border-border/30 p-2">
 				<Select.Root type="single" bind:value={condition}>
 					<Select.Trigger class="h-7 flex-1 text-xs" data-testid="find-condition">
@@ -198,7 +197,7 @@
 			     to expand), which the static a11y check cannot follow. -->
 				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 				<div
-					class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30 {expandable
+					class="{SYSTEM_ROW} border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30 {expandable
 						? 'cursor-pointer'
 						: ''}"
 					data-testid="find-row"
@@ -212,11 +211,11 @@
 							toggleFindRow(result.id);
 						}
 					}}
-					onmouseenter={() => (map.hoverPath = result.route.map((s) => s.id))}
-					onmouseleave={() => (map.hoverPath = null)}
+					onmouseenter={() => (map.route.hoverPath = result.route.map((s) => s.id))}
+					onmouseleave={() => (map.route.hoverPath = null)}
 				>
 					{#if r}
-						<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
+						<SystemMenu system={r} class={SYSTEM_CELLS_4}>
 							<SystemRow system={r} />
 						</SystemMenu>
 					{:else}
@@ -251,8 +250,8 @@
 								class="col-span-full flex items-center gap-2 border-b border-border/20 py-0.5 pr-3 pl-5 text-[11px] text-muted-foreground hover:bg-muted/20"
 								data-testid="find-station"
 								role="listitem"
-								onmouseenter={() => (map.hoverPath = result.route.map((step) => step.id))}
-								onmouseleave={() => (map.hoverPath = null)}
+								onmouseenter={() => (map.route.hoverPath = result.route.map((step) => step.id))}
+								onmouseleave={() => (map.route.hoverPath = null)}
 							>
 								<BuildingIcon class="size-3 shrink-0 text-muted-foreground/60" />
 								<span class="truncate" title={station.name}>{station.name}</span>

@@ -4,6 +4,8 @@
 // Minimum sizes live here rather than in the stored layout: they are a property of the
 // panel, so tightening one reaches people who already saved a layout.
 
+import * as v from 'valibot';
+
 import { type GridItem, bottom, compact } from '$lib/layout/grid';
 
 export type PanelId =
@@ -145,6 +147,24 @@ export interface BreakpointLayout {
 }
 
 export type PanelLayouts = Record<string, BreakpointLayout>;
+
+/** The stored/pasted layout shape, for anything that arrives as untrusted JSON. */
+export const panelLayoutsSchema = v.record(
+	v.string(),
+	v.object({
+		cols: v.number(),
+		row_height: v.number(),
+		items: v.array(
+			v.object({ i: v.string(), x: v.number(), y: v.number(), w: v.number(), h: v.number() }),
+		),
+	}),
+);
+
+/** What the layout toolbar's copy button writes, and its paste button will accept. */
+export const layoutClipboardSchema = v.object({
+	breakpoints: panelLayoutsSchema,
+	hidden: v.optional(v.array(v.string())),
+});
 
 const item = (i: PanelId, x: number, y: number, w: number, h: number): GridItem => ({
 	i,

@@ -1,11 +1,11 @@
 <script lang="ts">
 	// The alias sequence and the three bookmark formats. The formats are opaque token strings,
 	// so each previews against a worked example as you type.
-	import { untrack } from 'svelte';
-	import { oneOf } from '$lib/enums';
+	import { oneOf } from '$lib/lookup';
 
-	import { guessNextAlias } from '$lib/alias';
-	import type { AliasScheme } from '$lib/alias';
+	import { guessNextAlias } from '$lib/naming/alias';
+	import { draft as draftOf } from '$lib/draft.svelte';
+	import type { AliasScheme } from '$lib/naming/alias';
 	import {
 		BOOKMARK_TOKENS,
 		DEFAULT_FORMAT_KSPACE,
@@ -13,8 +13,8 @@
 		DEFAULT_FORMAT_WORMHOLE,
 		DEFAULT_IGNORED_ALIAS,
 		renderBookmark,
-	} from '$lib/bookmark';
-	import type { BookmarkToken } from '$lib/bookmark';
+	} from '$lib/naming/bookmark';
+	import type { BookmarkToken } from '$lib/naming/bookmark';
 	import type { MapNaming } from '$lib/api/types/MapNaming';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -32,32 +32,22 @@
 		onsave: (naming: MapNaming) => void;
 	} = $props();
 
-	const initial = untrack(() => JSON.stringify(naming));
-	let draft = $state<MapNaming>(JSON.parse(initial));
-
-	// Re-seed when the saved value changes underneath (a reload, or another manager's
-	// edit), without clobbering what is being typed in between.
-	const savedKey = $derived(JSON.stringify(naming));
-	let lastSeeded = $state(initial);
-	$effect(() => {
-		if (savedKey !== lastSeeded) {
-			lastSeeded = savedKey;
-			draft = { ...naming };
-		}
-	});
-
-	const dirty = $derived(JSON.stringify(draft) !== savedKey);
+	const buffer = draftOf(() => naming);
+	const dirty = $derived(buffer.dirty);
 
 	const ALIAS_SCHEMES = ['numeric', 'alphabetical'] as const satisfies readonly AliasScheme[];
-	const scheme = $derived(draft.alias_scheme);
+	const scheme = $derived(buffer.value.alias_scheme);
 
 	/** The first three children of a chain, so switching scheme shows the difference. */
 	const aliasPreview = $derived.by(() => {
 		const taken: string[] = [];
 		for (let i = 0; i < 3; i++) {
-			taken.push(guessNextAlias('', taken, { scheme, ignoredAlias: draft.ignored_alias }));
+			taken.push(guessNextAlias('', taken, { scheme, ignoredAlias: buffer.value.ignored_alias }));
 		}
-		const child = guessNextAlias(taken[0], taken, { scheme, ignoredAlias: draft.ignored_alias });
+		const child = guessNextAlias(taken[0], taken, {
+			scheme,
+			ignoredAlias: buffer.value.ignored_alias,
+		});
 		return [...taken, child].join(', ');
 	});
 
@@ -123,11 +113,11 @@
 				<ToggleGroup.Root
 					type="single"
 					variant="outline"
-					value={draft.alias_scheme}
+					value={buffer.value.alias_scheme}
 					{disabled}
 					onValueChange={(value) => {
 						const picked = oneOf(ALIAS_SCHEMES, value);
-						if (picked) draft.alias_scheme = picked;
+						if (picked) buffer.value.alias_scheme = picked;
 					}}
 					data-testid="alias-scheme"
 				>
@@ -146,7 +136,7 @@
 				<Field.FieldLabel for="ignored-alias">Home alias</Field.FieldLabel>
 				<Input
 					id="ignored-alias"
-					bind:value={draft.ignored_alias}
+					bind:value={buffer.value.ignored_alias}
 					placeholder={DEFAULT_IGNORED_ALIAS}
 					{disabled}
 					data-testid="ignored-alias"
@@ -168,7 +158,7 @@
 							<Field.FieldLabel for={format.key}>{format.label}</Field.FieldLabel>
 							<Input
 								id={format.key}
-								bind:value={draft[format.key]}
+								bind:value={buffer.value[format.key]}
 								placeholder={format.fallback}
 								{disabled}
 								class="font-mono"
@@ -177,7 +167,7 @@
 							<Field.FieldDescription>
 								{format.help}
 								<span class="font-mono text-foreground" data-testid="{format.key}-preview">
-									{renderBookmark(draft[format.key] || format.fallback, format.example)}
+									{renderBookmark(buffer.value[format.key] || format.fallback, format.example)}
 								</span>
 							</Field.FieldDescription>
 						</Field.Field>
@@ -187,13 +177,13 @@
 		</Field.FieldGroup>
 	</Card.Content>
 	<Card.Footer class="justify-end gap-2">
-		<Button variant="ghost" disabled={disabled || !dirty} onclick={() => (draft = { ...naming })}>
+		<Button variant="ghost" disabled={disabled || !dirty} onclick={() => buffer.reset()}>
 			Reset
 		</Button>
 		<Button
 			variant="outline"
 			disabled={disabled || !dirty}
-			onclick={() => onsave({ ...draft })}
+			onclick={() => onsave({ ...buffer.value })}
 			data-testid="save-naming">Save</Button
 		>
 	</Card.Footer>

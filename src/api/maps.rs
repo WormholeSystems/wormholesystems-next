@@ -12,7 +12,7 @@ use super::ApiResult;
 use super::extract::{ShareQuery, acting_on, read_map_as, require_actor, session_actor};
 use crate::auth::AppState;
 use crate::maps::map::UpdateMap;
-use crate::maps::{Map, MapEvent, MapView};
+use crate::maps::{Map, MapView};
 
 /// A map in the user's list, with their role on it.
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -219,10 +219,10 @@ pub async fn map_characters(
     jar: CookieJar,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapCharacter>> {
-    let actor = require_actor(&state.db, &jar).await?;
     // Member+: a viewer does not get to see where anyone is.
-    crate::maps::access::require_role(&state.db, map_id, actor.user_id, crate::maps::Role::Member)
-        .await?;
+    let actor =
+        super::extract::require_role_on_map(&state, &jar, map_id, crate::maps::Role::Member)
+            .await?;
     let rows = sqlx::query!(
         r#"select c.id as character_id, c.name, co.ticker as corporation_ticker,
                   s.solar_system_id, s.ship_type_id, s.ship_name, t.name as "ship_type?",
@@ -288,6 +288,5 @@ pub async fn update_map(
 ) -> ApiResult<Map> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     let map = crate::maps::map::update_map(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(map))
 }

@@ -194,20 +194,72 @@ pub async fn search_systems(
     Ok(Json(results))
 }
 
-/// `GET /api/routing-graph`: the static half of the routing graph: k-space stargate
-/// adjacency (`{from_id: [to_id, ...]}`, Zarzakh excluded since its gates are
-/// faction-gated) plus per-system security for the safer/less-secure cost functions.
-/// Static reference data: cacheable for a day.
+/// The static half of the routing graph, typed and built once: k-space stargate
+/// adjacency (Zarzakh excluded since its gates are faction-gated), per-system security
+/// for the safer/less-secure cost functions, and the station indexes the planner offers.
+#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct RoutingGraph {
+    pub adjacency: std::collections::HashMap<i64, Vec<i64>>,
+    pub security: std::collections::HashMap<i64, f64>,
+    pub jove: Vec<i64>,
+    pub stations: Vec<i64>,
+    pub services: Vec<StationGroup>,
+    pub corporations: Vec<StationGroup>,
+}
+
+/// A named set of stations: a service, or the corporation that owns them.
+#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct StationGroup {
+    pub id: i64,
+    pub name: String,
+    pub stations: Vec<StationRef>,
+}
+
+#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct StationRef {
+    pub id: i64,
+    pub name: String,
+    pub solar_system_id: i64,
+}
+
+/// The graph is immutable SDE data, so it is built and serialized once per process
+/// rather than recomputed for every cold client load.
+static ROUTING_GRAPH_JSON: tokio::sync::OnceCell<std::sync::Arc<String>> =
+    tokio::sync::OnceCell::const_new();
+
+/// `GET /api/routing-graph`. Static reference data: cacheable for a day.
 pub async fn routing_graph(
     State(state): State<AppState>,
 ) -> Result<impl axum::response::IntoResponse, ApiError> {
+    let body = ROUTING_GRAPH_JSON
+        .get_or_try_init(|| async {
+            let graph = build_routing_graph(&state.db).await?;
+            Ok::<_, ApiError>(std::sync::Arc::new(
+                serde_json::to_string(&graph).expect("routing graph serializes"),
+            ))
+        })
+        .await?
+        .clone();
+    Ok((
+        [
+            (axum::http::header::CACHE_CONTROL, "public, max-age=86400"),
+            (axum::http::header::CONTENT_TYPE, "application/json"),
+        ],
+        body.to_string(),
+    ))
+}
+
+async fn build_routing_graph(db: &sqlx::PgPool) -> Result<RoutingGraph, ApiError> {
     const ZARZAKH: i64 = 30100000;
     let rows = sqlx::query!(
         "select solar_system_id, destination_system_id from stargates
          where solar_system_id <> $1 and destination_system_id <> $1",
         ZARZAKH,
     )
-    .fetch_all(&state.db)
+    .fetch_all(db)
     .await?;
     let mut adjacency: std::collections::HashMap<i64, Vec<i64>> = std::collections::HashMap::new();
     for r in rows {
@@ -218,16 +270,16 @@ pub async fn routing_graph(
     }
     let security: std::collections::HashMap<i64, f64> =
         sqlx::query!("select id, security_status from solar_systems")
-            .fetch_all(&state.db)
+            .fetch_all(db)
             .await?
             .into_iter()
             .map(|r| (r.id, r.security_status))
             .collect();
     let jove: Vec<i64> = sqlx::query_scalar!("select solar_system_id from jove_observatories")
-        .fetch_all(&state.db)
+        .fetch_all(db)
         .await?;
     let stations: Vec<i64> = sqlx::query_scalar!("select distinct solar_system_id from stations")
-        .fetch_all(&state.db)
+        .fetch_all(db)
         .await?;
     // The legacy "essential" station services, each carrying its concrete stations so a
     // result can name the station. Security Offices (27) are a known quirk: only
@@ -253,17 +305,17 @@ pub async fn routing_graph(
         SECURITY_OFFICE,
         CONCORD_CORPORATION,
     )
-    .fetch_all(&state.db)
+    .fetch_all(db)
     .await?;
     let services = group_stations(rows.into_iter().map(|row| {
         (
             row.service_id,
             row.service_name,
-            serde_json::json!({
-                "id": row.station_id,
-                "name": row.station_name,
-                "solar_system_id": row.solar_system_id,
-            }),
+            StationRef {
+                id: row.station_id,
+                name: row.station_name.unwrap_or_default(),
+                solar_system_id: row.solar_system_id,
+            },
         )
     }));
 
@@ -278,53 +330,52 @@ pub async fn routing_graph(
            where st.owner_corporation_id is not null
            order by c.name, st.name"#,
     )
-    .fetch_all(&state.db)
+    .fetch_all(db)
     .await?;
     let corporations = group_stations(rows.into_iter().map(|row| {
         (
             row.corporation_id,
             row.corporation_name,
-            serde_json::json!({
-                "id": row.station_id,
-                "name": row.station_name,
-                "solar_system_id": row.solar_system_id,
-            }),
+            StationRef {
+                id: row.station_id,
+                name: row.station_name.unwrap_or_default(),
+                solar_system_id: row.solar_system_id,
+            },
         )
     }));
 
-    Ok((
-        [(axum::http::header::CACHE_CONTROL, "public, max-age=86400")],
-        Json(serde_json::json!({
-            "adjacency": adjacency,
-            "security": security,
-            "jove": jove,
-            "stations": stations,
-            "services": services,
-            "corporations": corporations,
-        })),
-    ))
+    Ok(RoutingGraph {
+        adjacency,
+        security,
+        jove,
+        stations,
+        services,
+        corporations,
+    })
 }
 
 /// Fold `(group id, group name, station)` rows, already ordered by group, into one entry
 /// per group.
-fn group_stations(
-    rows: impl Iterator<Item = (i64, String, serde_json::Value)>,
-) -> Vec<serde_json::Value> {
-    let mut out: Vec<serde_json::Value> = Vec::new();
-    let mut current: Option<(i64, String, Vec<serde_json::Value>)> = None;
+fn group_stations(rows: impl Iterator<Item = (i64, String, StationRef)>) -> Vec<StationGroup> {
+    let mut out: Vec<StationGroup> = Vec::new();
+    let mut current: Option<StationGroup> = None;
     for (id, name, station) in rows {
         match &mut current {
-            Some((open, _, stations)) if *open == id => stations.push(station),
+            Some(group) if group.id == id => group.stations.push(station),
             _ => {
-                if let Some((id, name, stations)) = current.take() {
-                    out.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
+                if let Some(group) = current.take() {
+                    out.push(group);
                 }
-                current = Some((id, name, vec![station]));
+                current = Some(StationGroup {
+                    id,
+                    name,
+                    stations: vec![station],
+                });
             }
         }
     }
-    if let Some((id, name, stations)) = current {
-        out.push(serde_json::json!({ "id": id, "name": name, "stations": stations }));
+    if let Some(group) = current {
+        out.push(group);
     }
     out
 }

@@ -1,11 +1,26 @@
-// Shared layout for `SystemRow`: class, name, region, holder cell (sovereignty or effect).
+// Shared layout for `SystemRow` lists: class, name, region, holder cell (sovereignty or
+// effect).
 //
 // The list owns the tracks and every descendant down to the cells is a subgrid
 // (`col-span-full grid grid-cols-subgrid`). A grid declared per row would size its columns
 // from its own content, so rows in the same list would not line up. Tracks are spelled out
-// literally in each container's class so Tailwind sees them at build time. Command-driven
-// lists need one extra trailing track for the check indicator `Command.Item` appends, or the
-// row wraps onto a second grid line and doubles in height.
-export const SYSTEM_ROW_TRACKS = 'min-content minmax(0,1fr) minmax(0,0.8fr) min-content';
-/** Number of tracks `SystemRow` occupies. */
-export const SYSTEM_ROW_SPAN = 4;
+// as complete literals (never concatenated) so Tailwind sees them at build time.
+// Command-driven lists need one extra trailing track for the check indicator `Command.Item`
+// appends, or the row wraps onto a second grid line and doubles in height.
+
+/** The four SystemRow tracks plus Command's check indicator. */
+export const SYSTEM_LIST =
+	'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2';
+/** As SYSTEM_LIST, with a hint/badge track before the indicator (the command palette). */
+export const SYSTEM_LIST_HINT =
+	'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_minmax(0,0.7fr)_min-content] items-center gap-x-2';
+/** As SYSTEM_LIST, with a trailing auto track for row actions (watchlist, find). */
+export const SYSTEM_LIST_ACTIONS =
+	'grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2';
+
+/** A full row inside one of the lists above. */
+export const SYSTEM_ROW = 'col-span-full grid grid-cols-subgrid items-center gap-x-2';
+/** The four SystemRow cells inside a row (the remaining tracks are the list's own). */
+export const SYSTEM_CELLS_4 = 'col-span-4 grid grid-cols-subgrid items-center gap-x-2';
+/** The five cells when the list carries the hint track. */
+export const SYSTEM_CELLS_5 = 'col-span-5 grid grid-cols-subgrid items-center gap-x-2';

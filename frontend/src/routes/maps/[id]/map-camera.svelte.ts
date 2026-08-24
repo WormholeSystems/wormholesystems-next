@@ -1,7 +1,9 @@
 // The viewport: where the world sits on screen, how big it is drawn, and the scrollbars
 // that show while it moves. Knows nothing about what is on the map.
 
-import { browser } from '$app/environment';
+import * as v from 'valibot';
+
+import { readStored, writeStored } from '$lib/storage';
 import { clamp, type Vec2 } from '$lib/map/helpers';
 
 /** Half size is where node text stops being readable, double where a chain stops fitting. */
@@ -96,12 +98,12 @@ export class MapCamera {
 
 	/** Per map and per browser: how far out you want to be depends on the screen. */
 	restoreZoom() {
-		if (!browser) return;
-		const saved = Number(localStorage.getItem(`map-zoom-${this.mapId}`));
+		// Legacy values were written as `String(zoom)`, which is valid JSON for a number.
+		const saved = readStored(`map-zoom-${this.mapId}`, v.number(), NaN);
 		if (saved >= ZOOM_MIN && saved <= ZOOM_MAX) this.zoom = saved;
 	}
 
 	private rememberZoom() {
-		if (browser) localStorage.setItem(`map-zoom-${this.mapId}`, String(this.zoom));
+		writeStored(`map-zoom-${this.mapId}`, this.zoom);
 	}
 }

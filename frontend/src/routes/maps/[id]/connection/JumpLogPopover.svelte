@@ -20,7 +20,8 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import EveImage from '$lib/components/EveImage.svelte';
-	import { timeAgoShort } from '$lib/format';
+	import { timeAgoShort, utcShort } from '$lib/format';
+	import { tickingMs } from '$lib/now.svelte';
 	import { formatKt } from '$lib/map/helpers';
 	import { solarSystemId } from '$lib/map/system';
 	import type { MapState } from '../map-state.svelte';
@@ -48,9 +49,7 @@
 	}));
 	const jumps = $derived(jumpsQuery.data ?? []);
 	function refreshLog() {
-		void map.queries.client.invalidateQueries({
-			queryKey: key.connectionJumps(map.mapId, connection.id),
-		});
+		map.refreshConnectionJumps(connection.id);
 	}
 	// New transits arrive with the map refetch: the counters changing is the signal that
 	// the log behind them moved.
@@ -64,21 +63,7 @@
 		return jump.from_solar_system_id === solarSystemId(source);
 	}
 
-	let now = $state(Date.now());
-	$effect(() => {
-		const t = setInterval(() => (now = Date.now()), 1000);
-		return () => clearInterval(t);
-	});
-	function jumpedAt(jump: ConnectionJump): string {
-		return new Date(jump.created_at).toLocaleString('en-US', {
-			month: 'short',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit',
-			hour12: false,
-			timeZone: 'UTC',
-		});
-	}
+	const clock = tickingMs();
 
 	let formOpen = $state(false);
 	let editing = $state<ConnectionJump | null>(null);
@@ -190,9 +175,9 @@
 							<Tooltip.Trigger
 								class="cursor-help text-right font-mono text-[10px] whitespace-nowrap text-muted-foreground tabular-nums"
 							>
-								{timeAgoShort(jump.created_at, new Date(now))}
+								{timeAgoShort(jump.created_at, new Date(clock.current))}
 							</Tooltip.Trigger>
-							<Tooltip.Content>{jumpedAt(jump)}</Tooltip.Content>
+							<Tooltip.Content>{utcShort(jump.created_at)}</Tooltip.Content>
 						</Tooltip.Root>
 						{#if canWrite}
 							<DropdownMenu.Root>

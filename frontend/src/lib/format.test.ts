@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatIsk, iskTone, timeAgo, timeAgoShort } from './format';
+import { formatIsk, iskSeverity, timeAgo, timeAgoShort, utcShort } from './format';
 
 const NOW = new Date('2026-08-17T15:00:00Z');
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
@@ -50,17 +50,37 @@ describe('formatIsk', () => {
 	});
 });
 
-describe('iskTone', () => {
+describe('iskSeverity', () => {
 	it('gets louder as the loss gets worse', () => {
-		expect(iskTone(2_400_000)).toContain('muted');
-		expect(iskTone(1_500_000_000)).toContain('amber');
-		expect(iskTone(82_000_000_000)).toContain('red');
+		expect(iskSeverity(2_400_000)).toBe('routine');
+		expect(iskSeverity(1_500_000_000)).toBe('notable');
+		expect(iskSeverity(82_000_000_000)).toBe('severe');
+		expect(iskSeverity(null)).toBe('unknown');
 	});
 
 	it('is quiet at the thresholds themselves, not before', () => {
-		expect(iskTone(999_999_999)).toContain('muted');
-		expect(iskTone(1_000_000_000)).toContain('amber');
-		expect(iskTone(9_999_999_999)).toContain('amber');
-		expect(iskTone(10_000_000_000)).toContain('red');
+		expect(iskSeverity(999_999_999)).toBe('routine');
+		expect(iskSeverity(1_000_000_000)).toBe('notable');
+		expect(iskSeverity(9_999_999_999)).toBe('notable');
+		expect(iskSeverity(10_000_000_000)).toBe('severe');
+	});
+});
+
+describe('utcShort', () => {
+	it('reads as the EVE timer stamp, in UTC whatever the local zone', () => {
+		expect(utcShort('2026-08-17T15:04:00Z')).toBe('Aug 17, 15:04');
+		expect(utcShort(Date.parse('2026-01-01T00:00:00Z'))).toBe('Jan 01, 00:00');
+	});
+
+	it('crosses a month boundary by the UTC date, not the local one', () => {
+		expect(utcShort('2026-02-28T23:59:00Z')).toBe('Feb 28, 23:59');
+		expect(utcShort('2026-03-01T00:01:00Z')).toBe('Mar 01, 00:01');
+	});
+});
+
+describe('timeAgoShort with epoch input', () => {
+	it('accepts milliseconds like it accepts ISO strings', () => {
+		expect(timeAgoShort(NOW.getTime() - 47 * 60_000, NOW)).toBe('47m');
+		expect(timeAgoShort(NOW.getTime(), NOW)).toBe('now');
 	});
 });

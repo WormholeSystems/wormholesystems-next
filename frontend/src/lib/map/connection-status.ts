@@ -29,6 +29,17 @@ export const MASS_OPTIONS: StatusOption<MassStatus>[] = [
 	{ value: 'critical', label: 'Critical', hint: '≤ 15%', color: '#ef4444', dot: 'bg-red-500' },
 ];
 
+/**
+ * The signature row's mass picker speaks the same states with "X Mass" labels, and its
+ * "fresh" choice means no status at all rather than a recorded healthy one, hence the
+ * `unknown` value. Derived here so the colors and thresholds live once.
+ */
+export const SIGNATURE_MASS_OPTIONS = MASS_OPTIONS.map((o) => ({
+	value: o.value === 'stable' ? 'unknown' : o.value,
+	label: `${o.label} Mass`,
+	dot: o.dot,
+}));
+
 // `small` is what EVE calls frigate-sized.
 export const SIZE_OPTIONS: { value: WormholeSize; label: string; letter: string }[] = [
 	{ value: 'small', label: 'Frigate', letter: 'S' },

@@ -68,6 +68,7 @@ import type { RevokeAccess } from './types/RevokeAccess';
 import type { TransferOwnership } from './types/TransferOwnership';
 import type { UpdateMap } from './types/UpdateMap';
 import type { MapHistory } from './types/MapHistory';
+import type { RoutingGraph } from './types/RoutingGraph';
 import type { GotoMapEvent } from './types/GotoMapEvent';
 import type { WatchlistEntry } from './types/WatchlistEntry';
 import type { ThreatAnalysis } from './types/ThreatAnalysis';
@@ -136,13 +137,6 @@ function put<T>(path: string, body: unknown): Promise<T> {
 function del<T>(path: string): Promise<T> {
 	return request<T>(path, { method: 'DELETE' });
 }
-/** A named set of stations the routing graph ships: a service, or the corporation that
- * owns them. Both are searched the same way. */
-interface StationGroupPayload {
-	id: number;
-	name: string;
-	stations: { id: number; name: string; solar_system_id: number }[];
-}
 
 export const api = {
 	// Auth / identity
@@ -172,15 +166,7 @@ export const api = {
 		get<SystemSearchResult[]>(`/api/systems/resolve?ids=${ids.join(',')}`),
 	threatAnalysis: (solarSystemId: number) => get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
 	// Cached for a day; bump the version param when the payload shape changes.
-	routingGraph: () =>
-		get<{
-			adjacency: Record<string, number[]>;
-			security: Record<string, number>;
-			jove: number[];
-			stations: number[];
-			services: StationGroupPayload[];
-			corporations: StationGroupPayload[];
-		}>('/api/routing-graph?v=4'),
+	routingGraph: () => get<RoutingGraph>('/api/routing-graph?v=4'),
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),

@@ -2,28 +2,27 @@
 	// The header's "+": search any system and put it on the shared watchlist.
 	import PlusIcon from '@lucide/svelte/icons/plus';
 
-	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
-
 	import { api } from '$lib/api/client';
 	import { q } from '$lib/api/queries';
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
-	import { debounced } from '$lib/debounced.svelte';
+	import { SYSTEM_CELLS_4, SYSTEM_LIST, SYSTEM_ROW } from '$lib/components/pickers/columns';
+	import { searchQuery } from '$lib/search-query.svelte';
 	import type { MapState } from '../map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
 
 	let addOpen = $state(false);
 	let addQuery = $state('');
-	const settled = debounced(() => addQuery.trim(), 150);
-	const addSearchQuery = createQuery(() => ({
-		...q.searchSystems(settled.current),
-		enabled: addOpen && settled.current.length > 0,
-		placeholderData: keepPreviousData,
-	}));
-	const addResults = $derived(addQuery.trim() ? (addSearchQuery.data ?? []) : []);
+	const addSearch = searchQuery({
+		term: () => addQuery,
+		query: (settled) => q.searchSystems(settled),
+		enabled: () => addOpen,
+		minChars: 1,
+	});
+	const addResults = $derived(addSearch.results);
 	function addToWatchlist(id: number) {
 		map.run('watch', api.addWatchlistEntry({ map_id: map.mapId, solar_system_id: id }));
 		addOpen = false;
@@ -44,9 +43,7 @@
 			<Command.Input placeholder="Watch a system…" bind:value={addQuery} />
 			<!-- The list owns the tracks and rows are subgrids of them. The trailing
 			     track is Command's own check indicator, appended to every item. -->
-			<Command.List
-				class="max-h-48 grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content] items-center gap-x-2 p-1"
-			>
+			<Command.List class="max-h-48 p-1 {SYSTEM_LIST}">
 				<Command.Empty class="col-span-full">
 					{addQuery.trim().length < 2
 						? 'Type at least two characters to search.'
@@ -56,9 +53,9 @@
 					<Command.Item
 						value={String(s.id)}
 						onSelect={() => addToWatchlist(s.id)}
-						class="col-span-full grid grid-cols-subgrid items-center gap-x-2"
+						class={SYSTEM_ROW}
 					>
-						<SystemMenu system={s} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
+						<SystemMenu system={s} class={SYSTEM_CELLS_4}>
 							<SystemRow system={s} />
 						</SystemMenu>
 					</Command.Item>

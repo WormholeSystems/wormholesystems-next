@@ -7,12 +7,13 @@
 	import Rows3Icon from '@lucide/svelte/icons/rows-3';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 	import * as v from 'valibot';
-	import { readStored } from '$lib/storage';
+	import { readStored, writeStored } from '$lib/storage';
 	import { sortState } from '$lib/sort-state.svelte';
 
 	import { toast } from 'svelte-sonner';
 
 	import { api } from '$lib/api/client';
+	import { readText } from '$lib/clipboard';
 	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { PastedSignature } from '$lib/api/types/PastedSignature';
@@ -37,7 +38,8 @@
 	} from '$lib/map/signatures';
 	import type { MapState } from './map-state.svelte';
 	import MismatchDialog from './signatures/MismatchDialog.svelte';
-	import type { SignatureContext } from '$lib/map/signature-context';
+	import { makeSignatureContext } from '$lib/map/signature-context';
+	import { deletedByPaste, pasteStatus } from '$lib/signatures/paste-diff';
 	import SignatureColumns, { SORT_COLUMNS } from '$lib/components/map-ui/SignatureColumns.svelte';
 	import SignatureRow from './signatures/SignatureRow.svelte';
 	import { solarSystemId, systemName } from '$lib/map/system';
@@ -50,40 +52,8 @@
 		system: MapSystemView;
 	} = $props();
 
-	// The row and its inputs take this rather than the whole map, so the same components
-	// render from static data elsewhere. Every write they can make is named here.
-	const ctx: SignatureContext = {
-		get systems() {
-			return map.systems;
-		},
-		get connections() {
-			return map.connections;
-		},
-		get sigs() {
-			return map.sigs;
-		},
-		actions: {
-			update: (signature_pk, patch) =>
-				map.run(
-					'updateSignature',
-					api.updateSignature({ map_id: map.mapId, signature_pk, ...patch }),
-				),
-			remove: (signature_pk) =>
-				map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk })),
-			link: (signature_pk, connection_id) =>
-				map.run(
-					'linkSignature',
-					api.linkSignature({ map_id: map.mapId, signature_pk, connection_id }),
-				),
-			unlink: (signature_pk) =>
-				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk })),
-			setPreserveMass: (connection_id, preserve_mass) =>
-				map.run(
-					'setPreserveMass',
-					api.setConnectionStatus({ map_id: map.mapId, connection_id, preserve_mass }),
-				),
-		},
-	};
+	// svelte-ignore state_referenced_locally -- the map instance is stable for this mount.
+	const ctx = makeSignatureContext(map);
 
 	const catalogQuery = createQuery(() => q.signatureCatalog());
 	const catalog = $derived(catalogQuery.data ?? null);
@@ -105,7 +75,7 @@
 		readStored('signatures-category-hidden-filters', v.array(v.string()), []),
 	);
 	$effect(() => {
-		localStorage.setItem('signatures-category-hidden-filters', JSON.stringify(hidden));
+		writeStored('signatures-category-hidden-filters', hidden);
 	});
 	const activeFilters = $derived(
 		CATEGORIES.map((c) => c.group as string).filter((g) => !hidden.includes(g)),
@@ -151,18 +121,14 @@
 	});
 
 	const pastedIds = $derived(pasted === null ? null : new Set(pasted.map((p) => p.signature_id)));
-	const deletedSigs = $derived(
-		pastedIds === null ? [] : mySigs.filter((s) => !pastedIds.has(s.signature_id)),
-	);
+	const deletedSigs = $derived(deletedByPaste(mySigs, pastedIds));
 	function rowStatus(s: Signature): 'new' | 'updated' | 'deleted' | null {
-		if (pastedIds === null) return null;
-		if (!pastedIds.has(s.signature_id)) return 'deleted';
-		return preIds.has(s.signature_id) ? 'updated' : 'new';
+		return pasteStatus(s, preIds, pastedIds);
 	}
 
 	async function handlePasteText(text: string) {
 		if (!canWrite) return;
-		const rows = parseScan(text, await loadCatalog(map.queries.client));
+		const rows = parseScan(text, await map.loadCatalog());
 		if (rows.length === 0) {
 			toast.error('Nothing in that paste looked like a signature');
 			return;
@@ -204,15 +170,8 @@
 	}
 
 	async function pasteFromClipboard() {
-		if (!navigator.clipboard?.readText) {
-			toast.error('This browser does not give the page clipboard access');
-			return;
-		}
-		try {
-			handlePasteText(await navigator.clipboard.readText());
-		} catch {
-			toast.error('Clipboard access denied');
-		}
+		const text = await readText();
+		if (text !== null) handlePasteText(text);
 	}
 
 	function deleteMissing() {

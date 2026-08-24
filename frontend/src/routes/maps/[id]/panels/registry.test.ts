@@ -1,3 +1,4 @@
+import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
 
 import type { GridItem } from '$lib/layout/grid';
@@ -5,6 +6,7 @@ import {
 	DEFAULT_LAYOUTS,
 	PANEL_IDS,
 	breakpointFor,
+	layoutClipboardSchema,
 	panelMeta,
 	placeAtBottom,
 	resolveLayouts,
@@ -102,5 +104,20 @@ describe('placeAtBottom', () => {
 		const added = placed.items.find((i) => i.i === 'signatures')!;
 		expect(added.w).toBe(Math.min(meta.minW, start.cols));
 		expect(added.h).toBe(meta.minH);
+	});
+});
+
+describe('layoutClipboardSchema', () => {
+	it('round-trips what the copy button writes', () => {
+		const payload = { breakpoints: DEFAULT_LAYOUTS, hidden: ['skyhooks'] };
+		const parsed = v.safeParse(layoutClipboardSchema, JSON.parse(JSON.stringify(payload)));
+		expect(parsed.success).toBe(true);
+	});
+
+	it('rejects garbage and half-shaped layouts', () => {
+		expect(v.safeParse(layoutClipboardSchema, 'nonsense').success).toBe(false);
+		expect(v.safeParse(layoutClipboardSchema, { breakpoints: { lg: { cols: 12 } } }).success).toBe(
+			false,
+		);
 	});
 });

@@ -8,6 +8,7 @@
 	import SortHeader from '$lib/components/map-ui/SortHeader.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import SystemRow from '$lib/components/pickers/SystemRow.svelte';
+	import { SYSTEM_CELLS_4, SYSTEM_LIST_ACTIONS, SYSTEM_ROW } from '$lib/components/pickers/columns';
 	import { compareWatchlistEntries } from '$lib/map/watchlist';
 	import {
 		findRoutes,
@@ -38,7 +39,7 @@
 			origin,
 			map.watchlist.map((w) => w.solar_system_id),
 			map.routingSettings,
-			map.ignoredSystems,
+			map.route.ignoredSystems,
 		);
 	});
 
@@ -60,11 +61,9 @@
 </script>
 
 <!-- One grid owns the tracks so every row and the header share column widths. -->
-<div
-	class="grid grid-cols-[min-content_minmax(0,1fr)_minmax(0,0.8fr)_min-content_min-content_auto] items-center gap-x-2"
->
+<div class={SYSTEM_LIST_ACTIONS}>
 	<div
-		class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
+		class="{SYSTEM_ROW} border-b border-border/30 bg-muted/20 px-3 py-1.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase"
 	>
 		<SortHeader column="system" sort={sort.current} onsort={sort.toggle} class="col-span-2 min-w-0">
 			<span class="truncate">
@@ -92,14 +91,14 @@
 		{@const r = map.systemInfo(entry.solar_system_id)}
 		{@const route = watchRoutes.get(entry.solar_system_id)}
 		<div
-			class="col-span-full grid grid-cols-subgrid items-center gap-x-2 border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
+			class="{SYSTEM_ROW} border-b border-border/30 px-3 py-1 text-xs hover:bg-muted/30"
 			data-testid="watchlist-row"
 			role="listitem"
-			onmouseenter={() => (map.hoverPath = route?.route.map((s) => s.id) ?? null)}
-			onmouseleave={() => (map.hoverPath = null)}
+			onmouseenter={() => (map.route.hoverPath = route?.route.map((s) => s.id) ?? null)}
+			onmouseleave={() => (map.route.hoverPath = null)}
 		>
 			{#if r}
-				<SystemMenu system={r} class="col-span-4 grid grid-cols-subgrid items-center gap-x-2">
+				<SystemMenu system={r} class={SYSTEM_CELLS_4}>
 					<SystemRow system={r} />
 				</SystemMenu>
 			{:else}

@@ -16,6 +16,7 @@
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { LIFETIME_OPTIONS, MASS_OPTIONS, SIZE_OPTIONS } from '$lib/map/connection-status';
+	import { patchConnection } from '$lib/map/connection-actions';
 	import type { MapState } from '../map-state.svelte';
 	import { item, panel, sub } from './chrome';
 
@@ -28,34 +29,22 @@
 	}
 
 	function setKind(kind: ConnectionType) {
-		map.run(
-			'setConnectionType',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, kind }),
-		);
+		patchConnection(map, cid, { kind });
 		close();
 	}
 
 	function setMass(mass: MassStatus) {
-		map.run(
-			'setConnectionMass',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, mass_status: mass }),
-		);
+		patchConnection(map, cid, { mass_status: mass });
 		close();
 	}
 
 	function setLifetime(time: TimeStatus) {
-		map.run(
-			'setConnectionLifetime',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, time_status: time }),
-		);
+		patchConnection(map, cid, { time_status: time });
 		close();
 	}
 
 	function setSize(size: WormholeSize) {
-		map.run(
-			'setConnectionSize',
-			api.setConnectionStatus({ map_id: map.mapId, connection_id: cid, size }),
-		);
+		patchConnection(map, cid, { size });
 		close();
 	}
 

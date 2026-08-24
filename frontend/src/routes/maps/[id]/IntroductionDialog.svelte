@@ -10,15 +10,6 @@
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
-	import EyeIcon from '@lucide/svelte/icons/eye';
-	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-	import RouteIcon from '@lucide/svelte/icons/route';
-	import ShieldIcon from '@lucide/svelte/icons/shield';
-	import SignatureIcon from '@lucide/svelte/icons/scan-line';
-	import TagIcon from '@lucide/svelte/icons/tag';
-	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
-	import WorkflowIcon from '@lucide/svelte/icons/workflow';
-	import ZapIcon from '@lucide/svelte/icons/zap';
 
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
@@ -31,63 +22,18 @@
 	import { cn } from '$lib/utils';
 	import type { MapState } from './map-state.svelte';
 	import { atLeast } from '$lib/map/roles';
+	import { ESI_SCOPES } from '$lib/esi/scopes';
+	import { INTRO_OPENING, INTRO_STEPS, introSummary, introToggles } from './introduction-content';
+	import { PLACEMENTS } from '$lib/map/placement';
 
 	let { map }: { map: MapState } = $props();
-
-	const STEPS = [
-		{
-			title: 'Welcome to the map',
-			blurb: 'A minute of setup, and it maps the chain as you fly it.',
-		},
-		{
-			title: 'Grant permissions',
-			blurb: 'What the map may read from your EVE client. All optional.',
-		},
-		{ title: 'Choose what it does', blurb: 'How much of the mapping you want done for you.' },
-		{ title: 'Ready to fly', blurb: 'Here is where everything ended up.' },
-	];
-
-	const SCOPES = [
-		{
-			scope: 'esi-location.read_location.v1',
-			name: 'Character location',
-			body:
-				'Where you are. Puts you on your system for everyone on the map, and measures ' +
-				'every distance from where you actually are.',
-			icon: MapPinIcon,
-		},
-		{
-			scope: 'esi-location.read_online.v1',
-			name: 'Online status',
-			body:
-				'Whether you are logged in, so the map stops reporting you as somewhere you left ' +
-				'hours ago.',
-			icon: ZapIcon,
-		},
-		{
-			scope: 'esi-location.read_ship_type.v1',
-			name: 'Ship type',
-			body:
-				'What you are flying. The difference between "someone is in the hole" and ' +
-				'"a Loki is in the hole".',
-			icon: ShieldIcon,
-		},
-		{
-			scope: 'esi-ui.write_waypoint.v1',
-			name: 'Set waypoints',
-			body:
-				'Lets the map put a destination straight into your client, instead of you retyping ' +
-				'system names.',
-			icon: RouteIcon,
-		},
-	];
 
 	let step = $state(1);
 	const scopesQuery = createQuery(() => ({ ...q.myScopes(), enabled: map.signedIn }));
 	const scopes = $derived(scopesQuery.data ?? []);
 
 	const granted = $derived(new Set(scopes.filter((s) => s.granted).map((s) => s.scope)));
-	const missing = $derived(SCOPES.filter((s) => !granted.has(s.scope)));
+	const missing = $derived(ESI_SCOPES.filter((s) => !granted.has(s.scope)));
 	const hasLocation = $derived(granted.has('esi-location.read_location.v1'));
 
 	const settings = $derived(map.userSettings);
@@ -108,21 +54,6 @@
 	// Placement is the map's, not this viewer's, so only a manager is offered it.
 	const canManage = $derived(atLeast(map.data?.role, 'manager'));
 	const placement = $derived(map.data?.map.layout === 'tree' ? 'tree' : 'manual');
-	const PLACEMENTS = [
-		{
-			value: 'manual' as const,
-			name: 'Custom placement',
-			body: 'You drag the systems into shape, and they stay where you put them.',
-			icon: WaypointsIcon,
-		},
-		{
-			value: 'tree' as const,
-			name: 'Automatic placement',
-			body: 'The map draws the chain as a tree, and nobody has to tidy it.',
-			icon: WorkflowIcon,
-		},
-	];
-
 	function setPlacement(layout: 'manual' | 'tree') {
 		map.run('setPlacement', api.updateMap({ map_id: map.mapId, layout }));
 	}
@@ -141,68 +72,11 @@
 		update({ introduction_confirmed: true });
 	}
 
-	const summary = $derived([
-		{
-			label: 'Permissions',
-			value:
-				missing.length === 0
-					? 'All granted'
-					: `${SCOPES.length - missing.length} of ${SCOPES.length} granted`,
-			good: missing.length === 0,
-		},
-		{
-			label: 'Location sharing',
-			value: settings?.tracking_allowed ? 'On' : 'Off',
-			good: settings?.tracking_allowed ?? false,
-		},
-		{
-			label: 'Signature prompt',
-			value: settings?.tracking_allowed && settings?.prompt_for_signature ? 'On' : 'Off',
-			good: (settings?.tracking_allowed && settings?.prompt_for_signature) ?? false,
-		},
-	]);
+	const summary = $derived(
+		introSummary(settings, ESI_SCOPES.length - missing.length, ESI_SCOPES.length),
+	);
 
-	const opening = [
-		{ icon: ShieldIcon, text: 'The EVE permissions the map can use' },
-		{ icon: EyeIcon, text: 'Whether it may follow you around' },
-		{ icon: RouteIcon, text: 'How much of the mapping it does for you' },
-	];
-
-	const toggles = $derived([
-		{
-			key: 'tracking_allowed',
-			icon: EyeIcon,
-			name: 'Share my location on this map',
-			body:
-				'The map follows you between systems, shows you to everyone else here, and measures ' +
-				'distances from where you are. Revocable at any time.',
-			value: settings?.tracking_allowed ?? false,
-			enabled: hasLocation,
-			blocked: 'Needs the character location permission.',
-		},
-		{
-			key: 'prompt_for_signature',
-			icon: SignatureIcon,
-			name: 'Ask which signature I jumped',
-			body:
-				'When you arrive somewhere new, the map asks which signature the hole was and links ' +
-				'it, instead of leaving an unnamed connection behind.',
-			value: settings?.prompt_for_signature ?? true,
-			enabled: settings?.tracking_allowed ?? false,
-			blocked: 'Needs location sharing.',
-		},
-		{
-			key: 'suggest_alias',
-			icon: TagIcon,
-			name: 'Name new systems for me',
-			body:
-				"Fills in the next alias from the chain's naming scheme, so holes are named the " +
-				'same way by everyone.',
-			value: settings?.suggest_alias ?? true,
-			enabled: settings?.tracking_allowed ?? false,
-			blocked: 'Needs location sharing.',
-		},
-	]);
+	const toggles = $derived(introToggles(settings, hasLocation));
 </script>
 
 <Dialog.Root {open} onOpenChange={(v) => !v && open && finish()}>
@@ -211,16 +85,16 @@
 		data-testid="introduction"
 	>
 		<Dialog.Header>
-			<Dialog.Title class="font-heading text-lg">{STEPS[step - 1].title}</Dialog.Title>
-			<Dialog.Description>{STEPS[step - 1].blurb}</Dialog.Description>
+			<Dialog.Title class="font-heading text-lg">{INTRO_STEPS[step - 1].title}</Dialog.Title>
+			<Dialog.Description>{INTRO_STEPS[step - 1].blurb}</Dialog.Description>
 		</Dialog.Header>
 
 		<div class="flex items-center gap-1.5" data-testid="introduction-progress">
-			{#each STEPS as _, i (i)}
+			{#each INTRO_STEPS as _, i (i)}
 				<div class={cn('h-1 flex-1', i < step ? 'bg-primary' : 'bg-muted')}></div>
 			{/each}
 			<span class="ml-1 font-mono text-[10px] tabular-nums text-muted-foreground">
-				{step}/{STEPS.length}
+				{step}/{INTRO_STEPS.length}
 			</span>
 		</div>
 
@@ -232,7 +106,7 @@
 					now.
 				</p>
 				<div class="flex flex-col gap-2 border border-border/60 p-3">
-					{#each opening as row, i (i)}
+					{#each INTRO_OPENING as row, i (i)}
 						{@const Icon = row.icon}
 						<span class="flex items-center gap-2 text-xs">
 							<Icon class="size-3.5 text-muted-foreground" />
@@ -246,7 +120,7 @@
 			</div>
 		{:else if step === 2}
 			<div class="flex flex-col divide-y divide-border/60">
-				{#each SCOPES as item (item.scope)}
+				{#each ESI_SCOPES as item (item.scope)}
 					{@const Icon = item.icon}
 					{@const ok = granted.has(item.scope)}
 					<div class="flex items-start justify-between gap-3 py-3" data-scope={item.scope}>
@@ -300,7 +174,7 @@
 								>
 									<span class="flex items-center gap-1.5 text-sm font-medium">
 										<Icon class={cn('size-4', chosen ? 'text-primary' : 'text-muted-foreground')} />
-										{option.name}
+										{option.label}
 									</span>
 									<span class="text-xs leading-relaxed text-muted-foreground">{option.body}</span>
 								</button>
@@ -374,7 +248,7 @@
 				{#if step === 2 && missing.length > 0}
 					<Button size="sm" href={grantUrl(missing.map((s) => s.scope))}>Grant all</Button>
 				{/if}
-				{#if step < STEPS.length}
+				{#if step < INTRO_STEPS.length}
 					<Button
 						size="sm"
 						variant={step === 2 && missing.length > 0 ? 'outline' : 'default'}

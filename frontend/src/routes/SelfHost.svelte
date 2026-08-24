@@ -3,6 +3,7 @@
 	// it gets its own lit band and the most room on the page.
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import { copyText } from '$lib/clipboard';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import GitForkIcon from '@lucide/svelte/icons/git-fork';
 	import LockIcon from '@lucide/svelte/icons/lock';
@@ -15,7 +16,7 @@
 	let resetTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function copy() {
-		navigator.clipboard?.writeText(command).catch(() => {});
+		void copyText(command, { silent: true });
 		copied = true;
 		clearTimeout(resetTimer);
 		resetTimer = setTimeout(() => (copied = false), 2000);

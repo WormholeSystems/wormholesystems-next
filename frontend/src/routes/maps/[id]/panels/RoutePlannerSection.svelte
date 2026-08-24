@@ -14,19 +14,19 @@
 	let { map, graph }: { map: MapState; graph: RouteGraph | null } = $props();
 
 	const abResult = $derived.by(() => {
-		if (!graph || map.routeFromId === null || map.routeToId === null) return null;
+		if (!graph || map.route.fromId === null || map.route.toId === null) return null;
 		return findRoute(
 			graph,
-			map.routeFromId,
-			map.routeToId,
+			map.route.fromId,
+			map.route.toId,
 			map.routingSettings,
-			map.ignoredSystems,
+			map.route.ignoredSystems,
 		);
 	});
 	const abPath = $derived(abResult?.route.map((s) => s.id) ?? []);
 	// A hovered row anywhere on the page temporarily overrides the pinned A→B highlight.
 	$effect(() => {
-		map.routePath = map.hoverPath ?? abPath;
+		map.route.path = map.route.hoverPath ?? abPath;
 	});
 
 	// Both pickers offer the systems already in play before anything is typed. They sit inside
@@ -64,7 +64,7 @@
 	);
 
 	function swap() {
-		[map.routeFromId, map.routeToId] = [map.routeToId, map.routeFromId];
+		[map.route.fromId, map.route.toId] = [map.route.toId, map.route.fromId];
 	}
 </script>
 
@@ -72,35 +72,35 @@
 	<div class="flex items-center gap-1.5">
 		<SystemCombobox
 			placeholder="Origin"
-			value={map.routeFromId}
+			value={map.route.fromId}
 			{suggestions}
-			onpick={(id) => (map.routeFromId = id)}
+			onpick={(id) => (map.route.fromId = id)}
 		/>
 		<Button variant="ghost" size="icon-xs" aria-label="Swap" onclick={swap}>
 			<ArrowLeftRightIcon />
 		</Button>
 		<SystemCombobox
 			placeholder="Destination"
-			value={map.routeToId}
+			value={map.route.toId}
 			{suggestions}
-			onpick={(id) => (map.routeToId = id)}
+			onpick={(id) => (map.route.toId = id)}
 		/>
 	</div>
 
-	{#if abResult === null && map.routeFromId !== null && map.routeToId !== null}
+	{#if abResult === null && map.route.fromId !== null && map.route.toId !== null}
 		<p class="text-muted-foreground" data-testid="no-route">No route found</p>
 	{:else if abResult}
 		<div class="flex items-center justify-between font-medium">
 			<span class={badgeTone(abResult.jumps)} data-testid="route-jumps">{abResult.jumps} jumps</span
 			>
 			<span class="flex items-center gap-2">
-				{#if map.ignoredSystems.size > 0}
+				{#if map.route.ignoredSystems.size > 0}
 					<button
 						class="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
 						data-testid="clear-ignored"
-						onclick={() => map.clearIgnored()}
+						onclick={() => map.route.clearIgnored()}
 					>
-						{map.ignoredSystems.size} ignored · Clear
+						{map.route.ignoredSystems.size} ignored · Clear
 					</button>
 				{/if}
 				<Button
@@ -108,22 +108,25 @@
 					size="icon-xs"
 					aria-label="Clear route"
 					onclick={() => {
-						map.routeFromId = null;
-						map.routeToId = null;
+						map.route.fromId = null;
+						map.route.toId = null;
 					}}
 				>
 					<XIcon />
 				</Button>
 			</span>
 		</div>
-		<RouteList steps={map.withSignatures(abResult.route)} onignore={(id) => map.ignoreSystem(id)} />
-	{:else if map.ignoredSystems.size > 0}
+		<RouteList
+			steps={map.route.withSignatures(abResult.route)}
+			onignore={(id) => map.route.ignoreSystem(id)}
+		/>
+	{:else if map.route.ignoredSystems.size > 0}
 		<button
 			class="self-start text-[11px] text-muted-foreground underline-offset-2 hover:underline"
 			data-testid="clear-ignored"
-			onclick={() => map.clearIgnored()}
+			onclick={() => map.route.clearIgnored()}
 		>
-			{map.ignoredSystems.size} ignored · Clear
+			{map.route.ignoredSystems.size} ignored · Clear
 		</button>
 	{/if}
 </div>

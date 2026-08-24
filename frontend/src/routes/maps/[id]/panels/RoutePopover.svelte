@@ -10,6 +10,7 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import RouteList from '$lib/components/map/RouteList.svelte';
+	import { onlineCharacters, setWaypoint, setWaypointAll } from '$lib/map/waypoints';
 	import type { MapState } from '../map-state.svelte';
 
 	let {
@@ -24,7 +25,7 @@
 
 	const jumps = $derived(Math.max(0, steps.length - 1));
 	const destinationId = $derived(steps.at(-1)?.id ?? null);
-	const onlineCharacters = $derived(map.myCharacters.filter((c) => c.online));
+	const online = $derived(onlineCharacters(map));
 </script>
 
 <Popover.Root>
@@ -49,7 +50,7 @@
 			<span class="font-mono text-[10px] tracking-wider text-muted-foreground uppercase">
 				Route · {jumps} jumps
 			</span>
-			{#if destinationId !== null && onlineCharacters.length > 0}
+			{#if destinationId !== null && online.length > 0}
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}
@@ -65,18 +66,10 @@
 						{/snippet}
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end">
-						{#each onlineCharacters as c (c.character_id)}
+						{#each online as c (c.character_id)}
 							<DropdownMenu.Item
 								class="text-xs"
-								onclick={() =>
-									map.run(
-										'setWaypoint',
-										api.setWaypoint({
-											character_id: c.character_id,
-											destination_id: destinationId,
-											clear_other_waypoints: true,
-										}),
-									)}
+								onclick={() => setWaypoint(map, destinationId, c.character_id, true)}
 							>
 								<EveImage
 									kind="character"
@@ -87,18 +80,11 @@
 								{c.name}
 							</DropdownMenu.Item>
 						{/each}
-						{#if onlineCharacters.length > 1}
+						{#if online.length > 1}
 							<DropdownMenu.Separator />
 							<DropdownMenu.Item
 								class="text-xs"
-								onclick={() =>
-									map.run(
-										'setWaypoint',
-										api.setWaypointAll({
-											destination_id: destinationId,
-											clear_other_waypoints: true,
-										}),
-									)}
+								onclick={() => setWaypointAll(map, destinationId, true)}
 							>
 								<UsersIcon class="size-4" />
 								All Characters
@@ -109,7 +95,10 @@
 			{/if}
 		</div>
 		<div class="p-2">
-			<RouteList steps={map.withSignatures(steps)} onignore={(id) => map.ignoreSystem(id)} />
+			<RouteList
+				steps={map.route.withSignatures(steps)}
+				onignore={(id) => map.route.ignoreSystem(id)}
+			/>
 		</div>
 	</Popover.Content>
 </Popover.Root>

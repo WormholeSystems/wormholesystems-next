@@ -55,6 +55,20 @@ pub(crate) async fn acting_on(
     require_actor(db, jar).await
 }
 
+/// The role guard: the acting character, holding at least `min_role` on the map, or
+/// 401/403. For reads and the handlers that mutate outside the command pipeline; the
+/// pipeline itself re-checks inside its transaction.
+pub(crate) async fn require_role_on_map(
+    state: &crate::auth::AppState,
+    jar: &CookieJar,
+    map_id: i64,
+    min_role: crate::maps::Role,
+) -> Result<Actor, ApiError> {
+    let actor = require_actor(&state.db, jar).await?;
+    crate::maps::access::require_role(&state.db, map_id, actor.user_id, min_role).await?;
+    Ok(actor)
+}
+
 /// The share token, when the caller has one.
 #[derive(Deserialize)]
 pub struct ShareQuery {

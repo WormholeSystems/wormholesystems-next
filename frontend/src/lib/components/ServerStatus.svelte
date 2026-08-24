@@ -6,6 +6,7 @@
 	import { untrack } from 'svelte';
 
 	import { key, q } from '$lib/api/queries';
+	import { ticking } from '$lib/now.svelte';
 	import type { ServerState } from '$lib/api/types/ServerState';
 	import type { ServerStatus } from '$lib/api/types/ServerStatus';
 	import * as Tooltip from '$lib/components/ui/tooltip';
@@ -21,7 +22,10 @@
 		initialData: untrack(() => initial) ?? undefined,
 	}));
 	const status = $derived(statusQuery.data ?? null);
-	let now = $state(new Date());
+	// Minutes are all that shows, but ticking faster stops the clock sitting a minute
+	// behind after the tab has been asleep.
+	const clock = ticking(10_000);
+	const now = $derived(clock.current);
 
 	const STATES = {
 		unknown: { dot: 'bg-muted-foreground/40', label: 'Checking Tranquility…', short: null },
@@ -71,13 +75,6 @@
 		if (minutes < 0) return null;
 		const hours = Math.floor(minutes / 60);
 		return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
-	});
-
-	// Minutes are all that shows, but ticking faster stops the clock sitting a minute behind
-	// after the tab has been asleep.
-	$effect(() => {
-		const clock = setInterval(() => (now = new Date()), 10_000);
-		return () => clearInterval(clock);
 	});
 
 	// The query's own interval is the fallback for anyone this push cannot reach, since

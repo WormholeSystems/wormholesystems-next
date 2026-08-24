@@ -14,13 +14,19 @@
 
 	// Visible world span = viewport_size / zoom. Thumb fraction = visible / world.
 	const hThumb = $derived.by(() => {
-		const frac = Math.min(map.viewportRect().width / map.zoom / map.grid.world_width, 1);
-		const start = clamp(-map.pan.x / map.zoom / map.grid.world_width, 0, 1 - frac);
+		const frac = Math.min(
+			map.camera.viewportRect().width / map.camera.zoom / map.grid.world_width,
+			1,
+		);
+		const start = clamp(-map.camera.pan.x / map.camera.zoom / map.grid.world_width, 0, 1 - frac);
 		return { start: start * 100, size: frac * 100 };
 	});
 	const vThumb = $derived.by(() => {
-		const frac = Math.min(map.viewportRect().height / map.zoom / map.grid.world_height, 1);
-		const start = clamp(-map.pan.y / map.zoom / map.grid.world_height, 0, 1 - frac);
+		const frac = Math.min(
+			map.camera.viewportRect().height / map.camera.zoom / map.grid.world_height,
+			1,
+		);
+		const start = clamp(-map.camera.pan.y / map.camera.zoom / map.grid.world_height, 0, 1 - frac);
 		return { start: start * 100, size: frac * 100 };
 	});
 
@@ -31,8 +37,8 @@
 		const cf = clamp((clientX - r.left) / r.width, 0, 1);
 		const frac = hThumb.size / 100;
 		const start = clamp(cf - frac / 2, 0, 1 - frac);
-		map.pan = { ...map.pan, x: -start * map.zoom * map.grid.world_width };
-		map.wakeScrollbars();
+		map.camera.pan = { ...map.camera.pan, x: -start * map.camera.zoom * map.grid.world_width };
+		map.camera.wakeScrollbars();
 	}
 
 	function vSet(clientY: number) {
@@ -42,14 +48,16 @@
 		const cf = clamp((clientY - r.top) / r.height, 0, 1);
 		const frac = vThumb.size / 100;
 		const start = clamp(cf - frac / 2, 0, 1 - frac);
-		map.pan = { ...map.pan, y: -start * map.zoom * map.grid.world_height };
-		map.wakeScrollbars();
+		map.camera.pan = { ...map.camera.pan, y: -start * map.camera.zoom * map.grid.world_height };
+		map.camera.wakeScrollbars();
 	}
 
 	const thumb = 'absolute rounded-full bg-muted-foreground/50';
 	// The hit area goes with the thumb: a track that still catches clicks while invisible
 	// would be misleading.
-	const track = $derived(map.scrollbarsVisible ? 'opacity-100' : 'pointer-events-none opacity-0');
+	const track = $derived(
+		map.camera.scrollbarsVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
+	);
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -9,7 +9,6 @@ use axum_extra::extract::CookieJar;
 use super::ApiResult;
 use super::extract::{acting_on, require_actor};
 use crate::auth::AppState;
-use crate::maps::MapEvent;
 use crate::maps::events_log::{GotoMapEvent, MapHistory, MapIdBody};
 
 pub fn routes() -> Router<AppState> {
@@ -42,7 +41,6 @@ pub async fn undo_map_event(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::events_log::undo(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
 }
 
@@ -55,7 +53,6 @@ pub async fn redo_map_event(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::events_log::redo(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
 }
 
@@ -69,6 +66,5 @@ pub async fn goto_map_event(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::events_log::goto(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::HistoryChanged { map_id });
     Ok(Json(()))
 }

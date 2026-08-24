@@ -6,6 +6,12 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
+	import {
+		ROUTE_LIFETIMES,
+		ROUTE_MASSES,
+		ROUTE_PREFS,
+		type RouteOption,
+	} from '$lib/routing/options';
 	import type { MapState } from '../map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
@@ -13,21 +19,14 @@
 	const settings = $derived(map.userSettings);
 	const preference = $derived(settings?.route_preference ?? 'shorter');
 
-	const PREFS = [
-		{ value: 'shorter', label: 'Shortest', hint: 'Min jumps' },
-		{ value: 'safer', label: 'Safer', hint: 'High-sec' },
-		{ value: 'less_secure', label: 'Less Secure', hint: 'Low-sec' },
-	];
-	const LIFETIMES = [
-		{ value: 'critical', label: 'Critical', hint: '< 1 hour' },
-		{ value: 'eol', label: 'End of Life', hint: '< 4 hours' },
-		{ value: 'stable', label: 'Healthy Only', hint: '> 4 hours' },
-	];
-	const MASSES = [
-		{ value: 'critical', label: 'Critical Mass', hint: '< 10%' },
-		{ value: 'reduced', label: 'Reduced Mass', hint: '< 50%' },
-		{ value: 'stable', label: 'High Mass', hint: '> 50%' },
-	];
+	const short = <T,>(o: RouteOption<T>) => ({
+		value: o.value,
+		label: o.shortLabel,
+		hint: o.shortHint,
+	});
+	const PREFS = ROUTE_PREFS.map(short);
+	const LIFETIMES = ROUTE_LIFETIMES.map(short);
+	const MASSES = ROUTE_MASSES.map(short);
 
 	function update(patch: Record<string, unknown>) {
 		map.patchUserSettings(patch).catch(() => {});

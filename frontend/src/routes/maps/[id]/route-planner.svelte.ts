@@ -1,17 +1,17 @@
 // Route planning over the chain: the static universe tables, the graph derived from them
 // plus the map's own edges, and the pinned A→B route with its hover override.
 
-import type { QueryClient } from '@tanstack/svelte-query';
-
-import { q } from '$lib/api/queries';
-import type { MassStatus } from '$lib/api/types/MassStatus';
-import type { TimeStatus } from '$lib/api/types/TimeStatus';
-import type { DynamicEdge, RouteGraph, RouteStep } from '$lib/routing/algorithm';
+import type { RoutingGraph as RoutingTables } from '$lib/api/types/RoutingGraph';
+import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
+import type { MapConnection } from '$lib/api/types/MapConnection';
+import type { MapSystemView } from '$lib/api/types/MapSystemView';
+import type { Signature } from '$lib/api/types/Signature';
+import type { RouteGraph, RouteStep } from '$lib/routing/algorithm';
 import { buildDynamicAdjacency } from '$lib/routing/algorithm';
-import { solarSystemId } from '$lib/map/system';
+import * as graphBuild from '$lib/routing/graph-build';
+import * as routeSignatures from '$lib/routing/signatures';
 import * as v from 'valibot';
-import { readStored } from '$lib/storage';
-import type { MapState } from './map-state.svelte';
+import { readStored, removeStored, writeStored } from '$lib/storage';
 
 /** Somewhere worth routing to, and the stations that make it worth it. */
 export interface StationGroup {
@@ -41,14 +41,28 @@ function stationGroup(group: {
 	};
 }
 
+/**
+ * What the planner reads off the map, plus how the static tables arrive. Narrow on
+ * purpose, like [`LayoutHost`]: a test hands in a plain object.
+ */
+export interface RouteHost {
+	mapId: number;
+	systems(): MapSystemView[];
+	connections(): MapConnection[];
+	sigs(): Signature[];
+	eveScout(): EveScoutConnection[];
+	useEveScout(): boolean;
+	loadTables(): Promise<RoutingTables>;
+}
+
 export class RoutePlanner {
-	private map: MapState;
+	private map: RouteHost;
 
 	// Origin/destination (solar system ids) and the computed path, set by the navigation
 	// card. The path drives the edge highlight.
-	routeFromId = $state<number | null>(null);
-	routeToId = $state<number | null>(null);
-	routePath = $state<number[]>([]);
+	fromId = $state<number | null>(null);
+	toId = $state<number | null>(null);
+	path = $state<number[]>([]);
 	// A route hovered in a side panel temporarily replaces the pinned A→B highlight.
 	hoverPath = $state<number[] | null>(null);
 	// Systems the router steers around (per map, persisted locally).
@@ -64,62 +78,25 @@ export class RoutePlanner {
 	serviceOptions = $state<StationGroup[]>([]);
 	corporationOptions = $state<StationGroup[]>([]);
 
-	private client: QueryClient;
-
-	constructor(map: MapState, client: QueryClient) {
+	constructor(map: RouteHost) {
 		this.map = map;
-		this.client = client;
 	}
 
 	/** Stargates plus the chain's own edges. `null` until the static data has arrived. */
 	graph = $derived.by<RouteGraph | null>(() => {
 		const stargates = this.stargates;
 		if (!stargates) return null;
-		// Ghosts are left out: a hole whose far side is unknown leads nowhere the router
-		// could take you.
-		const placementSystem = new Map<number, number>();
-		for (const s of this.map.systems) {
-			if (s.kind === 'system') placementSystem.set(s.id, s.solar_system_id);
-		}
-		const edges: DynamicEdge[] = [];
-		for (const c of this.map.connections) {
-			if (c.kind !== 'wormhole') continue;
-			const a = placementSystem.get(c.from_system);
-			const b = placementSystem.get(c.to_system);
-			if (a === undefined || b === undefined || a === b) continue;
-			edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
-		}
-		if (this.map.useEveScout) {
-			for (const e of this.map.eveScout) {
-				edges.push({
-					a: e.hub_solar_system_id,
-					b: e.solar_system_id,
-					via: 'evescout',
-					mass: e.mass_status as MassStatus,
-					time: e.time_status as TimeStatus,
-				});
-			}
-		}
+		const edges = graphBuild.chainEdges(
+			this.map.systems(),
+			this.map.connections(),
+			this.map.useEveScout() ? this.map.eveScout() : null,
+		);
 		return { stargates, dynamic: buildDynamicAdjacency(edges), security: this.security };
 	});
 
-	// Connections on the active route: endpoints at adjacent path indices (legacy rule).
-	routeConnectionIds = $derived.by(() => {
-		const out = new Set<number>();
-		if (this.routePath.length < 2) return out;
-		const index = new Map<number, number>();
-		this.routePath.forEach((id, i) => index.set(id, i));
-		const placementSystem = new Map<number, number>();
-		for (const s of this.map.systems) {
-			if (s.kind === 'system') placementSystem.set(s.id, s.solar_system_id);
-		}
-		for (const c of this.map.connections) {
-			const a = index.get(placementSystem.get(c.from_system) ?? -1);
-			const b = index.get(placementSystem.get(c.to_system) ?? -1);
-			if (a !== undefined && b !== undefined && Math.abs(a - b) === 1) out.add(c.id);
-		}
-		return out;
-	});
+	connectionIds = $derived.by(() =>
+		graphBuild.routeConnectionIds(this.path, this.map.systems(), this.map.connections()),
+	);
 
 	private ignoreStorageKey(): string {
 		return `route-ignored-${this.map.mapId}`;
@@ -133,12 +110,12 @@ export class RoutePlanner {
 		const next = new Set(this.ignoredSystems);
 		next.add(id);
 		this.ignoredSystems = next;
-		localStorage.setItem(this.ignoreStorageKey(), JSON.stringify([...next]));
+		writeStored(this.ignoreStorageKey(), [...next]);
 	}
 
 	clearIgnored() {
 		this.ignoredSystems = new Set();
-		localStorage.removeItem(this.ignoreStorageKey());
+		removeStored(this.ignoreStorageKey());
 	}
 
 	/** The static routing tables (stargates, security, Jove/station/service indexes). */
@@ -160,9 +137,7 @@ export class RoutePlanner {
 
 	private async fetchGraph() {
 		try {
-			// Cached forever in the client, so map switches reuse the tables; `routingLoad`
-			// only guards this instance's parse of them.
-			const g = await this.client.ensureQueryData(q.routingGraph());
+			const g = await this.map.loadTables();
 			this.stargates = new Map(
 				Object.entries(g.adjacency).map(([k, v]) => [Number(k), v as number[]]),
 			);
@@ -176,30 +151,13 @@ export class RoutePlanner {
 		}
 	}
 
-	/**
-	 * The signature to warp to for a wormhole hop. A connection has one at each end; the
-	 * one that matters is on the side you are leaving, which is the one in your scanner.
-	 */
-	wormholeSignature(from: number, to: number): string | null {
-		const system = new Map(this.map.systems.map((s) => [s.id, solarSystemId(s)]));
-		const conn = this.map.connections.find((c) => {
-			const a = system.get(c.from_system);
-			const b = system.get(c.to_system);
-			return (a === from && b === to) || (a === to && b === from);
-		});
-		if (!conn) return null;
-		return (
-			this.map.sigs.find((sig) => sig.connection_id === conn.id && sig.solar_system_id === from)
-				?.signature_id ?? null
-		);
-	}
-
 	/** Route steps with the signature attached to each wormhole hop. */
 	withSignatures(steps: RouteStep[]): (RouteStep & { signature: string | null })[] {
-		return steps.map((step, i) => ({
-			...step,
-			signature:
-				step.via === 'wormhole' && i > 0 ? this.wormholeSignature(steps[i - 1].id, step.id) : null,
-		}));
+		return routeSignatures.withSignatures(
+			steps,
+			this.map.systems(),
+			this.map.connections(),
+			this.map.sigs(),
+		);
 	}
 }

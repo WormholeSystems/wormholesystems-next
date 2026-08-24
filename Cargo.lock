@@ -3344,6 +3344,7 @@ dependencies = [
  "tar",
  "thiserror",
  "tokio",
+ "tower",
  "ts-rs",
  "uuid",
  "zip",

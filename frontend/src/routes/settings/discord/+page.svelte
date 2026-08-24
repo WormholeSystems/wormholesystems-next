@@ -8,6 +8,7 @@
 
 	import { page } from '$app/state';
 	import { api, errorMessage } from '$lib/api/client';
+	import { confirmDanger } from '$lib/confirm.svelte';
 	import { apiAction } from '$lib/api/mutations';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -27,8 +28,13 @@
 
 	const act = apiAction(() => [q.myDiscord().queryKey]);
 
-	function unlink() {
-		if (!confirm('Unlink Discord? Alerts that direct-message you will stop.')) return;
+	async function unlink() {
+		const sure = await confirmDanger({
+			title: 'Unlink Discord?',
+			body: 'Alerts that direct-message you will stop.',
+			action: 'Unlink',
+		});
+		if (!sure) return;
 		act.mutate(() => api.unlinkDiscord());
 	}
 </script>

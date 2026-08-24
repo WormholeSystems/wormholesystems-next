@@ -15,8 +15,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
 	import { atLeast } from '$lib/map/roles';
-
-	const LOCATION_SCOPE = 'esi-location.read_location.v1';
+	import { LOCATION_SCOPE } from '$lib/esi/scopes';
 
 	let { data }: { data: { view: MapView } } = $props();
 

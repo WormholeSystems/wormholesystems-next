@@ -16,7 +16,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { api, errorMessage } from '$lib/api/client';
-	import { apiAction } from '$lib/api/mutations';
+	import { after, apiAction } from '$lib/api/mutations';
 	import { key, q } from '$lib/api/queries';
 	import type { MapEntry } from '$lib/api/types/MapEntry';
 	import { Badge } from '$lib/components/ui/badge';
@@ -27,6 +27,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { timeAgo } from '$lib/format';
+	import { ticking } from '$lib/now.svelte';
+	import { filterMaps, splitArchived, totalsOf } from './page-model';
 	import { cn } from '$lib/utils';
 
 	let { data }: { data: { maps: MapEntry[] } } = $props();
@@ -37,7 +39,9 @@
 	const maps = $derived(mapsQuery.data);
 	let query = $state('');
 	let showArchived = $state(false);
-	let now = $state(new Date());
+	// "4m ago" has to stay true while the page is open.
+	const clock = ticking(30_000);
+	const now = $derived(clock.current);
 
 	let creating = $state(false);
 	let newName = $state('');
@@ -46,36 +50,10 @@
 	// The whole entry, not just an id, so the dialog can name what it is about to destroy.
 	let deleting = $state<MapEntry | null>(null);
 
-	$effect(() => {
-		// "4m ago" has to stay true while the page is open.
-		const clock = setInterval(() => (now = new Date()), 30_000);
-		return () => clearInterval(clock);
-	});
-
-	const matching = $derived.by(() => {
-		const rows = maps;
-		const q = query.trim().toLowerCase();
-		if (!q) return rows;
-		return rows.filter(
-			(m) => m.name.toLowerCase().includes(q) || (m.description ?? '').toLowerCase().includes(q),
-		);
-	});
-
-	/** Most recently touched first; a map nobody has changed yet falls back to its age. */
-	function byRecency(a: MapEntry, b: MapEntry) {
-		const at = new Date(a.last_activity ?? a.created_at).getTime();
-		const bt = new Date(b.last_activity ?? b.created_at).getTime();
-		return bt - at;
-	}
-
-	const active = $derived(matching.filter((m) => !m.is_archived).sort(byRecency));
-	const archived = $derived(matching.filter((m) => m.is_archived).sort(byRecency));
-
-	const totals = $derived({
-		maps: active.length,
-		systems: active.reduce((n, m) => n + m.system_count, 0),
-		pilots: active.reduce((n, m) => n + m.pilots_online, 0),
-	});
+	const split = $derived(splitArchived(filterMaps(maps, query)));
+	const active = $derived(split.active);
+	const archived = $derived(split.archived);
+	const totals = $derived(totalsOf(active));
 
 	// Needs the created map's id for the navigation, so it is its own mutation rather
 	// than an apiAction.
@@ -102,12 +80,10 @@
 	const act = apiAction(() => [key.maps]);
 
 	function setPinned(map: MapEntry, value: boolean) {
-		act
-			.mutateAsync(() => api.updateMapUserSettings(map.id, { is_pinned: value }))
-			.then(() =>
-				toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`),
-			)
-			.catch(() => {});
+		after(
+			act.mutateAsync(() => api.updateMapUserSettings(map.id, { is_pinned: value })),
+			() => toast.success(value ? `${map.name} pinned to the top bar` : `${map.name} unpinned`),
+		);
 	}
 
 	function setArchived(map: MapEntry, value: boolean) {

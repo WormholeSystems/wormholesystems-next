@@ -7,7 +7,8 @@
 	import { toast } from 'svelte-sonner';
 
 	import { api } from '$lib/api/client';
-	import { apiAction } from '$lib/api/mutations';
+	import { after, apiAction } from '$lib/api/mutations';
+	import { copyText } from '$lib/clipboard';
 	import { key, q } from '$lib/api/queries';
 	import type { AccessEntry } from '$lib/api/types/AccessEntry';
 	import type { MapView } from '$lib/api/types/MapView';
@@ -97,27 +98,22 @@
 	);
 
 	function rotateShare() {
-		act
-			.mutateAsync(() => api.shareMap(mapId))
-			.then(() => toast.success('Share link ready'))
-			.catch(() => {});
+		after(
+			act.mutateAsync(() => api.shareMap(mapId)),
+			() => toast.success('Share link ready'),
+		);
 	}
 
 	function revokeShare() {
 		revoking = false;
-		act
-			.mutateAsync(() => api.unshareMap(mapId))
-			.then(() => toast.success('Share link withdrawn'))
-			.catch(() => {});
+		after(
+			act.mutateAsync(() => api.unshareMap(mapId)),
+			() => toast.success('Share link withdrawn'),
+		);
 	}
 
-	async function copyShare() {
-		try {
-			await navigator.clipboard.writeText(shareUrl);
-			toast.success('Share link copied');
-		} catch {
-			toast.error('Clipboard access denied');
-		}
+	function copyShare() {
+		void copyText(shareUrl, { success: 'Share link copied' });
 	}
 
 	// Grants change the access list, and rotating the share link changes the view.

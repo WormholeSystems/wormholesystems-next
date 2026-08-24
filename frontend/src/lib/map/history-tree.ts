@@ -6,6 +6,8 @@
 // off the same step are adjacent in the list but belong to different lines.
 
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
+import type { MapHistory } from '$lib/api/types/MapHistory';
+import { timeAgo } from '$lib/format';
 
 export interface HistoryRow {
 	entry: MapEventEntry;
@@ -111,4 +113,20 @@ export function historyRows(entries: MapEventEntry[]): HistoryRow[] {
 			forks: node.forks,
 		};
 	});
+}
+
+/** The step the map is sitting on, for labelling the undo button. */
+export function headEntry(history: MapHistory | null): MapEventEntry | null {
+	return history?.entries.find((e) => e.id === history.head_event_id) ?? null;
+}
+
+/** The step a redo would walk back onto. */
+export function redoEntry(history: MapHistory | null): MapEventEntry | null {
+	return history?.entries.find((e) => e.id === history.redo_target) ?? null;
+}
+
+/** What a history step was, for saying which one was just walked past. */
+export function stepDetail(entry: MapEventEntry | null, now?: Date): string | undefined {
+	if (!entry) return undefined;
+	return `${entry.label} · ${timeAgo(entry.created_at, now)}`;
 }

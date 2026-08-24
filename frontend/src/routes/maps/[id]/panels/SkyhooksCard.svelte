@@ -2,13 +2,13 @@
 	// Raidable skyhooks: which ones are open, which are about to be, and how far away.
 	// The whole list is shown rather than a slice near you, because a two-hour window is long
 	// enough to fly a long way for. Sorted by distance by default.
-	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-	import { solarSystemId } from '$lib/map/system';
+	import { toSearchResult } from '$lib/map/system';
 
 	import { createQuery } from '@tanstack/svelte-query';
 
 	import { q } from '$lib/api/queries';
+	import { ticking } from '$lib/now.svelte';
+	import { sortedBy, sortState } from '$lib/sort-state.svelte';
 	import type { PlanetKind } from '$lib/api/types/PlanetKind';
 	import type { Skyhook } from '$lib/api/types/Skyhook';
 	import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
@@ -16,81 +16,61 @@
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import SortHeader from '$lib/components/map-ui/SortHeader.svelte';
 	import SovereigntyBadge from '$lib/components/map-ui/SovereigntyBadge.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { findRoutes, jumpTone } from '$lib/routing/algorithm';
-	import type { RouteResult } from '$lib/routing/algorithm';
+	import { jumpTone } from '$lib/routing/algorithm';
 	import {
 		describe,
 		formatDuration,
 		formatWindow,
 		statusDot,
 		statusText,
-		timing,
 		type SkyhookStatus,
 	} from '$lib/skyhooks/timer';
 	import { cn } from '$lib/utils';
+	import { clearHover, hoverSystem } from '../map-hover';
+	import {
+		buildSkyhookRows,
+		liveSkyhookRows,
+		skyhookCounts,
+		skyhookTiebreak,
+		SKYHOOK_COLUMNS,
+		SKYHOOK_COMPARATORS,
+		type SkyhookColumn,
+		type SkyhookRow,
+	} from './skyhook-rows';
+	import { routeBatch } from '../route-batch.svelte';
 	import type { MapState } from '../map-state.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
 	import RoutePopover from './RoutePopover.svelte';
 
 	let { map }: { map: MapState } = $props();
 
-	type Column = 'jumps' | 'planet' | 'region' | 'timer';
-
 	// The server mirrors ESI every five minutes, so the query's own interval asks no more
 	// often than that.
 	const skyhooksQuery = createQuery(() => q.skyhooks());
 	const skyhooks = $derived(skyhooksQuery.data ?? []);
-	let now = $state(new Date());
+	// Timers are read to the minute, so half a minute keeps them honest without churn.
+	const clock = ticking(30_000);
+	const now = $derived(clock.current);
 	// Skyhooks only go on reagent planets, so lava and ice is the whole vocabulary. Shown one
 	// kind at a time, because the reagent is what the trip was for.
 	let kind = $state<PlanetKind>('lava');
 	// Closed skyhooks are never listed: the window is over, so there is nothing to go and do.
 	let shown = $state<string[]>(['upcoming', 'open', 'closing']);
-	let column = $state<Column>('jumps');
-	let ascending = $state(true);
-
-	$effect(() => {
-		// Timers are read to the minute, so half a minute keeps them honest without churn.
-		const clock = setInterval(() => (now = new Date()), 30_000);
-		return () => clearInterval(clock);
-	});
+	const sort = sortState(null, SKYHOOK_COLUMNS, { column: 'jumps', direction: 'asc' });
 
 	// One search from the origin covers every skyhook, rather than one per row.
-	const routes = $derived.by<Map<number, RouteResult>>(() => {
-		const graph = map.graph;
-		const origin = map.routeOrigin;
-		if (!graph || origin === null || skyhooks.length === 0) return new Map();
-		const targets = [...new Set(skyhooks.map((s) => s.solar_system_id))];
-		return findRoutes(graph, origin, targets, map.routingSettings, map.ignoredSystems);
-	});
+	// svelte-ignore state_referenced_locally -- the map instance is stable for this mount.
+	const batch = routeBatch(map, () => skyhooks.map((s) => s.solar_system_id));
 
-	interface Row {
-		skyhook: Skyhook;
-		status: SkyhookStatus;
-		untilMs: number;
-		route: RouteResult | undefined;
-		jumps: number | null;
-	}
-
-	const rows = $derived.by<Row[]>(() =>
-		skyhooks.map((skyhook) => {
-			const t = timing(skyhook, now);
-			const route = routes.get(skyhook.solar_system_id);
-			return { skyhook, status: t.status, untilMs: t.untilMs, route, jumps: route?.jumps ?? null };
-		}),
-	);
-
-	const live = $derived(rows.filter((r) => r.status !== 'closed' && shown.includes(r.status)));
-	const counts = $derived({
-		lava: live.filter((r) => r.skyhook.planet_kind === 'lava').length,
-		ice: live.filter((r) => r.skyhook.planet_kind === 'ice').length,
-		other: live.filter((r) => r.skyhook.planet_kind === 'other').length,
-	});
+	const rows = $derived(buildSkyhookRows(skyhooks, now, batch.routes));
+	const live = $derived(liveSkyhookRows(rows, shown));
+	const counts = $derived(skyhookCounts(live));
 
 	/**
 	 * "Other" should stay empty forever (skyhooks only go on reagent planets), but it is still
@@ -102,67 +82,34 @@
 		...(counts.other > 0 ? [{ key: 'other' as const, label: 'Other' }] : []),
 	]);
 
-	/** Unreachable sorts last however the column is pointed: it is never the answer. */
-	function byJumps(a: Row, b: Row) {
-		if (a.jumps === null || b.jumps === null) return a.jumps === null ? 1 : -1;
-		return a.jumps - b.jumps;
-	}
-
-	const sorted = $derived.by(() => {
-		const direction = ascending ? 1 : -1;
-		const compare = {
-			jumps: byJumps,
-			planet: (a, b) => a.skyhook.planet_name.localeCompare(b.skyhook.planet_name),
-			region: (a, b) => a.skyhook.region.localeCompare(b.skyhook.region),
-			// Open before upcoming, then by how soon the moment is.
-			timer: (a, b) => {
-				const rank = (r: Row) => (r.status === 'upcoming' ? 1 : 0);
-				return rank(a) - rank(b) || a.untilMs - b.untilMs;
-			},
-		} satisfies Record<Column, (a: Row, b: Row) => number>;
-		return live
-			.filter((r) => r.skyhook.planet_kind === kind)
-			.sort((a, b) => {
-				const primary = compare[column](a, b) * direction;
-				// Always break ties the same way, so the order never jitters as timers tick.
-				return primary || a.skyhook.planet_id - b.skyhook.planet_id;
-			});
-	});
-
-	function sortBy(next: Column) {
-		if (column === next) {
-			ascending = !ascending;
-			return;
-		}
-		column = next;
-		ascending = true;
-	}
+	const sorted = $derived(
+		sortedBy(
+			live.filter((r) => r.skyhook.planet_kind === kind),
+			sort.current,
+			SKYHOOK_COMPARATORS,
+			skyhookTiebreak,
+		),
+	);
 
 	/**
 	 * Built from the payload rather than resolved: a skyhook carries everything the menu
 	 * needs, so no row waits on a second request before it can be right-clicked.
 	 */
 	function systemOf(skyhook: Skyhook): SystemSearchResult {
-		return {
+		return toSearchResult({
 			id: skyhook.solar_system_id,
 			name: skyhook.system_name,
 			security: skyhook.security_status,
 			region: skyhook.region,
 			region_id: skyhook.region_id,
 			constellation_id: skyhook.constellation_id,
-			// Skyhooks only exist in sovereign nullsec, so neither of these can apply.
-			wormhole_class_id: null,
-			effect_name: null,
 			sovereignty: skyhook.sovereignty ?? null,
-			// Skyhooks are nullsec; a k-space system has no statics.
-			statics: [],
-		};
+		});
 	}
 
-	function hover(row: Row, on: boolean) {
-		const placed = map.systems.find((s) => solarSystemId(s) === row.skyhook.solar_system_id);
-		map.hoveredSystemId = on ? (placed?.id ?? null) : null;
-		map.hoverPath = on ? (row.route?.route.map((s) => s.id) ?? null) : null;
+	function hover(row: SkyhookRow, on: boolean) {
+		if (on) hoverSystem(map, row.skyhook.solar_system_id, row.route);
+		else clearHover(map);
 	}
 
 	const FILTERS: { key: SkyhookStatus; label: string }[] = [
@@ -172,16 +119,10 @@
 	];
 </script>
 
-{#snippet heading(key: Column, label: string, extra = '')}
-	<button
-		class={cn('flex items-center gap-1 hover:text-foreground', extra)}
-		onclick={() => sortBy(key)}
-	>
+{#snippet heading(key: SkyhookColumn, label: string, extra = '')}
+	<SortHeader column={key} sort={sort.current} onsort={sort.toggle} class={extra}>
 		<span>{label}</span>
-		{#if column === key}
-			{#if ascending}<ArrowUpIcon class="size-3" />{:else}<ArrowDownIcon class="size-3" />{/if}
-		{/if}
-	</button>
+	</SortHeader>
 {/snippet}
 
 <Tooltip.Provider delayDuration={300}>

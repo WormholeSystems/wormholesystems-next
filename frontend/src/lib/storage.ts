@@ -28,6 +28,17 @@ export function readStored<T>(
 	}
 }
 
+/** The write half of [`readStored`]: a no-op outside the browser. */
+export function writeStored(key: string, value: unknown): void {
+	if (!browser) return;
+	localStorage.setItem(key, JSON.stringify(value));
+}
+
+export function removeStored(key: string): void {
+	if (!browser) return;
+	localStorage.removeItem(key);
+}
+
 /** A sorted column and its direction, which is what two of the panels remember. */
 export function sortSchema<const T extends readonly string[]>(columns: T) {
 	return v.object({

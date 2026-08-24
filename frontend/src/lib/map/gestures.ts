@@ -48,3 +48,38 @@ export function bandSelection(
 	});
 	return new Set(hit.map((n) => n.id));
 }
+
+/** A placement as the drag math needs it: where it sits, and whether it may move. */
+export interface DragCandidate {
+	id: number;
+	position_x: number;
+	position_y: number;
+	is_pinned: boolean;
+}
+
+/**
+ * Which nodes one grab drags: the whole (non-pinned) selection when the grabbed node is
+ * part of one, otherwise just the node itself at where it currently renders.
+ */
+export function dragMembers(
+	grabbed: { id: number; at: Vec2 },
+	selected: Set<number>,
+	systems: DragCandidate[],
+	pending: Record<number, Vec2>,
+): { id: number; sx: number; sy: number }[] {
+	if (!selected.has(grabbed.id) || selected.size < 2) {
+		return [{ id: grabbed.id, sx: grabbed.at.x, sy: grabbed.at.y }];
+	}
+	const posOf = (id: number): Vec2 | null => {
+		const p = pending[id];
+		if (p) return p;
+		const sys = systems.find((x) => x.id === id);
+		return sys ? { x: sys.position_x, y: sys.position_y } : null;
+	};
+	return [...selected]
+		.filter((id) => !systems.some((x) => x.id === id && x.is_pinned))
+		.flatMap((id) => {
+			const p = posOf(id);
+			return p ? [{ id, sx: p.x, sy: p.y }] : [];
+		});
+}

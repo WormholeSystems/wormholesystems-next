@@ -101,6 +101,13 @@ impl ServerWatch {
         self.0.borrow().clone()
     }
 
+    /// A fixed status, for tests that need an `AppState` but no poller. The last value
+    /// stays readable after the sender is dropped.
+    pub fn fixed(status: ServerStatus) -> ServerWatch {
+        let (_tx, rx) = watch::channel(status);
+        ServerWatch(rx)
+    }
+
     /// Whether an ESI-backed poller should do its work this tick.
     pub fn should_poll(&self) -> bool {
         self.0.borrow().state.worth_polling()

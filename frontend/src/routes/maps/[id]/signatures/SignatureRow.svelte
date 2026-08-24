@@ -5,8 +5,9 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { toast } from 'svelte-sonner';
+	import { copyText } from '$lib/clipboard';
 
-	import { formatBookmark } from '$lib/bookmark';
+	import { formatBookmark } from '$lib/naming/bookmark';
 	import type { MappedSystem } from '$lib/map/system';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { Signature } from '$lib/api/types/Signature';
@@ -18,6 +19,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Select from '$lib/components/ui/select';
 	import { destClassMeta } from '$lib/map/classes';
+	import { LIFETIME_OPTIONS, SIGNATURE_MASS_OPTIONS } from '$lib/map/connection-status';
 	import { CATEGORIES, categoryMeta, typeById } from '$lib/map/signatures';
 	import type { SignatureContext, SignaturePatch } from '$lib/map/signature-context';
 	import ConnectionInput from './ConnectionInput.svelte';
@@ -125,7 +127,7 @@
 			null,
 			system.alias,
 		);
-		navigator.clipboard?.writeText(text);
+		void copyText(text, { silent: true });
 		toast.success('Bookmark copied', { description: text });
 	}
 
@@ -147,17 +149,6 @@
 	function timeFrom(value: string): TimeStatus | null {
 		return value === 'eol' || value === 'critical' ? value : null;
 	}
-
-	const MASS_OPTIONS = [
-		{ value: 'unknown', label: 'Fresh Mass', dot: 'bg-neutral-500' },
-		{ value: 'reduced', label: 'Reduced Mass', dot: 'bg-amber-500' },
-		{ value: 'critical', label: 'Critical Mass', dot: 'bg-red-500' },
-	];
-	const LIFETIME_OPTIONS = [
-		{ value: 'stable', label: 'Healthy', dot: 'bg-neutral-500' },
-		{ value: 'eol', label: 'End of Life', dot: 'bg-purple-500' },
-		{ value: 'critical', label: 'Critical', dot: 'bg-red-500' },
-	];
 </script>
 
 <div
@@ -289,7 +280,7 @@
 							value={sig.mass_status ?? 'unknown'}
 							onValueChange={(v) => update({ mass_status: massFrom(v) })}
 						>
-							{#each MASS_OPTIONS as opt (opt.value)}
+							{#each SIGNATURE_MASS_OPTIONS as opt (opt.value)}
 								<DropdownMenu.RadioItem value={opt.value} class="text-xs">
 									<span class="flex items-center gap-2">
 										<span class="inline-block size-2 rounded-full {opt.dot}"></span>

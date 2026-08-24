@@ -22,8 +22,8 @@
 
 	const result = $derived.by(() => {
 		const to = rally?.kind === 'system' ? rally.solar_system_id : null;
-		if (!map.graph || homeId === null || to === null || homeId === to) return null;
-		return findRoute(map.graph, homeId, to, map.routingSettings, map.ignoredSystems);
+		if (!map.route.graph || homeId === null || to === null || homeId === to) return null;
+		return findRoute(map.route.graph, homeId, to, map.routingSettings, map.route.ignoredSystems);
 	});
 </script>
 
@@ -65,7 +65,7 @@
 					{result.jumps}j
 				</Popover.Trigger>
 				<Popover.Content class="w-80 gap-0 p-0" align="end">
-					<RouteList steps={map.withSignatures(result.route)} />
+					<RouteList steps={map.route.withSignatures(result.route)} />
 				</Popover.Content>
 			</Popover.Root>
 		{/if}

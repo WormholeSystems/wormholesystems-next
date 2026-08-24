@@ -5,6 +5,7 @@
 //! functions over a `PgPool`, so the tests drive them directly.
 
 pub mod access;
+pub mod alerts;
 pub mod command;
 pub mod connection;
 pub mod error;

@@ -2,7 +2,7 @@
 // say where the hole goes without the map open. Formats are per map because every group
 // names their chain differently.
 
-import { isIgnoredAlias } from '$lib/alias';
+import { isIgnoredAlias } from '$lib/naming/alias';
 import { classMeta, isWormholeClass } from '$lib/map/classes';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';

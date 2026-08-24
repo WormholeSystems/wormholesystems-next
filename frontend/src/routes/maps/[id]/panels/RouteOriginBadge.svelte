@@ -12,7 +12,7 @@
 		if (origin !== null) map.ensureResolved([origin]);
 	});
 	const name = $derived(origin === null ? null : (map.systemInfo(origin)?.name ?? null));
-	const pinned = $derived(map.routeFromId !== null);
+	const pinned = $derived(map.route.fromId !== null);
 </script>
 
 {#if name}

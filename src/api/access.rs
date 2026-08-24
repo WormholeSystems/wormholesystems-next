@@ -12,7 +12,6 @@ use super::ApiResult;
 use super::extract::{acting_on, require_actor};
 use super::reference::SearchQuery;
 use crate::auth::AppState;
-use crate::maps::MapEvent;
 use crate::maps::access::{AccessEntry, RevokeAccess, SetAccess};
 
 /// A grantable subject from the access-subject search.
@@ -105,7 +104,6 @@ pub async fn set_access(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::access::set_access(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
 }
 
@@ -117,7 +115,6 @@ pub async fn revoke_access(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::access::revoke_access(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
 }
 
@@ -130,7 +127,6 @@ pub async fn transfer_ownership(
 ) -> ApiResult<()> {
     let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
     crate::maps::access::transfer_ownership(&state.db, actor, cmd).await?;
-    state.hub.publish(MapEvent::AccessChanged { map_id });
     Ok(Json(()))
 }
 
@@ -142,7 +138,6 @@ pub async fn rotate_share_token(
 ) -> ApiResult<String> {
     let actor = require_actor(&state.db, &jar).await?;
     let token = crate::maps::map::rotate_share_token(&state.db, actor, map_id).await?;
-    state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(token))
 }
 
@@ -154,6 +149,5 @@ pub async fn revoke_share_token(
 ) -> ApiResult<()> {
     let actor = require_actor(&state.db, &jar).await?;
     crate::maps::map::revoke_share_token(&state.db, actor, map_id).await?;
-    state.hub.publish(MapEvent::MapUpdated { map_id });
     Ok(Json(()))
 }

@@ -4,8 +4,6 @@
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import { getLocalTimeZone, today, type DateValue } from '@internationalized/date';
 
-	import { createQuery, keepPreviousData } from '@tanstack/svelte-query';
-
 	import { q } from '$lib/api/queries';
 	import type { AccessSubject } from '$lib/api/types/AccessSubject';
 	import type { Role } from '$lib/api/types/Role';
@@ -15,7 +13,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
-	import { debounced } from '$lib/debounced.svelte';
+	import { searchQuery } from '$lib/search-query.svelte';
 	import { ROLE_HELP, ROLE_LABEL } from '$lib/map/roles';
 
 	let {
@@ -39,13 +37,11 @@
 	const ROLES: Role[] = ['viewer', 'member', 'manager'];
 	const ALL_ROLES: Role[] = ['viewer', 'member', 'manager', 'owner'];
 
-	const settled = debounced(() => query.trim(), 150);
-	const search = createQuery(() => ({
-		...q.searchAccessSubjects(settled.current),
-		enabled: settled.current.length >= 2,
-		placeholderData: keepPreviousData,
-	}));
-	const matches = $derived(query.trim().length >= 2 ? (search.data ?? []) : []);
+	const search = searchQuery({
+		term: () => query,
+		query: (settled) => q.searchAccessSubjects(settled),
+	});
+	const matches = $derived(search.results);
 
 	function choose(subject: AccessSubject) {
 		picked = subject;

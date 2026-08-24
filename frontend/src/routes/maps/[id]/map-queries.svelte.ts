@@ -2,7 +2,7 @@
 // the two mutations carry the policy every map write shares. Component init only: the
 // queries need the provider's client.
 
-import { createMutation, createQuery, useQueryClient, type QueryKey } from '@tanstack/svelte-query';
+import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
 import { toast } from 'svelte-sonner';
 
 import { api, errorMessage } from '$lib/api/client';
@@ -11,7 +11,8 @@ import type { MapEvent } from '$lib/api/types/MapEvent';
 import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 import type { MapView } from '$lib/api/types/MapView';
 import type { UpdateMapUserSettings } from '$lib/api/types/UpdateMapUserSettings';
-import { MAP_ACTIONS, type MapAction } from './actions';
+import { MAP_ACTIONS, type MapAction } from '$lib/map/actions';
+import { createCoalescer } from './coalesce';
 import { keysFor } from './invalidations';
 
 /** One write through the shared mutation: what to run, and which action's copy to speak. */
@@ -21,12 +22,7 @@ interface MapWrite {
 	detail?: string;
 }
 
-/**
- * How long to wait before acting on a frame. The server is chatty in bursts: pasting a
- * scan publishes a frame per system, connection and placement it touched, all within a
- * few milliseconds, and invalidating per frame would abort and restart the same fetch
- * over and over. Long enough to swallow the burst, short enough that nobody notices.
- */
+/** Long enough to swallow a paste-scan burst, short enough that nobody notices. */
 const BURST_MS = 60;
 
 export function createMapQueries(
@@ -78,20 +74,11 @@ export function createMapQueries(
 		refetchIntervalInBackground: true,
 	}));
 
-	// Burst coalescing: one timer collects the keys a burst of frames names, then each is
-	// invalidated once. The cache itself serialises the refetches, and an aborted fetch
-	// never lands, so the old in-flight/queued-rerun bookkeeping has no replacement here.
-	const pending = new Map<string, QueryKey>();
-	let timer: ReturnType<typeof setTimeout> | null = null;
-	function schedule(queryKey: QueryKey) {
-		pending.set(JSON.stringify(queryKey), queryKey);
-		timer ??= setTimeout(() => {
-			timer = null;
-			const keys = [...pending.values()];
-			pending.clear();
-			for (const k of keys) void client.invalidateQueries({ queryKey: k });
-		}, BURST_MS);
-	}
+	// The cache itself serialises the refetches, and an aborted fetch never lands, so
+	// coalescing is all that remains of the old scheduler.
+	const coalescer = createCoalescer((keys) => {
+		for (const queryKey of keys) void client.invalidateQueries({ queryKey });
+	}, BURST_MS);
 
 	const invalidateAll = () => client.invalidateQueries({ queryKey: key.map(mapId) });
 
@@ -135,7 +122,7 @@ export function createMapQueries(
 		invalidateAll,
 		/** Refetch what one socket frame invalidated; [`keysFor`] holds the table. */
 		applyEvent(event: MapEvent | null) {
-			for (const k of keysFor(mapId, event)) schedule(k);
+			for (const k of keysFor(mapId, event)) coalescer.schedule(k);
 		},
 		/** An optimistic local edit of the viewer's settings, without a round trip. */
 		patchSettingsLocal(update: (s: MapUserSettings) => MapUserSettings) {

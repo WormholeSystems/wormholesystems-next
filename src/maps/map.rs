@@ -277,6 +277,7 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     // scan to notice.
     super::ghost::reconcile(&mut tx, cmd.map_id).await?;
     tx.commit().await?;
+    super::hub().publish(super::events::MapEvent::MapUpdated { map_id: cmd.map_id });
     Ok(map)
 }
 
@@ -520,6 +521,7 @@ pub async fn rotate_share_token(pool: &PgPool, actor: Actor, map_id: i64) -> Res
     )
     .execute(pool)
     .await?;
+    super::hub().publish(super::events::MapEvent::MapUpdated { map_id });
     Ok(token)
 }
 
@@ -529,5 +531,6 @@ pub async fn revoke_share_token(pool: &PgPool, actor: Actor, map_id: i64) -> Res
     sqlx::query!("update maps set share_token = null where id = $1", map_id)
         .execute(pool)
         .await?;
+    super::hub().publish(super::events::MapEvent::MapUpdated { map_id });
     Ok(())
 }

@@ -47,7 +47,7 @@
 	<button
 		class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
 		aria-label="Zoom out"
-		onclick={() => map.zoomBy(-1)}
+		onclick={() => map.camera.zoomBy(-1)}
 	>
 		−
 	</button>
@@ -55,12 +55,12 @@
 		class="border-x border-border px-2 py-1 text-xs tabular-nums text-muted-foreground"
 		data-testid="zoom-level"
 	>
-		{Math.round(map.zoom * 100)}%
+		{Math.round(map.camera.zoom * 100)}%
 	</span>
 	<button
 		class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
 		aria-label="Zoom in"
-		onclick={() => map.zoomBy(1)}
+		onclick={() => map.camera.zoomBy(1)}
 	>
 		+
 	</button>

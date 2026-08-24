@@ -4,11 +4,10 @@
 	// placement itself lives in `$lib/layout/grid`, this only turns pointers into calls.
 	import { untrack } from 'svelte';
 	import { browser } from '$app/environment';
-	import { lookup } from '$lib/enums';
 
 	import XIcon from '@lucide/svelte/icons/x';
 
-	import { bottom, compact, moveItem, resizeItem, tileBox, type GridItem } from '$lib/layout/grid';
+	import { bottom, compact, tileBox, type GridItem } from '$lib/layout/grid';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
@@ -29,13 +28,18 @@
 		panelMeta,
 		resolveLayouts,
 	} from './registry';
+	import {
+		beginGesture,
+		floatingBox,
+		keyboardLayout,
+		moveGesture,
+		type GridMetrics,
+		type PanelGesture,
+	} from './panel-gestures';
 	import type { MapState } from '../map-state.svelte';
 	import type { Snippet } from 'svelte';
 
 	let { map, canvas }: { map: MapState; canvas: Snippet } = $props();
-
-	/** How far a pointer must travel before a press becomes a drag (matches the canvas). */
-	const HYSTERESIS = 4;
 
 	let gridEl = $state<HTMLElement | null>(null);
 	// Only the drag maths needs pixels; tiles are placed in percentages, so a stale width
@@ -53,9 +57,9 @@
 
 	// While editing you pick a breakpoint; otherwise it follows the window.
 	const activeKey = $derived<BreakpointKey>(
-		map.editingLayout ? map.layoutBreakpoint : breakpointFor(windowWidth),
+		map.panels.editing ? map.panels.breakpoint : breakpointFor(windowWidth),
 	);
-	const layouts = $derived(resolveLayouts(map.layoutDraft));
+	const layouts = $derived(resolveLayouts(map.panels.draft));
 	const layout = $derived(layouts[activeKey]);
 	const hidden = $derived(new Set(map.userSettings?.hidden_panels ?? []));
 	// Compacted after filtering, so hiding a panel closes the hole rather than leaving a gap.
@@ -77,24 +81,17 @@
 	 *  shrinking under the pointer as tiles reflow, which would jump the scroll position. */
 	let gestureFloor = $state(0);
 	const gridRows = $derived(
-		map.editingLayout ? Math.max(rows, gestureFloor) + EDIT_SLACK_ROWS : rows,
+		map.panels.editing ? Math.max(rows, gestureFloor) + EDIT_SLACK_ROWS : rows,
 	);
 
-	/**
-	 * `dx`/`dy` are the raw pixel offset, so the held tile tracks the cursor instead of
-	 * jumping a cell at a time. `live` is the snapped layout it would land in, which is what
-	 * the other tiles reflow to and what the placeholder shows.
-	 */
-	let gesture = $state<{
-		id: PanelId;
-		kind: 'move' | 'resize';
-		startX: number;
-		startY: number;
-		origin: GridItem;
-		dx: number;
-		dy: number;
-		live: GridItem[] | null;
-	} | null>(null);
+	let gesture = $state<PanelGesture | null>(null);
+
+	const metrics = $derived<GridMetrics>({
+		cols: layout.cols,
+		rowHeight: layout.row_height,
+		colWidth,
+		gridWidth,
+	});
 
 	// Rendered in a fixed order, never the layout's: tiles are positioned with left/top, and
 	// reordering a keyed `each` detaches the focused tile, so a second arrow key goes nowhere.
@@ -104,42 +101,10 @@
 		gesture?.live ? (gesture.live.find((i) => i.i === gesture!.id) ?? null) : null,
 	);
 
-	/** The dragged tile's free pixel box, following the pointer. */
-	const floating = $derived.by(() => {
-		const g = gesture;
-		if (!g?.live) return null;
-		const meta = panelMeta(g.id);
-		const left = g.origin.x * colWidth;
-		const top = g.origin.y * layout.row_height;
-		if (g.kind === 'move') {
-			const width = g.origin.w * colWidth;
-			// Held inside the grid: hanging off the right would widen the document and flash a
-			// horizontal scrollbar mid-drag.
-			return {
-				left: clamp(left + g.dx, 0, Math.max(0, gridWidth - width)),
-				top: Math.max(0, top + g.dy),
-				width,
-				height: g.origin.h * layout.row_height,
-			};
-		}
-		return {
-			left,
-			top,
-			width: clamp(
-				g.origin.w * colWidth + g.dx,
-				meta.minW * colWidth,
-				(layout.cols - g.origin.x) * colWidth,
-			),
-			height: Math.max(g.origin.h * layout.row_height + g.dy, meta.minH * layout.row_height),
-		};
-	});
-
-	function clamp(v: number, lo: number, hi: number) {
-		return Math.max(lo, Math.min(hi, v));
-	}
+	const floating = $derived(gesture === null ? null : floatingBox(gesture, metrics));
 
 	function commit(next: GridItem[]) {
-		map.setLayoutItems(activeKey, next);
+		map.panels.setItems(activeKey, next);
 	}
 
 	function onPointerDown(
@@ -147,40 +112,19 @@
 		id: PanelId,
 		kind: 'move' | 'resize',
 	) {
-		if (!map.editingLayout) return;
+		if (!map.panels.editing) return;
 		ev.preventDefault();
 		ev.stopPropagation();
 		const origin = items.find((i) => i.i === id);
 		if (!origin) return;
 		ev.currentTarget.setPointerCapture(ev.pointerId);
 		gestureFloor = rows;
-		gesture = {
-			id,
-			kind,
-			startX: ev.clientX,
-			startY: ev.clientY,
-			origin,
-			dx: 0,
-			dy: 0,
-			live: null,
-		};
+		gesture = beginGesture(id, kind, { x: ev.clientX, y: ev.clientY }, origin);
 	}
 
 	function onPointerMove(ev: PointerEvent) {
-		const g = gesture;
-		if (!g) return;
-		const dx = ev.clientX - g.startX;
-		const dy = ev.clientY - g.startY;
-		if (!g.live && Math.hypot(dx, dy) < HYSTERESIS) return;
-
-		const meta = panelMeta(g.id);
-		const cols = Math.round(dx / colWidth);
-		const rowsMoved = Math.round(dy / layout.row_height);
-		const next =
-			g.kind === 'move'
-				? moveItem(items, g.id, g.origin.x + cols, g.origin.y + rowsMoved, layout.cols)
-				: resizeItem(items, g.id, g.origin.w + cols, g.origin.h + rowsMoved, layout.cols, meta);
-		gesture = { ...g, dx, dy, live: next };
+		if (!gesture) return;
+		gesture = moveGesture(gesture, { x: ev.clientX, y: ev.clientY }, items, metrics);
 	}
 
 	function onPointerUp() {
@@ -190,26 +134,12 @@
 		if (g?.live) commit(g.live);
 	}
 
-	/** Arrow keys move a focused tile, shift+arrows resize it. */
 	function onKeyDown(ev: KeyboardEvent, id: PanelId) {
-		if (!map.editingLayout) return;
-		const deltas = {
-			ArrowLeft: [-1, 0],
-			ArrowRight: [1, 0],
-			ArrowUp: [0, -1],
-			ArrowDown: [0, 1],
-		} satisfies Record<string, [number, number]>;
-		const delta = lookup(deltas, ev.key);
-		if (!delta) return;
+		if (!map.panels.editing) return;
+		const next = keyboardLayout(items, id, ev.key, ev.shiftKey, layout.cols);
+		if (!next) return;
 		ev.preventDefault();
-		const current = items.find((i) => i.i === id);
-		if (!current) return;
-		const [dx, dy] = delta;
-		commit(
-			ev.shiftKey
-				? resizeItem(items, id, current.w + dx, current.h + dy, layout.cols, panelMeta(id))
-				: moveItem(items, id, current.x + dx, current.y + dy, layout.cols),
-		);
+		commit(next);
 	}
 
 	$effect(() => {
@@ -223,10 +153,10 @@
 	// Entering edit mode starts from whatever breakpoint the window is actually at, and
 	// snapshots the hidden set so Discard can put it back.
 	$effect(() => {
-		if (map.editingLayout) {
+		if (map.panels.editing) {
 			untrack(() => {
-				map.layoutBreakpoint = breakpointFor(windowWidth);
-				map.rememberHidden();
+				map.panels.breakpoint = breakpointFor(windowWidth);
+				map.panels.rememberHidden();
 			});
 		}
 	});
@@ -296,7 +226,7 @@
 				{/if}
 			{/if}
 
-			{#if map.editingLayout}
+			{#if map.panels.editing}
 				<!-- The shield makes a drag anywhere on the card move the tile instead of
 				     reaching the content under it: without it, dragging across the canvas would
 				     pan the map. The header strip is part of it, since a card's title bar is the
@@ -320,7 +250,7 @@
 							data-testid="tile-hide"
 							data-panel={item.i}
 							onpointerdown={(ev) => ev.stopPropagation()}
-							onclick={() => map.hidePanel(item.i)}
+							onclick={() => map.panels.hidePanel(item.i)}
 						>
 							<XIcon class="size-3.5" />
 						</button>

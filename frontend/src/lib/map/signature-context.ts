@@ -3,6 +3,10 @@ import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { Signature } from '$lib/api/types/Signature';
 import type { UpdateSignature } from '$lib/api/types/UpdateSignature';
 
+import { api } from '$lib/api/client';
+import type { MapAction } from '$lib/map/actions';
+import { patchConnection } from '$lib/map/connection-actions';
+
 /**
  * The fields a row may change. Taken from the wire type rather than restated, so a field
  * that changes shape on the server stops compiling here; an open dictionary would have
@@ -33,4 +37,49 @@ export interface SignatureActions {
 	link(signaturePk: number, connectionId: number): void;
 	unlink(signaturePk: number): void;
 	setPreserveMass(connectionId: number, preserve: boolean): void;
+}
+
+interface SignatureHost {
+	mapId: number;
+	readonly systems: MapSystemView[];
+	readonly connections: MapConnection[];
+	readonly sigs: Signature[];
+	run(action: MapAction, promise: Promise<unknown>, detail?: string): void;
+}
+
+/**
+ * The live context over a map. The rows and their inputs take this rather than the whole
+ * map, so the same components render from static data elsewhere; every write they can
+ * make is named here.
+ */
+export function makeSignatureContext(map: SignatureHost): SignatureContext {
+	return {
+		get systems() {
+			return map.systems;
+		},
+		get connections() {
+			return map.connections;
+		},
+		get sigs() {
+			return map.sigs;
+		},
+		actions: {
+			update: (signature_pk, patch) =>
+				map.run(
+					'updateSignature',
+					api.updateSignature({ map_id: map.mapId, signature_pk, ...patch }),
+				),
+			remove: (signature_pk) =>
+				map.run('removeSignature', api.removeSignature({ map_id: map.mapId, signature_pk })),
+			link: (signature_pk, connection_id) =>
+				map.run(
+					'linkSignature',
+					api.linkSignature({ map_id: map.mapId, signature_pk, connection_id }),
+				),
+			unlink: (signature_pk) =>
+				map.run('unlinkSignature', api.unlinkSignature({ map_id: map.mapId, signature_pk })),
+			setPreserveMass: (connection_id, preserve_mass) =>
+				patchConnection(map, connection_id, { preserve_mass }),
+		},
+	};
 }

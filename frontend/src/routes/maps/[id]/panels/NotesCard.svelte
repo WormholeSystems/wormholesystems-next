@@ -61,11 +61,7 @@
 			'setNotes',
 			api.setNotes({ map_id: map.mapId, map_solar_system_id: system.id, notes: value }),
 		);
-		// The local echo, so the note reads back before the server confirms it.
-		map.queries.client.setQueryData(
-			q.systemDetails(map.mapId, system.id).queryKey,
-			(d: SystemDetails | undefined) => d && { ...d, notes: value },
-		);
+		map.setSystemNotesLocal(system.id, value);
 		editing = false;
 	}
 </script>

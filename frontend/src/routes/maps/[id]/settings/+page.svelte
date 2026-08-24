@@ -2,9 +2,7 @@
 	// General: what the map is called and how to get rid of it. Everything here changes the
 	// map for everyone on it, which is why it is Manager+ and why deletion sits at the
 	// bottom behind its own confirmation.
-	import { untrack } from 'svelte';
-	import type { MapLayout } from '$lib/api/types/MapLayout';
-	import { oneOf } from '$lib/enums';
+	import { oneOf } from '$lib/lookup';
 
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
@@ -15,7 +13,9 @@
 	import { toast } from 'svelte-sonner';
 
 	import { api } from '$lib/api/client';
-	import { apiAction } from '$lib/api/mutations';
+	import { confirmDanger } from '$lib/confirm.svelte';
+	import { draft as draftOf } from '$lib/draft.svelte';
+	import { after, apiAction } from '$lib/api/mutations';
 	import { key, q } from '$lib/api/queries';
 	import type { MapView } from '$lib/api/types/MapView';
 	import { Button } from '$lib/components/ui/button';
@@ -26,6 +26,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
 	import { atLeast } from '$lib/map/roles';
+	import { PLACEMENTS } from '$lib/map/placement';
 
 	let { data }: { data: { view: MapView } } = $props();
 
@@ -35,38 +36,31 @@
 	const viewQuery = createQuery(() => ({ ...q.mapView(mapId), initialData: data.view }));
 	const view = $derived(viewQuery.data);
 
-	// Seeded from the map and re-seeded whenever it changes underneath, so a save landing
-	// or somebody else's rename does not leave a stale draft in the fields.
-	let name = $state(untrack(() => data.view.map.name));
-	let description = $state(untrack(() => data.view.map.description ?? ''));
-	$effect(() => {
-		name = view.map.name;
-		description = view.map.description ?? '';
-	});
+	// Seeded from the map and re-seeded only when it changes underneath, so a save landing
+	// or somebody else's rename does not clobber what is being typed.
+	const name = draftOf(() => view.map.name);
+	const description = draftOf(() => view.map.description ?? '');
 
 	const canManage = $derived(atLeast(view.role, 'manager'));
 	const isOwner = $derived(view.role === 'owner');
 	const dirty = $derived(
-		name.trim() !== view.map.name || description.trim() !== (view.map.description ?? ''),
+		name.value.trim() !== view.map.name ||
+			description.value.trim() !== (view.map.description ?? ''),
 	);
 
 	const act = apiAction(() => [key.mapView(mapId)]);
 
-	const PLACEMENTS = [
-		{ value: 'manual', label: 'Custom placement', hint: 'Everyone drags the chain into shape' },
-		{ value: 'tree', label: 'Automatic placement', hint: 'Drawn as a tree from the connections' },
-	] as const satisfies readonly { value: MapLayout; label: string; hint: string }[];
 	const PLACEMENT_VALUES = PLACEMENTS.map((p) => p.value);
 	const placement = $derived(view.map.layout);
 	const allowOverride = $derived(view.map.allow_layout_override);
 
 	function save() {
-		if (!name.trim() || !dirty) return;
+		if (!name.value.trim() || !dirty) return;
 		act.mutate(() =>
 			api.updateMap({
 				map_id: mapId,
-				name: name.trim(),
-				description: description.trim() || null,
+				name: name.value.trim(),
+				description: description.value.trim() || null,
 			}),
 		);
 	}
@@ -82,19 +76,23 @@
 		access.filter((e) => e.subject_type === 'character' && e.role !== 'owner'),
 	);
 
-	function transfer() {
+	async function transfer() {
 		const subject = Number(heir);
 		const heirName = candidates.find((c) => c.subject_id === subject)?.name ?? 'them';
-		if (!subject || !confirm(`Hand "${view.map.name}" to ${heirName}? You stay on as a manager.`)) {
-			return;
-		}
-		act
-			.mutateAsync(() => api.transferOwnership({ map_id: mapId, subject_id: subject }))
-			.then(() => {
+		if (!subject) return;
+		const handOver = await confirmDanger({
+			title: `Hand "${view.map.name}" to ${heirName}?`,
+			body: 'You stay on as a manager.',
+			action: 'Transfer',
+		});
+		if (!handOver) return;
+		after(
+			act.mutateAsync(() => api.transferOwnership({ map_id: mapId, subject_id: subject })),
+			() => {
 				heir = '';
 				toast.success(`${heirName} owns this map now`);
-			})
-			.catch(() => {});
+			},
+		);
 	}
 
 	const remove = apiAction(
@@ -102,8 +100,13 @@
 		() => goto('/maps'),
 	);
 
-	function destroy() {
-		if (!confirm(`Delete "${view?.map.name}"? This cannot be undone.`)) return;
+	async function destroy() {
+		const sure = await confirmDanger({
+			title: `Delete "${view?.map.name}"?`,
+			body: 'This cannot be undone.',
+			action: 'Delete map',
+		});
+		if (!sure) return;
 		remove.mutate(() => api.deleteMap(mapId));
 	}
 </script>
@@ -119,7 +122,7 @@
 				<label for="map-name" class="text-sm font-medium">Name</label>
 				<Input
 					id="map-name"
-					bind:value={name}
+					bind:value={name.value}
 					disabled={!canManage}
 					data-testid="map-name-input"
 					onkeydown={(e) => e.key === 'Enter' && save()}
@@ -129,7 +132,7 @@
 				<label for="map-description" class="text-sm font-medium">Description</label>
 				<Textarea
 					id="map-description"
-					bind:value={description}
+					bind:value={description.value}
 					disabled={!canManage}
 					rows={2}
 					placeholder="What this chain is for, or where it stages from."
@@ -140,7 +143,7 @@
 		<Card.Footer>
 			<Button
 				variant="outline"
-				disabled={!canManage || !name.trim() || !dirty}
+				disabled={!canManage || !name.value.trim() || !dirty}
 				onclick={save}
 				data-testid="rename-button">Save</Button
 			>

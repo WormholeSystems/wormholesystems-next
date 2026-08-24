@@ -100,8 +100,8 @@ test('ownership is handed on from the danger zone, not granted from the list', a
 	await expect(zone).toContainText('Hand the map to someone else');
 	await zone.getByTestId('transfer-target').click();
 	await page.getByRole('option', { name: 'E2E Extra 7' }).click();
-	page.once('dialog', (d) => d.accept());
 	await zone.getByTestId('transfer-button').click();
+	await page.getByTestId('confirm-accept').click();
 
 	// One owner, and the old one keeps running the map.
 	await expect

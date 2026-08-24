@@ -20,7 +20,7 @@
 		less_secure: 'Less Secure',
 	} satisfies Record<string, string>;
 
-	const graph = $derived(map.graph);
+	const graph = $derived(map.route.graph);
 	const origin = $derived(map.routeOrigin);
 </script>
 

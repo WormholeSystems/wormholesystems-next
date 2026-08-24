@@ -15,6 +15,16 @@
 	import type { SaveAlert } from '$lib/api/types/SaveAlert';
 	import type { Side } from '$lib/api/types/Side';
 	import type { Subject } from '$lib/api/types/Subject';
+	import {
+		ALERT_KINDS,
+		ALERT_MENTIONS,
+		DELIVERY_LABEL,
+		JUMP_SHIPS,
+		RULE_SIDES,
+		RULE_SUBJECTS,
+		jumpRangeLy,
+	} from '$lib/alerts/vocabulary';
+	import { isValidAlert, parseIds, toSaveAlert, type AlertDraft } from './alert-form';
 	import { systemResolver } from '$lib/resolve-cache.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -53,59 +63,12 @@
 	let filters = $state<Rule[]>(seed ? structuredClone($state.snapshot(seed.filters)) : []);
 	let filterMatch = $state(seed?.filter_match ?? 'any');
 
-	const KINDS: { value: AlertKind; label: string; blurb: string }[] = [
-		{
-			value: 'killmail',
-			label: 'Kills near the chain',
-			blurb: 'Every kill within reach, optionally narrowed to who is involved.',
-		},
-		{
-			value: 'proximity',
-			label: 'System near the chain',
-			blurb: 'Fires when the chain comes within gate range of a system you name.',
-		},
-		{
-			value: 'jump_range',
-			label: 'Capital jump range',
-			blurb:
-				'Fires when a k-space exit lands within a capital jump of a system you name. ' +
-				'Measured in light years for the hull you pick, not in gates.',
-		},
-	];
-	const SHIPS: { value: JumpShip; label: string; base: number }[] = [
-		{ value: 'dreadnought', label: 'Dreadnought', base: 3.5 },
-		{ value: 'carrier', label: 'Carrier', base: 3.5 },
-		{ value: 'force_auxiliary', label: 'Force Auxiliary', base: 3.5 },
-		{ value: 'supercarrier', label: 'Supercarrier', base: 3.0 },
-		{ value: 'titan', label: 'Titan', base: 3.0 },
-		{ value: 'jump_freighter', label: 'Jump Freighter', base: 5.0 },
-		{ value: 'rorqual', label: 'Rorqual', base: 5.0 },
-		{ value: 'black_ops', label: 'Black Ops', base: 4.0 },
-	];
-	// The same arithmetic the server does: "JDC 5" means nothing until it is light years.
-	const range = $derived(
-		((SHIPS.find((s) => s.value === shipType)?.base ?? 3.5) * (1 + 0.2 * jdcLevel)).toFixed(1),
-	);
+	const range = $derived(jumpRangeLy(shipType, jdcLevel));
 	const DELIVERIES: { value: AlertDelivery; label: string }[] = [
-		{ value: 'webhook', label: 'Channel webhook' },
+		{ value: 'webhook', label: DELIVERY_LABEL.webhook },
 	];
-	const MENTIONS: { value: AlertMention; label: string }[] = [
-		{ value: 'none', label: 'No ping' },
-		{ value: 'role', label: 'Ping a role' },
-		{ value: 'everyone', label: 'Ping everyone' },
-	];
-	const SUBJECTS: { value: Subject; label: string }[] = [
-		{ value: 'alliance', label: 'Alliance' },
-		{ value: 'corporation', label: 'Corporation' },
-		{ value: 'character', label: 'Character' },
-		{ value: 'ship_type', label: 'Ship type' },
-		{ value: 'ship_group', label: 'Ship group' },
-	];
-	const SIDES: { value: Side; label: string }[] = [
-		{ value: 'either', label: 'either side' },
-		{ value: 'victim', label: 'the victim' },
-		{ value: 'attacker', label: 'the killer' },
-	];
+	// The creator mention is never offered here; a saved alert can still carry it.
+	const MENTIONS = ALERT_MENTIONS.filter((m) => m.value !== 'creator');
 
 	// The picker wants a resolved system for its label; the alert only stores the id.
 	const systems = systemResolver;
@@ -127,36 +90,29 @@
 	}
 
 	function setIds(index: number, value: string) {
-		const ids = value
-			.split(',')
-			.map((part) => Number(part.trim()))
-			.filter((id) => Number.isFinite(id) && id > 0);
+		const ids = parseIds(value);
 		filters = filters.map((rule, i) => (i === index ? { ...rule, ids } : rule));
 	}
 
-	const valid = $derived(
-		name.trim().length > 0 &&
-			(kind === 'killmail' || target !== null) &&
-			(delivery !== 'webhook' || webhookId !== null) &&
-			(mention !== 'role' || roleRef !== null),
-	);
+	const draft = $derived<AlertDraft>({
+		name,
+		kind,
+		delivery,
+		webhookId,
+		mention,
+		roleRef,
+		channelId,
+		target,
+		maxJumps,
+		shipType,
+		jdcLevel,
+		filters,
+		filterMatch,
+	});
+	const valid = $derived(isValidAlert(draft));
 
 	function submit() {
-		onsave({
-			name: name.trim(),
-			kind,
-			delivery,
-			map_webhook_id: delivery === 'webhook' ? (webhookId ?? undefined) : undefined,
-			discord_channel_id: channelId.trim() || undefined,
-			map_webhook_role_id: mention === 'role' ? (roleRef ?? undefined) : undefined,
-			mention,
-			target_solar_system_id: kind === 'killmail' ? undefined : (target ?? undefined),
-			max_jumps: maxJumps,
-			ship_type: kind === 'jump_range' ? shipType : undefined,
-			jdc_level: kind === 'jump_range' ? jdcLevel : undefined,
-			filters: kind === 'killmail' ? filters.filter((r) => r.ids.length > 0) : [],
-			filter_match: filterMatch,
-		});
+		onsave(toSaveAlert(draft));
 	}
 </script>
 
@@ -175,17 +131,17 @@
 		<span class="text-sm font-medium">What to watch for</span>
 		<Select.Root type="single" bind:value={kind}>
 			<Select.Trigger class="w-full" data-testid="alert-kind">
-				{KINDS.find((k) => k.value === kind)?.label}
+				{ALERT_KINDS.find((k) => k.value === kind)?.label}
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Group>
-					{#each KINDS as option (option.value)}
+					{#each ALERT_KINDS as option (option.value)}
 						<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 					{/each}
 				</Select.Group>
 			</Select.Content>
 		</Select.Root>
-		<p class="text-xs text-muted-foreground">{KINDS.find((k) => k.value === kind)?.blurb}</p>
+		<p class="text-xs text-muted-foreground">{ALERT_KINDS.find((k) => k.value === kind)?.blurb}</p>
 	</div>
 
 	{#if kind !== 'killmail'}
@@ -206,11 +162,11 @@
 			<div class="flex flex-wrap items-center gap-2">
 				<Select.Root type="single" bind:value={shipType}>
 					<Select.Trigger class="w-48" data-testid="alert-ship">
-						{SHIPS.find((s) => s.value === shipType)?.label}
+						{JUMP_SHIPS.find((s) => s.value === shipType)?.label}
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Group>
-							{#each SHIPS as option (option.value)}
+							{#each JUMP_SHIPS as option (option.value)}
 								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 							{/each}
 						</Select.Group>
@@ -310,11 +266,11 @@
 							))}
 					>
 						<Select.Trigger class="h-8 w-36">
-							{SUBJECTS.find((s) => s.value === rule.subject)?.label}
+							{RULE_SUBJECTS.find((s) => s.value === rule.subject)?.label}
 						</Select.Trigger>
 						<Select.Content>
 							<Select.Group>
-								{#each SUBJECTS as option (option.value)}
+								{#each RULE_SUBJECTS as option (option.value)}
 									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item
 									>
 								{/each}
@@ -328,11 +284,11 @@
 							(filters = filters.map((r, i) => (i === index ? { ...r, side: value as Side } : r)))}
 					>
 						<Select.Trigger class="h-8 w-32">
-							{SIDES.find((s) => s.value === rule.side)?.label}
+							{RULE_SIDES.find((s) => s.value === rule.side)?.label}
 						</Select.Trigger>
 						<Select.Content>
 							<Select.Group>
-								{#each SIDES as option (option.value)}
+								{#each RULE_SIDES as option (option.value)}
 									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item
 									>
 								{/each}

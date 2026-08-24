@@ -1,7 +1,8 @@
 //! The alerts API: what a map watches for, and what happened to those watches.
 //!
 //! Manager+ throughout: an alert carries a webhook URL or a channel id, which is a key to
-//! somebody's Discord server.
+//! somebody's Discord server. The alert rows themselves live in [`crate::maps::alerts`];
+//! these handlers check the role, validate the request, and answer.
 
 use axum::Router;
 use axum::extract::{Path, State};
@@ -9,14 +10,14 @@ use axum::routing::{delete, get, post, put};
 use axum::{Json, extract::Query};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 
-use crate::alerts::ships::JumpShip;
-use crate::alerts::{AlertDelivery, AlertKind, AlertMention, filters};
 use crate::auth::AppState;
+use crate::maps::alerts as store;
 use crate::maps::{MapError, Role};
 
-use super::{ApiError, ApiResult, require_actor};
+pub use crate::maps::alerts::{MapAlert, SaveAlert};
+
+use super::{ApiError, ApiResult};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -42,45 +43,6 @@ pub fn routes() -> Router<AppState> {
         .route("/api/maps/{id}/roles/{role_id}", delete(delete_role))
 }
 
-/// One alert as the settings page shows it.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export)]
-pub struct MapAlert {
-    pub id: i64,
-    pub map_id: i64,
-    pub name: String,
-    pub kind: AlertKind,
-    pub delivery: AlertDelivery,
-    #[ts(optional)]
-    pub map_webhook_id: Option<i64>,
-    #[ts(optional)]
-    pub webhook_name: Option<String>,
-    #[ts(optional)]
-    pub discord_channel_id: Option<String>,
-    #[ts(optional)]
-    pub map_webhook_role_id: Option<i64>,
-    #[ts(optional)]
-    pub role_name: Option<String>,
-    pub mention: AlertMention,
-    #[ts(optional)]
-    pub target_solar_system_id: Option<i64>,
-    #[ts(optional)]
-    pub target_system_name: Option<String>,
-    pub max_jumps: i32,
-    #[ts(optional)]
-    pub ship_type: Option<JumpShip>,
-    #[ts(optional)]
-    pub jdc_level: Option<i32>,
-    pub filters: Vec<filters::Rule>,
-    pub filter_match: filters::Match,
-    pub is_active: bool,
-    #[ts(optional)]
-    pub disabled_reason: Option<String>,
-    #[ts(optional)]
-    pub last_fired_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// One line of an alert's history.
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -99,8 +61,7 @@ pub struct MapAlertEvent {
 }
 
 async fn require_manager(state: &AppState, jar: &CookieJar, map_id: i64) -> Result<i64, ApiError> {
-    let actor = require_actor(&state.db, jar).await?;
-    crate::maps::access::require_role(&state.db, map_id, actor.user_id, Role::Manager).await?;
+    let actor = super::extract::require_role_on_map(state, jar, map_id, Role::Manager).await?;
     Ok(actor.user_id)
 }
 
@@ -111,73 +72,7 @@ pub async fn list_alerts(
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapAlert>> {
     require_manager(&state, &jar, map_id).await?;
-    Ok(Json(load(&state.db, map_id).await?))
-}
-
-async fn load(pool: &PgPool, map_id: i64) -> Result<Vec<MapAlert>, ApiError> {
-    let rows = sqlx::query!(
-        r#"select a.id, a.map_id, a.name, a.kind, a.delivery,
-                  a.map_webhook_id, w.name as "webhook_name?",
-                  a.discord_channel_id,
-                  a.map_webhook_role_id, r.name as "role_name?",
-                  a.mention, a.target_solar_system_id, ss.name as "target_system_name?",
-                  a.max_jumps, a.ship_type, a.jdc_level,
-                  a.filters, a.filter_match, a.is_active,
-                  a.disabled_reason, a.last_fired_at, a.created_at
-           from map_alerts a
-           left join solar_systems ss on ss.id = a.target_solar_system_id
-           left join map_webhooks w on w.id = a.map_webhook_id
-           left join map_webhook_roles r on r.id = a.map_webhook_role_id
-           where a.map_id = $1
-           order by a.id"#,
-        map_id,
-    )
-    .fetch_all(pool)
-    .await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|row| {
-            // Same rule as `alerts::active`: a row that no longer decodes is skipped
-            // loudly, never shown with made-up settings the next save would write back.
-            let (Some(kind), Some(delivery), Some(mention), Some(filter_match), Ok(filters)) = (
-                AlertKind::from_db(&row.kind),
-                AlertDelivery::from_db(&row.delivery),
-                AlertMention::from_db(&row.mention),
-                filters::Match::from_db(&row.filter_match),
-                serde_json::from_value(row.filters),
-            ) else {
-                eprintln!(
-                    "alerts: hiding alert {} ({}): row does not decode",
-                    row.id, row.name
-                );
-                return None;
-            };
-            Some(MapAlert {
-                id: row.id,
-                map_id: row.map_id,
-                name: row.name,
-                kind,
-                delivery,
-                map_webhook_id: row.map_webhook_id,
-                webhook_name: row.webhook_name,
-                discord_channel_id: row.discord_channel_id,
-                map_webhook_role_id: row.map_webhook_role_id,
-                role_name: row.role_name,
-                mention,
-                target_solar_system_id: row.target_solar_system_id,
-                target_system_name: row.target_system_name,
-                max_jumps: row.max_jumps,
-                ship_type: row.ship_type.as_deref().and_then(JumpShip::from_db),
-                jdc_level: row.jdc_level,
-                filters,
-                filter_match,
-                is_active: row.is_active,
-                disabled_reason: row.disabled_reason,
-                last_fired_at: row.last_fired_at,
-                created_at: row.created_at,
-            })
-        })
-        .collect())
+    Ok(Json(store::list(&state.db, map_id).await?))
 }
 
 /// A registered destination, named once and pointed at by any number of alerts.
@@ -416,116 +311,79 @@ pub async fn delete_role(
     Ok(Json(()))
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
-#[ts(export)]
-pub struct SaveAlert {
-    pub name: String,
-    pub kind: AlertKind,
-    pub delivery: AlertDelivery,
-    /// Which registered destination to post to.
-    #[serde(default)]
-    #[ts(optional)]
-    pub map_webhook_id: Option<i64>,
-    #[serde(default)]
-    #[ts(optional)]
-    pub discord_guild_id: Option<String>,
-    #[serde(default)]
-    #[ts(optional)]
-    pub discord_channel_id: Option<String>,
-    /// Which registered role to ping.
-    #[serde(default)]
-    #[ts(optional)]
-    pub map_webhook_role_id: Option<i64>,
-    pub mention: AlertMention,
-    #[serde(default)]
-    #[ts(optional)]
-    pub target_solar_system_id: Option<i64>,
-    pub max_jumps: i32,
-    #[serde(default)]
-    #[ts(optional)]
-    pub ship_type: Option<JumpShip>,
-    #[serde(default)]
-    #[ts(optional)]
-    pub jdc_level: Option<i32>,
-    #[serde(default)]
-    pub filters: Vec<filters::Rule>,
-    pub filter_match: filters::Match,
+/// A destination or role from another map would be a way to post into a Discord server
+/// you were never given, so both are checked to belong here.
+async fn check_belongs(state: &AppState, map_id: i64, body: &SaveAlert) -> Result<(), ApiError> {
+    if let Some(id) = body.map_webhook_id {
+        let ok = sqlx::query_scalar!(
+            "select exists(select 1 from map_webhooks where id = $1 and map_id = $2)",
+            id,
+            map_id,
+        )
+        .fetch_one(&state.db)
+        .await?
+        .unwrap_or(false);
+        if !ok {
+            return Err(ApiError::bad_request("that destination is not on this map"));
+        }
+    }
+    if let Some(id) = body.map_webhook_role_id {
+        let ok = sqlx::query_scalar!(
+            "select exists(select 1 from map_webhook_roles where id = $1 and map_id = $2)",
+            id,
+            map_id,
+        )
+        .fetch_one(&state.db)
+        .await?
+        .unwrap_or(false);
+        if !ok {
+            return Err(ApiError::bad_request("that role is not on this map"));
+        }
+    }
+    Ok(())
 }
 
-impl SaveAlert {
-    /// A destination or role from another map would be a way to post into a Discord server
-    /// you were never given, so both are checked to belong here.
-    async fn check_belongs(&self, state: &AppState, map_id: i64) -> Result<(), ApiError> {
-        if let Some(id) = self.map_webhook_id {
-            let ok = sqlx::query_scalar!(
-                "select exists(select 1 from map_webhooks where id = $1 and map_id = $2)",
-                id,
-                map_id,
-            )
-            .fetch_one(&state.db)
-            .await?
-            .unwrap_or(false);
-            if !ok {
-                return Err(ApiError::bad_request("that destination is not on this map"));
-            }
-        }
-        if let Some(id) = self.map_webhook_role_id {
-            let ok = sqlx::query_scalar!(
-                "select exists(select 1 from map_webhook_roles where id = $1 and map_id = $2)",
-                id,
-                map_id,
-            )
-            .fetch_one(&state.db)
-            .await?
-            .unwrap_or(false);
-            if !ok {
-                return Err(ApiError::bad_request("that role is not on this map"));
-            }
-        }
-        Ok(())
+fn validate(body: &SaveAlert) -> Result<(), ApiError> {
+    use crate::alerts::{AlertDelivery, AlertKind, AlertMention};
+    if body.name.trim().is_empty() {
+        return Err(ApiError::bad_request("an alert needs a name"));
     }
-
-    fn validate(&self) -> Result<(), ApiError> {
-        if self.name.trim().is_empty() {
-            return Err(ApiError::bad_request("an alert needs a name"));
-        }
-        if !(0..=30).contains(&self.max_jumps) {
-            return Err(ApiError::bad_request("jumps must be between 0 and 30"));
-        }
-        match self.delivery {
-            AlertDelivery::Webhook => {
-                if self.map_webhook_id.is_none() {
-                    return Err(ApiError::bad_request("pick a destination"));
-                }
-            }
-            AlertDelivery::DiscordChannel => {
-                if self.discord_channel_id.is_none() {
-                    return Err(ApiError::bad_request("pick a channel to post in"));
-                }
-            }
-            AlertDelivery::DiscordDm => {}
-        }
-        if self.mention == AlertMention::Role && self.map_webhook_role_id.is_none() {
-            return Err(ApiError::bad_request("pick a role to mention"));
-        }
-        // Proximity and jump range are about a place; a killmail alert is about who.
-        if matches!(self.kind, AlertKind::Proximity | AlertKind::JumpRange)
-            && self.target_solar_system_id.is_none()
-        {
-            return Err(ApiError::bad_request("pick a system to watch"));
-        }
-        if self.kind == AlertKind::JumpRange {
-            if self.ship_type.is_none() {
-                return Err(ApiError::bad_request(
-                    "pick the ship whose range to measure",
-                ));
-            }
-            if !(0..=5).contains(&self.jdc_level.unwrap_or(-1)) {
-                return Err(ApiError::bad_request("JDC level must be between 0 and 5"));
-            }
-        }
-        Ok(())
+    if !(0..=30).contains(&body.max_jumps) {
+        return Err(ApiError::bad_request("jumps must be between 0 and 30"));
     }
+    match body.delivery {
+        AlertDelivery::Webhook => {
+            if body.map_webhook_id.is_none() {
+                return Err(ApiError::bad_request("pick a destination"));
+            }
+        }
+        AlertDelivery::DiscordChannel => {
+            if body.discord_channel_id.is_none() {
+                return Err(ApiError::bad_request("pick a channel to post in"));
+            }
+        }
+        AlertDelivery::DiscordDm => {}
+    }
+    if body.mention == AlertMention::Role && body.map_webhook_role_id.is_none() {
+        return Err(ApiError::bad_request("pick a role to mention"));
+    }
+    // Proximity and jump range are about a place; a killmail alert is about who.
+    if matches!(body.kind, AlertKind::Proximity | AlertKind::JumpRange)
+        && body.target_solar_system_id.is_none()
+    {
+        return Err(ApiError::bad_request("pick a system to watch"));
+    }
+    if body.kind == AlertKind::JumpRange {
+        if body.ship_type.is_none() {
+            return Err(ApiError::bad_request(
+                "pick the ship whose range to measure",
+            ));
+        }
+        if !(0..=5).contains(&body.jdc_level.unwrap_or(-1)) {
+            return Err(ApiError::bad_request("JDC level must be between 0 and 5"));
+        }
+    }
+    Ok(())
 }
 
 /// `POST /api/maps/{id}/alerts`, create one. Manager+.
@@ -536,36 +394,9 @@ pub async fn create_alert(
     Json(body): Json<SaveAlert>,
 ) -> ApiResult<MapAlert> {
     let user_id = require_manager(&state, &jar, map_id).await?;
-    body.validate()?;
-    body.check_belongs(&state, map_id).await?;
-    let id = sqlx::query_scalar!(
-        "insert into map_alerts
-             (map_id, created_by_user_id, name, kind, delivery, map_webhook_id,
-              discord_guild_id, discord_channel_id, map_webhook_role_id, mention,
-              target_solar_system_id, max_jumps, ship_type, jdc_level, filters, filter_match)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-         returning id",
-        map_id,
-        user_id,
-        body.name.trim(),
-        body.kind.as_str(),
-        body.delivery.as_str(),
-        body.map_webhook_id,
-        body.discord_guild_id,
-        body.discord_channel_id,
-        body.map_webhook_role_id,
-        body.mention.as_str(),
-        body.target_solar_system_id,
-        body.max_jumps,
-        body.ship_type.map(|v| v.as_str()),
-        body.jdc_level,
-        serde_json::to_value(&body.filters).unwrap_or_else(|_| serde_json::json!([])),
-        body.filter_match.as_str(),
-    )
-    .fetch_one(&state.db)
-    .await?;
-    crate::alerts::log(&state.db, Some(id), map_id, Some(user_id), "created", None).await;
-    one(&state.db, map_id, id).await
+    validate(&body)?;
+    check_belongs(&state, map_id, &body).await?;
+    Ok(Json(store::create(&state.db, map_id, user_id, &body).await?))
 }
 
 /// `PUT /api/maps/{id}/alerts/{alert_id}`, replace its settings. Manager+.
@@ -576,48 +407,11 @@ pub async fn update_alert(
     Json(body): Json<SaveAlert>,
 ) -> ApiResult<MapAlert> {
     let user_id = require_manager(&state, &jar, map_id).await?;
-    body.validate()?;
-    body.check_belongs(&state, map_id).await?;
-    let updated = sqlx::query!(
-        "update map_alerts set
-             name = $3, kind = $4, delivery = $5, map_webhook_id = $6,
-             discord_guild_id = $7, discord_channel_id = $8, map_webhook_role_id = $9,
-             mention = $10, target_solar_system_id = $11, max_jumps = $12,
-             ship_type = $13, jdc_level = $14,
-             filters = $15, filter_match = $16, updated_at = now()
-         where id = $1 and map_id = $2",
-        alert_id,
-        map_id,
-        body.name.trim(),
-        body.kind.as_str(),
-        body.delivery.as_str(),
-        body.map_webhook_id,
-        body.discord_guild_id,
-        body.discord_channel_id,
-        body.map_webhook_role_id,
-        body.mention.as_str(),
-        body.target_solar_system_id,
-        body.max_jumps,
-        body.ship_type.map(|v| v.as_str()),
-        body.jdc_level,
-        serde_json::to_value(&body.filters).unwrap_or_else(|_| serde_json::json!([])),
-        body.filter_match.as_str(),
-    )
-    .execute(&state.db)
-    .await?;
-    if updated.rows_affected() == 0 {
-        return Err(ApiError::from(MapError::NotFound));
-    }
-    crate::alerts::log(
-        &state.db,
-        Some(alert_id),
-        map_id,
-        Some(user_id),
-        "updated",
-        None,
-    )
-    .await;
-    one(&state.db, map_id, alert_id).await
+    validate(&body)?;
+    check_belongs(&state, map_id, &body).await?;
+    Ok(Json(
+        store::update(&state.db, map_id, alert_id, user_id, &body).await?,
+    ))
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
@@ -634,37 +428,9 @@ pub async fn set_alert_active(
     Json(body): Json<SetAlertActive>,
 ) -> ApiResult<MapAlert> {
     let user_id = require_manager(&state, &jar, map_id).await?;
-    // Turning it back on clears the reason it stopped.
-    let updated = sqlx::query!(
-        "update map_alerts set
-             is_active = $3,
-             disabled_at = case when $3 then null else now() end,
-             disabled_reason = case when $3 then null else 'manual' end,
-             updated_at = now()
-         where id = $1 and map_id = $2",
-        alert_id,
-        map_id,
-        body.is_active,
-    )
-    .execute(&state.db)
-    .await?;
-    if updated.rows_affected() == 0 {
-        return Err(ApiError::from(MapError::NotFound));
-    }
-    crate::alerts::log(
-        &state.db,
-        Some(alert_id),
-        map_id,
-        Some(user_id),
-        if body.is_active {
-            "enabled"
-        } else {
-            "disabled"
-        },
-        None,
-    )
-    .await;
-    one(&state.db, map_id, alert_id).await
+    Ok(Json(
+        store::set_active(&state.db, map_id, alert_id, user_id, body.is_active).await?,
+    ))
 }
 
 /// `DELETE /api/maps/{id}/alerts/{alert_id}`. Manager+.
@@ -674,25 +440,7 @@ pub async fn delete_alert(
     Path((map_id, alert_id)): Path<(i64, i64)>,
 ) -> ApiResult<()> {
     let user_id = require_manager(&state, &jar, map_id).await?;
-    let name = sqlx::query_scalar!(
-        "delete from map_alerts where id = $1 and map_id = $2 returning name",
-        alert_id,
-        map_id,
-    )
-    .fetch_optional(&state.db)
-    .await?;
-    let Some(name) = name else {
-        return Err(ApiError::from(MapError::NotFound));
-    };
-    crate::alerts::log(
-        &state.db,
-        None,
-        map_id,
-        Some(user_id),
-        "deleted",
-        Some(&name),
-    )
-    .await;
+    store::delete(&state.db, map_id, alert_id, user_id).await?;
     Ok(Json(()))
 }
 
@@ -739,15 +487,6 @@ pub async fn list_alert_events(
             })
             .collect(),
     ))
-}
-
-async fn one(pool: &PgPool, map_id: i64, alert_id: i64) -> ApiResult<MapAlert> {
-    load(pool, map_id)
-        .await?
-        .into_iter()
-        .find(|a| a.id == alert_id)
-        .map(Json)
-        .ok_or_else(|| ApiError::from(MapError::NotFound))
 }
 
 #[cfg(test)]

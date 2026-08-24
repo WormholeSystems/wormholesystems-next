@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { MapEventEntry } from '$lib/api/types/MapEventEntry';
-import { historyRows } from './history-tree';
+import type { MapHistory } from '$lib/api/types/MapHistory';
+import { headEntry, redoEntry, stepDetail, historyRows } from './history-tree';
 
 const entry = (
 	id: number,
@@ -83,5 +84,28 @@ describe('historyRows', () => {
 		expect(rows.every((r) => r.depth === 0)).toBe(true);
 		// Two fragments, so no rail joins row "5" down to row "1".
 		expect(rows.find((r) => r.entry.id === 5)!.railDown).toBe(false);
+	});
+});
+
+describe('head and redo entries', () => {
+	const entries = [
+		{ id: 1, label: 'Added J155207', created_at: '2026-08-17T14:00:00Z' },
+		{ id: 2, label: 'Removed a branch', created_at: '2026-08-17T15:00:00Z' },
+	] as MapEventEntry[];
+	const history = { entries, head_event_id: 2, redo_target: 1 } as MapHistory;
+
+	it('finds the step the map sits on and the redo target', () => {
+		expect(headEntry(history)?.id).toBe(2);
+		expect(redoEntry(history)?.id).toBe(1);
+		expect(headEntry(null)).toBeNull();
+		expect(redoEntry({ ...history, redo_target: null } as MapHistory)).toBeNull();
+	});
+});
+
+describe('stepDetail', () => {
+	it('names the step and how long ago it was', () => {
+		const entry = { label: 'Added J155207', created_at: '2026-08-17T14:13:00Z' } as MapEventEntry;
+		expect(stepDetail(entry, new Date('2026-08-17T15:00:00Z'))).toBe('Added J155207 · 47m ago');
+		expect(stepDetail(null)).toBeUndefined();
 	});
 });

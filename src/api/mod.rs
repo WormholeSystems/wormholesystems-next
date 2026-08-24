@@ -36,7 +36,6 @@ use serde_json::json;
 use crate::auth::AppState;
 use crate::maps::MapError;
 
-pub(crate) use extract::require_actor;
 
 // Wire types live next to their handlers; these re-exports save the rest of the crate from
 // caring which area a type belongs to.

@@ -3,9 +3,7 @@
 	// home/rally flags.
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import CompassIcon from '@lucide/svelte/icons/compass';
-	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import FlagIcon from '@lucide/svelte/icons/flag';
-	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import HomeIcon from '@lucide/svelte/icons/home';
 	import MapIcon from '@lucide/svelte/icons/map';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
@@ -17,23 +15,18 @@
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 
-	import { api } from '$lib/api/client';
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { SystemStatus } from '$lib/api/types/SystemStatus';
 	import EveImage from '$lib/components/EveImage.svelte';
 	import { isWormholeClass } from '$lib/map/classes';
-	import {
-		dotlanJumpRangeUrl,
-		dotlanRegionMapUrl,
-		dotlanSystemUrl,
-		zkillboardConstellationUrl,
-		zkillboardRegionUrl,
-		zkillboardSystemUrl,
-	} from '$lib/map/external-links';
+	import { systemLinkGroups } from '$lib/map/external-links';
 	import { statusColor } from '$lib/map/helpers';
 	import { STATUS_ICONS, STATUS_OPTIONS, statusLabel } from '$lib/map/status';
+	import * as actions from '$lib/map/system-actions';
+	import { onlineCharacters, setWaypoint, setWaypointAll } from '$lib/map/waypoints';
 	import type { MapState } from '../map-state.svelte';
 	import { item, panel, sub } from './chrome';
+	import ExternalLinks from './ExternalLinks.svelte';
 
 	let { map, system: s }: { map: MapState; system: MapSystemView } = $props();
 
@@ -61,22 +54,7 @@
 	}
 
 	function setStatus(id: number, status: SystemStatus) {
-		map.run('setStatus', api.setStatus({ map_id: map.mapId, map_solar_system_id: id, status }));
-		close();
-	}
-
-	function togglePin(id: number, value: boolean) {
-		map.run('setPinned', api.setPinned({ map_id: map.mapId, map_solar_system_id: id, value }));
-		close();
-	}
-
-	function toggleHome(id: number, value: boolean) {
-		map.run('setHome', api.setHome({ map_id: map.mapId, map_solar_system_id: id, value }));
-		close();
-	}
-
-	function toggleRally(id: number, value: boolean) {
-		map.run('setRally', api.setRally({ map_id: map.mapId, map_solar_system_id: id, value }));
+		actions.setStatus(map, id, status);
 		close();
 	}
 
@@ -84,29 +62,19 @@
 	function removeSystem(id: number) {
 		const ids = map.selected.size > 0 ? [...map.selected] : [id];
 		map.selected = new Set();
-		map.run('removeSystems', api.removeSystems({ map_id: map.mapId, map_solar_system_ids: ids }));
+		actions.removeSystems(map, ids);
 		close();
 	}
 
-	const onlineCharacters = $derived(map.myCharacters.filter((c) => c.online));
+	const online = $derived(onlineCharacters(map));
 
 	function waypoint(characterId: number, destinationId: number, clearOthers: boolean) {
-		map.run(
-			'setWaypoint',
-			api.setWaypoint({
-				character_id: characterId,
-				destination_id: destinationId,
-				clear_other_waypoints: clearOthers,
-			}),
-		);
+		setWaypoint(map, destinationId, characterId, clearOthers);
 		close();
 	}
 
 	function waypointAll(destinationId: number, clearOthers: boolean) {
-		map.run(
-			'setWaypoint',
-			api.setWaypointAll({ destination_id: destinationId, clear_other_waypoints: clearOthers }),
-		);
+		setWaypointAll(map, destinationId, clearOthers);
 		close();
 	}
 </script>
@@ -118,16 +86,16 @@
 		{label}
 		<ChevronRightIcon class="ml-auto size-3" />
 		<div class={panel} data-testid="{clearOthers ? 'destination' : 'waypoint'}-submenu">
-			{#if onlineCharacters.length === 0}
+			{#if online.length === 0}
 				<div class="px-3 py-1 text-xs text-muted-foreground">No characters online</div>
 			{:else}
-				{#each onlineCharacters as c (c.character_id)}
+				{#each online as c (c.character_id)}
 					<button class={item} onclick={() => waypoint(c.character_id, destinationId, clearOthers)}>
 						<EveImage kind="character" id={c.character_id} class="size-5 rounded-lg" />
 						{c.name}
 					</button>
 				{/each}
-				{#if onlineCharacters.length > 1}
+				{#if online.length > 1}
 					<div class="my-0.5 border-t border-border"></div>
 					<button class={item} onclick={() => waypointAll(destinationId, clearOthers)}>
 						<UsersIcon class="size-4" />
@@ -147,7 +115,13 @@
 	<div class="my-0.5 border-t border-border"></div>
 {/if}
 {#if s.kind === 'system'}
-	<button class={item} onclick={() => togglePin(s.id, !s.is_pinned)}>
+	<button
+		class={item}
+		onclick={() => {
+			actions.setPinned(map, s.id, !s.is_pinned);
+			close();
+		}}
+	>
 		<PinIcon class="size-4" />
 		{s.is_pinned ? 'Unpin' : 'Pin'}
 	</button>
@@ -175,49 +149,16 @@
 
 	<div class="my-0.5 border-t border-border"></div>
 
-	<div class={sub} data-testid="external-subtrigger">
-		<ExternalLinkIcon class="size-4" />
-		External
-		<ChevronRightIcon class="ml-auto size-3" />
-		<div class={panel} data-testid="external-submenu">
-			<div
-				class="px-3 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-			>
-				Dotlan
-			</div>
-			<a class={item} href={dotlanSystemUrl(s.name)} target="_blank" rel="noopener">
-				<GlobeIcon class="size-4" /> System
-			</a>
-			<a class={item} href={dotlanRegionMapUrl(s.region, s.name)} target="_blank" rel="noopener">
-				<MapIcon class="size-4" /> Region Map
-			</a>
-			{#if !isWormholeClass(s.wormhole_class_id)}
-				<a class={item} href={dotlanJumpRangeUrl(s.name)} target="_blank" rel="noopener">
-					<CompassIcon class="size-4" /> Jump Range
-				</a>
-			{/if}
-			<div class="my-0.5 border-t border-border"></div>
-			<div
-				class="px-3 py-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-			>
-				zKillboard
-			</div>
-			<a class={item} href={zkillboardSystemUrl(s.solar_system_id)} target="_blank" rel="noopener">
-				<GlobeIcon class="size-4" /> System
-			</a>
-			<a
-				class={item}
-				href={zkillboardConstellationUrl(s.constellation_id)}
-				target="_blank"
-				rel="noopener"
-			>
-				<CompassIcon class="size-4" /> Constellation
-			</a>
-			<a class={item} href={zkillboardRegionUrl(s.region_id)} target="_blank" rel="noopener">
-				<MapIcon class="size-4" /> Region
-			</a>
-		</div>
-	</div>
+	<ExternalLinks
+		groups={systemLinkGroups({
+			solarSystemId: s.solar_system_id,
+			name: s.name,
+			region: s.region,
+			regionId: s.region_id,
+			constellationId: s.constellation_id,
+			isWormhole: isWormholeClass(s.wormhole_class_id),
+		})}
+	/>
 
 	{#if !isWormholeClass(s.wormhole_class_id)}
 		{@render waypointSubmenu('Set destination', s.solar_system_id, true)}
@@ -232,7 +173,7 @@
 			<button
 				class={item}
 				onclick={() => {
-					map.routeFromId = s.solar_system_id;
+					map.route.fromId = s.solar_system_id;
 					close();
 				}}
 			>
@@ -242,7 +183,7 @@
 			<button
 				class={item}
 				onclick={() => {
-					map.routeToId = s.solar_system_id;
+					map.route.toId = s.solar_system_id;
 					close();
 				}}
 			>
@@ -254,11 +195,23 @@
 
 	<div class="my-0.5 border-t border-border"></div>
 
-	<button class={item} onclick={() => toggleHome(s.id, !s.is_home)}>
+	<button
+		class={item}
+		onclick={() => {
+			actions.setHome(map, s.id, !s.is_home);
+			close();
+		}}
+	>
 		<HomeIcon class="size-4" />
 		{s.is_home ? 'Unset Home System' : 'Set as Home System'}
 	</button>
-	<button class={item} onclick={() => toggleRally(s.id, !s.is_rally)}>
+	<button
+		class={item}
+		onclick={() => {
+			actions.setRally(map, s.id, !s.is_rally);
+			close();
+		}}
+	>
 		<FlagIcon class="size-4" />
 		{s.is_rally ? 'Clear Rally Point' : 'Set as Rally Point'}
 	</button>

@@ -2,6 +2,8 @@
 //! as a helper module (not its own test binary); each test file does `mod common;`.
 #![allow(dead_code)]
 
+pub mod app;
+
 use sqlx::PgPool;
 use wormholesystems::maps::access::SetAccess;
 use wormholesystems::maps::access::set_access;

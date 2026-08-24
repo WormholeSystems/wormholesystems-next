@@ -10,6 +10,7 @@
 	import { toast } from 'svelte-sonner';
 
 	import { api, errorMessage } from '$lib/api/client';
+	import { confirmDanger } from '$lib/confirm.svelte';
 	import { NODE_W } from '$lib/map/helpers';
 	import type { MapState, Menu } from '../map-state.svelte';
 	import { item, panel, sub } from './chrome';
@@ -23,7 +24,7 @@
 	function addSystem() {
 		map.linkFrom = null;
 		// Centred on the click, so the new system lands where the map was right-clicked.
-		const w = map.toWorld(menu.x, menu.y);
+		const w = map.camera.toWorld(menu.x, menu.y);
 		map.searchAnchor = { x: w.x - NODE_W / 2, y: w.y - map.nodeH / 2 };
 		map.paletteOpen = true;
 		close();
@@ -42,11 +43,14 @@
 		close();
 	}
 
-	function clearMap() {
-		if (confirm('Clear the map? This removes all systems except home and pinned ones.')) {
-			map.run('clearMap', api.clearMap({ map_id: map.mapId }));
-		}
+	async function clearMap() {
 		close();
+		const sure = await confirmDanger({
+			title: 'Clear the map?',
+			body: 'This removes all systems except home and pinned ones.',
+			action: 'Clear map',
+		});
+		if (sure) map.run('clearMap', api.clearMap({ map_id: map.mapId }));
 	}
 
 	// Loaded on demand, so none of it reaches a built app.

@@ -4,12 +4,11 @@
 
 import { openMapSocket, openUserSocket } from '$lib/ws';
 import type { MapState } from './map-state.svelte';
-import type { JumpTracker } from './tracking.svelte';
 
-export function connectMapSession(map: MapState, tracker: JumpTracker): (() => void) | undefined {
+export function connectMapSession(map: MapState): (() => void) | undefined {
 	if (map.mapId === 0) return;
-	map.loadRoutingGraph();
-	map.loadIgnored();
+	map.route.load();
+	map.route.loadIgnored();
 	// A frame names what changed; `null` is the reconnect catch-up, "reload everything".
 	const closeWs = openMapSocket(
 		map.mapId,
@@ -19,15 +18,15 @@ export function connectMapSession(map: MapState, tracker: JumpTracker): (() => v
 	// Below here is about the pilot at the keyboard: jump tracking and the private
 	// channel. A watcher has none of it.
 	if (!map.signedIn) return () => closeWs();
-	tracker.refresh();
+	map.refreshMyCharacters();
 	// The character's own status change is how a jump is normally noticed within seconds.
 	const closeUserWs = openUserSocket((event) => {
-		if (event.type === 'character_status_changed') tracker.refresh();
+		if (event.type === 'character_status_changed') map.refreshMyCharacters();
 	});
 	// Flying happens in the game client, so a jump has usually already happened by the
 	// time the tab is looked at again. An explicit listener, not the query's own focus
 	// refetching: that watches visibilitychange, and this is about window focus.
-	const observe = () => tracker.refresh();
+	const observe = () => map.refreshMyCharacters();
 	window.addEventListener('focus', observe);
 	return () => {
 		window.removeEventListener('focus', observe);

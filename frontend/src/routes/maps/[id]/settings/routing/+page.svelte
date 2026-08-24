@@ -4,6 +4,12 @@
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
 	import { userSettingsSaver } from '$lib/map/user-settings';
+	import {
+		ROUTE_LIFETIMES,
+		ROUTE_MASSES,
+		ROUTE_PREFS,
+		type RouteOption,
+	} from '$lib/routing/options';
 	import { q } from '$lib/api/queries';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -17,21 +23,10 @@
 
 	const saveUserSettings = userSettingsSaver(() => mapId);
 
-	const PREFERENCES = [
-		{ value: 'shorter', label: 'Shortest', hint: 'Fewest jumps, whatever the security' },
-		{ value: 'safer', label: 'Safer', hint: 'Prefers high security' },
-		{ value: 'less_secure', label: 'Less secure', hint: 'Prefers low and null' },
-	];
-	const LIFETIMES = [
-		{ value: 'critical', label: 'Anything', hint: 'Including holes about to collapse' },
-		{ value: 'eol', label: 'Not critical', hint: 'Avoids the last hour' },
-		{ value: 'stable', label: 'Healthy only', hint: 'Avoids end-of-life holes' },
-	];
-	const MASSES = [
-		{ value: 'critical', label: 'Anything', hint: 'Including nearly-collapsed holes' },
-		{ value: 'reduced', label: 'Not critical', hint: 'Avoids the last 10%' },
-		{ value: 'stable', label: 'Fresh only', hint: 'Avoids reduced holes' },
-	];
+	const full = <T,>(o: RouteOption<T>) => ({ value: o.value, label: o.label, hint: o.hint });
+	const PREFERENCES = ROUTE_PREFS.map(full);
+	const LIFETIMES = ROUTE_LIFETIMES.map(full);
+	const MASSES = ROUTE_MASSES.map(full);
 
 	const preference = $derived(settings?.route_preference ?? 'shorter');
 	const lifetime = $derived(settings?.route_allow_time_status ?? 'critical');

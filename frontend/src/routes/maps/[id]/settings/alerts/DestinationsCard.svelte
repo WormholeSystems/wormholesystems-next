@@ -6,7 +6,8 @@
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { api } from '$lib/api/client';
-	import { apiAction } from '$lib/api/mutations';
+	import { confirmDanger } from '$lib/confirm.svelte';
+	import { after, apiAction } from '$lib/api/mutations';
 	import { key } from '$lib/api/queries';
 	import type { MapWebhook } from '$lib/api/types/MapWebhook';
 	import type { MapWebhookRole } from '$lib/api/types/MapWebhookRole';
@@ -33,35 +34,35 @@
 	const act = apiAction(() => [key.alerting(mapId)]);
 
 	function addWebhook() {
-		act
-			.mutateAsync(() =>
+		after(
+			act.mutateAsync(() =>
 				api.createWebhook(mapId, { name: webhookName.trim(), url: webhookUrl.trim() }),
-			)
-			.then(() => {
+			),
+			() => {
 				webhookName = '';
 				webhookUrl = '';
-			})
-			.catch(() => {});
+			},
+		);
 	}
 
 	function addRole() {
-		act
-			.mutateAsync(() =>
+		after(
+			act.mutateAsync(() =>
 				api.createAlertRole(mapId, { name: roleName.trim(), discord_role_id: roleId.trim() }),
-			)
-			.then(() => {
+			),
+			() => {
 				roleName = '';
 				roleId = '';
-			})
-			.catch(() => {});
+			},
+		);
 	}
 
-	function removeWebhook(webhook: MapWebhook) {
-		const warning =
+	async function removeWebhook(webhook: MapWebhook) {
+		const body =
 			webhook.alert_count > 0
-				? `Delete "${webhook.name}"? ${webhook.alert_count} alert${webhook.alert_count === 1 ? '' : 's'} posting there will be deleted too.`
-				: `Delete "${webhook.name}"?`;
-		if (!confirm(warning)) return;
+				? `${webhook.alert_count} alert${webhook.alert_count === 1 ? '' : 's'} posting there will be deleted too.`
+				: undefined;
+		if (!(await confirmDanger({ title: `Delete "${webhook.name}"?`, body }))) return;
 		act.mutate(() => api.deleteWebhook(mapId, webhook.id));
 	}
 </script>

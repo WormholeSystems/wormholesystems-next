@@ -4,12 +4,13 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 
 	import { toast } from 'svelte-sonner';
+	import { copyText } from '$lib/clipboard';
 
 	import type { Signature } from '$lib/api/types/Signature';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
-	import { formatBookmark } from '$lib/bookmark';
+	import { formatBookmark } from '$lib/naming/bookmark';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -148,7 +149,7 @@
 			},
 			prompt.origin.alias,
 		);
-		navigator.clipboard?.writeText(text).catch(() => {});
+		void copyText(text, { silent: true });
 		toast.success('Bookmark copied', { description: text });
 	}
 

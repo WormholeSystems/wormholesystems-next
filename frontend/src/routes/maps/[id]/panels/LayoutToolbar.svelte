@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Everything that acts on the layout as a whole; per-tile controls live on the tiles.
-	import { toast } from 'svelte-sonner';
+	import { copyText, readText } from '$lib/clipboard';
 
 	import ClipboardCopyIcon from '@lucide/svelte/icons/clipboard-copy';
 	import ClipboardPasteIcon from '@lucide/svelte/icons/clipboard-paste';
@@ -23,6 +23,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { cn } from '$lib/utils';
+	import { decodeLayout, encodeLayout } from './layout-codec';
 	import { BREAKPOINTS, PANELS, type BreakpointKey, resolveLayouts } from './registry';
 	import type { MapState } from '../map-state.svelte';
 
@@ -40,37 +41,31 @@
 		lg: MonitorIcon,
 	} as const;
 
-	/** The layout as a string you can hand to someone else. */
 	async function copy() {
-		const payload = {
-			breakpoints: resolveLayouts(map.layoutDraft),
-			hidden: map.userSettings?.hidden_panels ?? [],
-		};
 		// The clipboard is the whole result here, so a refused write has to say so rather
 		// than look like nothing happened.
-		try {
-			await navigator.clipboard.writeText(btoa(JSON.stringify(payload)));
-			toast.success('Layout copied');
-		} catch {
-			toast.error('Clipboard access denied');
-		}
+		await copyText(
+			encodeLayout({
+				breakpoints: resolveLayouts(map.panels.draft),
+				hidden: map.userSettings?.hidden_panels ?? [],
+			}),
+			{ success: 'Layout copied' },
+		);
 	}
 
 	async function paste() {
 		pasteError = '';
-		try {
-			const text = await navigator.clipboard.readText();
-			const data = JSON.parse(atob(text.trim()));
-			if (!data.breakpoints || typeof data.breakpoints !== 'object') {
-				pasteError = 'That does not look like a layout.';
-				return;
-			}
-			map.setLayout(resolveLayouts(data.breakpoints));
-			if (Array.isArray(data.hidden)) {
-				map.queries.patchSettingsLocal((s) => ({ ...s, hidden_panels: data.hidden }));
-			}
-		} catch {
+		const text = await readText();
+		if (text === null) return;
+		const data = decodeLayout(text);
+		if (data === null) {
 			pasteError = 'That does not look like a layout.';
+			return;
+		}
+		map.panels.set(resolveLayouts(data.breakpoints));
+		if (data.hidden) {
+			const hidden = data.hidden;
+			map.patchSettingsLocal((s) => ({ ...s, hidden_panels: hidden }));
 		}
 	}
 </script>
@@ -87,16 +82,16 @@
 							{...props}
 							variant="ghost"
 							size="icon"
-							class={cn('size-9 rounded-xl', map.layoutDirty && 'text-destructive')}
+							class={cn('size-9 rounded-xl', map.panels.dirty && 'text-destructive')}
 							data-testid="layout-exit"
-							onclick={() => map.exitLayoutEdit()}
+							onclick={() => map.panels.exitEdit()}
 						>
 							<XIcon />
 						</Button>
 					{/snippet}
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					{map.layoutDirty ? 'Exit (unsaved changes)' : 'Done arranging'}
+					{map.panels.dirty ? 'Exit (unsaved changes)' : 'Done arranging'}
 				</Tooltip.Content>
 			</Tooltip.Root>
 
@@ -106,7 +101,7 @@
 			<div class="flex items-center gap-0.5 rounded-xl border border-border/60 bg-muted/40 p-0.5">
 				{#each BREAKPOINTS as bp (bp.key)}
 					{@const Icon = ICONS[bp.key]}
-					{@const active = map.layoutBreakpoint === bp.key}
+					{@const active = map.panels.breakpoint === bp.key}
 					<Tooltip.Root>
 						<Tooltip.Trigger>
 							{#snippet child({ props })}
@@ -121,7 +116,7 @@
 									)}
 									data-testid="breakpoint-{bp.key}"
 									aria-pressed={active}
-									onclick={() => (map.layoutBreakpoint = bp.key as BreakpointKey)}
+									onclick={() => (map.panels.breakpoint = bp.key as BreakpointKey)}
 								>
 									<Icon class="size-4 shrink-0" />
 									{#if active}<span class="whitespace-nowrap">{bp.label}</span>{/if}
@@ -174,7 +169,7 @@
 									type="button"
 									class="flex w-full items-start gap-3 rounded-lg p-2 text-left transition-colors hover:bg-muted"
 									data-testid="add-{panel.id}"
-									onclick={() => map.showPanel(panel.id)}
+									onclick={() => map.panels.showPanel(panel.id)}
 								>
 									<span class="min-w-0 flex-1">
 										<span class="block text-sm font-medium">{panel.label}</span>
@@ -205,9 +200,9 @@
 			<div class="flex items-center gap-1">
 				<Button
 					class="h-9 gap-1.5 rounded-xl"
-					disabled={!map.layoutDirty}
+					disabled={!map.panels.dirty}
 					data-testid="layout-save"
-					onclick={() => map.saveLayout()}
+					onclick={() => map.panels.save()}
 				>
 					<SaveIcon />
 					Save
@@ -231,7 +226,7 @@
 						<DropdownMenu.Group>
 							<DropdownMenu.Item
 								data-testid="layout-reset"
-								onSelect={() => map.resetLayout(map.layoutBreakpoint)}
+								onSelect={() => map.panels.reset(map.panels.breakpoint)}
 							>
 								<RotateCcwIcon />
 								Reset this size
@@ -258,7 +253,7 @@
 	</div>
 </Tooltip.Provider>
 
-<Dialog.Root bind:open={map.layoutExitPrompt}>
+<Dialog.Root bind:open={map.panels.exitPrompt}>
 	<Dialog.Content class="sm:max-w-md" data-testid="layout-exit-prompt">
 		<Dialog.Header>
 			<Dialog.Title>Save your layout changes?</Dialog.Title>
@@ -268,14 +263,14 @@
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer class="sm:justify-between">
-			<Button variant="ghost" onclick={() => (map.layoutExitPrompt = false)}>Keep editing</Button>
+			<Button variant="ghost" onclick={() => (map.panels.exitPrompt = false)}>Keep editing</Button>
 			<div class="flex gap-2">
 				<Button
 					variant="outline"
 					data-testid="layout-discard"
-					onclick={() => map.resolveLayoutExit(false)}>Discard</Button
+					onclick={() => map.panels.resolveExit(false)}>Discard</Button
 				>
-				<Button data-testid="layout-save-exit" onclick={() => map.resolveLayoutExit(true)}>
+				<Button data-testid="layout-save-exit" onclick={() => map.panels.resolveExit(true)}>
 					Save
 				</Button>
 			</div>

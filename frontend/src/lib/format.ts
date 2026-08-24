@@ -4,19 +4,31 @@
  * How long ago, coarsely: `just now`, `47m ago`, `3h ago`, `2d ago`. Takes `now` rather than
  * reading the clock, so callers that tick on a timer recompute and tests stay deterministic.
  */
-export function timeAgo(iso: string, now: Date = new Date()): string {
-	const short = timeAgoShort(iso, now);
+export function timeAgo(when: string | number, now: Date = new Date()): string {
+	const short = timeAgoShort(when, now);
 	return short === 'now' ? 'just now' : `${short} ago`;
 }
 
 /** The same ages at column width: `now`, `47m`, `3h`, `2d`. */
-export function timeAgoShort(iso: string, now: Date = new Date()): string {
-	const minutes = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000);
+export function timeAgoShort(when: string | number, now: Date = new Date()): string {
+	const minutes = Math.floor((now.getTime() - new Date(when).getTime()) / 60_000);
 	if (minutes < 1) return 'now';
 	if (minutes < 60) return `${minutes}m`;
 	const hours = Math.floor(minutes / 60);
 	if (hours < 24) return `${hours}h`;
 	return `${Math.floor(hours / 24)}d`;
+}
+
+/** `Mon DD HH:MM` in UTC: the wormhole timer stamp, as EVE reads it. */
+export function utcShort(when: string | number): string {
+	return new Date(when).toLocaleString('en-US', {
+		month: 'short',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: false,
+		timeZone: 'UTC',
+	});
 }
 
 const ISK = new Intl.NumberFormat('en-US', {
@@ -31,13 +43,15 @@ export function formatIsk(value: number | null | undefined): string | null {
 	return ISK.format(value);
 }
 
+export type IskSeverity = 'unknown' | 'routine' | 'notable' | 'severe';
+
 /**
  * How loudly to say a number of ISK. The thresholds are where a loss stops being routine: a
  * billion is a good ship, ten is a capital.
  */
-export function iskTone(value: number | null | undefined): string {
-	if (value === null || value === undefined) return 'text-muted-foreground/60';
-	if (value >= 10_000_000_000) return 'font-semibold text-red-400';
-	if (value >= 1_000_000_000) return 'font-semibold text-amber-400';
-	return 'text-muted-foreground';
+export function iskSeverity(value: number | null | undefined): IskSeverity {
+	if (value === null || value === undefined) return 'unknown';
+	if (value >= 10_000_000_000) return 'severe';
+	if (value >= 1_000_000_000) return 'notable';
+	return 'routine';
 }
