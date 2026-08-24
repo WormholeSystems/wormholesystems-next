@@ -28,7 +28,10 @@ pub fn app(pool: &PgPool) -> Router {
         },
     );
     let state = AppState {
-        auth: Arc::new(Auth::new(Arc::new(sso), wormholesystems::esi::EsiClient::new())),
+        auth: Arc::new(Auth::new(
+            Arc::new(sso),
+            wormholesystems::esi::EsiClient::new(),
+        )),
         db: pool.clone(),
         hub: wormholesystems::maps::MapHub::new(),
         user_hub: wormholesystems::user_channel::UserHub::new(),

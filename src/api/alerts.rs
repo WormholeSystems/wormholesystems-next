@@ -396,7 +396,9 @@ pub async fn create_alert(
     let user_id = require_manager(&state, &jar, map_id).await?;
     validate(&body)?;
     check_belongs(&state, map_id, &body).await?;
-    Ok(Json(store::create(&state.db, map_id, user_id, &body).await?))
+    Ok(Json(
+        store::create(&state.db, map_id, user_id, &body).await?,
+    ))
 }
 
 /// `PUT /api/maps/{id}/alerts/{alert_id}`, replace its settings. Manager+.

@@ -193,7 +193,12 @@ pub async fn get(pool: &PgPool, map_id: i64, alert_id: i64) -> Result<MapAlert> 
 }
 
 /// Inserts the alert and logs who set it up. The caller validates first.
-pub async fn create(pool: &PgPool, map_id: i64, user_id: i64, body: &SaveAlert) -> Result<MapAlert> {
+pub async fn create(
+    pool: &PgPool,
+    map_id: i64,
+    user_id: i64,
+    body: &SaveAlert,
+) -> Result<MapAlert> {
     let id = sqlx::query_scalar!(
         "insert into map_alerts
              (map_id, created_by_user_id, name, kind, delivery, map_webhook_id,
