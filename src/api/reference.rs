@@ -214,7 +214,17 @@ pub struct RoutingGraph {
 pub struct StationGroup {
     pub id: i64,
     pub name: String,
+    /// The owning corporation's faction; absent for service groups.
+    #[ts(optional)]
+    pub faction: Option<FactionRef>,
     pub stations: Vec<StationRef>,
+}
+
+#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct FactionRef {
+    pub id: i64,
+    pub name: String,
 }
 
 #[derive(Clone, serde::Serialize, ts_rs::TS)]
@@ -324,15 +334,23 @@ async fn build_routing_graph(db: &sqlx::PgPool) -> Result<RoutingGraph, ApiError
     // and the client answers both with one relaxation over the graph it already has.
     let rows = sqlx::query!(
         r#"select st.owner_corporation_id as "corporation_id!", c.name as "corporation_name!",
+                  c.faction_id, f.name as "faction_name?",
                   st.id as "station_id", st.name as "station_name", st.solar_system_id
            from stations st
            join corporations c on c.id = st.owner_corporation_id
+           left join factions f on f.id = c.faction_id
            where st.owner_corporation_id is not null
            order by c.name, st.name"#,
     )
     .fetch_all(db)
     .await?;
-    let corporations = group_stations(rows.into_iter().map(|row| {
+    let mut faction_of = std::collections::HashMap::new();
+    for row in &rows {
+        if let (Some(id), Some(name)) = (row.faction_id, row.faction_name.clone()) {
+            faction_of.insert(row.corporation_id, FactionRef { id, name });
+        }
+    }
+    let mut corporations = group_stations(rows.into_iter().map(|row| {
         (
             row.corporation_id,
             row.corporation_name,
@@ -343,6 +361,9 @@ async fn build_routing_graph(db: &sqlx::PgPool) -> Result<RoutingGraph, ApiError
             },
         )
     }));
+    for group in &mut corporations {
+        group.faction = faction_of.remove(&group.id);
+    }
 
     Ok(RoutingGraph {
         adjacency,
@@ -369,6 +390,7 @@ fn group_stations(rows: impl Iterator<Item = (i64, String, StationRef)>) -> Vec<
                 current = Some(StationGroup {
                     id,
                     name,
+                    faction: None,
                     stations: vec![station],
                 });
             }

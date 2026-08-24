@@ -17,6 +17,8 @@ import { readStored, removeStored, writeStored } from '$lib/storage';
 export interface StationGroup {
 	id: number;
 	name: string;
+	/** The owning corporation's faction; null for service groups. */
+	faction: { id: number; name: string } | null;
 	systems: Set<number>;
 	/** Concrete stations per system, so results can name (and target) the station. */
 	stationsBySystem: Map<number, { id: number; name: string }[]>;
@@ -25,6 +27,7 @@ export interface StationGroup {
 function stationGroup(group: {
 	id: number;
 	name: string;
+	faction?: { id: number; name: string };
 	stations: { id: number; name: string; solar_system_id: number }[];
 }): StationGroup {
 	const stationsBySystem = new Map<number, { id: number; name: string }[]>();
@@ -36,6 +39,7 @@ function stationGroup(group: {
 	return {
 		id: group.id,
 		name: group.name,
+		faction: group.faction ?? null,
 		systems: new Set(stationsBySystem.keys()),
 		stationsBySystem,
 	};

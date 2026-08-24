@@ -174,15 +174,16 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 	// Jove observatories: results with jump badges appear.
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
 
-	// NPC stations: Jita itself matches at zero jumps.
+	// Stations with no filters: Jita itself matches at zero jumps, nothing to expand.
 	await page.getByTestId('find-condition').click();
-	await page.getByRole('option', { name: 'NPC Stations' }).click();
+	await page.getByRole('option', { name: 'Stations' }).click();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
+	await expect(page.getByTestId('find-stations-indicator')).toHaveCount(0);
 
-	// Station services (seeded from the SDE) name the concrete stations, collapsed
+	// A service filter (seeded from the SDE) names the concrete stations, collapsed
 	// behind a per-row toggle so long lists stay scannable.
-	await page.getByTestId('find-condition').click();
+	await page.getByTestId('find-service').click();
 	await page.getByRole('option', { name: 'Repair Facilities' }).click();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('0j')).toBeVisible();
@@ -204,18 +205,37 @@ test('find: closest systems from the unified origin', async ({ page, api }) => {
 
 	// Security Offices only exist on CONCORD lowsec stations (in-game quirk), so
 	// highsec Jita is never a match and every result names a CONCORD station.
-	await page.getByTestId('find-condition').click();
+	await page.getByTestId('find-service').click();
 	await page.getByRole('option', { name: 'Security Office' }).click();
 	await expect(page.getByTestId('find-row').first()).toBeVisible();
 	await expect(page.getByTestId('find-row').first().getByText('Jita')).toHaveCount(0);
 	await page.getByTestId('find-row').first().click();
 	await expect(page.getByTestId('find-station').first()).toContainText('CONCORD');
 
+	// The owner filter searches corporations and whole factions, faction-sorted; picking
+	// Caldari Navy narrows Jita's stations to its own, intersected with the service.
+	await page.getByTestId('find-service').click();
+	await page.getByRole('option', { name: 'Repair Facilities' }).click();
+	await page.getByTestId('find-owner').click();
+	await page.getByTestId('find-owner-search').fill('caldari navy');
+	await page.getByRole('option', { name: 'Caldari Navy' }).click();
+	await expect(page.getByTestId('find-row').first().getByText('Jita')).toBeVisible();
+	await page.getByTestId('find-row').first().click();
+	await expect(page.getByTestId('find-station').first()).toContainText('Caldari Navy');
+	// A faction pick matches every member corporation's stations: in Jita that leaves
+	// exactly Quafe's embassy (the one Gallente-owned station with repair).
+	await page.getByTestId('find-owner').click();
+	await page.getByTestId('find-owner-search').fill('gallente fed');
+	await page.getByRole('option', { name: 'Gallente Federation' }).click();
+	await page.getByTestId('find-row').first().click();
+	await expect(page.getByTestId('find-station')).toHaveCount(1);
+	await expect(page.getByTestId('find-station')).toContainText('Quafe');
+	await page.getByTestId('find-owner').click();
+	await page.getByRole('option', { name: 'Any owner' }).click();
+
 	// Hovering a station keeps its system's route highlighted on the canvas (the
 	// station belongs to that system, so the highlight must not drop). Perimeter is
 	// one mapped jump away, so its route lights up the connection.
-	await page.getByTestId('find-condition').click();
-	await page.getByRole('option', { name: 'Repair Facilities' }).click();
 	const perimeterRow = page.getByTestId('find-row').filter({ hasText: 'Perimeter' });
 	await perimeterRow.hover();
 	const onRoute = page.locator('path[data-on-route="true"]');

@@ -13,8 +13,6 @@ const indexes = (over: Partial<FindIndexes> = {}): FindIndexes => ({
 		[14, 0.0],
 		[15, -0.3],
 	]),
-	services: [{ id: 7, systems: new Set([3]) }],
-	corporations: [{ id: 9, systems: new Set([4]) }],
 	...over,
 });
 
@@ -22,8 +20,8 @@ describe('findMatcher', () => {
 	it('matches Jove observatories and NPC stations off their indexes', () => {
 		expect(findMatcher('observatories', indexes())(1)).toBe(true);
 		expect(findMatcher('observatories', indexes())(2)).toBe(false);
-		expect(findMatcher('npc_stations', indexes())(2)).toBe(true);
-		expect(findMatcher('npc_stations', indexes())(1)).toBe(false);
+		expect(findMatcher('station', indexes())(2)).toBe(true);
+		expect(findMatcher('station', indexes())(1)).toBe(false);
 	});
 
 	it('splits security at the in-game boundaries', () => {
@@ -44,15 +42,7 @@ describe('findMatcher', () => {
 		expect(findMatcher('highsec', indexes())(999)).toBe(false);
 	});
 
-	it('matches station groups by their prefixed condition', () => {
-		expect(findMatcher('service_7', indexes())(3)).toBe(true);
-		expect(findMatcher('service_7', indexes())(4)).toBe(false);
-		expect(findMatcher('corp_9', indexes())(4)).toBe(true);
-		expect(findMatcher('corp_9', indexes())(3)).toBe(false);
-	});
-
 	it('matches nothing for a condition it does not know', () => {
-		expect(findMatcher('service_404', indexes())(3)).toBe(false);
 		expect(findMatcher('gibberish', indexes())(1)).toBe(false);
 	});
 });

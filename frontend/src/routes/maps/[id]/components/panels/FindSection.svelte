@@ -1,14 +1,19 @@
 <script lang="ts">
-	// Closest-systems Find: pick a condition, get the nearest matches from the shared origin,
-	// with station groups expanding to the concrete stations.
+	// Closest-systems Find: pick a condition, get the nearest matches from the shared origin.
+	// The Stations condition takes two optional filters, owner (a corporation or a whole
+	// faction) and service, intersected at the station level; matching rows expand to the
+	// concrete stations.
 	import BuildingIcon from '@lucide/svelte/icons/building-2';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 
-	import { Input } from '$lib/components/ui/input';
+	import * as Command from '$lib/components/ui/command';
+	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import DestinationMenu from '$lib/components/system-menu/DestinationMenu.svelte';
 	import SystemMenu from '$lib/components/system-menu/SystemMenu.svelte';
+	import EveImage from '$lib/components/EveImage.svelte';
 	import SystemRow from '../pickers/SystemRow.svelte';
 	import { SYSTEM_CELLS_4, SYSTEM_LIST_ACTIONS, SYSTEM_ROW } from '../pickers/columns';
 	import {
@@ -18,6 +23,13 @@
 	} from '$lib/routing/algorithm';
 	import { findMatcher } from '$lib/routing/find-conditions';
 	import type { MapState } from '../../state/map-state.svelte';
+	import {
+		byFaction,
+		factionOptions,
+		matchesOwner,
+		stationFilter,
+		type OwnerPick,
+	} from './find-stations';
 	import RoutePopover from './RoutePopover.svelte';
 
 	let { map, graph, origin }: { map: MapState; graph: RouteGraph | null; origin: number | null } =
@@ -29,7 +41,7 @@
 	let findOpen = $state(false);
 	const CONDITIONS = [
 		{ value: 'observatories', label: 'Jove Observatories' },
-		{ value: 'npc_stations', label: 'NPC Stations' },
+		{ value: 'station', label: 'Stations' },
 		{ value: 'highsec', label: 'High Security' },
 		{ value: 'lowsec', label: 'Low Security' },
 		{ value: 'nullsec', label: 'Null Security' },
@@ -37,33 +49,55 @@
 	let condition = $state('observatories');
 	let findLimit = $state('15');
 	const conditionLabel = $derived(
-		CONDITIONS.find((c) => c.value === condition)?.label ??
-			serviceOptions.find((svc) => `service_${svc.id}` === condition)?.name ??
-			corporationOptions.find((corp) => `corp_${corp.id}` === condition)?.name ??
-			'Pick one',
-	);
-	// Whichever group of stations is being searched for, if it is one: services and owners
-	// are the same question, so the results expand the same way.
-	const activeService = $derived(
-		serviceOptions.find((svc) => condition === `service_${svc.id}`) ??
-			corporationOptions.find((corp) => condition === `corp_${corp.id}`) ??
-			null,
+		CONDITIONS.find((c) => c.value === condition)?.label ?? 'Pick one',
 	);
 
-	// 185 owners is a list nobody scrolls, so it is typed into instead.
-	let corpSearch = $state('');
-	const matchingCorps = $derived.by(() => {
-		const query = corpSearch.trim().toLowerCase();
-		const all = query
-			? corporationOptions.filter((corp) => corp.name.toLowerCase().includes(query))
-			: corporationOptions;
-		return all.slice(0, 50);
+	// The optional station filters. Nothing picked means every NPC station counts.
+	let owner = $state<OwnerPick>(null);
+	let ownerOpen = $state(false);
+	let ownerSearch = $state('');
+	let serviceValue = $state('any');
+	const serviceId = $derived(serviceValue === 'any' ? null : Number(serviceValue));
+
+	const factions = $derived(factionOptions(corporationOptions));
+	const sortedCorps = $derived(byFaction(corporationOptions));
+	const ownerQuery = $derived(ownerSearch.trim().toLowerCase());
+	const visibleFactions = $derived(
+		ownerQuery ? factions.filter((f) => f.name.toLowerCase().includes(ownerQuery)) : factions,
+	);
+	const visibleCorps = $derived(
+		ownerQuery ? sortedCorps.filter((corp) => matchesOwner(corp, ownerQuery)) : sortedCorps,
+	);
+	const ownerLabel = $derived.by(() => {
+		const picked = owner;
+		if (picked === null) return 'Any owner';
+		if (picked.kind === 'faction') return factions.find((f) => f.id === picked.id)?.name ?? '…';
+		return corporationOptions.find((c) => c.id === picked.id)?.name ?? '…';
 	});
-	// Station lists collapse by default: a service can match a dozen stations per system,
+	const serviceLabel = $derived(
+		serviceOptions.find((svc) => svc.id === serviceId)?.name ?? 'Any service',
+	);
+	function pickOwner(pick: OwnerPick) {
+		owner = pick;
+		ownerOpen = false;
+		ownerSearch = '';
+	}
+
+	// What the picked filters agree on; null when nothing is picked, where every NPC
+	// station matches and there is no station list to expand.
+	const pickedStations = $derived(
+		condition === 'station'
+			? stationFilter(owner, serviceId, corporationOptions, serviceOptions)
+			: null,
+	);
+
+	// Station lists collapse by default: a filter can match a dozen stations per system,
 	// which would bury the jump-ordered results.
 	let expandedFind = $state<Set<number>>(new Set());
 	$effect(() => {
 		void condition;
+		void owner;
+		void serviceValue;
 		void origin;
 		expandedFind = new Set();
 	});
@@ -75,13 +109,14 @@
 
 	const findResults = $derived.by(() => {
 		if (!findOpen || !graph || origin === null) return [];
-		const matches = findMatcher(condition, {
-			jove: map.route.joveSystems,
-			stations: map.route.stationSystems,
-			security: map.route.security,
-			services: serviceOptions,
-			corporations: corporationOptions,
-		});
+		const picked = pickedStations;
+		const matches = picked
+			? (id: number) => picked.systems.has(id)
+			: findMatcher(condition, {
+					jove: map.route.joveSystems,
+					stations: map.route.stationSystems,
+					security: map.route.security,
+				});
 		return findClosestSystems(
 			graph,
 			origin,
@@ -126,38 +161,6 @@
 								<Select.Item value={c.value} label={c.label}>{c.label}</Select.Item>
 							{/each}
 						</Select.Group>
-						{#if serviceOptions.length > 0}
-							<Select.Group>
-								<Select.GroupHeading>Station services</Select.GroupHeading>
-								{#each serviceOptions as svc (svc.id)}
-									<Select.Item value="service_{svc.id}" label={svc.name}>
-										{svc.name}
-									</Select.Item>
-								{/each}
-							</Select.Group>
-						{/if}
-						{#if corporationOptions.length > 0}
-							<Select.Group>
-								<Select.GroupHeading>Station owner</Select.GroupHeading>
-								<div class="px-2 pb-1">
-									<Input
-										bind:value={corpSearch}
-										placeholder="Search owners…"
-										class="h-7 text-xs"
-										data-testid="find-owner-search"
-										onkeydown={(ev) => ev.stopPropagation()}
-									/>
-								</div>
-								{#each matchingCorps as corp (corp.id)}
-									<Select.Item value="corp_{corp.id}" label={corp.name}>
-										{corp.name}
-									</Select.Item>
-								{/each}
-								{#if matchingCorps.length === 0}
-									<p class="px-2 py-1 text-xs text-muted-foreground">No owner by that name.</p>
-								{/if}
-							</Select.Group>
-						{/if}
 					</Select.Content>
 				</Select.Root>
 				<Select.Root type="single" bind:value={findLimit}>
@@ -173,6 +176,91 @@
 					</Select.Content>
 				</Select.Root>
 			</div>
+			{#if condition === 'station'}
+				<div class="col-span-full flex items-center gap-1.5 border-b border-border/30 p-2">
+					<Popover.Root bind:open={ownerOpen}>
+						<Popover.Trigger
+							class="flex h-7 min-w-0 flex-1 items-center justify-between gap-1.5 rounded-md border border-input bg-input/20 px-2 text-xs whitespace-nowrap transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-input/30 dark:hover:bg-input/50 {owner
+								? ''
+								: 'text-muted-foreground'}"
+							data-testid="find-owner"
+						>
+							<span class="truncate">{ownerLabel}</span>
+							<ChevronsUpDownIcon class="size-3.5 shrink-0 opacity-50" />
+						</Popover.Trigger>
+						<Popover.Content class="w-80 p-0" align="start">
+							<Command.Root shouldFilter={false}>
+								<Command.Input
+									placeholder="Search owners or factions…"
+									bind:value={ownerSearch}
+									data-testid="find-owner-search"
+									class="h-8 text-xs"
+								/>
+								<Command.List class="max-h-64">
+									{#if owner !== null}
+										<Command.Item value="any" class="text-xs" onSelect={() => pickOwner(null)}>
+											Any owner
+										</Command.Item>
+									{/if}
+									{#if visibleFactions.length > 0}
+										<Command.Group heading="Factions">
+											{#each visibleFactions as faction (faction.id)}
+												<Command.Item
+													value="faction-{faction.id}"
+													class="text-xs"
+													onSelect={() => pickOwner({ kind: 'faction', id: faction.id })}
+												>
+													<EveImage kind="faction" id={faction.id} class="size-4 rounded-sm" />
+													<span class="truncate">{faction.name}</span>
+												</Command.Item>
+											{/each}
+										</Command.Group>
+									{/if}
+									{#if visibleCorps.length > 0}
+										<Command.Group heading="Corporations">
+											{#each visibleCorps as corp (corp.id)}
+												<Command.Item
+													value="corp-{corp.id}"
+													class="text-xs"
+													onSelect={() => pickOwner({ kind: 'corp', id: corp.id })}
+												>
+													{#if corp.faction}
+														<EveImage
+															kind="faction"
+															id={corp.faction.id}
+															class="size-4 rounded-sm"
+														/>
+													{:else}
+														<EveImage kind="corporation" id={corp.id} class="size-4 rounded-sm" />
+													{/if}
+													<span class="truncate">{corp.name}</span>
+												</Command.Item>
+											{/each}
+										</Command.Group>
+									{/if}
+									{#if visibleFactions.length === 0 && visibleCorps.length === 0}
+										<p class="px-2 py-2 text-xs text-muted-foreground">No owner by that name.</p>
+									{/if}
+								</Command.List>
+							</Command.Root>
+						</Popover.Content>
+					</Popover.Root>
+					<Select.Root type="single" bind:value={serviceValue}>
+						<Select.Trigger
+							class="h-7 min-w-0 flex-1 text-xs {serviceId === null ? 'text-muted-foreground' : ''}"
+							data-testid="find-service"
+						>
+							<span class="truncate">{serviceLabel}</span>
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="any" label="Any service">Any service</Select.Item>
+							{#each serviceOptions as svc (svc.id)}
+								<Select.Item value={String(svc.id)} label={svc.name}>{svc.name}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</div>
+			{/if}
 			{#if origin === null}
 				<p
 					class="col-span-full p-3 text-center font-mono text-[10px] tracking-wider text-muted-foreground/60 uppercase"
@@ -188,7 +276,7 @@
 			{/if}
 			{#each findResults as result (result.id)}
 				{@const r = map.systemInfo(result.id)}
-				{@const stations = activeService?.stationsBySystem.get(result.id) ?? []}
+				{@const stations = pickedStations?.stationsBySystem.get(result.id) ?? []}
 				{@const expandable = stations.length > 0}
 				<!-- The role/tabindex pair is conditional (button only when there is something
 			     to expand), which the static a11y check cannot follow. -->

@@ -166,7 +166,7 @@ export const api = {
 		get<SystemSearchResult[]>(`/api/systems/resolve?ids=${ids.join(',')}`),
 	threatAnalysis: (solarSystemId: number) => get<ThreatAnalysis>(`/api/threat/${solarSystemId}`),
 	// Cached for a day; bump the version param when the payload shape changes.
-	routingGraph: () => get<RoutingGraph>('/api/routing-graph?v=4'),
+	routingGraph: () => get<RoutingGraph>('/api/routing-graph?v=5'),
 
 	// Maps
 	myMaps: () => get<MapEntry[]>('/api/maps'),
