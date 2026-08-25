@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_access (map_id, subject_type, subject_id, role, expires_at)\n             values ($1, $2, $3, $4, $5)\n             on conflict (map_id, subject_id)\n             do update set subject_type = excluded.subject_type, role = excluded.role,\n                 expires_at = excluded.expires_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        {
+          "Custom": {
+            "name": "subject_type",
+            "kind": {
+              "Enum": [
+                "character",
+                "corporation",
+                "alliance"
+              ]
+            }
+          }
+        },
+        "Int8",
+        {
+          "Custom": {
+            "name": "map_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "member",
+                "manager",
+                "owner"
+              ]
+            }
+          }
+        },
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f824d1928bb22ca4ba12916d5e2f0621039ac5e180a0d6534ab6fc86618edf3f"
+}

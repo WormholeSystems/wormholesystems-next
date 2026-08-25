@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select status as \"status: SystemStatus\", occupying_group, notes\n           from map_solar_system_details where map_id = $1 and solar_system_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: SystemStatus",
+        "type_info": {
+          "Custom": {
+            "name": "system_status",
+            "kind": {
+              "Enum": [
+                "unknown",
+                "friendly",
+                "hostile",
+                "active",
+                "unscanned",
+                "empty"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_solar_system_details",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "occupying_group",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_system_details",
+            "name": "occupying_group"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "notes",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_system_details",
+            "name": "notes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "a9fcfaedde041ebb9a176c2f0496b1d520460f53e9bc7b5e728b2db1a9879627"
+}

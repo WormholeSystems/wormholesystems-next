@@ -1,0 +1,81 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_connections\n                 (map_id, from_system, to_system, type, mass_status, time_status, size,\n                  time_status_updated_at, preserve_mass, created_at)\n             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, coalesce($10, now()))\n             returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
+        "Timestamptz",
+        "Bool",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cdab5a5416b1ebe1c9375d566a645059cc26f230b1bb30213bf65b12c80a6585"
+}

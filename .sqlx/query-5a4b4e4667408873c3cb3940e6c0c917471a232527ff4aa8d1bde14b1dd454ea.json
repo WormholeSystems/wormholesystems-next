@@ -1,0 +1,198 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select s.solar_system_id, s.signature_id, s.\"group\" as sig_group,\n                  st.name as \"type_name?\", st.signature as \"code?\", s.name,\n                  s.size, s.mass_status, s.time_status, s.time_status_updated_at,\n                  s.connection_id\n           from signatures s\n           left join signature_types st on st.id = s.signature_type_id\n           where s.map_id = $1\n           order by s.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "signature_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "signature_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "sig_group",
+        "type_info": {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "group"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "type_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signature_types",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signature_types",
+            "name": "signature"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "size",
+        "type_info": {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "mass_status",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "mass_status"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "time_status",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "time_status"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "time_status_updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "time_status_updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "connection_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "connection_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5a4b4e4667408873c3cb3940e6c0c917471a232527ff4aa8d1bde14b1dd454ea"
+}

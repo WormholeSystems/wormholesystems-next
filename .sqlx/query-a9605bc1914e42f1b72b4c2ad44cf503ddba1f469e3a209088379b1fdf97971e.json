@@ -1,0 +1,75 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select signature_id, signature_type_id, connection_id,\n                  mass_status as \"mass_status: MassStatus\"\n           from signatures where map_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "signature_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "signature_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "signature_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "signature_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "connection_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "connection_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "mass_status: MassStatus",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "mass_status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "a9605bc1914e42f1b72b4c2ad44cf503ddba1f469e3a209088379b1fdf97971e"
+}

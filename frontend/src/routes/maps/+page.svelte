@@ -10,6 +10,7 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import UploadIcon from '@lucide/svelte/icons/upload';
 
 	import { createMutation, createQuery } from '@tanstack/svelte-query';
 	import { goto } from '$app/navigation';
@@ -27,6 +28,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { timeAgo } from '$lib/format';
+	import { TRANSFER_SECTIONS, readExportFile, type ExportFilePeek } from '$lib/map/transfer';
 	import { ticking } from '$lib/now.svelte';
 	import { filterMaps, splitArchived, totalsOf } from './page-model';
 	import { cn } from '$lib/utils';
@@ -49,6 +51,13 @@
 
 	// The whole entry, not just an id, so the dialog can name what it is about to destroy.
 	let deleting = $state<MapEntry | null>(null);
+
+	// Importing an export file as a new map.
+	let importing = $state(false);
+	let importFileInput = $state<HTMLInputElement | null>(null);
+	let importPicked = $state<ExportFilePeek | null>(null);
+	let importName = $state('');
+	let importSections = $state<Record<string, boolean>>({});
 
 	const split = $derived(splitArchived(filterMaps(maps, query)));
 	const active = $derived(split.active);
@@ -73,6 +82,51 @@
 		const name = newName.trim();
 		if (!name || createMut.isPending) return;
 		createMut.mutate({ name, description: newDescription.trim() || undefined });
+	}
+
+	async function pickImportFile(files: FileList | null) {
+		importPicked = null;
+		const file = files?.[0];
+		if (!file) return;
+		try {
+			const peek = await readExportFile(file);
+			importPicked = peek;
+			importName = peek.mapName;
+			importSections = Object.fromEntries(peek.sections.map((id) => [id, true]));
+		} catch (err) {
+			toast.error(errorMessage(err));
+			if (importFileInput) importFileInput.value = '';
+		}
+	}
+
+	// Connections and signatures hang off placed systems, so a fresh map cannot take them
+	// without the systems section.
+	const needsSystems = (id: string) => id === 'connections' || id === 'signatures';
+	const importChosen = $derived.by(() => {
+		if (!importPicked) return [];
+		const chosen = importPicked.sections.filter((id) => importSections[id]);
+		return chosen.includes('solarsystems') ? chosen : chosen.filter((id) => !needsSystems(id));
+	});
+
+	const importMut = createMutation(() => ({
+		mutationFn: (vars: { name?: string; sections: string[]; content: string }) =>
+			api.importMapAsNew(vars),
+		onSuccess: async (map) => {
+			importing = false;
+			importPicked = null;
+			await goto(`/maps/${map.id}`);
+		},
+		onError: (err: unknown) => toast.error(errorMessage(err)),
+	}));
+
+	function runImport() {
+		const file = importPicked;
+		if (!file || importChosen.length === 0 || importMut.isPending) return;
+		importMut.mutate({
+			name: importName.trim() || undefined,
+			sections: importChosen,
+			content: file.content,
+		});
 	}
 
 	// The list and the top bar's shortcuts read the same cache entry, so one invalidation
@@ -229,10 +283,16 @@
 				Every chain you can reach, most recently flown first.
 			</p>
 		</div>
-		<Button onclick={() => (creating = true)} data-testid="new-map">
-			<PlusIcon data-icon="inline-start" />
-			New map
-		</Button>
+		<div class="flex items-center gap-2">
+			<Button variant="outline" onclick={() => (importing = true)} data-testid="import-new-map">
+				<UploadIcon data-icon="inline-start" />
+				Import
+			</Button>
+			<Button onclick={() => (creating = true)} data-testid="new-map">
+				<PlusIcon data-icon="inline-start" />
+				New map
+			</Button>
+		</div>
 	</div>
 
 	{#if maps.length > 0}
@@ -358,6 +418,73 @@
 				</Button>
 			</Dialog.Footer>
 		</form>
+	</Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root bind:open={importing}>
+	<Dialog.Content class="sm:max-w-md" data-testid="import-map-dialog">
+		<Dialog.Header>
+			<Dialog.Title>Import a map</Dialog.Title>
+			<Dialog.Description>
+				Create a fresh map from an export file, yours to own. Files from legacy wormholesystems work
+				too.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="flex flex-col gap-4">
+			<input
+				bind:this={importFileInput}
+				type="file"
+				accept=".json,application/json"
+				class="text-sm text-muted-foreground file:mr-3 file:border file:border-border file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:text-secondary-foreground hover:file:bg-secondary/80"
+				onchange={(e) => pickImportFile(e.currentTarget.files)}
+				data-testid="import-map-file"
+			/>
+
+			{#if importPicked}
+				<Field.Field>
+					<Field.FieldLabel for="import-map-name">Name</Field.FieldLabel>
+					<Input
+						id="import-map-name"
+						bind:value={importName}
+						placeholder={importPicked.mapName}
+						data-testid="import-map-name"
+					/>
+				</Field.Field>
+
+				<div class="flex flex-col gap-1">
+					<span class="text-sm font-medium">Sections</span>
+					{#each TRANSFER_SECTIONS.filter( (s) => importPicked?.sections.includes(s.id) ) as section (section.id)}
+						{@const blocked =
+							needsSystems(section.id) && !(importSections['solarsystems'] ?? false)}
+						<label
+							class={cn('flex items-center gap-2 py-1 text-sm', blocked && 'text-muted-foreground')}
+						>
+							<input
+								type="checkbox"
+								class="accent-primary"
+								checked={(importSections[section.id] ?? false) && !blocked}
+								disabled={blocked}
+								onchange={(e) => (importSections[section.id] = e.currentTarget.checked)}
+							/>
+							{section.label}
+							{#if blocked}
+								<span class="text-xs">(needs Systems)</span>
+							{/if}
+						</label>
+					{/each}
+				</div>
+			{/if}
+		</div>
+		<Dialog.Footer class="mt-4">
+			<Button type="button" variant="ghost" onclick={() => (importing = false)}>Cancel</Button>
+			<Button
+				onclick={runImport}
+				disabled={!importPicked || importChosen.length === 0 || importMut.isPending}
+				data-testid="import-map-create"
+			>
+				Import
+			</Button>
+		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
 

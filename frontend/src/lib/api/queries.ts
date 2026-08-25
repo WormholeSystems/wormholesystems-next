@@ -22,6 +22,7 @@ export const key = {
 	killmails: (id: number) => ['maps', id, 'killmails'] as const,
 	history: (id: number) => ['maps', id, 'history'] as const,
 	watchlist: (id: number) => ['maps', id, 'watchlist'] as const,
+	transferCounts: (id: number) => ['maps', id, 'transfer-counts'] as const,
 	stale: (id: number) => ['maps', id, 'stale-connections'] as const,
 	// Alerts, their events, webhooks and roles share this prefix: the alerts page edits
 	// them together, so one invalidation covers all four.
@@ -85,6 +86,8 @@ export const q = {
 		queryOptions({ queryKey: key.watchlist(id), queryFn: () => api.listWatchlist(id) }),
 	listStaleConnections: (id: number) =>
 		queryOptions({ queryKey: key.stale(id), queryFn: () => api.listStaleConnections(id) }),
+	transferCounts: (id: number) =>
+		queryOptions({ queryKey: key.transferCounts(id), queryFn: () => api.transferCounts(id) }),
 
 	listAlerts: (id: number) =>
 		queryOptions({ queryKey: [...key.alerting(id), 'alerts'], queryFn: () => api.listAlerts(id) }),

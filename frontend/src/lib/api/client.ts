@@ -77,6 +77,8 @@ import type { UnlinkSignature } from './types/UnlinkSignature';
 import type { UpdateConnectionJump } from './types/UpdateConnectionJump';
 import type { UpdateSignature } from './types/UpdateSignature';
 import type { UpdateMapUserSettings } from './types/UpdateMapUserSettings';
+import type { ImportSummary } from './types/ImportSummary';
+import type { TransferCounts } from './types/TransferCounts';
 
 /**
  * What went wrong, as something worth showing.
@@ -232,6 +234,16 @@ export const api = {
 		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/set-pinned`, cmd),
 	removeWatchlistEntry: (cmd: RemoveWatchlistEntry) =>
 		post<null>(`/api/maps/${cmd.map_id}/watchlist/remove`, cmd),
+
+	// Import / export
+	transferCounts: (mapId: number) => get<TransferCounts>(`/api/maps/${mapId}/transfer/counts`),
+	// A plain URL rather than a call: the browser follows it and saves the download itself.
+	exportMapUrl: (mapId: number, sections: string[]) =>
+		`/api/maps/${mapId}/transfer/export?sections=${sections.join(',')}`,
+	importMap: (mapId: number, sections: string[], content: string) =>
+		post<ImportSummary>(`/api/maps/${mapId}/transfer/import`, { sections, content }),
+	importMapAsNew: (body: { name?: string; sections: string[]; content: string }) =>
+		post<Map>('/api/maps/transfer/import-new', body),
 
 	// Access / settings
 	updateMap: (cmd: UpdateMap) => post<Map>(`/api/maps/${cmd.map_id}/update`, cmd),

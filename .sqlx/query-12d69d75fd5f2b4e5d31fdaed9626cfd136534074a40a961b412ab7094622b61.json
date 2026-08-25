@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from map_watchlist where map_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "12d69d75fd5f2b4e5d31fdaed9626cfd136534074a40a961b412ab7094622b61"
+}

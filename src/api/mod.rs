@@ -23,6 +23,7 @@ pub mod search;
 pub mod signatures;
 pub mod systems;
 pub mod tracking;
+pub mod transfer;
 pub mod user_settings;
 pub mod watchlist;
 pub mod ws;
@@ -122,4 +123,5 @@ pub fn router() -> Router<AppState> {
         .merge(tracking::routes())
         .merge(user_settings::routes())
         .merge(alerts::routes())
+        .merge(transfer::routes())
 }

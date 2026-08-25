@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select role as \"role: Role\" from map_access\n               where map_id = $1 and subject_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role: Role",
+        "type_info": {
+          "Custom": {
+            "name": "map_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "member",
+                "manager",
+                "owner"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_access",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ee6860f657f4384e925f3866678ef6ad10cbe8b2422c2d99163d11a742e269fe"
+}

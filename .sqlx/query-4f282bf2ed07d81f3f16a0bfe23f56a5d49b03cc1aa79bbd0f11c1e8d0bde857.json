@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select solar_system_id from map_watchlist where map_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_watchlist",
+            "name": "solar_system_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4f282bf2ed07d81f3f16a0bfe23f56a5d49b03cc1aa79bbd0f11c1e8d0bde857"
+}

@@ -124,14 +124,33 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     }
 
     let mut tx = pool.begin().await?;
+    let map = insert_map(
+        &mut tx,
+        cmd.name.trim(),
+        cmd.description.as_deref(),
+        actor.character_id,
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(map)
+}
+
+/// The inserts a new map is made of: the row, the owner grant, and the seeded watchlist.
+/// Shared with the import path, which creates the map inside its own transaction.
+pub(super) async fn insert_map(
+    tx: &mut sqlx::PgConnection,
+    name: &str,
+    description: Option<&str>,
+    owner_character_id: i64,
+) -> Result<Map> {
     let map = map_from_row!(
         sqlx::query!(
             r#"insert into maps (name, description) values ($1, $2)
              returning id, name, description, image_url, created_at, alias_scheme, ignored_alias,
                  ghost_unlinked_wormholes, layout, allow_layout_override, is_public, share_token,
                  bookmark_wormhole, bookmark_kspace, bookmark_return"#,
-            cmd.name.trim(),
-            cmd.description.as_deref(),
+            name,
+            description,
         )
         .fetch_one(&mut *tx)
         .await?
@@ -141,7 +160,7 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
          values ($1, $2, $3, $4)",
         map.id,
         SubjectType::Character,
-        actor.character_id,
+        owner_character_id,
         Role::Owner,
     )
     .execute(&mut *tx)
@@ -156,8 +175,23 @@ pub async fn create_map(pool: &PgPool, actor: Actor, cmd: CreateMap) -> Result<M
     )
     .execute(&mut *tx)
     .await?;
-    tx.commit().await?;
     Ok(map)
+}
+
+/// The map row as the client sees it, off whatever executor the caller is inside.
+pub(super) async fn fetch_map(exec: impl sqlx::PgExecutor<'_>, map_id: i64) -> Result<Map> {
+    Ok(map_from_row!(
+        sqlx::query!(
+            r#"select id, name, description, image_url, created_at, alias_scheme, ignored_alias,
+                 bookmark_wormhole, bookmark_kspace, bookmark_return, ghost_unlinked_wormholes,
+                 layout, allow_layout_override, is_public, share_token
+             from maps where id = $1"#,
+            map_id,
+        )
+        .fetch_optional(exec)
+        .await?
+        .ok_or(MapError::NotFound)?
+    ))
 }
 
 /// Seeded onto every new map's watchlist, pinned, as legacy's `CreateMapAction` does.

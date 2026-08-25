@@ -55,7 +55,7 @@ fn is_wormhole(group: SignatureGroup) -> bool {
 }
 
 /// The `signature_categories` id a group maps to; `Unknown` has no catalog category.
-fn category_id_for(group: SignatureGroup) -> Option<i64> {
+pub(super) fn category_id_for(group: SignatureGroup) -> Option<i64> {
     match group {
         SignatureGroup::Wormhole => Some(1),
         SignatureGroup::Data => Some(2),

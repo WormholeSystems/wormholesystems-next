@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_watchlist (map_id, solar_system_id, is_pinned)\n             values ($1, $2, $3)\n             on conflict (map_id, solar_system_id)\n             do update set is_pinned = excluded.is_pinned",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f08bb4cc68c1cdc6d76c6825428afd3cc2e0a36994ef1d979d3065c17863ef62"
+}

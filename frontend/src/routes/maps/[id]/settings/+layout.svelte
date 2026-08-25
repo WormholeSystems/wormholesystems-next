@@ -5,6 +5,7 @@
 	//
 	// Naming holds both, so it stays visible to everyone read-only: what your bookmarks will
 	// say is worth reading even when you cannot change it.
+	import ArrowDownUpIcon from '@lucide/svelte/icons/arrow-down-up';
 	import BellIcon from '@lucide/svelte/icons/bell';
 	import TagIcon from '@lucide/svelte/icons/tag';
 	import CrosshairIcon from '@lucide/svelte/icons/crosshair';
@@ -73,6 +74,12 @@
 				label: 'Discord alerts',
 				description: 'What gets announced',
 				icon: BellIcon,
+			},
+			{
+				href: `${base}/transfer`,
+				label: 'Import and export',
+				description: 'Move the map as a file',
+				icon: ArrowDownUpIcon,
 			},
 		];
 	});

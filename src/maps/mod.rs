@@ -18,6 +18,7 @@ pub mod restore;
 pub mod signatures;
 pub mod solar_system;
 pub mod tracking;
+pub mod transfer;
 pub mod view;
 pub mod watchlist;
 

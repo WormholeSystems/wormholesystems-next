@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update signatures set time_status_updated_at = $2 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bbb50c1259a14b3aaff5030316460a09a1af20c6a985ca9a234ddacab6863bac"
+}

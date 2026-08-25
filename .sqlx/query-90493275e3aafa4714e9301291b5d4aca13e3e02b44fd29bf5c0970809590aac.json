@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_solar_system_details\n                 (map_id, solar_system_id, status, occupying_group, notes)\n             values ($1, $2, $3, $4, $5)\n             on conflict (map_id, solar_system_id)\n             do update set status = excluded.status, occupying_group = excluded.occupying_group,\n                 notes = excluded.notes, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        {
+          "Custom": {
+            "name": "system_status",
+            "kind": {
+              "Enum": [
+                "unknown",
+                "friendly",
+                "hostile",
+                "active",
+                "unscanned",
+                "empty"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90493275e3aafa4714e9301291b5d4aca13e3e02b44fd29bf5c0970809590aac"
+}

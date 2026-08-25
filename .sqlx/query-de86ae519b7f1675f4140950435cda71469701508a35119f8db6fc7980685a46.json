@@ -1,0 +1,180 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select c.id, f.solar_system_id as \"from_ss?\", t.solar_system_id as \"to_ss?\",\n                  c.type as kind, c.mass_status, c.time_status, c.size,\n                  c.time_status_updated_at, c.created_at, c.preserve_mass\n           from map_connections c\n           join map_solar_systems f on f.id = c.from_system\n           join map_solar_systems t on t.id = c.to_system\n           where c.map_id = $1\n           order by c.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "from_ss?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "to_ss?",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_solar_systems",
+            "name": "solar_system_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": {
+          "Custom": {
+            "name": "connection_type",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "stargate"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "type"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "mass_status",
+        "type_info": {
+          "Custom": {
+            "name": "mass_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "reduced",
+                "critical"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "mass_status"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "time_status",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "time_status"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "size",
+        "type_info": {
+          "Custom": {
+            "name": "wormhole_size",
+            "kind": {
+              "Enum": [
+                "xl",
+                "large",
+                "medium",
+                "small"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "time_status_updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "time_status_updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "preserve_mass",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "preserve_mass"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "de86ae519b7f1675f4140950435cda71469701508a35119f8db6fc7980685a46"
+}
