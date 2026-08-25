@@ -8,10 +8,13 @@ describe('classMeta', () => {
 		expect(classMeta(25, 0.8).short).toBe('P');
 	});
 
-	it('falls back to the security band when there is no class id', () => {
+	it('falls back to the CCP-rounded security band when there is no class id', () => {
 		expect(classMeta(null, 0.9).short).toBe('H');
 		expect(classMeta(null, 0.45).short).toBe('H');
 		expect(classMeta(null, 0.3).short).toBe('L');
+		// Syndicate-style NPC nullsec sits just below zero.
+		expect(classMeta(null, -0.014694).short).toBe('N');
+		expect(classMeta(null, 0.02).short).toBe('L');
 		expect(classMeta(null, 0).short).toBe('N');
 		expect(classMeta(null, -0.4).short).toBe('N');
 	});

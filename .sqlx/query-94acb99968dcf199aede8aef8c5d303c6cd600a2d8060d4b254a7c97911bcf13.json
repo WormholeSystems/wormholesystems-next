@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update solar_systems set wormhole_class_id = $1 where id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "94acb99968dcf199aede8aef8c5d303c6cd600a2d8060d4b254a7c97911bcf13"
+}

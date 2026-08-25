@@ -2,6 +2,8 @@
 // Station groups (services, owners) are matched by the panel itself, which intersects
 // them at the station level; only the static conditions live here.
 
+import { ccpRoundSecurity } from '$lib/security';
+
 export interface FindIndexes {
 	jove: ReadonlySet<number>;
 	stations: ReadonlySet<number>;
@@ -11,7 +13,7 @@ export interface FindIndexes {
 
 /** The predicate for a Find condition. An unrecognised condition matches nothing. */
 export function findMatcher(condition: string, indexes: FindIndexes): (id: number) => boolean {
-	const sec = (id: number) => indexes.security.get(id) ?? 0;
+	const sec = (id: number) => ccpRoundSecurity(indexes.security.get(id) ?? 0);
 	const matchers: Record<string, (id: number) => boolean> = {
 		observatories: (id) => indexes.jove.has(id),
 		station: (id) => indexes.stations.has(id),

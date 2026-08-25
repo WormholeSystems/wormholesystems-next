@@ -12,6 +12,8 @@ const indexes = (over: Partial<FindIndexes> = {}): FindIndexes => ({
 		[13, 0.1],
 		[14, 0.0],
 		[15, -0.3],
+		[16, 0.4552], // displays as 0.5, so highsec
+		[17, 0.02], // displays as 0.1, so lowsec
 	]),
 	...over,
 });
@@ -35,6 +37,14 @@ describe('findMatcher', () => {
 		expect(at('nullsec', 14)).toBe(true);
 		expect(at('nullsec', 15)).toBe(true);
 		expect(at('nullsec', 13)).toBe(false);
+	});
+
+	it('bands the displayed security, not the raw value', () => {
+		const at = (condition: string, id: number) => findMatcher(condition, indexes())(id);
+		expect(at('highsec', 16)).toBe(true);
+		expect(at('lowsec', 16)).toBe(false);
+		expect(at('lowsec', 17)).toBe(true);
+		expect(at('nullsec', 17)).toBe(false);
 	});
 
 	it('treats a system missing from the security table as nullsec', () => {

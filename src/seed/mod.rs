@@ -98,7 +98,7 @@ pub async fn ensure_seeded(pool: &PgPool) -> Result<bool, BoxError> {
 
 /// Bump when the seed logic or bundled static data changes in a way that requires
 /// re-seeding an already-loaded SDE build.
-const SEED_REVISION: i32 = 4;
+const SEED_REVISION: i32 = 5;
 
 /// The SDE build currently unpacked in `data/sde` (from its `_sde.jsonl` marker).
 #[derive(Deserialize)]
@@ -299,6 +299,33 @@ async fn seed_all(pool: &PgPool) -> Result<(), BoxError> {
          where ss.wormhole_class_id is null")
     .execute(&mut *tx)
     .await?;
+
+    // A few regions carry no class in the SDE either (Syndicate is the one players can
+    // reach), leaving their systems unclassified. They are ordinary known space, so the
+    // security band on the CCP-rounded value settles them, the same way the client
+    // classifies a system without a class.
+    let unclassified = sqlx::query!(
+        "select id, security_status from solar_systems where wormhole_class_id is null"
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    for row in unclassified {
+        let sec = crate::util::security::ccp_round_security(row.security_status);
+        let class = if sec >= 0.5 {
+            7
+        } else if sec >= 0.1 {
+            8
+        } else {
+            9
+        };
+        sqlx::query!(
+            "update solar_systems set wormhole_class_id = $1 where id = $2",
+            class,
+            row.id
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
 
     // Record the loaded build + seed revision so startup can skip re-seeding when
     // nothing changed.

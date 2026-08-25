@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select ss.id as \"service_id\", ss.name as \"service_name\",\n                  st.id as \"station_id\", st.name as \"station_name\",\n                  st.solar_system_id\n           from station_services ss\n           join station_operation_services sos on sos.service_id = ss.id\n           join stations st on st.operation_id = sos.operation_id\n           join solar_systems sys on sys.id = st.solar_system_id\n           where ss.id = any($1)\n             and (ss.id <> $2\n                  or (st.owner_corporation_id = $3\n                      and sys.security_status > 0 and sys.security_status < 0.45))\n           order by ss.name, st.name",
+  "query": "select ss.id as \"service_id\", ss.name as \"service_name\",\n                  st.id as \"station_id\", st.name as \"station_name\",\n                  st.solar_system_id, sys.security_status\n           from station_services ss\n           join station_operation_services sos on sos.service_id = ss.id\n           join stations st on st.operation_id = sos.operation_id\n           join solar_systems sys on sys.id = st.solar_system_id\n           where ss.id = any($1)\n             and (ss.id <> $2 or st.owner_corporation_id = $3)\n           order by ss.name, st.name",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,17 @@
             "name": "solar_system_id"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "security_status",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "security_status"
+          }
+        }
       }
     ],
     "parameters": {
@@ -71,8 +82,9 @@
       false,
       false,
       true,
+      false,
       false
     ]
   },
-  "hash": "a1fcd9ab79bf41752859969f21c506b5eb495749762721507ee67820ab9c6b25"
+  "hash": "67a21d6f559410175371844071ee38bcdfe6c0449007fcaba3e9c1ba350dee2b"
 }

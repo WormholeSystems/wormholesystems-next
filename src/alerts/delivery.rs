@@ -12,7 +12,7 @@ use serde::Serialize;
 
 /// Colours from EVE's security bands, so an embed reads the way the map does.
 pub fn security_color(security: f64) -> u32 {
-    match security {
+    match crate::util::security::ccp_round_security(security) {
         s if s >= 0.9 => 0x2f_ef_ef,
         s if s >= 0.8 => 0x48_f0_c0,
         s if s >= 0.7 => 0x00_ef_47,
@@ -22,7 +22,6 @@ pub fn security_color(security: f64) -> u32 {
         s if s >= 0.3 => 0xf0_60_00,
         s if s >= 0.2 => 0xf0_48_00,
         s if s >= 0.1 => 0xd7_30_00,
-        s if s > 0.0 => 0xf0_00_00,
         _ => 0xf0_00_f0,
     }
 }
@@ -266,6 +265,9 @@ mod tests {
         assert_ne!(security_color(0.5), security_color(0.4));
         // Wormholes and nullsec share the "no security" colour.
         assert_eq!(security_color(-0.99), security_color(0.0));
+        // Banded on the displayed security, not the raw value.
+        assert_eq!(security_color(0.4552), security_color(0.5));
+        assert_eq!(security_color(0.02), security_color(0.1));
     }
 
     #[test]

@@ -60,7 +60,10 @@ by `solar_system_id`.
 > **Class resolution.** The SDE sets `wormholeClassID` mostly at the **region** level
 > (highsec = 7, nullsec = 9, C1–C6, Thera = 12, abyssal = 19–23, Pochven = 25); only
 > **lowsec = 8** and the drifter hubs (14–18) are stamped per-system. Store the
-> *effective* class here: the system's own value if present, else its region's.
+> *effective* class here: the system's own value if present, else its region's. A few
+> regions (Syndicate is the reachable one) have no class at all; their systems get the
+> security band of the CCP-rounded `security_status` (≥ 0.5 → 7, ≥ 0.1 → 8, else 9), so
+> the column is never null for anything a player can visit.
 
 J-space systems carry extra WH-only data (effect, statics) the SDE lacks — see
 [`wormhole_systems`](./static.md#wormhole_systems) in the custom static reference.

@@ -12,6 +12,7 @@ use super::delivery::{Embed, Field, security_color};
 use super::killmail::chain_of;
 use super::proximity::{self, Universe};
 use super::{Alert, AlertKind};
+use crate::util::security::ccp_round_security;
 
 /// Evaluate every proximity alert on a map after a system landed on it.
 pub async fn evaluate(
@@ -125,7 +126,7 @@ fn build(route: &[Named], found: &proximity::Proximity, added: Option<&str>, map
         Field::new(
             "Target",
             target
-                .map(|s| format!("{} ({:.1})", s.name, s.security))
+                .map(|s| format!("{} ({:.1})", s.name, ccp_round_security(s.security)))
                 .unwrap_or_else(|| target_name.to_string()),
             true,
         ),

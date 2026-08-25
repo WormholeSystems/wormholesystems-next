@@ -10,6 +10,7 @@ use sqlx::PgPool;
 use super::delivery::{Embed, Field, security_color};
 use super::ships::{self, JumpShip};
 use super::{Alert, AlertKind};
+use crate::util::security::ccp_round_security;
 
 /// A system with the coordinates jump range is measured from.
 struct Located {
@@ -114,7 +115,7 @@ fn build(exit: &Located, target: &Located, ship: JumpShip, jdc: i32, distance: f
         fields: vec![
             Field::new(
                 "Exit",
-                format!("{} ({:.1})", exit.name, exit.security),
+                format!("{} ({:.1})", exit.name, ccp_round_security(exit.security)),
                 true,
             ),
             Field::new("Distance", format!("{distance:.2} ly"), true),

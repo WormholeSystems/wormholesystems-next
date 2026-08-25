@@ -301,23 +301,21 @@ async fn build_routing_graph(db: &sqlx::PgPool) -> Result<RoutingGraph, ApiError
         .await?;
     // The legacy "essential" station services, each carrying its concrete stations so a
     // result can name the station. Security Offices (27) are a known quirk: only
-    // CONCORD-owned lowsec stations actually run one, despite the operation listing the
-    // service everywhere.
+    // CONCORD-owned stations below 0.5 displayed security actually run one, despite the
+    // operation listing the service everywhere.
     const ESSENTIAL_SERVICES: [i64; 6] = [5, 10, 13, 14, 15, 27];
     const SECURITY_OFFICE: i64 = 27;
     const CONCORD_CORPORATION: i64 = 1000125;
     let rows = sqlx::query!(
         r#"select ss.id as "service_id", ss.name as "service_name",
                   st.id as "station_id", st.name as "station_name",
-                  st.solar_system_id
+                  st.solar_system_id, sys.security_status
            from station_services ss
            join station_operation_services sos on sos.service_id = ss.id
            join stations st on st.operation_id = sos.operation_id
            join solar_systems sys on sys.id = st.solar_system_id
            where ss.id = any($1)
-             and (ss.id <> $2
-                  or (st.owner_corporation_id = $3
-                      and sys.security_status > 0 and sys.security_status < 0.45))
+             and (ss.id <> $2 or st.owner_corporation_id = $3)
            order by ss.name, st.name"#,
         &ESSENTIAL_SERVICES,
         SECURITY_OFFICE,
@@ -325,7 +323,11 @@ async fn build_routing_graph(db: &sqlx::PgPool) -> Result<RoutingGraph, ApiError
     )
     .fetch_all(db)
     .await?;
-    let services = group_stations(rows.into_iter().map(|row| {
+    let rows = rows.into_iter().filter(|row| {
+        row.service_id != SECURITY_OFFICE
+            || crate::util::security::ccp_round_security(row.security_status) < 0.5
+    });
+    let services = group_stations(rows.map(|row| {
         (
             row.service_id,
             row.service_name,

@@ -2,6 +2,7 @@
 // keyed by our numeric wormhole_class_id (k-space uses 7/8/9, Pochven 25).
 
 import type { SystemSearchResult } from '$lib/api/types/SystemSearchResult';
+import { ccpRoundSecurity } from '$lib/security';
 
 export interface ClassMeta {
 	/** Short node label, e.g. `C5`, `H`, `P`. */
@@ -60,8 +61,9 @@ const UNKNOWN: ClassMeta = meta('?', 'unknown', 99, 'other');
 
 /** Class id from a security status, for the few systems without a class id. */
 function classFromSecurity(security: number): number {
-	if (security >= 0.45) return 7;
-	if (security > 0) return 8;
+	const rounded = ccpRoundSecurity(security);
+	if (rounded >= 0.5) return 7;
+	if (rounded >= 0.1) return 8;
 	return 9;
 }
 

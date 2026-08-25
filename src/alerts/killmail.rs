@@ -11,6 +11,7 @@ use sqlx::PgPool;
 use super::delivery::{Embed, Field, Footer, Image, security_color};
 use super::proximity::{self, Universe};
 use super::{Alert, AlertKind, filters};
+use crate::util::security::ccp_round_security;
 
 /// Everything a message needs to say about one kill.
 pub struct Kill {
@@ -95,7 +96,11 @@ fn build(kill: &Kill, system: &System, from: &str, jumps: i32) -> Embed {
     let mut fields = vec![
         Field::new(
             "System",
-            format!("{} ({:.1})", system.name, system.security),
+            format!(
+                "{} ({:.1})",
+                system.name,
+                ccp_round_security(system.security)
+            ),
             true,
         ),
         Field::new("Jumps", jumps.to_string(), true),

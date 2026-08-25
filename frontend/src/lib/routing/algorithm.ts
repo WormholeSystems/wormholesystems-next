@@ -5,6 +5,7 @@
 
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
+import { ccpRoundSecurity } from '$lib/security';
 
 export type RoutePreference = 'shorter' | 'safer' | 'less_secure';
 export type RouteVia = 'stargate' | 'wormhole' | 'evescout';
@@ -33,7 +34,7 @@ export interface RoutingSettings {
 export interface DynamicEdge {
 	a: number;
 	b: number;
-	via: 'wormhole' | 'evescout';
+	via: RouteVia;
 	mass: MassStatus | null;
 	time: TimeStatus | null;
 }
@@ -43,7 +44,7 @@ export const ZARZAKH_SYSTEM_ID = 30100000;
 type Adjacency = Map<number, number[]>;
 type DynamicAdjacency = Map<
 	number,
-	{ to: number; via: 'wormhole' | 'evescout'; mass: MassStatus | null; time: TimeStatus | null }[]
+	{ to: number; via: RouteVia; mass: MassStatus | null; time: TimeStatus | null }[]
 >;
 
 export interface RouteGraph {
@@ -142,7 +143,7 @@ class PriorityQueue {
 function edgeCost(settings: RoutingSettings, targetSecurity: number | undefined): number {
 	if (settings.preference === 'shorter') return 1;
 	const penalty = Math.exp(0.15 * settings.securityPenalty);
-	const sec = targetSecurity ?? 0;
+	const sec = ccpRoundSecurity(targetSecurity ?? 0);
 	if (settings.preference === 'safer') {
 		if (sec <= 0) return 2 * penalty;
 		if (sec < 0.45) return penalty;

@@ -28,9 +28,14 @@ describe('chainEdges', () => {
 		]);
 	});
 
-	it('leaves out ghosts, stargates and self-edges', () => {
+	it('turns stargate connections into gate edges with nothing to gate on', () => {
+		expect(chainEdges(SYSTEMS, [conn(10, 1, 2, 'stargate')], null)).toEqual([
+			{ a: 31000001, b: 31000002, via: 'stargate', mass: null, time: null },
+		]);
+	});
+
+	it('leaves out ghosts and self-edges', () => {
 		expect(chainEdges(SYSTEMS, [conn(10, 1, 3)], null)).toEqual([]);
-		expect(chainEdges(SYSTEMS, [conn(10, 1, 2, 'stargate')], null)).toEqual([]);
 		expect(chainEdges([...SYSTEMS, system(4, 31000001)], [conn(10, 1, 4)], null)).toEqual([]);
 	});
 

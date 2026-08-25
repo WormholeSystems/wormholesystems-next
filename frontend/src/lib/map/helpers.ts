@@ -13,6 +13,7 @@ export interface Vec2 {
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import type { WormholeSize } from '$lib/api/types/WormholeSize';
 import { isWormholeClass } from '$lib/map/classes';
+import { ccpRoundSecurity } from '$lib/security';
 import type { MappedSystem } from '$lib/map/system';
 
 /** Fixed node width (px, world space). Height is `2 * grid cell`. */
@@ -199,7 +200,8 @@ export function heuristicSize(
 	const classes = [a.wormhole_class_id, b.wormhole_class_id];
 	if (classes.includes(13)) return 'small';
 	if (classes.includes(1)) return 'medium';
-	const highsec = (s: MappedSystem) => s.wormhole_class_id === 7 || s.security_status >= 0.45;
+	const highsec = (s: MappedSystem) =>
+		s.wormhole_class_id === 7 || ccpRoundSecurity(s.security_status) >= 0.5;
 	const thera = (s: MappedSystem) => s.wormhole_class_id === 12;
 	const wh = (s: MappedSystem) => isWormholeClass(s.wormhole_class_id);
 	if ((thera(a) && highsec(b)) || (thera(b) && highsec(a))) return 'medium';

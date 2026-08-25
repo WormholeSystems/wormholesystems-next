@@ -20,8 +20,10 @@ function placementSystems(systems: MapSystemView[]): Map<number, number> {
 
 /**
  * The chain's own edges, ready for [`buildDynamicAdjacency`]. Ghosts are left out: a hole
- * whose far side is unknown leads nowhere the router could take you. EVE Scout's public
- * holes ride along only when asked for.
+ * whose far side is unknown leads nowhere the router could take you. Stargate-kind
+ * connections (drawn to simulate Ansiblex bridges) count as plain gate jumps, so they
+ * carry no mass or lifetime for the tolerance settings to drop them over. EVE Scout's
+ * public holes ride along only when asked for.
  */
 export function chainEdges(
 	systems: MapSystemView[],
@@ -31,11 +33,14 @@ export function chainEdges(
 	const placement = placementSystems(systems);
 	const edges: DynamicEdge[] = [];
 	for (const c of connections) {
-		if (c.kind !== 'wormhole') continue;
 		const a = placement.get(c.from_system);
 		const b = placement.get(c.to_system);
 		if (a === undefined || b === undefined || a === b) continue;
-		edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
+		if (c.kind === 'wormhole') {
+			edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
+		} else {
+			edges.push({ a, b, via: 'stargate', mass: null, time: null });
+		}
 	}
 	for (const e of eveScout ?? []) {
 		edges.push({
