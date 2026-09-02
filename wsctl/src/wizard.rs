@@ -110,6 +110,14 @@ pub fn update(runner: &mut dyn Runner, dir: &Path, force_sde: bool) -> Result<()
     stack::build(runner, dir)?;
     stack::up(runner, dir)?;
     ui::done("running");
+    // Before the static data, which wants the space a stale cache is sitting on.
+    match stack::prune(runner, dir) {
+        Ok(()) => ui::done("old build cache pruned"),
+        Err(err) => println!(
+            "  {} could not prune the old build cache: {err:#}",
+            style("!").yellow()
+        ),
+    }
     update_sde(runner, dir, force_sde);
     Ok(())
 }

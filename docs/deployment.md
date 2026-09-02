@@ -84,6 +84,10 @@ wsctl update
 Fast-forwards the checkout, rebuilds, restarts, and takes CCP's static data when a newer
 build is out. Migrations run on boot, so there is no separate step for those either.
 
+It also prunes the build cache and images the rebuild left behind, keeping only what the
+last day's builds used. Every api build leaves a full set of layers, and without this a
+small disk fills up within a few weeks of updates.
+
 The static data is the slow half: another ~550MB and a re-seed of a few minutes. It is
 skipped when the loaded build is already current, and `--sde` fetches it regardless, which
 is what to reach for if a download was interrupted:

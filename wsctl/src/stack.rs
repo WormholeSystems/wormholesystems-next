@@ -28,6 +28,18 @@ pub fn up(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
     runner.run(dir, "docker", &as_refs(&compose(&["up", "-d"])))
 }
 
+/// Drop the build cache and images a rebuild has just superseded. Every api build leaves
+/// a full set of layers behind, and a small disk fills within weeks of updates. Cache the
+/// build just used is under a day old and stays, so the next update is still incremental.
+pub fn prune(runner: &mut dyn Runner, dir: &Path) -> Result<()> {
+    runner.run(
+        dir,
+        "docker",
+        &["builder", "prune", "-f", "--filter", "until=24h"],
+    )?;
+    runner.run(dir, "docker", &["image", "prune", "-f"])
+}
+
 pub fn restart(runner: &mut dyn Runner, dir: &Path, service: &str) -> Result<()> {
     runner.run(dir, "docker", &as_refs(&compose(&["restart", service])))
 }
@@ -97,6 +109,19 @@ mod tests {
             vec![
                 "docker compose --profile full up -d",
                 "docker compose --profile full build",
+            ]
+        );
+    }
+
+    #[test]
+    fn pruning_keeps_the_cache_the_last_build_used() {
+        let mut runner = Recording::default();
+        prune(&mut runner, Path::new(".")).unwrap();
+        assert_eq!(
+            runner.commands,
+            vec![
+                "docker builder prune -f --filter until=24h",
+                "docker image prune -f",
             ]
         );
     }
