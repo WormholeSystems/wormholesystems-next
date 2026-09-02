@@ -200,6 +200,9 @@ async fn main() {
     // Background: prune unclaimed connection-jump observations.
     wormholesystems::maps::jumps::start_prune(db.clone());
 
+    // Background: age wormhole connections to EOL / critical and remove the dead ones.
+    wormholesystems::maps::connection::start_lifecycle(db.clone());
+
     // Background: drop command-journal entries past the undo retention window.
     wormholesystems::maps::events_log::start_purge(db.clone());
 

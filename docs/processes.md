@@ -96,6 +96,53 @@ holds each K-space system — for display on the map.
 > **Open — interval.** Refresh cadence for sovereignty (e.g. every few minutes vs.
 > hourly) — slower than presence, but how slow?
 
+## Connection life-cycle
+
+Wormholes die on a clock, and a chain nobody is flying is not re-scanned. One loop, every
+10 minutes, does what a pilot would: marks the holes that must be running out, and drops
+the ones that cannot still be there. Both go through the command layer as the system
+actor, so each change is an audit entry in the map's history (never an undo step) and
+open maps refetch it like any edit. Mirrors legacy's `CheckConnectionAge` and the
+connection half of its `DeleteOldSignatures`.
+
+### Ageing
+
+For every wormhole edge not already `critical`, the mark its age has earned:
+
+| Hole | Lifetime | `eol` from | `critical` from |
+|---|---|---|---|
+| any wormhole | 24 h | 20 h | 23 h |
+| C6 to known space | 48 h | 44 h | 47 h |
+| drifter (C14 to C18) to known space | 16 h | 12 h | 15 h |
+
+Age is `now - created_at` (an import keeps the connection's original `connected_at`
+there). Known space is class 7, 8 or 9. A ghost endpoint has no class, so a hole into one
+runs on the 24 h clock.
+
+An edge already at `eol` is judged from its mark instead: `critical` once
+`time_status_updated_at` is 3 h old. A pilot's EOL mark often comes from a scan of a hole
+older than the map knows, so the mark beats the age.
+
+**Invariants**
+
+- Only escalates. `stable`, `eol` and `critical` marks set by a pilot are never lowered,
+  and an unknown (`null`) hole stays unknown until it earns `eol`.
+- The mark lands on the edge; the `map_conn_sync` trigger carries it to the linked
+  signatures and stamps `time_status_updated_at`.
+- Stargate edges never age.
+- One `connections.aged` entry per mark, with no character.
+
+### Expiry
+
+No wormhole lives 3 days. Every wormhole edge whose `created_at` is older than that is
+removed, along with the placements it strands (the same orphan rule as the manual stale
+sweep: unpinned, not home, not rally, and now edgeless). One `connections.expired` entry
+per map per run.
+
+The signatures it was linked to are unlinked, not deleted; the
+[signature expiry](#see-also--other-periodic-work) collects them on its own schedule,
+since a wormhole signature that old is past its 3 day cutoff too.
+
 ## See also — other periodic work
 
 Documented with their own tables; listed here so the background-work picture is in one
@@ -105,3 +152,7 @@ place:
   ([`esi_tokens`](./database/authentication.md#esi_tokens)).
 - Expiry / cleanup of expired
   [`oauth_login_flows`](./database/authentication.md#oauth_login_flows).
+- Signature expiry: unlinked wormhole signatures older than 3 days and other signatures
+  untouched for 7 days are deleted (`maps::signatures::expire_signatures`).
+- Pruning of connection-jump observations no connection claimed within 10 minutes
+  ([`map_connection_jumps`](./database/mapping.md#map_connection_jumps)).

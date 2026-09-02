@@ -325,3 +325,304 @@ async fn set_status_marks_a_connection_without_a_signature(pool: PgPool) {
         Err(MapError::NotFound),
     ));
 }
+
+async fn place(pool: &PgPool, actor: wormholesystems::maps::Actor, map_id: i64, sys: i64) -> i64 {
+    add_system(
+        pool,
+        actor,
+        AddSystem {
+            map_id,
+            solar_system_id: sys,
+            x: 0.0,
+            y: 0.0,
+            alias: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
+}
+
+async fn connect(
+    pool: &PgPool,
+    actor: wormholesystems::maps::Actor,
+    map_id: i64,
+    from: i64,
+    to: i64,
+    kind: ConnectionType,
+) -> i64 {
+    add_connection(
+        pool,
+        actor,
+        AddConnection {
+            map_id,
+            from_system: from,
+            to_system: to,
+            kind,
+            size: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
+}
+
+/// A J-space system with the given class, in the seeded constellation.
+async fn seed_wormhole_system(pool: &PgPool, id: i64, class: i32) {
+    sqlx::query(
+        "insert into solar_systems
+             (id, constellation_id, region_id, name, security_status, wormhole_class_id)
+         values ($1, 20000001, 10000001, $2, -1.0, $3)",
+    )
+    .bind(id)
+    .bind(format!("J{id}"))
+    .bind(class)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn age_by(pool: &PgPool, connection_id: i64, hours: i32) {
+    sqlx::query(
+        "update map_connections set created_at = now() - make_interval(hours => $2) where id = $1",
+    )
+    .bind(connection_id)
+    .bind(hours)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn marked_ago(pool: &PgPool, connection_id: i64, hours: i32) {
+    sqlx::query(
+        "update map_connections set time_status_updated_at = now() - make_interval(hours => $2)
+         where id = $1",
+    )
+    .bind(connection_id)
+    .bind(hours)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// A wormhole signature in Jita, already linked to the connection.
+async fn link_signature_row(pool: &PgPool, map_id: i64, connection_id: i64) -> i64 {
+    sqlx::query_scalar(
+        r#"insert into signatures (map_id, solar_system_id, signature_id, "group", connection_id)
+           values ($1, $2, 'ABC-123', 'wormhole', $3) returning id"#,
+    )
+    .bind(map_id)
+    .bind(SYS_A)
+    .bind(connection_id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+async fn status_of(pool: &PgPool, connection_id: i64) -> Option<TimeStatus> {
+    sqlx::query_scalar("select time_status from map_connections where id = $1")
+        .bind(connection_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// The clock marks a plain hole EOL at 20 hours and critical at 23, records each mark as a
+/// background audit entry, and the marks reach a linked signature through the sync.
+#[sqlx::test]
+async fn ageing_marks_a_hole_eol_then_critical(pool: PgPool) {
+    use wormholesystems::maps::connection::age_connections;
+    use wormholesystems::maps::events_log::list_history;
+
+    let w = world(&pool).await;
+    seed_wormhole_system(&pool, 31000001, 3).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let j = place(&pool, w.owner, w.map_id, 31000001).await;
+    let conn = connect(&pool, w.owner, w.map_id, a, j, ConnectionType::Wormhole).await;
+    let sig = link_signature_row(&pool, w.map_id, conn).await;
+
+    age_by(&pool, conn, 19).await;
+    assert_eq!(age_connections(&pool).await.unwrap(), 0);
+    assert_eq!(
+        status_of(&pool, conn).await,
+        None,
+        "a young hole stays unknown"
+    );
+
+    age_by(&pool, conn, 20).await;
+    assert_eq!(age_connections(&pool).await.unwrap(), 1);
+    assert_eq!(status_of(&pool, conn).await, Some(TimeStatus::Eol));
+    assert_eq!(
+        age_connections(&pool).await.unwrap(),
+        0,
+        "a second pass finds nothing new to mark"
+    );
+
+    let newest = list_history(&pool, w.owner, w.map_id)
+        .await
+        .unwrap()
+        .entries
+        .remove(0);
+    assert_eq!(newest.kind, "connections.aged");
+    assert_eq!(newest.character_id, None, "the clock is not a pilot");
+    assert!(!newest.is_step, "a background mark is not an undo step");
+
+    let linked: Option<TimeStatus> =
+        sqlx::query_scalar("select time_status from signatures where id = $1")
+            .bind(sig)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        linked,
+        Some(TimeStatus::Eol),
+        "the sync carries the mark to the signature"
+    );
+
+    // Once EOL, the hole is judged from its mark: critical three hours after it.
+    age_by(&pool, conn, 30).await;
+    marked_ago(&pool, conn, 2).await;
+    assert_eq!(age_connections(&pool).await.unwrap(), 0);
+    marked_ago(&pool, conn, 3).await;
+    assert_eq!(age_connections(&pool).await.unwrap(), 1);
+    assert_eq!(status_of(&pool, conn).await, Some(TimeStatus::Critical));
+}
+
+/// C6 and drifter holes into known space run on their own clocks; a hole a pilot already
+/// marked, and a stargate, are left alone.
+#[sqlx::test]
+async fn ageing_uses_the_class_pair_and_never_downgrades(pool: PgPool) {
+    use wormholesystems::maps::connection::age_connections;
+
+    let w = world(&pool).await;
+    sqlx::query("update solar_systems set wormhole_class_id = 7 where id = $1")
+        .bind(SYS_A)
+        .execute(&pool)
+        .await
+        .unwrap();
+    seed_wormhole_system(&pool, 31000006, 6).await;
+    seed_wormhole_system(&pool, 31000015, 15).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let c6 = place(&pool, w.owner, w.map_id, 31000006).await;
+    let drifter = place(&pool, w.owner, w.map_id, 31000015).await;
+
+    let to_c6 = connect(&pool, w.owner, w.map_id, a, c6, ConnectionType::Wormhole).await;
+    let to_drifter = connect(
+        &pool,
+        w.owner,
+        w.map_id,
+        drifter,
+        a,
+        ConnectionType::Wormhole,
+    )
+    .await;
+    let gate = connect(&pool, w.owner, w.map_id, a, b, ConnectionType::Stargate).await;
+    let marked = connect(&pool, w.owner, w.map_id, b, c6, ConnectionType::Wormhole).await;
+    set_connection_status(
+        &pool,
+        w.owner,
+        SetConnectionStatus {
+            map_id: w.map_id,
+            connection_id: marked,
+            time_status: Some(Some(TimeStatus::Critical)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    for id in [to_c6, to_drifter, gate, marked] {
+        age_by(&pool, id, 30).await;
+    }
+    assert_eq!(age_connections(&pool).await.unwrap(), 1);
+    assert_eq!(
+        status_of(&pool, to_c6).await,
+        None,
+        "a C6 hole has 48 hours"
+    );
+    assert_eq!(
+        status_of(&pool, to_drifter).await,
+        Some(TimeStatus::Critical)
+    );
+    assert_eq!(status_of(&pool, gate).await, None, "stargates do not age");
+    assert_eq!(status_of(&pool, marked).await, Some(TimeStatus::Critical));
+
+    age_by(&pool, to_c6, 44).await;
+    assert_eq!(age_connections(&pool).await.unwrap(), 1);
+    assert_eq!(status_of(&pool, to_c6).await, Some(TimeStatus::Eol));
+}
+
+/// A wormhole three days old cannot exist: it goes, with the placement it strands, while
+/// pinned systems, stargates and younger holes stay. Its signature is unlinked, not deleted.
+#[sqlx::test]
+async fn expiry_removes_dead_wormholes_and_what_they_strand(pool: PgPool) {
+    use wormholesystems::maps::connection::expire_connections;
+    use wormholesystems::maps::events_log::list_history;
+    use wormholesystems::maps::solar_system::{SetPinned, set_pinned};
+
+    let w = world(&pool).await;
+    seed_wormhole_system(&pool, 31000001, 3).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let c = place(&pool, w.owner, w.map_id, common::SYS_C).await;
+    let j = place(&pool, w.owner, w.map_id, 31000001).await;
+    set_pinned(
+        &pool,
+        w.owner,
+        SetPinned {
+            map_id: w.map_id,
+            map_solar_system_id: a,
+            value: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    let dead = connect(&pool, w.owner, w.map_id, a, j, ConnectionType::Wormhole).await;
+    let gate = connect(&pool, w.owner, w.map_id, a, b, ConnectionType::Stargate).await;
+    let young = connect(&pool, w.owner, w.map_id, b, c, ConnectionType::Wormhole).await;
+    let sig = link_signature_row(&pool, w.map_id, dead).await;
+    for id in [dead, gate] {
+        age_by(&pool, id, 3 * 24 + 1).await;
+    }
+    age_by(&pool, young, 3 * 24 - 1).await;
+
+    assert_eq!(expire_connections(&pool).await.unwrap(), 1);
+    assert_eq!(expire_connections(&pool).await.unwrap(), 0);
+
+    let left: Vec<i64> =
+        sqlx::query_scalar("select id from map_connections where map_id = $1 order by id")
+            .bind(w.map_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(left, vec![gate, young]);
+    let placed: Vec<i64> =
+        sqlx::query_scalar("select id from map_solar_systems where map_id = $1 order by id")
+            .bind(w.map_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        placed,
+        vec![a, b, c],
+        "the stranded J-system goes, the pinned one stays"
+    );
+
+    let link: Option<i64> =
+        sqlx::query_scalar("select connection_id from signatures where id = $1")
+            .bind(sig)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(link, None);
+
+    let newest = list_history(&pool, w.owner, w.map_id)
+        .await
+        .unwrap()
+        .entries
+        .remove(0);
+    assert_eq!(newest.kind, "connections.expired");
+    assert_eq!(newest.character_id, None);
+}

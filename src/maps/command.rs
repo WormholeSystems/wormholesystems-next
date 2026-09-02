@@ -12,7 +12,8 @@ use sqlx::PgPool;
 
 use super::access::require_role_tx;
 use super::connection::{
-    AddConnection, CleanStaleConnections, RemoveConnection, SetConnectionStatus,
+    AddConnection, AgeConnection, CleanStaleConnections, ExpireConnections, RemoveConnection,
+    SetConnectionStatus,
 };
 use super::error::{MapError, Result};
 use super::events_log;
@@ -91,6 +92,8 @@ pub enum MapCommand {
     SetConnectionStatus(SetConnectionStatus),
     RemoveConnection(RemoveConnection),
     CleanStaleConnections(CleanStaleConnections),
+    AgeConnection(AgeConnection),
+    ExpireConnections(ExpireConnections),
     TrackJump(TrackJump),
     AddSignature(AddSignature),
     UpdateSignature(UpdateSignature),
@@ -261,6 +264,8 @@ impl MapCommand {
             MapCommand::SetConnectionStatus(c) => c.map_id,
             MapCommand::RemoveConnection(c) => c.map_id,
             MapCommand::CleanStaleConnections(c) => c.map_id,
+            MapCommand::AgeConnection(c) => c.map_id,
+            MapCommand::ExpireConnections(c) => c.map_id,
             MapCommand::TrackJump(c) => c.map_id,
             MapCommand::AddSignature(c) => c.map_id,
             MapCommand::UpdateSignature(c) => c.map_id,
@@ -312,6 +317,8 @@ impl MapCommand {
             }
             MapCommand::RemoveConnection(c) => connection::apply_remove_connection(tx, c).await,
             MapCommand::CleanStaleConnections(c) => connection::apply_clean_stale(tx, c).await,
+            MapCommand::AgeConnection(c) => connection::apply_age_connection(tx, c).await,
+            MapCommand::ExpireConnections(c) => connection::apply_expire_connections(tx, c).await,
             MapCommand::TrackJump(c) => tracking::apply_track_jump(tx, c).await,
             MapCommand::AddSignature(c) => signatures::apply_add_signature(tx, c).await,
             MapCommand::UpdateSignature(c) => signatures::apply_update_signature(tx, c).await,

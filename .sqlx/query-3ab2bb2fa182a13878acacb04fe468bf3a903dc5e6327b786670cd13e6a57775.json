@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select c.id, c.map_id, c.time_status as \"time_status: TimeStatus\",\n                  c.time_status_updated_at, c.created_at,\n                  fs.wormhole_class_id as \"from_class?\", ts.wormhole_class_id as \"to_class?\"\n           from map_connections c\n           join map_solar_systems fm on fm.id = c.from_system\n           left join solar_systems fs on fs.id = fm.solar_system_id\n           join map_solar_systems tm on tm.id = c.to_system\n           left join solar_systems ts on ts.id = tm.solar_system_id\n           where c.type = 'wormhole'\n             and c.time_status is distinct from 'critical'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "map_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "map_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "time_status: TimeStatus",
+        "type_info": {
+          "Custom": {
+            "name": "time_status",
+            "kind": {
+              "Enum": [
+                "stable",
+                "eol",
+                "critical"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "time_status"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "time_status_updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "time_status_updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "from_class?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "to_class?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "3ab2bb2fa182a13878acacb04fe468bf3a903dc5e6327b786670cd13e6a57775"
+}
