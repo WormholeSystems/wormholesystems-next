@@ -35,6 +35,20 @@ pub enum EnsurePresentError {
     Extract(#[from] crate::util::archive::ExtractError),
 }
 
+/// Empty a directory without removing it. In production the SDE directory is a Docker
+/// volume's mount point, which cannot be removed, only emptied.
+fn clear_dir(dir: impl AsRef<Path>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            std::fs::remove_dir_all(path)?;
+        } else {
+            std::fs::remove_file(path)?;
+        }
+    }
+    Ok(())
+}
+
 /// Ensure the unpacked SDE is present under [`SDE_DIR`], downloading it if not. Returns
 /// whether a download actually happened; when the marker file is already there this is a
 /// single `exists()` check.
@@ -52,7 +66,7 @@ pub fn fetch(force: bool) -> Result<bool, EnsurePresentError> {
         return Ok(false);
     }
     if force && Path::new(SDE_DIR).exists() {
-        std::fs::remove_dir_all(SDE_DIR)?;
+        clear_dir(SDE_DIR)?;
     }
 
     // The archive lands next to its extraction target; make sure `data/` exists.
