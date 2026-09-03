@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference, security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark,\n                  killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference, security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark, follow_character,\n                  killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
   "describe": {
     "columns": [
       {
@@ -170,6 +170,17 @@
       },
       {
         "ordinal": 12,
+        "name": "follow_character",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "follow_character"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
         "name": "killmail_filter",
         "type_info": {
           "Custom": {
@@ -191,7 +202,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "is_archived",
         "type_info": "Bool",
         "origin": {
@@ -202,13 +213,13 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "introduction_confirmed!",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "hidden_panels",
         "type_info": "TextArray",
         "origin": {
@@ -219,7 +230,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "layout_breakpoints",
         "type_info": "Jsonb",
         "origin": {
@@ -230,7 +241,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "layout_override",
         "type_info": {
           "Custom": {
@@ -251,7 +262,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "is_pinned",
         "type_info": "Bool",
         "origin": {
@@ -283,6 +294,7 @@
       false,
       false,
       false,
+      false,
       null,
       false,
       true,
@@ -290,5 +302,5 @@
       false
     ]
   },
-  "hash": "d0d0e79cfa92cb66bdb058efebd37fd03207d90358e8770f800a449d3197336b"
+  "hash": "c81501b64610a37e040ed42120940e45ae759ce4698cc2f55d1c0b82a8218738"
 }

@@ -40,6 +40,10 @@ pub struct MapConnection {
     pub preserve_mass: bool,
     /// When `time_status` last changed (DB trigger), for "EOL since" displays.
     pub time_status_updated_at: Option<DateTime<Utc>>,
+    /// How long a hole between these two systems lives, from the class pair (see the
+    /// [life-cycle spec](../../docs/processes.md#connection-life-cycle)). `None` for
+    /// stargates. With `created_at`, the client's countdown.
+    pub lifetime_hours: Option<i64>,
     /// Full jump-log aggregates (the log itself is fetched separately, capped at 10).
     pub jumps_count: i64,
     pub jumps_mass_sum: i64,
@@ -55,25 +59,50 @@ pub(super) async fn connections_with_stats(
     map_id: i64,
     connection_id: Option<i64>,
 ) -> sqlx::Result<Vec<MapConnection>> {
-    sqlx::query_as!(
-        MapConnection,
-        r#"select id, map_id, from_system, to_system, type as kind,
-                  mass_status,
-                  time_status,
-                  size,
+    let rows = sqlx::query!(
+        r#"select c.id, c.map_id, c.from_system, c.to_system, c.type as kind,
+                  c.mass_status,
+                  c.time_status,
+                  c.size,
                   (select count(*) from map_connection_jumps j
-                   where j.connection_id = map_connections.id) as "jumps_count!",
+                   where j.connection_id = c.id) as "jumps_count!",
                   coalesce((select sum(j.mass) from map_connection_jumps j
-                            where j.connection_id = map_connections.id), 0)::bigint as "jumps_mass_sum!",
-                  preserve_mass, time_status_updated_at, created_at, updated_at
-           from map_connections
-           where map_id = $1 and ($2::bigint is null or id = $2)
-           order by id"#,
+                            where j.connection_id = c.id), 0)::bigint as "jumps_mass_sum!",
+                  c.preserve_mass, c.time_status_updated_at, c.created_at, c.updated_at,
+                  fs.wormhole_class_id as "from_class?", ts.wormhole_class_id as "to_class?"
+           from map_connections c
+           join map_solar_systems fm on fm.id = c.from_system
+           left join solar_systems fs on fs.id = fm.solar_system_id
+           join map_solar_systems tm on tm.id = c.to_system
+           left join solar_systems ts on ts.id = tm.solar_system_id
+           where c.map_id = $1 and ($2::bigint is null or c.id = $2)
+           order by c.id"#,
         map_id,
         connection_id,
     )
     .fetch_all(exec)
-    .await
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| MapConnection {
+            id: r.id,
+            map_id: r.map_id,
+            from_system: r.from_system,
+            to_system: r.to_system,
+            kind: r.kind,
+            mass_status: r.mass_status,
+            time_status: r.time_status,
+            size: r.size,
+            preserve_mass: r.preserve_mass,
+            time_status_updated_at: r.time_status_updated_at,
+            lifetime_hours: (r.kind == ConnectionType::Wormhole)
+                .then(|| lifetime_hours(r.from_class, r.to_class)),
+            jumps_count: r.jumps_count,
+            jumps_mass_sum: r.jumps_mass_sum,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+        .collect())
 }
 
 async fn fetch_connection_tx(

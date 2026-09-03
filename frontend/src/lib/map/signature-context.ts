@@ -1,4 +1,5 @@
 import type { MapConnection } from '$lib/api/types/MapConnection';
+import type { MapNaming } from '$lib/api/types/MapNaming';
 import type { MapSystemView } from '$lib/api/types/MapSystemView';
 import type { Signature } from '$lib/api/types/Signature';
 import type { UpdateSignature } from '$lib/api/types/UpdateSignature';
@@ -23,6 +24,8 @@ export interface SignatureContext {
 	systems: MapSystemView[];
 	connections: MapConnection[];
 	sigs: Signature[];
+	/** How the chain is named, for the bookmark a row copies. */
+	naming: MapNaming | null;
 	/** Absent in a read-only rendering; with no actions nothing can be written. */
 	actions?: SignatureActions;
 }
@@ -33,16 +36,25 @@ export interface SignatureActions {
 	link(signaturePk: number, connectionId: number): void;
 	unlink(signaturePk: number): void;
 	setPreserveMass(connectionId: number, preserve: boolean): void;
+	/** Name a placement, so the alias a copied bookmark guessed is what the map says. */
+	setAlias(system: MapSystemView, alias: string): void;
 }
 
 /** The map's domain namespaces, narrowed to what the signature rows use. */
 interface SignatureHost {
-	systems: { readonly all: MapSystemView[] };
+	readonly naming: MapNaming | null;
+	systems: {
+		readonly all: MapSystemView[];
+		rename(system: MapSystemView, alias: string | null, occupier: string | null): void;
+	};
 	connections: {
 		readonly all: MapConnection[];
 		patch(connectionId: number, patch: { preserve_mass: boolean }): void;
 	};
-	signatures: { readonly all: Signature[] } & Omit<SignatureActions, 'setPreserveMass'>;
+	signatures: { readonly all: Signature[] } & Omit<
+		SignatureActions,
+		'setPreserveMass' | 'setAlias'
+	>;
 }
 
 /**
@@ -61,6 +73,9 @@ export function makeSignatureContext(map: SignatureHost): SignatureContext {
 		get sigs() {
 			return map.signatures.all;
 		},
+		get naming() {
+			return map.naming;
+		},
 		actions: {
 			update: (signaturePk, patch) => map.signatures.update(signaturePk, patch),
 			remove: (signaturePk) => map.signatures.remove(signaturePk),
@@ -68,6 +83,9 @@ export function makeSignatureContext(map: SignatureHost): SignatureContext {
 			unlink: (signaturePk) => map.signatures.unlink(signaturePk),
 			setPreserveMass: (connectionId, preserve) =>
 				map.connections.patch(connectionId, { preserve_mass: preserve }),
+			// A ghost owns only its alias; a real system keeps its occupier as it is.
+			setAlias: (system, alias) =>
+				map.systems.rename(system, alias, system.kind === 'system' ? system.occupying_group : null),
 		},
 	};
 }

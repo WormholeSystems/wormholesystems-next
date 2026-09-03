@@ -117,6 +117,10 @@ export class MapState {
 		return this.queries.settings.data ?? null;
 	}
 
+	get naming() {
+		return this.data?.map.naming ?? null;
+	}
+
 	selected = $state<Set<number>>(new Set());
 	drag = $state<Drag | null>(null);
 	// Optimistic positions held from drop until the server confirms them, so a moved node
@@ -379,7 +383,7 @@ export class MapState {
 			sigs: () => this.signatures.all,
 			grid: () => this.grid,
 			settings: () => this.userSettings,
-			naming: () => this.data?.map.naming ?? null,
+			naming: () => this.naming,
 			stargates: () => this.route.stargates,
 			whenRoutingLoaded: () => this.route.whenLoaded(),
 			loadCatalog: () => loadCatalog(this.queries.client),

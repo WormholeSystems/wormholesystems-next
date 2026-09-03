@@ -12,6 +12,7 @@
 
 	// No `actions`, so the rows cannot write anything even if something were clicked.
 	const ctx: SignatureContext = {
+		naming: null,
 		systems: DEMO_SYSTEMS,
 		connections: DEMO_CONNECTIONS,
 		sigs: DEMO_SIGNATURES,

@@ -145,6 +145,7 @@ function connection(id: number, from: number, to: number, fields: Partial<MapCon
 		jumps_count: 0,
 		jumps_mass_sum: 0,
 		time_status_updated_at: null,
+		lifetime_hours: 24,
 		created_at: hoursAgo(4),
 		updated_at: hoursAgo(1),
 		...fields,

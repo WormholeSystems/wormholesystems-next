@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into map_alerts\n             (map_id, created_by_user_id, name, kind, delivery, map_webhook_id,\n              discord_guild_id, discord_channel_id, map_webhook_role_id, mention,\n              target_solar_system_id, max_jumps, ship_type, jdc_level, filters, filter_match)\n         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)\n         returning id",
+  "query": "insert into map_alerts\n             (map_id, created_by_user_id, name, kind, delivery, map_webhook_id,\n              discord_guild_id, discord_channel_id, map_webhook_role_id, mention,\n              target_solar_system_id, origin_solar_system_id, max_jumps, ship_type, jdc_level,\n              filters, filter_match)\n         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)\n         returning id",
   "describe": {
     "columns": [
       {
@@ -28,6 +28,7 @@
         "Int8",
         "Text",
         "Int8",
+        "Int8",
         "Int4",
         "Text",
         "Int4",
@@ -39,5 +40,5 @@
       false
     ]
   },
-  "hash": "aa2d0bf26cff35e5cb621802cd5b0715cb3c04ac7aca90d2a9de7fca0b40e9ad"
+  "hash": "925b988f97872f7b227051ac6fbf0f5dc8e859f90d5344c23a7149137194c88a"
 }

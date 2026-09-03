@@ -295,11 +295,12 @@ test('row actions: EOL color, preserve mass, copy bookmark', async ({ browser, a
 	await page.keyboard.press('Escape');
 
 	// The bookmark names the far side of the hole, since that is what it has to tell you
-	// in-game: Jita is k-space, so it takes the k-space format.
+	// in-game: Jita is k-space, so it takes the k-space format. Nothing has named the exit
+	// yet, so the copy takes the chain's next alias and writes it on the map.
 	await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
 	await row.getByLabel('Copy bookmark').click();
 	const clip = await page.evaluate(() => navigator.clipboard.readText());
-	expect(clip).toBe('HS WHX Jita The Forge');
+	expect(clip).toBe('1 HS WHX Jita The Forge');
 	await ctx.close();
 });
 

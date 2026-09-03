@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_alerts\n             (map_id, name, kind, delivery, map_webhook_id, target_solar_system_id,\n              origin_solar_system_id, max_jumps)\n         values ($1, 'Near', 'proximity', 'webhook', $2, $3, $4, $5)\n         returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bcc4281dc590736e502f9eaa16ca1325b3547b3500d3e31781d069aa5a5c9b82"
+}

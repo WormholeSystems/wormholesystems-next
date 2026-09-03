@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, map_id, from_system, to_system, type as kind,\n                  mass_status,\n                  time_status,\n                  size,\n                  (select count(*) from map_connection_jumps j\n                   where j.connection_id = map_connections.id) as \"jumps_count!\",\n                  coalesce((select sum(j.mass) from map_connection_jumps j\n                            where j.connection_id = map_connections.id), 0)::bigint as \"jumps_mass_sum!\",\n                  preserve_mass, time_status_updated_at, created_at, updated_at\n           from map_connections\n           where map_id = $1 and ($2::bigint is null or id = $2)\n           order by id",
+  "query": "select c.id, c.map_id, c.from_system, c.to_system, c.type as kind,\n                  c.mass_status,\n                  c.time_status,\n                  c.size,\n                  (select count(*) from map_connection_jumps j\n                   where j.connection_id = c.id) as \"jumps_count!\",\n                  coalesce((select sum(j.mass) from map_connection_jumps j\n                            where j.connection_id = c.id), 0)::bigint as \"jumps_mass_sum!\",\n                  c.preserve_mass, c.time_status_updated_at, c.created_at, c.updated_at,\n                  fs.wormhole_class_id as \"from_class?\", ts.wormhole_class_id as \"to_class?\"\n           from map_connections c\n           join map_solar_systems fm on fm.id = c.from_system\n           left join solar_systems fs on fs.id = fm.solar_system_id\n           join map_solar_systems tm on tm.id = c.to_system\n           left join solar_systems ts on ts.id = tm.solar_system_id\n           where c.map_id = $1 and ($2::bigint is null or c.id = $2)\n           order by c.id",
   "describe": {
     "columns": [
       {
@@ -190,6 +190,28 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "ordinal": 14,
+        "name": "from_class?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "to_class?",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "solar_systems",
+            "name": "wormhole_class_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -212,8 +234,10 @@
       false,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "d11aaf9fcafb554399b0aee5e2952b52aed23b94171bcf49dda8f13fe1409b8c"
+  "hash": "e1c0f24ab6b89ff2549a950fc523cffbcebb12a4601fc1ff536dce15bb0320f2"
 }

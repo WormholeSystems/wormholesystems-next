@@ -131,6 +131,10 @@ older than the map knows, so the mark beats the age.
   signatures and stamps `time_status_updated_at`.
 - Stargate edges never age.
 - One `connections.aged` entry per mark, with no character.
+- The lifetime the class pair gives a hole rides along on the connection as
+  `lifetime_hours`, so the client can count down: from a mark, 4 h (`eol`) or 1 h
+  (`critical`) after `time_status_updated_at`; before one, at most `created_at` plus the
+  lifetime, since when a hole was mapped is at best when it opened.
 
 ### Expiry
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select ss.id, ss.name from map_solar_systems mss\n         join solar_systems ss on ss.id = mss.solar_system_id\n         where mss.id = $1",
+  "query": "select id, solar_system_id from map_solar_systems\n         where map_id = $1 and solar_system_id = any($2)",
   "describe": {
     "columns": [
       {
@@ -9,32 +9,33 @@
         "type_info": "Int8",
         "origin": {
           "Table": {
-            "table": "solar_systems",
+            "table": "map_solar_systems",
             "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "name",
-        "type_info": "Text",
+        "name": "solar_system_id",
+        "type_info": "Int8",
         "origin": {
           "Table": {
-            "table": "solar_systems",
-            "name": "name"
+            "table": "map_solar_systems",
+            "name": "solar_system_id"
           }
         }
       }
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Int8Array"
       ]
     },
     "nullable": [
       false,
-      false
+      true
     ]
   },
-  "hash": "6e96f299eb5a7f06b71581523c153c04dd5e497593ab0d16d6b96844cdfab3b7"
+  "hash": "c4e837e58ec2485720453281392549466247191b28bb26af652102ebadd36017"
 }

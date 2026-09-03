@@ -35,6 +35,10 @@ suggest_alias: boolean,
  */
 copy_bookmark: boolean, 
 /**
+ * Select the system this user's pilot is in as they fly, so the cards follow them.
+ */
+follow_character: boolean, 
+/**
  * Which half of the chain the killmails card shows.
  */
 killmail_filter: KillmailScope, is_archived: boolean, 

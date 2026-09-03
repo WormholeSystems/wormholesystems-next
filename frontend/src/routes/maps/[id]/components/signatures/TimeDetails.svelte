@@ -2,6 +2,7 @@
 	// Relative age, with the linked connection's state bleeding into the colouring: the
 	// connection's mass wins, and its lifetime applies while the signature's own is healthy.
 	import type { MapConnection } from '$lib/api/types/MapConnection';
+	import { formatRemaining, lifetimeDeadline } from '$lib/map/lifetime';
 	import type { Signature } from '$lib/api/types/Signature';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { timeAgoShort, utcShort } from '$lib/format';
@@ -39,6 +40,11 @@
 		sig.time_status_updated_at ?? connection?.time_status_updated_at ?? null,
 	);
 
+	const timeLeft = $derived.by(() => {
+		const deadline = connection ? lifetimeDeadline(connection) : null;
+		return deadline && !deadline.estimated ? formatRemaining(deadline.at, now) : null;
+	});
+
 	function sinceAgo(iso: string): string {
 		const mins = Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));
 		if (mins < 60) return `${mins} minutes ago`;
@@ -68,7 +74,9 @@
 				<span class="font-semibold">
 					{lifetime === 'eol' ? 'End of Life (<4h)' : 'Critical (<1h)'}
 				</span>
-				<span>{lifetimeSince ? sinceAgo(lifetimeSince) : ''}</span>
+				<span>
+					{lifetimeSince ? sinceAgo(lifetimeSince) : ''}{timeLeft ? `, ${timeLeft} left` : ''}
+				</span>
 			{/if}
 		</div>
 	</Tooltip.Content>

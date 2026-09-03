@@ -4,6 +4,7 @@
 	// and selection live outside the fetched data and nodes are keyed by id, so a refetch
 	// keeps interaction state.
 	import { solarSystemId } from '$lib/map/system';
+	import { tickingMs } from '$lib/now.svelte';
 	import { deepLinkTarget, systemParamUrl } from '../state/deep-link';
 
 	import { afterNavigate, replaceState } from '$app/navigation';
@@ -62,6 +63,23 @@
 		void map.characters.mine;
 		tracker.observe();
 	});
+	// Where the pilot last took the selection, so clicking elsewhere holds until they move.
+	let followedSystemId: number | null = null;
+	$effect(() => {
+		if (!map.userSettings?.follow_character) return;
+		const pilot = map.characters.mine.find((c) => c.is_active);
+		const systemId = pilot?.online ? (pilot.solar_system_id ?? null) : null;
+		if (systemId === null || systemId === followedSystemId) return;
+		// A jump into an unmapped hole lands here again once the tracker has drawn it.
+		const placed = map.systems.all.find(
+			(s) => s.kind === 'system' && s.solar_system_id === systemId,
+		);
+		if (!placed) return;
+		followedSystemId = systemId;
+		map.activeId = placed.id;
+	});
+	// The edge countdowns; one clock for every line rather than a timer per edge.
+	const clock = tickingMs(30_000);
 	const gestures = new MapGestures(map);
 	// The app-wide system context menu reads the map through this getter.
 	setMapContext(() => map);
@@ -263,7 +281,7 @@
 				{#each map.connections.all as c (c.id)}
 					{@const geometry = map.edgeGeometry.get(c.id)}
 					{#if geometry}
-						<MapEdge {map} connection={c} {geometry} />
+						<MapEdge {map} connection={c} {geometry} now={clock.current} />
 					{/if}
 				{/each}
 

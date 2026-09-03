@@ -8,6 +8,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { timeAgo, utcShort } from '$lib/format';
 	import { LIFETIME_OPTIONS, MASS_OPTIONS } from '$lib/map/connection-status';
+	import { formatRemaining, lifetimeDeadline } from '$lib/map/lifetime';
 	import { tickingMs } from '$lib/now.svelte';
 
 	let { connection, sigs }: { connection: MapConnection; sigs: Signature[] } = $props();
@@ -24,7 +25,7 @@
 	const lifetimeMeta = $derived.by(() => {
 		const option =
 			LIFETIME_OPTIONS.find((o) => o.value === connection.time_status) ?? LIFETIME_OPTIONS[0];
-		const label = option.hint ? `${option.label} (${option.hint})` : option.label;
+		const label = option.label;
 		switch (option.value) {
 			case 'eol':
 				return { label, text: 'text-purple-500', dot: 'bg-purple-500' };
@@ -33,6 +34,17 @@
 			default:
 				return { label, text: 'text-green-500', dot: 'bg-green-500' };
 		}
+	});
+	// A mark's countdown replaces the threshold it stands for; before one, the class
+	// lifetime bounds what is left.
+	const deadline = $derived(lifetimeDeadline(connection));
+	const lifetimeDetail = $derived.by(() => {
+		if (deadline === null) {
+			const hint = LIFETIME_OPTIONS.find((o) => o.value === connection.time_status)?.hint;
+			return hint ? `(${hint})` : null;
+		}
+		const left = formatRemaining(deadline.at, clock.current);
+		return deadline.estimated ? `up to ${left}` : `${left} left`;
 	});
 	const massMeta = $derived.by(() => {
 		const option = MASS_OPTIONS.find((o) => o.value === connection.mass_status);
@@ -88,10 +100,17 @@
 				{#if degraded && lifetimeSince !== null}
 					<Tooltip.Root>
 						<Tooltip.Trigger class="cursor-help">{lifetimeMeta.label}</Tooltip.Trigger>
-						<Tooltip.Content>{utcShort(lifetimeSince)} ({ago(lifetimeSince)})</Tooltip.Content>
+						<Tooltip.Content>
+							Since {utcShort(lifetimeSince)} ({ago(lifetimeSince)})
+						</Tooltip.Content>
 					</Tooltip.Root>
 				{:else}
 					<span>{lifetimeMeta.label}</span>
+				{/if}
+				{#if lifetimeDetail}
+					<span class="text-[10px] opacity-80" data-testid="popover-lifetime-detail">
+						{lifetimeDetail}
+					</span>
 				{/if}
 			</span>
 		</div>

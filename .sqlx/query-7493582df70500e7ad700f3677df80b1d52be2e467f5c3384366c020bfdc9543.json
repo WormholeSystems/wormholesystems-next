@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select from_system, to_system from map_connections\n             where id = $1 and map_id = $2 and type = 'wormhole'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "from_system",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "from_system"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "to_system",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_connections",
+            "name": "to_system"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7493582df70500e7ad700f3677df80b1d52be2e467f5c3384366c020bfdc9543"
+}

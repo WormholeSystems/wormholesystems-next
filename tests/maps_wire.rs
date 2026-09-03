@@ -209,6 +209,7 @@ fn map_view_round_trips() {
             size: None,
             preserve_mass: false,
             time_status_updated_at: None,
+            lifetime_hours: Some(24),
             jumps_count: 0,
             jumps_mass_sum: 0,
             created_at: ts(),

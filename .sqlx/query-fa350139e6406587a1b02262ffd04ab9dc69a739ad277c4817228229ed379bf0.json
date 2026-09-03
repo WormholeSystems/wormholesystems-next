@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into map_user_settings\n             (map_id, user_id, tracking_allowed, show_threat_level,\n              compact_signature_list, show_statics_first,\n              route_preference, security_penalty, route_allow_time_status,\n              route_allow_mass_status, route_use_evescout, prompt_for_signature,\n              suggest_alias, copy_bookmark, killmail_filter, is_archived,\n              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,\n              is_pinned)\n         values ($1, $2, coalesce($3, false), coalesce($4, true),\n                 coalesce($5, false), coalesce($6, false),\n                 -- The literals need naming as their type: `coalesce` has to agree with the\n                 -- parameter, and a bare string is text.\n                 coalesce($7, 'shorter'::route_preference), coalesce($8, 50),\n                 coalesce($9, 'critical'::time_status),\n                 coalesce($10, 'reduced'::mass_status), coalesce($11, false),\n                 coalesce($12, true), coalesce($13, true), coalesce($14, false),\n                 coalesce($15, 'all'::killmail_scope), coalesce($16, false),\n                 case when $17 then now() end,\n                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false))\n         on conflict (map_id, user_id) do update set\n             tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),\n             show_threat_level = coalesce($4, map_user_settings.show_threat_level),\n             compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),\n             show_statics_first = coalesce($6, map_user_settings.show_statics_first),\n             route_preference = coalesce($7, map_user_settings.route_preference),\n             security_penalty = coalesce($8, map_user_settings.security_penalty),\n             route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),\n             route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),\n             route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),\n             prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),\n             suggest_alias = coalesce($13, map_user_settings.suggest_alias),\n             copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),\n             killmail_filter = coalesce($15, map_user_settings.killmail_filter),\n             is_archived = coalesce($16, map_user_settings.is_archived),\n             -- Absent leaves it; true stamps now; false clears it and shows it again.\n             introduction_confirmed_at = case\n                 when $17 is null then map_user_settings.introduction_confirmed_at\n                 when $17 then now()\n             end,\n             hidden_panels = coalesce($18, map_user_settings.hidden_panels),\n             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),\n             -- Absent leaves it; null is a real value here (follow the map again), so it\n             -- cannot go through coalesce.\n             layout_override = case\n                 when $21 then $20\n                 else map_user_settings.layout_override\n             end,\n             is_pinned = coalesce($22, map_user_settings.is_pinned),\n             updated_at = now()\n         returning tracking_allowed, show_threat_level, compact_signature_list,\n                   show_statics_first,\n                   route_preference, security_penalty,\n                   route_allow_time_status,\n                   route_allow_mass_status,\n                   route_use_evescout,\n                   prompt_for_signature, suggest_alias, copy_bookmark,\n                   killmail_filter,\n                   is_archived,\n                   (introduction_confirmed_at is not null) as introduction_confirmed,\n                   hidden_panels, layout_breakpoints,\n                   layout_override, is_pinned",
+  "query": "insert into map_user_settings\n             (map_id, user_id, tracking_allowed, show_threat_level,\n              compact_signature_list, show_statics_first,\n              route_preference, security_penalty, route_allow_time_status,\n              route_allow_mass_status, route_use_evescout, prompt_for_signature,\n              suggest_alias, copy_bookmark, killmail_filter, is_archived,\n              introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,\n              is_pinned, follow_character)\n         values ($1, $2, coalesce($3, false), coalesce($4, true),\n                 coalesce($5, false), coalesce($6, false),\n                 -- The literals need naming as their type: `coalesce` has to agree with the\n                 -- parameter, and a bare string is text.\n                 coalesce($7, 'shorter'::route_preference), coalesce($8, 50),\n                 coalesce($9, 'critical'::time_status),\n                 coalesce($10, 'reduced'::mass_status), coalesce($11, false),\n                 coalesce($12, true), coalesce($13, true), coalesce($14, false),\n                 coalesce($15, 'all'::killmail_scope), coalesce($16, false),\n                 case when $17 then now() end,\n                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false),\n                 coalesce($23, false))\n         on conflict (map_id, user_id) do update set\n             tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),\n             show_threat_level = coalesce($4, map_user_settings.show_threat_level),\n             compact_signature_list = coalesce($5, map_user_settings.compact_signature_list),\n             show_statics_first = coalesce($6, map_user_settings.show_statics_first),\n             route_preference = coalesce($7, map_user_settings.route_preference),\n             security_penalty = coalesce($8, map_user_settings.security_penalty),\n             route_allow_time_status = coalesce($9, map_user_settings.route_allow_time_status),\n             route_allow_mass_status = coalesce($10, map_user_settings.route_allow_mass_status),\n             route_use_evescout = coalesce($11, map_user_settings.route_use_evescout),\n             prompt_for_signature = coalesce($12, map_user_settings.prompt_for_signature),\n             suggest_alias = coalesce($13, map_user_settings.suggest_alias),\n             copy_bookmark = coalesce($14, map_user_settings.copy_bookmark),\n             killmail_filter = coalesce($15, map_user_settings.killmail_filter),\n             is_archived = coalesce($16, map_user_settings.is_archived),\n             -- Absent leaves it; true stamps now; false clears it and shows it again.\n             introduction_confirmed_at = case\n                 when $17 is null then map_user_settings.introduction_confirmed_at\n                 when $17 then now()\n             end,\n             hidden_panels = coalesce($18, map_user_settings.hidden_panels),\n             layout_breakpoints = coalesce($19, map_user_settings.layout_breakpoints),\n             -- Absent leaves it; null is a real value here (follow the map again), so it\n             -- cannot go through coalesce.\n             layout_override = case\n                 when $21 then $20\n                 else map_user_settings.layout_override\n             end,\n             is_pinned = coalesce($22, map_user_settings.is_pinned),\n             follow_character = coalesce($23, map_user_settings.follow_character),\n             updated_at = now()\n         returning tracking_allowed, show_threat_level, compact_signature_list,\n                   show_statics_first,\n                   route_preference, security_penalty,\n                   route_allow_time_status,\n                   route_allow_mass_status,\n                   route_use_evescout,\n                   prompt_for_signature, suggest_alias, copy_bookmark, follow_character,\n                   killmail_filter,\n                   is_archived,\n                   (introduction_confirmed_at is not null) as introduction_confirmed,\n                   hidden_panels, layout_breakpoints,\n                   layout_override, is_pinned",
   "describe": {
     "columns": [
       {
@@ -170,6 +170,17 @@
       },
       {
         "ordinal": 12,
+        "name": "follow_character",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "follow_character"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
         "name": "killmail_filter",
         "type_info": {
           "Custom": {
@@ -191,7 +202,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "is_archived",
         "type_info": "Bool",
         "origin": {
@@ -202,13 +213,13 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "introduction_confirmed",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "hidden_panels",
         "type_info": "TextArray",
         "origin": {
@@ -219,7 +230,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "layout_breakpoints",
         "type_info": "Jsonb",
         "origin": {
@@ -230,7 +241,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "layout_override",
         "type_info": {
           "Custom": {
@@ -251,7 +262,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "is_pinned",
         "type_info": "Bool",
         "origin": {
@@ -339,10 +350,12 @@
           }
         },
         "Bool",
+        "Bool",
         "Bool"
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -364,5 +377,5 @@
       false
     ]
   },
-  "hash": "f761e7ce7c3b9c5144e0747769977e44bd856cdca42134f638aea68843e48ef0"
+  "hash": "fa350139e6406587a1b02262ffd04ab9dc69a739ad277c4817228229ed379bf0"
 }

@@ -7,19 +7,27 @@
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import { edgeDecorations, type EdgeGeometry } from '$lib/map/edges';
 	import { edgeColor } from '$lib/map/helpers';
+	import { formatRemaining, lifetimeDeadline } from '$lib/map/lifetime';
 	import type { MapState } from '../../state/map-state.svelte';
 
 	let {
 		map,
 		connection,
 		geometry,
-	}: { map: MapState; connection: MapConnection; geometry: EdgeGeometry } = $props();
+		now,
+	}: { map: MapState; connection: MapConnection; geometry: EdgeGeometry; now: number } = $props();
 
 	const c = $derived(connection);
 	const elbow = $derived(geometry.kind === 'elbow');
 	const onRoute = $derived(map.route.connectionIds.has(c.id));
 	const stroke = $derived(edgeColor(c.kind, c.mass_status, c.time_status, onRoute));
 	const deco = $derived(edgeDecorations(c));
+	// Only a mark's countdown earns ink on the line; the estimate stays in the popover.
+	const deadline = $derived(lifetimeDeadline(c));
+	const timeLeft = $derived(
+		deadline && !deadline.estimated ? formatRemaining(deadline.at, now) : null,
+	);
+	const badgeWidth = $derived(deco.badgeWidth + (timeLeft ? timeLeft.length * 6 + 4 : 0));
 </script>
 
 <g class="group/edge">
@@ -42,9 +50,9 @@
 	{/if}
 	{#if deco.badgeCount > 0}
 		<foreignObject
-			x={geometry.center.x - deco.badgeWidth / 2}
+			x={geometry.center.x - badgeWidth / 2}
 			y={geometry.center.y - 10}
-			width={deco.badgeWidth}
+			width={badgeWidth}
 			height="20"
 			class="pointer-events-none"
 		>
@@ -64,6 +72,13 @@
 				{/if}
 				{#if deco.timeColor}
 					<ClockIcon class="size-3.5" style="color: {deco.timeColor}" />
+					{#if timeLeft}
+						<span
+							class="text-[10px] leading-none font-semibold tabular-nums"
+							style="color: {deco.timeColor}"
+							data-testid="edge-time-left">{timeLeft}</span
+						>
+					{/if}
 				{/if}
 			</div>
 		</foreignObject>

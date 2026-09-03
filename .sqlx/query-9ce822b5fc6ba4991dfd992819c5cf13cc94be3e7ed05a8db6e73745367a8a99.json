@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into map_webhooks (map_id, name, url)\n         values ($1, 'Test channel', 'https://discord.com/api/webhooks/1/x')\n         on conflict (map_id, name) do update set url = excluded.url\n         returning id",
+  "query": "insert into map_webhooks (map_id, name, url)\n         values ($1, 'Test channel', $2)\n         on conflict (map_id, name) do update set url = excluded.url\n         returning id",
   "describe": {
     "columns": [
       {
@@ -17,12 +17,13 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "ab0a7051607af34e562d2d070c7e60562fd496690937b40c2650fd2d43069b32"
+  "hash": "9ce822b5fc6ba4991dfd992819c5cf13cc94be3e7ed05a8db6e73745367a8a99"
 }

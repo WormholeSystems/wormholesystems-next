@@ -31,6 +31,11 @@
 			label: 'Copy the bookmark',
 			hint: 'Puts the new bookmark on your clipboard once the jump is mapped.',
 		},
+		{
+			key: 'follow_character' as const,
+			label: 'Follow me',
+			hint: 'Selects the system you are in as you fly, so the cards keep up.',
+		},
 	];
 
 	function update(key: string, value: boolean) {

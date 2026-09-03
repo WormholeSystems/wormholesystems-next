@@ -43,6 +43,8 @@ pub struct MapUserSettings {
     pub suggest_alias: bool,
     /// Put the new connection's bookmark on the clipboard once the jump is mapped.
     pub copy_bookmark: bool,
+    /// Select the system this user's pilot is in as they fly, so the cards follow them.
+    pub follow_character: bool,
     /// Which half of the chain the killmails card shows.
     pub killmail_filter: KillmailScope,
     pub is_archived: bool,
@@ -111,6 +113,9 @@ pub struct UpdateMapUserSettings {
     pub copy_bookmark: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
+    pub follow_character: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
     pub killmail_filter: Option<KillmailScope>,
     #[serde(default)]
     #[ts(optional)]
@@ -142,7 +147,7 @@ pub async fn map_user_settings(
                   route_allow_time_status,
                   route_allow_mass_status,
                   route_use_evescout,
-                  prompt_for_signature, suggest_alias, copy_bookmark,
+                  prompt_for_signature, suggest_alias, copy_bookmark, follow_character,
                   killmail_filter,
                   is_archived,
                   (introduction_confirmed_at is not null) as "introduction_confirmed!",
@@ -168,6 +173,7 @@ pub async fn map_user_settings(
             prompt_for_signature: r.prompt_for_signature,
             suggest_alias: r.suggest_alias,
             copy_bookmark: r.copy_bookmark,
+            follow_character: r.follow_character,
             killmail_filter: r.killmail_filter,
             is_archived: r.is_archived,
             introduction_confirmed: r.introduction_confirmed,
@@ -195,6 +201,7 @@ pub async fn map_user_settings(
             prompt_for_signature: true,
             suggest_alias: true,
             copy_bookmark: false,
+            follow_character: false,
             killmail_filter: KillmailScope::All,
             is_archived: false,
             introduction_confirmed: false,
@@ -240,7 +247,7 @@ pub async fn update_map_user_settings(
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
               suggest_alias, copy_bookmark, killmail_filter, is_archived,
               introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,
-              is_pinned)
+              is_pinned, follow_character)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  -- The literals need naming as their type: `coalesce` has to agree with the
@@ -251,7 +258,8 @@ pub async fn update_map_user_settings(
                  coalesce($12, true), coalesce($13, true), coalesce($14, false),
                  coalesce($15, 'all'::killmail_scope), coalesce($16, false),
                  case when $17 then now() end,
-                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false))
+                 coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false),
+                 coalesce($23, false))
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -281,6 +289,7 @@ pub async fn update_map_user_settings(
                  else map_user_settings.layout_override
              end,
              is_pinned = coalesce($22, map_user_settings.is_pinned),
+             follow_character = coalesce($23, map_user_settings.follow_character),
              updated_at = now()
          returning tracking_allowed, show_threat_level, compact_signature_list,
                    show_statics_first,
@@ -288,7 +297,7 @@ pub async fn update_map_user_settings(
                    route_allow_time_status,
                    route_allow_mass_status,
                    route_use_evescout,
-                   prompt_for_signature, suggest_alias, copy_bookmark,
+                   prompt_for_signature, suggest_alias, copy_bookmark, follow_character,
                    killmail_filter,
                    is_archived,
                    (introduction_confirmed_at is not null) as introduction_confirmed,
@@ -316,6 +325,7 @@ pub async fn update_map_user_settings(
         body.layout_override.flatten(),
         body.layout_override.is_some(),
         body.is_pinned,
+        body.follow_character,
     )
     .fetch_one(&state.db)
     .await?;
@@ -332,6 +342,7 @@ pub async fn update_map_user_settings(
     Ok(Json(MapUserSettings {
         layout_override: row.layout_override,
         is_pinned: row.is_pinned,
+        follow_character: row.follow_character,
         tracking_allowed: row.tracking_allowed,
         show_threat_level: row.show_threat_level,
         compact_signature_list: row.compact_signature_list,

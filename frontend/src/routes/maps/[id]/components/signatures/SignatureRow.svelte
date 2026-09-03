@@ -7,7 +7,9 @@
 	import { toast } from 'svelte-sonner';
 	import { copyText } from '$lib/clipboard';
 
+	import { aliasTargetKind, suggestAlias } from '$lib/naming/alias';
 	import { formatBookmark } from '$lib/naming/bookmark';
+	import { classMeta, isWormholeClass } from '$lib/map/classes';
 	import type { MappedSystem } from '$lib/map/system';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { Signature } from '$lib/api/types/Signature';
@@ -107,9 +109,10 @@
 	function copyBookmark() {
 		const type = typeById(catalog, sig.signature_type_id);
 		const far = linkedSystem;
+		const farClass = far?.wormhole_class_id ?? type?.target_class ?? null;
 		const text = formatBookmark(
 			{
-				alias: linkedTarget?.alias ?? null,
+				alias: linkedTarget?.alias ?? guessAlias(farClass, far?.security_status ?? null),
 				// Blank rather than borrowing this system's: the far side is genuinely unknown.
 				name: far?.name ?? '',
 				region: far?.region ?? null,
@@ -129,6 +132,25 @@
 		);
 		void copyText(text, { silent: true });
 		toast.success('Bookmark copied', { description: text });
+	}
+
+	// A scanner bookmarks every hole before opening any, so each copy has to take the next
+	// name in the chain rather than all of them claiming the first. Written onto the ghost
+	// when there is one, so the next row sees it taken; a hole with no placement at all
+	// gets the name on the clipboard only.
+	function guessAlias(farClass: number | null, farSecurity: number | null): string | null {
+		const targetIsWormhole = isWormholeClass(farClass);
+		const alias = suggestAlias({
+			parentAlias: system.alias,
+			targetIsWormhole,
+			originIsWormhole: isWormholeClass(system.wormhole_class_id),
+			aliases: ctx.systems.map((s) => s.alias).filter((alias): alias is string => Boolean(alias)),
+			scheme: ctx.naming?.alias_scheme,
+			targetKind: aliasTargetKind(targetIsWormhole, classMeta(farClass, farSecurity).short),
+			ignoredAlias: ctx.naming?.ignored_alias,
+		});
+		if (alias && linkedTarget && canWrite) ctx.actions?.setAlias(linkedTarget, alias);
+		return alias;
 	}
 
 	function remove() {
