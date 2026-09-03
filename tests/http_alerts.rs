@@ -91,6 +91,37 @@ async fn an_alert_survives_the_full_round_trip(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn a_proximity_alert_keeps_its_starting_point(pool: PgPool) {
+    let w = world(&pool).await;
+    let cookie = session_cookie(&pool, w.owner).await;
+    let webhook_id = make_webhook(&pool, &cookie, w.map_id, "ops").await;
+    let base = format!("/api/maps/{}/alerts", w.map_id);
+
+    let mut alert = killmail_alert("home to jita", webhook_id);
+    alert["kind"] = json!("proximity");
+    alert["target_solar_system_id"] = json!(common::SYS_A);
+    alert["origin_solar_system_id"] = json!(common::SYS_C);
+    let created = request_json(app(&pool), "POST", &base, Some(&cookie), alert.clone()).await;
+    assert_eq!(created.status, StatusCode::OK);
+    assert_eq!(created.body["origin_solar_system_id"], common::SYS_C);
+    assert_eq!(created.body["origin_system_name"], "New Caldari");
+
+    alert["origin_solar_system_id"] = json!(999);
+    let unknown = request_json(app(&pool), "POST", &base, Some(&cookie), alert.clone()).await;
+    assert_eq!(unknown.status, StatusCode::BAD_REQUEST);
+    assert_eq!(unknown.body["error"], "that system does not exist");
+
+    alert["kind"] = json!("killmail");
+    alert["origin_solar_system_id"] = json!(common::SYS_C);
+    let misplaced = request_json(app(&pool), "POST", &base, Some(&cookie), alert).await;
+    assert_eq!(misplaced.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        misplaced.body["error"],
+        "only a proximity alert has a starting point"
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn a_destination_from_another_map_is_refused(pool: PgPool) {
     let w = world(&pool).await;
     let cookie = session_cookie(&pool, w.owner).await;

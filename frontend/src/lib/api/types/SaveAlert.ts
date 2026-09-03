@@ -14,4 +14,9 @@ map_webhook_id?: number, discord_guild_id?: string, discord_channel_id?: string,
 /**
  * Which registered role to ping.
  */
-map_webhook_role_id?: number, mention: AlertMention, target_solar_system_id?: number, max_jumps: number, ship_type?: JumpShip, jdc_level?: number, filters: Array<Rule>, filter_match: Match, };
+map_webhook_role_id?: number, mention: AlertMention, target_solar_system_id?: number, 
+/**
+ * Proximity only: measure from here through the chain instead of from the nearest
+ * mapped system.
+ */
+origin_solar_system_id?: number, max_jumps: number, ship_type?: JumpShip, jdc_level?: number, filters: Array<Rule>, filter_match: Match, };

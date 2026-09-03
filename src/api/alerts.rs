@@ -343,6 +343,26 @@ async fn check_belongs(state: &AppState, map_id: i64, body: &SaveAlert) -> Resul
     Ok(())
 }
 
+/// A system id that names nothing would only surface as a foreign key error on insert.
+async fn check_systems_exist(state: &AppState, body: &SaveAlert) -> Result<(), ApiError> {
+    for id in [body.target_solar_system_id, body.origin_solar_system_id]
+        .into_iter()
+        .flatten()
+    {
+        let ok = sqlx::query_scalar!(
+            "select exists(select 1 from solar_systems where id = $1)",
+            id
+        )
+        .fetch_one(&state.db)
+        .await?
+        .unwrap_or(false);
+        if !ok {
+            return Err(ApiError::bad_request("that system does not exist"));
+        }
+    }
+    Ok(())
+}
+
 fn validate(body: &SaveAlert) -> Result<(), ApiError> {
     use crate::alerts::{AlertDelivery, AlertKind, AlertMention};
     if body.name.trim().is_empty() {
@@ -373,6 +393,11 @@ fn validate(body: &SaveAlert) -> Result<(), ApiError> {
     {
         return Err(ApiError::bad_request("pick a system to watch"));
     }
+    if body.kind != AlertKind::Proximity && body.origin_solar_system_id.is_some() {
+        return Err(ApiError::bad_request(
+            "only a proximity alert has a starting point",
+        ));
+    }
     if body.kind == AlertKind::JumpRange {
         if body.ship_type.is_none() {
             return Err(ApiError::bad_request(
@@ -396,6 +421,7 @@ pub async fn create_alert(
     let user_id = require_manager(&state, &jar, map_id).await?;
     validate(&body)?;
     check_belongs(&state, map_id, &body).await?;
+    check_systems_exist(&state, &body).await?;
     Ok(Json(
         store::create(&state.db, map_id, user_id, &body).await?,
     ))
@@ -411,6 +437,7 @@ pub async fn update_alert(
     let user_id = require_manager(&state, &jar, map_id).await?;
     validate(&body)?;
     check_belongs(&state, map_id, &body).await?;
+    check_systems_exist(&state, &body).await?;
     Ok(Json(
         store::update(&state.db, map_id, alert_id, user_id, &body).await?,
     ))

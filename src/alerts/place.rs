@@ -1,10 +1,14 @@
 //! "Tell me when the chain gets near somewhere."
 //!
 //! Fires when a system is placed on the map: the chain just changed shape, so anything it
-//! was too far from a moment ago might not be now.
+//! was too far from a moment ago might not be now. An alert with a starting point also
+//! fires when a wormhole is mapped, since that edge can complete the route from there to
+//! the target without anything being placed.
 //!
 //! The claim is per placement, so a system added, removed and added again is a new occasion
-//! worth a message, while a hundred other edits are not.
+//! worth a message, while a hundred other edits are not. With a starting point the claim is
+//! per route instead: however many placements and connections report the same way to the
+//! target, it is said once, and a new way is a new occasion.
 
 use sqlx::PgPool;
 
@@ -14,14 +18,31 @@ use super::proximity::{self, Universe};
 use super::{Alert, AlertKind};
 use crate::util::security::ccp_round_security;
 
-/// Evaluate every proximity alert on a map after a system landed on it.
+/// What just changed on the map, by `map_solar_systems` id.
+#[derive(Debug, Clone, Copy)]
+pub enum Occasion {
+    Placed(i64),
+    /// A wormhole now joins these two mapped systems.
+    Connected(i64, i64),
+}
+
+impl Occasion {
+    fn systems(self) -> Vec<i64> {
+        match self {
+            Occasion::Placed(id) => vec![id],
+            Occasion::Connected(a, b) => vec![a, b],
+        }
+    }
+}
+
+/// Evaluate every proximity alert on a map after its shape changed.
 pub async fn evaluate(
     pool: &PgPool,
     http: &reqwest::Client,
     bot_token: Option<&str>,
     universe: &Universe,
     map_id: i64,
-    map_solar_system_id: i64,
+    occasion: Occasion,
 ) {
     let Ok(alerts) = super::active(pool, AlertKind::Proximity).await else {
         return;
@@ -33,33 +54,62 @@ pub async fn evaluate(
     let Some(chain) = chain_of(pool, map_id).await else {
         return;
     };
-    // What was just added, so the message can say what changed rather than only what is
+    let changed_ids = occasion.systems();
+    // What just changed, so the message can say what happened rather than only what is
     // now reachable.
-    let added = sqlx::query!(
-        "select ss.id, ss.name from map_solar_systems mss
+    let changed = sqlx::query!(
+        "select mss.id, ss.name from map_solar_systems mss
          join solar_systems ss on ss.id = mss.solar_system_id
-         where mss.id = $1",
-        map_solar_system_id,
+         where mss.id = any($1)",
+        &changed_ids,
     )
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await
-    .ok()
-    .flatten();
+    .unwrap_or_default();
+    let changed_names: Vec<&str> = changed.iter().map(|row| row.name.as_str()).collect();
 
     for alert in mine {
         let Some(target_id) = alert.target_solar_system_id else {
             continue;
         };
-        let Some(found) = proximity::nearest(
-            universe,
-            &chain.systems,
-            &chain.edges,
-            target_id,
-            alert.max_jumps,
-        ) else {
-            continue;
+        let (found, key) = match (alert.origin_solar_system_id, occasion) {
+            (Some(origin), _) => {
+                let Some(found) = proximity::nearest(
+                    universe,
+                    &[origin],
+                    &chain.edges,
+                    target_id,
+                    alert.max_jumps,
+                ) else {
+                    continue;
+                };
+                // A fixed starting point measures the same pair on every change; only a
+                // change that is part of the route may fire, so an in-range pair does not
+                // re-alert for every unrelated system added later.
+                let Ok(mapped) = mapped_along(pool, map_id, &found.route).await else {
+                    continue;
+                };
+                if !mapped.iter().any(|id| changed_ids.contains(id)) {
+                    continue;
+                }
+                (found, route_key(&mapped))
+            }
+            (None, Occasion::Placed(placed)) => {
+                let Some(found) = proximity::nearest(
+                    universe,
+                    &chain.systems,
+                    &chain.edges,
+                    target_id,
+                    alert.max_jumps,
+                ) else {
+                    continue;
+                };
+                (found, format!("placement:{placed}"))
+            }
+            // Every mapped system is already zero jumps from the chain, so a wormhole
+            // between two of them cannot bring the target any closer.
+            (None, Occasion::Connected(..)) => continue,
         };
-        let key = format!("placement:{map_solar_system_id}");
         if !super::claim(pool, alert.id, &key).await {
             continue;
         }
@@ -67,14 +117,36 @@ pub async fn evaluate(
             super::unclaim(pool, alert.id, &key).await;
             continue;
         };
-        let embed = build(
-            &names,
-            &found,
-            added.as_ref().map(|row| row.name.as_str()),
-            map_id,
-        );
+        let embed = build(&names, &found, &changed_names, map_id);
         super::fire(pool, http, bot_token, alert, &key, embed).await;
     }
+}
+
+/// The `map_solar_systems` ids of the route's systems that are on the map, in route order.
+async fn mapped_along(pool: &PgPool, map_id: i64, route: &[i64]) -> sqlx::Result<Vec<i64>> {
+    let rows = sqlx::query!(
+        "select id, solar_system_id from map_solar_systems
+         where map_id = $1 and solar_system_id = any($2)",
+        map_id,
+        route,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(route
+        .iter()
+        .filter_map(|system| {
+            rows.iter()
+                .find(|row| row.solar_system_id == Some(*system))
+                .map(|row| row.id)
+        })
+        .collect())
+}
+
+/// A route is the mapped systems it runs through: re-placing any of them, or finding a
+/// different way, is a new occasion; a second event reporting the same way is not.
+fn route_key(mapped: &[i64]) -> String {
+    let ids: Vec<String> = mapped.iter().map(i64::to_string).collect();
+    format!("route:{}", ids.join("-"))
 }
 
 /// One system's display data, in route order.
@@ -104,7 +176,7 @@ async fn names(pool: &PgPool, route: &[i64]) -> sqlx::Result<Vec<Named>> {
         .collect())
 }
 
-fn build(route: &[Named], found: &proximity::Proximity, added: Option<&str>, map_id: i64) -> Embed {
+fn build(route: &[Named], found: &proximity::Proximity, changed: &[&str], map_id: i64) -> Embed {
     let target = route.last();
     let target_name = target.map(|s| s.name.as_str()).unwrap_or("Somewhere");
     let from = route
@@ -112,14 +184,16 @@ fn build(route: &[Named], found: &proximity::Proximity, added: Option<&str>, map
         .map(|s| s.name.as_str())
         .unwrap_or("the chain");
     let jumps = found.jumps;
+    let away = format!(
+        "putting **{target_name}** {jumps} {} away",
+        if jumps == 1 { "jump" } else { "jumps" }
+    );
 
-    let description = match added {
-        Some(added) if jumps == 0 => format!("**{added}** is **{target_name}**."),
-        Some(added) => format!(
-            "**{added}** was just added, putting **{target_name}** {jumps} {} away.",
-            if jumps == 1 { "jump" } else { "jumps" }
-        ),
-        None => format!("The chain now reaches **{target_name}**."),
+    let description = match changed {
+        [added] if jumps == 0 => format!("**{added}** is **{target_name}**."),
+        [added] => format!("**{added}** was just added, {away}."),
+        [a, b] => format!("**{a}** and **{b}** were just connected, {away}."),
+        _ => format!("The chain now reaches **{target_name}**."),
     };
 
     let mut fields = vec![
@@ -177,7 +251,7 @@ mod tests {
             from: 1,
             route: vec![1, 2, 3],
         };
-        let embed = build(&route, &found, Some("J122515"), 7);
+        let embed = build(&route, &found, &["J122515"], 7);
         assert_eq!(embed.title, "Ashab is 2 jumps out");
         assert!(embed.description.as_deref().unwrap().contains("J122515"));
         assert!(
@@ -196,7 +270,7 @@ mod tests {
             from: 1,
             route: vec![1, 2],
         };
-        let embed = build(&route, &found, Some("Perimeter"), 1);
+        let embed = build(&route, &found, &["Perimeter"], 1);
         assert_eq!(embed.title, "Jita is 1 jump out");
         assert!(
             embed
@@ -216,7 +290,33 @@ mod tests {
             from: 1,
             route: vec![1],
         };
-        let embed = build(&route, &found, Some("Jita"), 1);
+        let embed = build(&route, &found, &["Jita"], 1);
         assert_eq!(embed.description.as_deref(), Some("**Jita** is **Jita**."));
+    }
+
+    /// A connection names both ends, since neither of them is new on its own.
+    #[test]
+    fn a_connection_names_both_ends() {
+        let route = vec![
+            named(1, "J122515", -0.99),
+            named(2, "J100001", -0.99),
+            named(3, "Amarr", 1.0),
+        ];
+        let found = proximity::Proximity {
+            jumps: 1,
+            from: 1,
+            route: vec![1, 2, 3],
+        };
+        let embed = build(&route, &found, &["J122515", "J100001"], 7);
+        assert_eq!(
+            embed.description.as_deref(),
+            Some("**J122515** and **J100001** were just connected, putting **Amarr** 1 jump away.")
+        );
+    }
+
+    #[test]
+    fn a_route_is_named_by_the_mapped_systems_along_it() {
+        assert_eq!(route_key(&[4, 9]), "route:4-9");
+        assert_eq!(route_key(&[]), "route:");
     }
 }

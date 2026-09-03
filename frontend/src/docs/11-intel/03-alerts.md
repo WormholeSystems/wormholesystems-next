@@ -15,6 +15,19 @@ one up once and it speaks when the answer changes, instead of somebody watching 
 | **Proximity**  | The chain comes within a set number of jumps of a system you named.            |
 | **Jump range** | A capital of a given hull and jump-drive skill could reach a system you named. |
 
+### Proximity with a starting point
+
+By default a proximity alert measures from wherever the chain is nearest: any mapped system
+within the jump limit of the target fires it. Give it a **starting point** and it measures
+one route instead, from that system to the target through the chain, counting gate jumps
+and treating wormholes as free. "Is Jita within five jumps of home" then stays about home,
+not about whichever exit happened to land near Jita.
+
+Such an alert fires when a placed system, or a freshly mapped wormhole, becomes part of a
+route within the limit. Systems added elsewhere on the map do not re-fire it, and however
+many changes report the same route it is said once; a new route to the target is a new
+message.
+
 ## Where it goes
 
 Destinations are named once per map and pointed at by as many alerts as you like. Pasting

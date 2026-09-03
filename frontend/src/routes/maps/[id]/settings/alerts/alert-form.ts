@@ -17,6 +17,8 @@ export interface AlertDraft {
 	roleRef: number | null;
 	channelId: string;
 	target: number | null;
+	/** Proximity only: measure from here through the chain instead of from the nearest mapped system. */
+	origin: number | null;
 	maxJumps: number;
 	shipType: JumpShip;
 	jdcLevel: number;
@@ -53,6 +55,7 @@ export function toSaveAlert(draft: AlertDraft): SaveAlert {
 		map_webhook_role_id: draft.mention === 'role' ? (draft.roleRef ?? undefined) : undefined,
 		mention: draft.mention,
 		target_solar_system_id: draft.kind === 'killmail' ? undefined : (draft.target ?? undefined),
+		origin_solar_system_id: draft.kind === 'proximity' ? (draft.origin ?? undefined) : undefined,
 		max_jumps: draft.maxJumps,
 		ship_type: draft.kind === 'jump_range' ? draft.shipType : undefined,
 		jdc_level: draft.kind === 'jump_range' ? draft.jdcLevel : undefined,

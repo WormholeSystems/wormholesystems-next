@@ -85,6 +85,9 @@
 				? `Anything that dies ${within}`
 				: `${rules} ${rules === 1 ? 'filter' : 'filters'} (${alert.filter_match}), ${within}`;
 		}
+		if (alert.origin_system_name) {
+			return `${target} ${within} of ${alert.origin_system_name}, through the chain`;
+		}
 		return `${target} ${within}`;
 	}
 </script>

@@ -34,6 +34,10 @@ pub struct MapAlert {
     pub target_solar_system_id: Option<i64>,
     #[ts(optional)]
     pub target_system_name: Option<String>,
+    #[ts(optional)]
+    pub origin_solar_system_id: Option<i64>,
+    #[ts(optional)]
+    pub origin_system_name: Option<String>,
     pub max_jumps: i32,
     #[ts(optional)]
     pub ship_type: Option<JumpShip>,
@@ -73,6 +77,11 @@ pub struct SaveAlert {
     #[serde(default)]
     #[ts(optional)]
     pub target_solar_system_id: Option<i64>,
+    /// Proximity only: measure from here through the chain instead of from the nearest
+    /// mapped system.
+    #[serde(default)]
+    #[ts(optional)]
+    pub origin_solar_system_id: Option<i64>,
     pub max_jumps: i32,
     #[serde(default)]
     #[ts(optional)]
@@ -99,6 +108,8 @@ struct AlertRow {
     mention: String,
     target_solar_system_id: Option<i64>,
     target_system_name: Option<String>,
+    origin_solar_system_id: Option<i64>,
+    origin_system_name: Option<String>,
     max_jumps: i32,
     ship_type: Option<String>,
     jdc_level: Option<i32>,
@@ -141,6 +152,8 @@ impl AlertRow {
             mention,
             target_solar_system_id: self.target_solar_system_id,
             target_system_name: self.target_system_name,
+            origin_solar_system_id: self.origin_solar_system_id,
+            origin_system_name: self.origin_system_name,
             max_jumps: self.max_jumps,
             ship_type: self.ship_type.as_deref().and_then(JumpShip::from_db),
             jdc_level: self.jdc_level,
@@ -162,11 +175,13 @@ async fn rows(pool: &PgPool, map_id: i64, alert_id: Option<i64>) -> Result<Vec<M
                   a.discord_channel_id,
                   a.map_webhook_role_id, r.name as "role_name?",
                   a.mention, a.target_solar_system_id, ss.name as "target_system_name?",
+                  a.origin_solar_system_id, os.name as "origin_system_name?",
                   a.max_jumps, a.ship_type, a.jdc_level,
                   a.filters, a.filter_match, a.is_active,
                   a.disabled_reason, a.last_fired_at, a.created_at
            from map_alerts a
            left join solar_systems ss on ss.id = a.target_solar_system_id
+           left join solar_systems os on os.id = a.origin_solar_system_id
            left join map_webhooks w on w.id = a.map_webhook_id
            left join map_webhook_roles r on r.id = a.map_webhook_role_id
            where a.map_id = $1 and ($2::bigint is null or a.id = $2)
@@ -203,8 +218,9 @@ pub async fn create(
         "insert into map_alerts
              (map_id, created_by_user_id, name, kind, delivery, map_webhook_id,
               discord_guild_id, discord_channel_id, map_webhook_role_id, mention,
-              target_solar_system_id, max_jumps, ship_type, jdc_level, filters, filter_match)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+              target_solar_system_id, origin_solar_system_id, max_jumps, ship_type, jdc_level,
+              filters, filter_match)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          returning id",
         map_id,
         user_id,
@@ -217,6 +233,7 @@ pub async fn create(
         body.map_webhook_role_id,
         body.mention.as_str(),
         body.target_solar_system_id,
+        body.origin_solar_system_id,
         body.max_jumps,
         body.ship_type.map(|v| v.as_str()),
         body.jdc_level,
@@ -241,9 +258,9 @@ pub async fn update(
         "update map_alerts set
              name = $3, kind = $4, delivery = $5, map_webhook_id = $6,
              discord_guild_id = $7, discord_channel_id = $8, map_webhook_role_id = $9,
-             mention = $10, target_solar_system_id = $11, max_jumps = $12,
-             ship_type = $13, jdc_level = $14,
-             filters = $15, filter_match = $16, updated_at = now()
+             mention = $10, target_solar_system_id = $11, origin_solar_system_id = $12,
+             max_jumps = $13, ship_type = $14, jdc_level = $15,
+             filters = $16, filter_match = $17, updated_at = now()
          where id = $1 and map_id = $2",
         alert_id,
         map_id,
@@ -256,6 +273,7 @@ pub async fn update(
         body.map_webhook_role_id,
         body.mention.as_str(),
         body.target_solar_system_id,
+        body.origin_solar_system_id,
         body.max_jumps,
         body.ship_type.map(|v| v.as_str()),
         body.jdc_level,

@@ -12,6 +12,7 @@ const draft = (over: Partial<AlertDraft> = {}): AlertDraft => ({
 	roleRef: null,
 	channelId: '',
 	target: null,
+	origin: null,
 	maxJumps: 5,
 	shipType: 'dreadnought',
 	jdcLevel: 5,
@@ -76,6 +77,18 @@ describe('toSaveAlert', () => {
 		expect(jump.ship_type).toBe('dreadnought');
 		expect(jump.jdc_level).toBe(5);
 		expect(jump.filters).toEqual([]);
+	});
+
+	it('keeps the starting point for proximity alerts only', () => {
+		const near = toSaveAlert(draft({ kind: 'proximity', target: 30000142, origin: 30000144 }));
+		expect(near.origin_solar_system_id).toBe(30000144);
+		expect(
+			toSaveAlert(draft({ kind: 'proximity', target: 30000142 })).origin_solar_system_id,
+		).toBeUndefined();
+		expect(
+			toSaveAlert(draft({ kind: 'jump_range', target: 30000142, origin: 30000144 }))
+				.origin_solar_system_id,
+		).toBeUndefined();
 	});
 
 	it('carries the role only when the mention asks for one', () => {

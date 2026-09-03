@@ -57,6 +57,7 @@
 	let roleRef = $state<number | null>(seed?.map_webhook_role_id ?? null);
 	let channelId = $state(seed?.discord_channel_id ?? '');
 	let target = $state<number | null>(seed?.target_solar_system_id ?? null);
+	let origin = $state<number | null>(seed?.origin_solar_system_id ?? null);
 	let maxJumps = $state(seed?.max_jumps ?? 5);
 	let shipType = $state<JumpShip>(seed?.ship_type ?? 'dreadnought');
 	let jdcLevel = $state(seed?.jdc_level ?? 5);
@@ -73,9 +74,10 @@
 	// The picker wants a resolved system for its label; the alert only stores the id.
 	const systems = systemResolver;
 	$effect(() => {
-		if (target !== null) systems.ensure([target]);
+		systems.ensure([target, origin].filter((id) => id !== null));
 	});
 	const targetSystem = $derived(target === null ? null : (systems.get(target) ?? null));
+	const originSystem = $derived(origin === null ? null : (systems.get(origin) ?? null));
 
 	function addRule() {
 		filters = [...filters, { subject: 'alliance', side: 'either', mode: 'include', ids: [] }];
@@ -103,6 +105,7 @@
 		roleRef,
 		channelId,
 		target,
+		origin,
 		maxJumps,
 		shipType,
 		jdcLevel,
@@ -156,6 +159,25 @@
 		</div>
 	{/if}
 
+	{#if kind === 'proximity'}
+		<div class="flex flex-col gap-1.5">
+			<span class="text-sm font-medium">Starting point (optional)</span>
+			<SystemCombobox
+				placeholder="Anywhere on the chain"
+				value={origin}
+				onpick={(id) => (origin = id)}
+			/>
+			<p class="text-xs text-muted-foreground">
+				{#if originSystem}
+					{originSystem.name} · {originSystem.region}. Measured from here through the chain, and
+					only when the way there changes.
+				{:else}
+					Measure from this system through the chain instead of from wherever the chain is nearest.
+				{/if}
+			</p>
+		</div>
+	{/if}
+
 	{#if kind === 'jump_range'}
 		<div class="flex flex-col gap-1.5">
 			<span class="text-sm font-medium">In range of</span>
@@ -202,7 +224,9 @@
 					data-testid="alert-jumps"
 				/>
 				<span class="text-sm text-muted-foreground">
-					gate jumps of the chain, counting wormholes as free
+					gate jumps of {kind === 'proximity' && origin !== null
+						? 'the starting point'
+						: 'the chain'}, counting wormholes as free
 				</span>
 			</div>
 		</div>

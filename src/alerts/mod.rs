@@ -54,10 +54,36 @@ impl Runtime {
             self.token(),
             &self.universe,
             map_id,
-            map_solar_system_id,
+            place::Occasion::Placed(map_solar_system_id),
         )
         .await;
         jump_range::evaluate(pool, &self.http, self.token(), map_id, map_solar_system_id).await;
+    }
+
+    /// Re-evaluate a map's proximity alerts after a wormhole joined two of its systems. The
+    /// edge can complete a route from an alert's starting point even though nothing was
+    /// placed, so both ends count as if they had just landed.
+    pub async fn connected(&self, pool: &PgPool, map_id: i64, connection_id: i64) {
+        let Ok(Some(ends)) = sqlx::query!(
+            "select from_system, to_system from map_connections
+             where id = $1 and map_id = $2 and type = 'wormhole'",
+            connection_id,
+            map_id,
+        )
+        .fetch_optional(pool)
+        .await
+        else {
+            return;
+        };
+        place::evaluate(
+            pool,
+            &self.http,
+            self.token(),
+            &self.universe,
+            map_id,
+            place::Occasion::Connected(ends.from_system, ends.to_system),
+        )
+        .await;
     }
 }
 
@@ -75,6 +101,12 @@ pub fn start(pool: PgPool, hub: crate::maps::MapHub, runtime: std::sync::Arc<Run
                     map_solar_system_id,
                 }) => {
                     runtime.placed(&pool, map_id, map_solar_system_id).await;
+                }
+                Ok(crate::maps::MapEvent::ConnectionChanged {
+                    map_id,
+                    connection_id,
+                }) => {
+                    runtime.connected(&pool, map_id, connection_id).await;
                 }
                 Ok(_) => {}
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
@@ -157,6 +189,9 @@ pub struct Alert {
     pub discord_role_id: Option<String>,
     pub mention: AlertMention,
     pub target_solar_system_id: Option<i64>,
+    /// Proximity only: measure from here through the chain, rather than from whichever
+    /// mapped system is nearest the target.
+    pub origin_solar_system_id: Option<i64>,
     pub max_jumps: i32,
     /// Jump range only: which hull's range is being measured, and the pilot's JDC level.
     pub ship_type: Option<ships::JumpShip>,
@@ -174,7 +209,8 @@ pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> 
                   w.url as "webhook_url?",
                   a.discord_guild_id, a.discord_channel_id,
                   r.discord_role_id as "discord_role_id?",
-                  a.mention, a.target_solar_system_id, a.max_jumps, a.ship_type, a.jdc_level,
+                  a.mention, a.target_solar_system_id, a.origin_solar_system_id,
+                  a.max_jumps, a.ship_type, a.jdc_level,
                   a.filters, a.filter_match, a.is_active
            from map_alerts a
            left join map_webhooks w on w.id = a.map_webhook_id
@@ -216,6 +252,7 @@ pub async fn active(pool: &PgPool, kind: AlertKind) -> sqlx::Result<Vec<Alert>> 
                 discord_role_id: row.discord_role_id,
                 mention,
                 target_solar_system_id: row.target_solar_system_id,
+                origin_solar_system_id: row.origin_solar_system_id,
                 max_jumps: row.max_jumps,
                 ship_type: row.ship_type.as_deref().and_then(ships::JumpShip::from_db),
                 jdc_level: row.jdc_level,

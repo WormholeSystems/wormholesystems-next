@@ -4,9 +4,10 @@
 //! stargate graph merged with the map's own wormhole connections. Unweighted, because an
 //! alert only ever asks "how many jumps", never "which way is safer". Searching from all the
 //! map's systems at once is what keeps it cheap: one traversal answers "how close is the
-//! nearest part of my chain".
+//! nearest part of my chain". The same search from one system answers "how far is the
+//! target from here, through the chain", which is what an alert with a starting point asks.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use sqlx::PgPool;
 
@@ -55,11 +56,13 @@ pub struct Proximity {
     pub route: Vec<i64>,
 }
 
-/// The nearest system on the map to `target`, within `max_jumps`.
+/// The nearest of `origins` to `target`, within `max_jumps`.
 ///
 /// `chain` is the map's own connections, which are edges like any other: a target one gate
 /// from a k-space exit at the far end of the chain is one jump away, however deep the chain
-/// runs. Wormholes are free rather than a hop, matching what the client's router shows.
+/// runs. Wormholes are free rather than a hop, matching what the client's router shows, and
+/// they stay free partway along a route: from a single origin the way to the target may
+/// gate to the chain, cross it, and gate on.
 pub fn nearest(
     universe: &Universe,
     origins: &[i64],
@@ -70,84 +73,92 @@ pub fn nearest(
     if origins.is_empty() || max_jumps < 0 {
         return None;
     }
-    if origins.contains(&target) {
-        return Some(Proximity {
-            jumps: 0,
-            from: target,
-            route: vec![target],
-        });
-    }
 
     let mut wormholes: HashMap<i64, Vec<i64>> = HashMap::new();
     for (a, b) in chain {
         wormholes.entry(*a).or_default().push(*b);
         wormholes.entry(*b).or_default().push(*a);
     }
+    let mut search = Search::default();
 
-    // Reached from where, and via which system, so the route can be walked back.
-    let mut came_from: HashMap<i64, i64> = HashMap::new();
-    let mut origin_of: HashMap<i64, i64> = HashMap::new();
-    let mut distance: HashMap<i64, i32> = HashMap::new();
-    let mut queue: VecDeque<i64> = VecDeque::new();
-    let mut seeded: HashSet<i64> = HashSet::new();
+    // Every origin is its own starting point at distance zero, before any of them reaches
+    // another over a wormhole, so the message names somewhere you are.
+    for origin in origins {
+        if !search.distance.contains_key(origin) {
+            search.visit(*origin, 0, None, *origin);
+        }
+    }
+    for origin in origins {
+        search.cross_wormholes(&wormholes, *origin);
+    }
+    if let Some(found) = search.found(target) {
+        return Some(found);
+    }
 
-    // Every mapped system is a starting point at distance zero, and so is anything the
-    // chain reaches from one, since crossing a wormhole is not a gate jump.
-    let placed: HashSet<i64> = origins.iter().copied().collect();
-    let mut stack: Vec<i64> = origins.to_vec();
-    while let Some(id) = stack.pop() {
-        if !seeded.insert(id) {
+    while let Some(current) = search.queue.pop_front() {
+        let steps = search.distance[&current];
+        if steps >= max_jumps {
             continue;
         }
-        distance.insert(id, 0);
-        // A system on the map is its own origin. One the chain merely reaches keeps
-        // whichever mapped system reached it, so the message names somewhere you are.
-        if placed.contains(&id) {
-            origin_of.insert(id, id);
-        } else {
-            origin_of.entry(id).or_insert(id);
+        let origin = search.origin_of[&current];
+        for next in universe.neighbours(current) {
+            if search.distance.contains_key(next) {
+                continue;
+            }
+            search.visit(*next, steps + 1, Some(current), origin);
+            search.cross_wormholes(&wormholes, *next);
+            if let Some(found) = search.found(target) {
+                return Some(found);
+            }
         }
-        queue.push_back(id);
-        for next in wormholes.get(&id).map(Vec::as_slice).unwrap_or(&[]) {
-            if !seeded.contains(next) {
-                came_from.insert(*next, id);
-                origin_of.insert(*next, *origin_of.get(&id).unwrap_or(&id));
+    }
+    None
+}
+
+/// The breadth-first frontier: reached from where, via which system, and how far.
+#[derive(Default)]
+struct Search {
+    came_from: HashMap<i64, i64>,
+    origin_of: HashMap<i64, i64>,
+    distance: HashMap<i64, i32>,
+    queue: VecDeque<i64>,
+}
+
+impl Search {
+    fn visit(&mut self, id: i64, jumps: i32, via: Option<i64>, origin: i64) {
+        self.distance.insert(id, jumps);
+        self.origin_of.insert(id, origin);
+        if let Some(via) = via {
+            self.came_from.insert(id, via);
+        }
+        self.queue.push_back(id);
+    }
+
+    /// Everything the chain reaches from `id` is as far away as `id` itself. Done the
+    /// moment a system is reached, so the queue stays in distance order.
+    fn cross_wormholes(&mut self, wormholes: &HashMap<i64, Vec<i64>>, id: i64) {
+        let mut stack = vec![id];
+        while let Some(at) = stack.pop() {
+            let jumps = self.distance[&at];
+            let origin = self.origin_of[&at];
+            for next in wormholes.get(&at).map(Vec::as_slice).unwrap_or(&[]) {
+                if self.distance.contains_key(next) {
+                    continue;
+                }
+                self.visit(*next, jumps, Some(at), origin);
                 stack.push(*next);
             }
         }
     }
-    if distance.contains_key(&target) {
-        return Some(Proximity {
-            jumps: 0,
-            from: *origin_of.get(&target).unwrap_or(&target),
-            route: walk_back(&came_from, target),
-        });
-    }
 
-    while let Some(current) = queue.pop_front() {
-        let steps = distance[&current];
-        if steps >= max_jumps {
-            continue;
-        }
-        for next in universe.neighbours(current) {
-            if distance.contains_key(next) {
-                continue;
-            }
-            distance.insert(*next, steps + 1);
-            came_from.insert(*next, current);
-            let origin = *origin_of.get(&current).unwrap_or(&current);
-            origin_of.insert(*next, origin);
-            if *next == target {
-                return Some(Proximity {
-                    jumps: steps + 1,
-                    from: origin,
-                    route: walk_back(&came_from, target),
-                });
-            }
-            queue.push_back(*next);
-        }
+    fn found(&self, target: i64) -> Option<Proximity> {
+        let jumps = *self.distance.get(&target)?;
+        Some(Proximity {
+            jumps,
+            from: self.origin_of[&target],
+            route: walk_back(&self.came_from, target),
+        })
     }
-    None
 }
 
 fn walk_back(came_from: &HashMap<i64, i64>, target: i64) -> Vec<i64> {
@@ -204,6 +215,16 @@ mod tests {
         assert_eq!(found.jumps, 1);
         assert_eq!(found.from, 1);
         assert_eq!(found.route, vec![1, 4, 5]);
+    }
+
+    /// From a single origin the chain can sit partway along the route: 1 gates to 2, a
+    /// wormhole from 2 lands in 4, and 5 is one more gate.
+    #[test]
+    fn a_wormhole_partway_along_the_route_is_still_free() {
+        let found = nearest(&line(), &[1], &[(2, 4)], 5, 2).unwrap();
+        assert_eq!(found.jumps, 2);
+        assert_eq!(found.route, vec![1, 2, 4, 5]);
+        assert!(nearest(&line(), &[1], &[(2, 4)], 5, 1).is_none());
     }
 
     #[test]
