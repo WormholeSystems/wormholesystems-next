@@ -39,7 +39,12 @@ function fakeHost(over: Partial<TrackerHost> = {}) {
 		connections: () => [],
 		sigs: () => [],
 		grid: () => GRID,
-		settings: () => ({ tracking_allowed: true, prompt_for_signature: true, suggest_alias: false }),
+		settings: () => ({
+			tracking_allowed: true,
+			prompt_for_signature: true,
+			suggest_alias: false,
+			tracked_character_ids: [],
+		}),
 		naming: () => null,
 		stargates: () => new Map(),
 		whenRoutingLoaded: () => Promise.resolve(),
@@ -102,6 +107,69 @@ describe('JumpTracker', () => {
 		expect(tracker.prompt).toBeNull();
 	});
 
+	it('maps every tracked pilot, and only them', async () => {
+		const { host, trackJump, setPilots } = fakeHost({
+			settings: () => ({
+				tracking_allowed: true,
+				prompt_for_signature: true,
+				suggest_alias: false,
+				tracked_character_ids: [9, 10],
+			}),
+		});
+		const tracker = new JumpTracker(host);
+		const at = (a: number, b: number, c: number) =>
+			setPilots([
+				{ character_id: 9, name: 'Main', is_active: true, online: true, solar_system_id: a },
+				{ character_id: 10, name: 'Alt', is_active: false, online: true, solar_system_id: b },
+				{ character_id: 11, name: 'Other', is_active: false, online: true, solar_system_id: c },
+			] as CharacterRef[]);
+		at(100, 100, 100);
+		tracker.observe();
+		at(200, 300, 400);
+		tracker.observe();
+		for (let i = 0; i < 4; i++) await Promise.resolve();
+		expect(trackJump).toHaveBeenCalledTimes(2);
+		expect(trackJump.mock.calls.map((c) => c[0].to_solar_system_id).sort()).toEqual([200, 300]);
+	});
+
+	it('asks about one jump at a time, and the next once the first is answered', async () => {
+		const { host, setPilots } = fakeHost({
+			sigs: () => [
+				{
+					id: 5,
+					signature_id: 'ABC-123',
+					solar_system_id: 100,
+					group: 'wormhole',
+					signature_type_id: null,
+					connection_id: null,
+				} as Signature,
+			],
+			settings: () => ({
+				tracking_allowed: true,
+				prompt_for_signature: true,
+				suggest_alias: false,
+				tracked_character_ids: [9, 10],
+			}),
+		});
+		const tracker = new JumpTracker(host);
+		const at = (a: number, b: number) =>
+			setPilots([
+				{ character_id: 9, name: 'Main', is_active: true, online: true, solar_system_id: a },
+				{ character_id: 10, name: 'Alt', is_active: false, online: true, solar_system_id: b },
+			] as CharacterRef[]);
+		at(100, 100);
+		tracker.observe();
+		at(200, 300);
+		tracker.observe();
+		for (let i = 0; i < 6; i++) await Promise.resolve();
+		expect(tracker.prompt).toMatchObject({ pilot: 'Main', targetSolarSystemId: 200 });
+		tracker.dismiss();
+		for (let i = 0; i < 6; i++) await Promise.resolve();
+		expect(tracker.prompt).toMatchObject({ pilot: 'Alt', targetSolarSystemId: 300 });
+		tracker.dismiss();
+		expect(tracker.prompt).toBeNull();
+	});
+
 	it('suppresses a gate hop', async () => {
 		const { host, trackJump, setPilots } = fakeHost({ stargates: () => new Map([[100, [200]]]) });
 		const tracker = new JumpTracker(host);
@@ -115,6 +183,7 @@ describe('JumpTracker', () => {
 				tracking_allowed: false,
 				prompt_for_signature: true,
 				suggest_alias: false,
+				tracked_character_ids: [],
 			}),
 		});
 		const tracker = new JumpTracker(host);

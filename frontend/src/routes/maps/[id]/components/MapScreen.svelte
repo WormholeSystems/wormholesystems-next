@@ -5,6 +5,7 @@
 	// keeps interaction state.
 	import { solarSystemId } from '$lib/map/system';
 	import { tickingMs } from '$lib/now.svelte';
+	import { trackedPilots } from '$lib/map/tracked-pilots';
 	import { deepLinkTarget, systemParamUrl } from '../state/deep-link';
 
 	import { afterNavigate, replaceState } from '$app/navigation';
@@ -63,20 +64,23 @@
 		void map.characters.mine;
 		tracker.observe();
 	});
-	// Where the pilot last took the selection, so clicking elsewhere holds until they move.
-	let followedSystemId: number | null = null;
+	// Where each followed pilot last took the selection, so clicking elsewhere holds until
+	// one of them moves.
+	const followed = new Map<number, number>();
 	$effect(() => {
 		if (!map.userSettings?.follow_character) return;
-		const pilot = map.characters.mine.find((c) => c.is_active);
-		const systemId = pilot?.online ? (pilot.solar_system_id ?? null) : null;
-		if (systemId === null || systemId === followedSystemId) return;
-		// A jump into an unmapped hole lands here again once the tracker has drawn it.
-		const placed = map.systems.all.find(
-			(s) => s.kind === 'system' && s.solar_system_id === systemId,
-		);
-		if (!placed) return;
-		followedSystemId = systemId;
-		map.activeId = placed.id;
+		const pilots = trackedPilots(map.characters.mine, map.userSettings.tracked_character_ids);
+		for (const pilot of pilots) {
+			const systemId = pilot.online ? (pilot.solar_system_id ?? null) : null;
+			if (systemId === null || followed.get(pilot.character_id) === systemId) continue;
+			// A jump into an unmapped hole lands here again once the tracker has drawn it.
+			const placed = map.systems.all.find(
+				(s) => s.kind === 'system' && s.solar_system_id === systemId,
+			);
+			if (!placed) continue;
+			followed.set(pilot.character_id, systemId);
+			map.activeId = placed.id;
+		}
 	});
 	// The edge countdowns; one clock for every line rather than a timer per edge.
 	const clock = tickingMs(30_000);

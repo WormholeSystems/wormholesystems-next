@@ -5,6 +5,7 @@
 
 import { ghostAliases, ghostsFrom, existingConnection } from '$lib/map/ghosts';
 import { detectJump } from '$lib/map/jump-detection';
+import { trackedPilots } from '$lib/map/tracked-pilots';
 import { solarSystemId, type MappedSystem } from '$lib/map/system';
 import type { CharacterRef } from '$lib/api/types/CharacterRef';
 import type { GridConfig } from '$lib/api/types/GridConfig';
@@ -25,6 +26,8 @@ import { groupSignatures, type SignatureGroups } from '$lib/signatures/compatibi
 
 /** A jump waiting on the user to say which signature it was. */
 export interface JumpPrompt {
+	/** Who flew it, for the pilot who is mapping with several. */
+	pilot: string;
 	origin: MappedSystem;
 	targetSolarSystemId: number;
 	targetName: string;
@@ -43,6 +46,12 @@ export interface JumpPrompt {
 	ghostAliases: Map<number, string>;
 	/** Where the new system would go, decided when the jump happened. */
 	at: { x: number; y: number };
+}
+
+interface Jump {
+	from: number;
+	to: number;
+	pilot: string;
 }
 
 /** The mass and lifetime a hole starts at, taken from the signature if it was scanned. */
@@ -67,7 +76,7 @@ export interface TrackerHost {
 	grid(): GridConfig;
 	settings(): Pick<
 		MapUserSettings,
-		'tracking_allowed' | 'prompt_for_signature' | 'suggest_alias'
+		'tracking_allowed' | 'prompt_for_signature' | 'suggest_alias' | 'tracked_character_ids'
 	> | null;
 	naming(): MapNaming | null;
 	stargates(): Map<number, number[]> | null;
@@ -85,9 +94,11 @@ export class JumpTracker {
 
 	prompt = $state<JumpPrompt | null>(null);
 
-	// What the last poll saw, so a change can be told apart from the first reading.
-	private seenCharacterId: number | null = null;
-	private seenSystemId: number | null = null;
+	// What the last poll saw of each tracked pilot, so a change can be told apart from the
+	// first reading.
+	private seen = new Map<number, number | null>();
+	// Jumps that landed while a prompt was open, asked about in turn.
+	private queued: Jump[] = [];
 
 	constructor(map: TrackerHost) {
 		this.map = map;
@@ -97,23 +108,34 @@ export class JumpTracker {
 		return this.map.settings()?.tracking_allowed === true;
 	}
 
-	/** Diff the fresh reading against the last one; [`detectJump`] holds the rules. */
+	/** Diff each tracked pilot's fresh reading against the last; [`detectJump`] holds the rules. */
 	observe() {
-		const active = this.map.myCharacters().find((c) => c.is_active) ?? null;
-		const prev = { characterId: this.seenCharacterId, systemId: this.seenSystemId };
-		const next = {
-			characterId: active?.character_id ?? null,
-			systemId: active?.online ? (active.solar_system_id ?? null) : null,
-		};
-		this.seenCharacterId = next.characterId;
-		this.seenSystemId = next.systemId;
+		const pilots = trackedPilots(
+			this.map.myCharacters(),
+			this.map.settings()?.tracked_character_ids ?? [],
+		);
+		const jumps: Jump[] = [];
+		const seen = new Map<number, number | null>();
+		for (const pilot of pilots) {
+			const characterId = pilot.character_id;
+			const next = {
+				characterId,
+				systemId: pilot.online ? (pilot.solar_system_id ?? null) : null,
+			};
+			const prev = { characterId, systemId: this.seen.get(characterId) ?? null };
+			seen.set(characterId, next.systemId);
+			const jump = detectJump(prev, next);
+			if (jump) jumps.push({ ...jump, pilot: pilot.name });
+		}
+		// A pilot dropped from the set starts over when brought back, rather than arriving
+		// from wherever they were last seen.
+		this.seen = seen;
 
 		if (!this.enabled) return;
-		const jump = detectJump(prev, next);
-		if (jump) this.handleJump(jump.from, jump.to);
+		for (const jump of jumps) void this.handleJump(jump);
 	}
 
-	private async handleJump(fromSystemId: number, toSystemId: number) {
+	private async handleJump({ from: fromSystemId, to: toSystemId, pilot }: Jump) {
 		const map = this.map;
 		// Only a jump *out of* the mapped chain extends it. Flying around known space with
 		// the map open should not start drawing it.
@@ -167,7 +189,13 @@ export class JumpTracker {
 			return;
 		}
 
+		// One question at a time: a second pilot's jump waits its turn.
+		if (this.prompt !== null) {
+			this.queued.push({ from: fromSystemId, to: toSystemId, pilot });
+			return;
+		}
 		this.prompt = {
+			pilot,
 			origin,
 			targetSolarSystemId: toSystemId,
 			targetName: target.name,
@@ -301,5 +329,8 @@ export class JumpTracker {
 
 	dismiss() {
 		this.prompt = null;
+		// Asked again from the map as it is now, not as it was when the jump landed.
+		const next = this.queued.shift();
+		if (next) void this.handleJump(next);
 	}
 }

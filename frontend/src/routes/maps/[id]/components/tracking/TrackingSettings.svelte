@@ -6,6 +6,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Switch } from '$lib/components/ui/switch';
+	import { trackedPilots } from '$lib/map/tracked-pilots';
 	import type { MapState } from '../../state/map-state.svelte';
 
 	let { map }: { map: MapState } = $props();
@@ -38,8 +39,22 @@
 		},
 	];
 
-	function update(key: string, value: boolean) {
+	const pilots = $derived(map.characters.mine);
+	const tracked = $derived(
+		new Set(
+			trackedPilots(pilots, settings?.tracked_character_ids ?? []).map((p) => p.character_id),
+		),
+	);
+
+	function update(key: string, value: boolean | number[]) {
 		map.patchUserSettings({ [key]: value }).catch(() => {});
+	}
+
+	function togglePilot(characterId: number, on: boolean) {
+		const next = new Set(tracked);
+		if (on) next.add(characterId);
+		else next.delete(characterId);
+		update('tracked_character_ids', [...next]);
 	}
 </script>
 
@@ -83,6 +98,29 @@
 					/>
 				</label>
 			{/each}
+			{#if pilots.length > 1}
+				<div class="flex flex-col gap-0.5 border-t pt-3">
+					<span class="text-xs font-medium">Pilots mapping here</span>
+					<span class="text-[11px] text-muted-foreground">
+						Their jumps build this map. With none chosen, the pilot you are acting as does.
+					</span>
+				</div>
+				{#each pilots as pilot (pilot.character_id)}
+					<label
+						class="flex items-center justify-between gap-3"
+						for="tracking-pilot-{pilot.character_id}"
+					>
+						<span class="text-xs">{pilot.name}</span>
+						<Switch
+							id="tracking-pilot-{pilot.character_id}"
+							disabled={!tracking}
+							checked={tracked.has(pilot.character_id)}
+							onCheckedChange={(v) => togglePilot(pilot.character_id, v)}
+							data-testid="tracking-pilot-{pilot.character_id}"
+						/>
+					</label>
+				{/each}
+			{/if}
 		</div>
 	</Popover.Content>
 </Popover.Root>

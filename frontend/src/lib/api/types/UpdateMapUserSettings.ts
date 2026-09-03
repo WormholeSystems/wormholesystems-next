@@ -13,7 +13,11 @@ export type UpdateMapUserSettings = { is_pinned?: boolean,
 /**
  * Absent leaves it; `null` goes back to following the map.
  */
-layout_override?: MapLayout | null, tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, route_preference?: RoutePreference, security_penalty?: number, route_allow_time_status?: TimeStatus, route_allow_mass_status?: MassStatus, route_use_evescout?: boolean, prompt_for_signature?: boolean, suggest_alias?: boolean, copy_bookmark?: boolean, follow_character?: boolean, killmail_filter?: KillmailScope, is_archived?: boolean, 
+layout_override?: MapLayout | null, tracking_allowed?: boolean, show_threat_level?: boolean, compact_signature_list?: boolean, show_statics_first?: boolean, route_preference?: RoutePreference, security_penalty?: number, route_allow_time_status?: TimeStatus, route_allow_mass_status?: MassStatus, route_use_evescout?: boolean, prompt_for_signature?: boolean, suggest_alias?: boolean, copy_bookmark?: boolean, follow_character?: boolean, 
+/**
+ * Replaces the set; every id must be one of the caller's characters.
+ */
+tracked_character_ids?: Array<number>, killmail_filter?: KillmailScope, is_archived?: boolean, 
 /**
  * Stamped server-side, so "when" is the server's clock rather than the browser's.
  */

@@ -172,9 +172,9 @@
 </script>
 
 <Dialog.Header class="gap-1.5 border-b border-border/50 bg-muted/30 px-6 py-4 text-left">
-	<Dialog.Title>Which signature did you jump?</Dialog.Title>
+	<Dialog.Title>Which signature did {prompt.pilot} jump?</Dialog.Title>
 	<Dialog.Description>
-		You jumped from <strong>{originLabel}</strong> to
+		{prompt.pilot} jumped from <strong>{originLabel}</strong> to
 		<strong data-testid="tracking-target">{prompt.targetName}</strong>
 		<ClassBadge classId={prompt.targetClassId} security={prompt.targetSecurity} />.
 	</Dialog.Description>

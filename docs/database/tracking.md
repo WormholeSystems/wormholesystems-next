@@ -60,7 +60,8 @@ Per-user, per-map preferences.
 | `user_id`           | pk part, fk users    | cascade on user delete                    |
 | `tracking_allowed`  | bool, default false  | explicit opt-in to share the user's characters' live location on this map |
 | `show_threat_level` | bool, default true   | whether threat rings render for this user |
-| `follow_character`  | bool, default false  | select the system the user's active pilot is in as they fly, so the side cards keep up |
+| `follow_character`  | bool, default false  | select the system a tracked pilot is in as they fly, so the side cards keep up |
+| `tracked_character_ids` | bigint[], default empty | the user's pilots whose jumps build this map; empty means the character the session acts as. Chosen per map, so a farm alt maps the farm chain and never the main map |
 | `updated_at`        | timestamptz          |                                           |
 
 Presence (`GET /api/maps/{id}/characters`) shows a character only when: its user opted in

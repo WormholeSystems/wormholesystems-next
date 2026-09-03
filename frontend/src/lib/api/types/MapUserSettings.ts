@@ -39,6 +39,10 @@ copy_bookmark: boolean,
  */
 follow_character: boolean, 
 /**
+ * The pilots whose jumps build this map. Empty = the character the session acts as.
+ */
+tracked_character_ids: Array<number>, 
+/**
  * Which half of the chain the killmails card shows.
  */
 killmail_filter: KillmailScope, is_archived: boolean, 
