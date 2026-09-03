@@ -229,7 +229,7 @@ test('settings are split into sections, and the per-user ones save themselves', 
 
 	// Every section is reachable from any other.
 	const nav = page.getByTestId('settings-nav');
-	await expect(nav.getByTestId('settings-section')).toHaveCount(7);
+	await expect(nav.getByTestId('settings-section')).toHaveCount(8);
 	await expect(nav.locator('[data-active="true"]')).toContainText('General');
 
 	// A per-user setting saves on the spot: there is no form to submit.

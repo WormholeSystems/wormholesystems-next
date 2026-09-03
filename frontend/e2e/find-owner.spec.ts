@@ -20,8 +20,10 @@ test('the navigation card finds the nearest station of a chosen owner', async ({
 
 	await page.getByTestId('find-toggle').click();
 	await page.getByTestId('find-condition').click();
+	await page.getByRole('option', { name: /station/i }).click();
 
 	// Typing narrows 185 owners down to the one being looked for.
+	await page.getByTestId('find-owner').click();
 	await page.getByTestId('find-owner-search').fill('hyasyoda');
 	await page.getByRole('option', { name: 'Hyasyoda Corporation' }).click();
 

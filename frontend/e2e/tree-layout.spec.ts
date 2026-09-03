@@ -165,8 +165,7 @@ test("the map's setup asks for the placement, and the map takes it", async ({ pa
 	await page.goto(`http://localhost:5173/maps/${mapId}`);
 	await page.waitForSelector('html[data-hydrated="true"]');
 
-	// Welcome, permissions, then the step that decides what the map does.
-	await page.getByTestId('introduction-next').click();
+	// Welcome and permissions share the first page; the next decides what the map does.
 	await page.getByTestId('introduction-next').click();
 
 	const placement = page.getByTestId('setup-placement');
