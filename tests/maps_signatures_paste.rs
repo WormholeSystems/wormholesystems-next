@@ -5,13 +5,14 @@ mod common;
 use common::{SYS_A, SYS_B, world};
 use sqlx::PgPool;
 use wormholesystems::maps::connection::{AddConnection, add_connection};
+use wormholesystems::maps::map::{GetMap, get_map};
 use wormholesystems::maps::signatures::{
     AddSignature, LinkSignature, PasteSignatures, PastedSignature, RemoveSignature,
     RemoveSignatures, Signature, UpdateSignature, add_signature, expire_signatures, link_signature,
     list_signatures, paste_signatures, remove_signature, remove_signatures, update_signature,
 };
 use wormholesystems::maps::solar_system::{AddSystem, add_system};
-use wormholesystems::maps::{Actor, ConnectionType, MapError, SignatureGroup};
+use wormholesystems::maps::{Actor, ConnectionType, MapError, SignatureGroup, WormholeSize};
 
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     add_system(
@@ -30,7 +31,8 @@ async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
     .id
 }
 
-/// A minimal signature catalog: category 1 = Wormhole with one type, 2 = Data with one.
+/// A minimal signature catalog: category 1 = Wormhole with K162 and C247 (300,000,000 kg
+/// per jump, so medium), 2 = Data with one type.
 async fn seed_catalog(pool: &PgPool) {
     for (id, name, code) in [(1, "Wormhole", "wormhole"), (2, "Data Site", "data")] {
         sqlx::query("insert into signature_categories (id, name, code) values ($1, $2, $3)")
@@ -41,14 +43,20 @@ async fn seed_catalog(pool: &PgPool) {
             .await
             .unwrap();
     }
-    sqlx::query(
+    for statement in [
+        "insert into categories (id, name) values (2, 'Celestial')",
+        "insert into groups (id, category_id, name) values (988, 2, 'Wormhole')",
+        "insert into types (id, group_id, name)
+         values (30831, 988, 'Wormhole K162'), (30832, 988, 'Wormhole C247')",
+        "insert into wormhole_types (code, type_id, max_mass_per_jump)
+         values ('K162', 30831, null), ('C247', 30832, 300000000)",
         "insert into signature_types (id, signature, name, signature_category_id, target_class)
          values (500, 'K162', 'K162 - Unknown', 1, null),
+                (510, 'C247', 'C247 - C3', 1, 3),
                 (600, null, 'Unsecured Frontier Enclave Relay', 2, null)",
-    )
-    .execute(pool)
-    .await
-    .unwrap();
+    ] {
+        sqlx::query(statement).execute(pool).await.unwrap();
+    }
 }
 
 async fn sig_by_id(pool: &PgPool, actor: Actor, map_id: i64, sid: &str) -> Option<Signature> {
@@ -265,6 +273,88 @@ async fn paste_recategorize_clears_link_and_validates_ids(pool: PgPool) {
     )
     .await;
     assert!(matches!(err, Err(MapError::Validation(_))));
+}
+
+/// A paste that identifies a linked hole's type sets the connection's size from it.
+#[sqlx::test]
+async fn paste_identifying_a_linked_hole_sets_its_size(pool: PgPool) {
+    let w = world(&pool).await;
+    seed_catalog(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: ConnectionType::Wormhole,
+            size: Some(WormholeSize::Large),
+        },
+    )
+    .await
+    .unwrap();
+    let sig = add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "WHX-001".into(),
+            group: SignatureGroup::Wormhole,
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let linked = link_signature(
+        &pool,
+        w.owner,
+        LinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            connection_id: conn.id,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        linked.size,
+        Some(WormholeSize::Large),
+        "untyped, nothing locks"
+    );
+
+    paste_signatures(
+        &pool,
+        w.owner,
+        PasteSignatures {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signatures: vec![PastedSignature {
+                signature_id: "WHX-001".into(),
+                group: Some(SignatureGroup::Wormhole),
+                signature_type_id: Some(510),
+                name: None,
+            }],
+        },
+    )
+    .await
+    .unwrap();
+
+    let sig = sig_by_id(&pool, w.owner, w.map_id, "WHX-001")
+        .await
+        .unwrap();
+    assert_eq!(sig.signature_type_id, Some(510));
+    assert_eq!(sig.size, Some(WormholeSize::Medium), "C247 dictates medium");
+    let connection = get_map(&pool, w.owner, GetMap { map_id: w.map_id })
+        .await
+        .unwrap()
+        .connections
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .unwrap();
+    assert_eq!(connection.size, Some(WormholeSize::Medium));
 }
 
 #[sqlx::test]

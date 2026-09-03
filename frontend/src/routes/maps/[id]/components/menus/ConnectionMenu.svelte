@@ -8,19 +8,37 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import WaypointsIcon from '@lucide/svelte/icons/waypoints';
 	import WeightIcon from '@lucide/svelte/icons/weight';
+	import { createQuery } from '@tanstack/svelte-query';
 
+	import { q } from '$lib/api/queries';
 	import type { ConnectionType } from '$lib/api/types/ConnectionType';
 	import type { MapConnection } from '$lib/api/types/MapConnection';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
 	import { LIFETIME_OPTIONS, MASS_OPTIONS, SIZE_OPTIONS } from '$lib/map/connection-status';
+	import { sizeForJumpMass } from '$lib/map/helpers';
+	import { typeById } from '$lib/map/signatures';
 	import type { MapState } from '../../state/map-state.svelte';
 	import { item, panel, sub } from './chrome';
 
 	let { map, connection }: { map: MapState; connection: MapConnection } = $props();
 
 	const cid = $derived(connection.id);
+
+	const catalogQuery = createQuery(() => q.signatureCatalog());
+	const catalog = $derived(catalogQuery.data ?? null);
+
+	/** The linked signature type that identifies the hole; its jump mass dictates the size. */
+	const lockingType = $derived.by(() => {
+		if (!catalog) return null;
+		for (const sig of map.signatures.all) {
+			if (sig.connection_id !== cid) continue;
+			const type = typeById(catalog, sig.signature_type_id);
+			if (sizeForJumpMass(type?.max_jump_mass)) return type;
+		}
+		return null;
+	});
 
 	function close() {
 		map.closeMenu();
@@ -105,8 +123,17 @@
 	Ship Size
 	<ChevronRightIcon class="ml-auto size-3" />
 	<div class={panel} data-testid="size-submenu">
+		{#if lockingType}
+			<div class="px-3 py-1 text-[10px] text-muted-foreground" data-testid="size-locked-hint">
+				Set by {lockingType.signature}
+			</div>
+		{/if}
 		{#each SIZE_OPTIONS as o (o.value)}
-			<button class={item} onclick={() => setSize(o.value)}>
+			<button
+				class="{item} disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+				disabled={lockingType !== null}
+				onclick={() => setSize(o.value)}
+			>
 				<span class="inline-flex w-6 justify-center font-mono text-[10px] text-muted-foreground">
 					{o.letter}
 				</span>

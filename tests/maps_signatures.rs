@@ -15,7 +15,30 @@ use wormholesystems::maps::signatures::{
     update_signature,
 };
 use wormholesystems::maps::solar_system::{AddSystem, add_system};
-use wormholesystems::maps::{Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus};
+use wormholesystems::maps::{
+    Actor, MapError, MassStatus, Role, SignatureGroup, TimeStatus, WormholeSize,
+};
+
+const K162: i64 = 500;
+const C247: i64 = 510;
+
+/// A wormhole catalog of two types: C247 admits 300,000,000 kg per jump (medium), K162 is
+/// the unidentified far side and carries no jump mass of its own.
+async fn seed_wormhole_catalog(pool: &PgPool) {
+    for statement in [
+        "insert into signature_categories (id, name, code) values (1, 'Wormhole', 'wormhole')",
+        "insert into categories (id, name) values (2, 'Celestial')",
+        "insert into groups (id, category_id, name) values (988, 2, 'Wormhole')",
+        "insert into types (id, group_id, name)
+         values (30831, 988, 'Wormhole K162'), (30832, 988, 'Wormhole C247')",
+        "insert into wormhole_types (code, type_id, max_mass_per_jump)
+         values ('K162', 30831, null), ('C247', 30832, 300000000)",
+        "insert into signature_types (id, signature, name, signature_category_id)
+         values (500, 'K162', 'K162 - Unknown', 1), (510, 'C247', 'C247 - C3', 1)",
+    ] {
+        sqlx::query(statement).execute(pool).await.unwrap();
+    }
+}
 
 /// Place `system` on the map; return its `map_solar_systems` id.
 async fn place(pool: &PgPool, actor: Actor, map_id: i64, system: i64) -> i64 {
@@ -410,6 +433,185 @@ async fn link_validations_and_unlink(pool: PgPool) {
         Some(TimeStatus::Eol),
         "state survives unlink"
     );
+}
+
+/// An identified wormhole type dictates the group's size: linking applies it, manual edits
+/// on either side are overridden, and only losing the identification (retyped to K162,
+/// unlinked) lets a manual size stick again, keeping the size the group had.
+#[sqlx::test]
+async fn identified_type_locks_size(pool: PgPool) {
+    let w = world(&pool).await;
+    seed_wormhole_catalog(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let conn = add_connection(
+        &pool,
+        w.owner,
+        AddConnection {
+            map_id: w.map_id,
+            from_system: a,
+            to_system: b,
+            kind: wormholesystems::maps::ConnectionType::Wormhole,
+            size: Some(WormholeSize::Large),
+        },
+    )
+    .await
+    .unwrap();
+    let sig = add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "ABC-123".into(),
+            group: SignatureGroup::Wormhole,
+            signature_type_id: Some(C247),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let linked = link_signature(
+        &pool,
+        w.owner,
+        LinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            connection_id: conn.id,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        linked.size,
+        Some(WormholeSize::Medium),
+        "C247 dictates medium"
+    );
+    let c = connection_state(&pool, w.owner, w.map_id, conn.id).await;
+    assert_eq!(c.size, Some(WormholeSize::Medium));
+
+    // Manual edits on either side are overridden.
+    let c = set_connection_status(
+        &pool,
+        w.owner,
+        SetConnectionStatus {
+            map_id: w.map_id,
+            connection_id: conn.id,
+            size: Some(Some(WormholeSize::Small)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        c.size,
+        Some(WormholeSize::Medium),
+        "connection edit overridden"
+    );
+    let s = update_signature(
+        &pool,
+        w.owner,
+        UpdateSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            size: Some(Some(WormholeSize::Xl)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        s.size,
+        Some(WormholeSize::Medium),
+        "signature edit overridden"
+    );
+    let c = connection_state(&pool, w.owner, w.map_id, conn.id).await;
+    assert_eq!(c.size, Some(WormholeSize::Medium));
+
+    // Retyping to K162 lifts the lock: the size stays, and an edit sticks again.
+    let s = update_signature(
+        &pool,
+        w.owner,
+        UpdateSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            signature_type_id: Some(Some(K162)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        s.size,
+        Some(WormholeSize::Medium),
+        "lifting the lock keeps the size"
+    );
+    set_connection_status(
+        &pool,
+        w.owner,
+        SetConnectionStatus {
+            map_id: w.map_id,
+            connection_id: conn.id,
+            size: Some(Some(WormholeSize::Small)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let s = only_signature(&pool, w.owner, w.map_id).await;
+    assert_eq!(
+        s.size,
+        Some(WormholeSize::Small),
+        "unlocked edit propagates"
+    );
+
+    // Identifying the hole again reapplies the lock over the manual size.
+    update_signature(
+        &pool,
+        w.owner,
+        UpdateSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+            signature_type_id: Some(Some(C247)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let c = connection_state(&pool, w.owner, w.map_id, conn.id).await;
+    assert_eq!(c.size, Some(WormholeSize::Medium), "retyping relocks");
+
+    // Unlinking lifts it as well: the connection keeps medium and accepts an edit.
+    unlink_signature(
+        &pool,
+        w.owner,
+        UnlinkSignature {
+            map_id: w.map_id,
+            signature_pk: sig.id,
+        },
+    )
+    .await
+    .unwrap();
+    let c = connection_state(&pool, w.owner, w.map_id, conn.id).await;
+    assert_eq!(
+        c.size,
+        Some(WormholeSize::Medium),
+        "unlinking keeps the size"
+    );
+    let c = set_connection_status(
+        &pool,
+        w.owner,
+        SetConnectionStatus {
+            map_id: w.map_id,
+            connection_id: conn.id,
+            size: Some(Some(WormholeSize::Xl)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(c.size, Some(WormholeSize::Xl), "unlinked edit sticks");
 }
 
 /// Read the connection's current state back through `get_map`.

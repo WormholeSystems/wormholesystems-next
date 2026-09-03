@@ -201,12 +201,12 @@ The state lives on **every** member (not just the signatures) because either can
 alone: a connection can be marked massed/EOL before it's scanned, and a wormhole sig
 carries state from the scanner before it's linked. So we can't designate one as the sole
 source of truth. Instead a **PostgreSQL trigger keeps the whole group in lock-step**
-(implemented in `migrations/0007_connection_sync.sql`; the ordered enums mirror it
-in `src/maps/mod.rs`). A trigger rather than app-side code, so the rows can never drift
-regardless of which path writes them — including the connection's own `set_connection_status`
-and a signature's edit/link.
+(implemented in `migrations/0007_connection_sync.sql` and `0019_connection_size_lock.sql`;
+the ordered enums mirror it in `src/maps/mod.rs`). A trigger rather than app-side code, so
+the rows can never drift regardless of which path writes them, including the connection's
+own `set_connection_status` and a signature's edit/link/paste.
 
-Two rules:
+Three rules:
 
 - **Merge on link** — when a signature is linked to a connection (`connection_id` set),
   the group reconciles to the **worst (most-severe) non-null value per field**:
@@ -220,6 +220,18 @@ Two rules:
   linked group is always fully consistent, so a single-field edit safely rewrites all
   three (the untouched two already match and the trigger's `IS DISTINCT FROM` guard — which
   is also what makes the cascade terminate — skips them).
+- **Locked by type**: an identified wormhole type dictates `size`. Whenever any linked
+  signature's catalog type carries a maximum jump mass (`wormhole_types.max_mass_per_jump`;
+  K162 carries none), the group's `size` is the size that mass admits: `<= 5,000,000 kg`
+  `small`, `<= 300,000,000` `medium`, `<= 1,000,000,000` `large`, else `xl` (the same
+  thresholds as `sizeForJumpMass` client-side). The locked size wins over the merge and
+  over any edit, so a manual size on the connection or a signature is overridden on the
+  spot. Every write path passes through the same propagation (linking, editing, retyping a
+  signature by hand or by paste, editing the connection), which is where the lock is
+  applied (`map_locked_size`). Should two linked signatures both identify the hole with
+  different masses, the most restrictive wins. Once no linked signature identifies the
+  hole any more (retyped to K162, unlinked, deleted) the lock lifts and the group keeps the
+  size it has.
 
 Unlinking needs no sync: the remaining members keep their state, and the detached sig
 keeps its last state as a standalone scanned wormhole. The relationship itself — at most

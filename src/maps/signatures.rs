@@ -346,17 +346,11 @@ pub(super) async fn apply_update_signature(
         validate_type_for_group(tx, type_id, merged.group).await?;
     }
 
-    let sig = sqlx::query_as!(
-        Signature,
+    sqlx::query!(
         r#"update signatures
            set signature_id = $1, "group" = $2, signature_type_id = $3, name = $4, size = $5,
                mass_status = $6, time_status = $7, connection_id = $8, updated_at = now()
-           where id = $9 and map_id = $10
-           returning id, map_id, solar_system_id, signature_id, "group",
-                     signature_type_id, name, size,
-                     mass_status,
-                     time_status,
-                     time_status_updated_at, connection_id, created_at, updated_at"#,
+           where id = $9 and map_id = $10"#,
         signature_id,
         merged.group,
         merged.type_id,
@@ -368,8 +362,11 @@ pub(super) async fn apply_update_signature(
         cmd.signature_pk,
         cmd.map_id,
     )
-    .fetch_one(&mut **tx)
+    .execute(&mut **tx)
     .await?;
+    // Re-read: a linked signature's size follows its identified type, which the sync
+    // trigger may have just enforced over the edit.
+    let sig = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
     let inverse = MapCommand::UpdateSignature(UpdateSignature {
         map_id: cmd.map_id,
         signature_pk: cmd.signature_pk,
