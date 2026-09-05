@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into unresolvable_entities (kind, id) values ($1, $2)\n         on conflict (kind, id) do update set noted_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ccd2f69baab38b506baf101b389cdd9d4796dda8948854961a99d1b5ec4c2c6f"
+}

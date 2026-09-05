@@ -11,7 +11,7 @@ use std::collections::HashSet;
 
 use sqlx::PgPool;
 
-use crate::esi::EsiClient;
+use crate::esi::{EsiClient, EsiError};
 use crate::tracking::run_bounded;
 
 /// Entries older than this are re-fetched: pilots change corp, corps change alliance.
@@ -27,10 +27,23 @@ pub enum EntityKind {
     Alliance,
 }
 
+impl EntityKind {
+    /// The `kind` column of `unresolvable_entities`.
+    fn as_str(self) -> &'static str {
+        match self {
+            EntityKind::Character => "character",
+            EntityKind::Corporation => "corporation",
+            EntityKind::Alliance => "alliance",
+        }
+    }
+}
+
 /// Make sure every id can be named, fetching the ones we cannot.
 ///
-/// Unknown ids that ESI refuses (a deleted corp, a biomassed character) are simply left
-/// unresolved and retried next time; there is no point failing a whole batch over one.
+/// An id ESI refuses with a 404 (a closed corp, a biomassed character) is noted in
+/// `unresolvable_entities` and skipped for a month, since a row without a name cannot say
+/// so itself. Any other failure is simply retried next time; there is no point failing a
+/// whole batch over one.
 pub async fn ensure(pool: &PgPool, esi: &EsiClient, kind: EntityKind, ids: &[i64]) {
     let wanted: HashSet<i64> = ids.iter().copied().filter(|id| *id > 0).collect();
     if wanted.is_empty() {
@@ -43,9 +56,25 @@ pub async fn ensure(pool: &PgPool, esi: &EsiClient, kind: EntityKind, ids: &[i64
     .await;
 }
 
-/// The subset of `ids` we cannot name, or last named too long ago.
+/// The subset of `ids` we cannot name, or last named too long ago, minus the ones ESI
+/// recently said do not exist.
 pub async fn unresolved(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> Vec<i64> {
     let ids: Vec<i64> = ids.iter().copied().collect();
+    let dead = sqlx::query_scalar!(
+        "select id from unresolvable_entities
+         where kind = $1 and id = any($2) and noted_at > now() - interval '30 days'",
+        kind.as_str(),
+        &ids,
+    )
+    .fetch_all(pool)
+    .await;
+    let dead: HashSet<i64> = match dead {
+        Ok(rows) => rows.into_iter().collect(),
+        Err(err) => {
+            eprintln!("unresolvable check failed: {err}");
+            HashSet::new()
+        }
+    };
     // One query per kind rather than a dynamic table name: `query!` checks these at
     // compile time, and there are only three.
     let fresh = match kind {
@@ -84,7 +113,38 @@ pub async fn unresolved(pool: &PgPool, kind: EntityKind, ids: &HashSet<i64>) -> 
             return Vec::new();
         }
     };
-    ids.into_iter().filter(|id| !fresh.contains(id)).collect()
+    ids.into_iter()
+        .filter(|id| !fresh.contains(id) && !dead.contains(id))
+        .collect()
+}
+
+/// Remember that ESI has no such thing, so the next pass does not ask again.
+async fn note_unresolvable(pool: &PgPool, kind: EntityKind, id: i64) {
+    let _ = sqlx::query!(
+        "insert into unresolvable_entities (kind, id) values ($1, $2)
+         on conflict (kind, id) do update set noted_at = now()",
+        kind.as_str(),
+        id,
+    )
+    .execute(pool)
+    .await;
+}
+
+/// The id is back, or never was gone: whatever we noted no longer holds.
+async fn forget_unresolvable(pool: &PgPool, kind: EntityKind, id: i64) {
+    let _ = sqlx::query!(
+        "delete from unresolvable_entities where kind = $1 and id = $2",
+        kind.as_str(),
+        id,
+    )
+    .execute(pool)
+    .await;
+}
+
+/// Whether a failed fetch is ESI saying the id does not exist, rather than ESI being
+/// unavailable or slow.
+fn is_not_found(err: &EsiError) -> bool {
+    matches!(err, EsiError::Api { status: 404, .. })
 }
 
 /// Name a large batch of characters in as few calls as possible.
@@ -140,8 +200,14 @@ async fn fetch(pool: PgPool, esi: EsiClient, kind: EntityKind, id: i64) {
 }
 
 async fn fetch_character(pool: PgPool, esi: EsiClient, id: i64) {
-    let Ok(character) = esi.character_public(id).await else {
-        return;
+    let character = match esi.character_public(id).await {
+        Ok(character) => character,
+        Err(err) => {
+            if is_not_found(&err) {
+                note_unresolvable(&pool, EntityKind::Character, id).await;
+            }
+            return;
+        }
     };
     // The upsert leaves `user_id` and `owner_hash` alone, so resolving a name never disturbs
     // whose login a character is. Affiliations are foreign keys, so an organisation we have
@@ -163,11 +229,18 @@ async fn fetch_character(pool: PgPool, esi: EsiClient, id: i64) {
     )
     .execute(&pool)
     .await;
+    forget_unresolvable(&pool, EntityKind::Character, id).await;
 }
 
 async fn fetch_corporation(pool: PgPool, esi: EsiClient, id: i64) {
-    let Ok(corporation) = esi.corporation(id).await else {
-        return;
+    let corporation = match esi.corporation(id).await {
+        Ok(corporation) => corporation,
+        Err(err) => {
+            if is_not_found(&err) {
+                note_unresolvable(&pool, EntityKind::Corporation, id).await;
+            }
+            return;
+        }
     };
     let _ = sqlx::query!(
         "insert into corporations (id, name, ticker, alliance_id, faction_id)
@@ -185,11 +258,18 @@ async fn fetch_corporation(pool: PgPool, esi: EsiClient, id: i64) {
     )
     .execute(&pool)
     .await;
+    forget_unresolvable(&pool, EntityKind::Corporation, id).await;
 }
 
 async fn fetch_alliance(pool: PgPool, esi: EsiClient, id: i64) {
-    let Ok(alliance) = esi.alliance(id).await else {
-        return;
+    let alliance = match esi.alliance(id).await {
+        Ok(alliance) => alliance,
+        Err(err) => {
+            if is_not_found(&err) {
+                note_unresolvable(&pool, EntityKind::Alliance, id).await;
+            }
+            return;
+        }
     };
     let _ = sqlx::query!(
         "insert into alliances
@@ -213,6 +293,7 @@ async fn fetch_alliance(pool: PgPool, esi: EsiClient, id: i64) {
     )
     .execute(&pool)
     .await;
+    forget_unresolvable(&pool, EntityKind::Alliance, id).await;
 }
 
 pub const fn fresh_for() -> &'static str {

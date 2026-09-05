@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id from unresolvable_entities\n         where kind = $1 and id = any($2) and noted_at > now() - interval '30 days'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "unresolvable_entities",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b33c5e4533fc89cc31d56ae4cc8aa9d801098b0b8cecec030f60de2da737f5bb"
+}

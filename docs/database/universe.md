@@ -187,6 +187,25 @@ the SDE topology these change over time, so they carry an `updated_at`.
 | `faction_id` | bigint, null | |
 | `updated_at` | timestamptz | last resolved |
 
+### `unresolvable_entities`
+
+The ids ESI answered 404 for. A closed corporation, a disbanded alliance or a biomassed
+character still turns up on killmails and in sovereignty data, and a row with no name
+cannot exist in the tables above, so without this the resolver would ask ESI for the same
+dead id on every pass.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `kind` | text, pk | `character` / `corporation` / `alliance` |
+| `id` | bigint, pk | |
+| `noted_at` | timestamptz | when ESI last said so |
+
+- Written only on a 404. A rate limit, a timeout or a 5xx says nothing about the id and is
+  retried next pass as before.
+- Honoured for 30 days, then the id is asked about once more: the table stays bounded, and
+  an id that comes back (it happens, on a character transfer) is picked up eventually.
+- A successful fetch deletes the row, so a false negative never sticks.
+
 ## Dynamic overlays
 
 ### `structures`

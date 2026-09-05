@@ -160,3 +160,8 @@ place:
   untouched for 7 days are deleted (`maps::signatures::expire_signatures`).
 - Pruning of connection-jump observations no connection claimed within 10 minutes
   ([`map_connection_jumps`](./database/mapping.md#map_connection_jumps)).
+- Naming the characters, corporations and alliances that killmails and sovereignty only
+  give ids for (`entities::ensure`, every minute over the killmail card's window). Ids
+  ESI no longer knows are noted in
+  [`unresolvable_entities`](./database/universe.md#unresolvable_entities) and left alone
+  for 30 days rather than asked for on every pass.
