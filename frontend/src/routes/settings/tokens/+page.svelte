@@ -1,7 +1,9 @@
 <script lang="ts">
 	// Personal access tokens: the keys a script presents instead of signing in. The secret
-	// is shown once, straight after creation; the list afterwards never carries it.
+	// is shown once, in the dialog that created it; the table afterwards never carries it.
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
 
 	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -16,10 +18,13 @@
 	import { confirmDanger } from '$lib/confirm.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
+	import * as Table from '$lib/components/ui/table';
 	import { timeAgo, utcShort } from '$lib/format';
+	import { cn } from '$lib/utils';
 
 	const tokensQuery = createQuery(() => q.myTokens());
 	const tokens = $derived(tokensQuery.data ?? []);
@@ -33,10 +38,18 @@
 		{ value: '365', label: 'A year' },
 	];
 
+	let open = $state(false);
 	let name = $state('');
 	let lifetime = $state('never');
 	let creating = $state(false);
 	let created = $state<{ name: string; plaintext: string } | null>(null);
+
+	function startCreating() {
+		name = '';
+		lifetime = 'never';
+		created = null;
+		open = true;
+	}
 
 	async function create(event: SubmitEvent) {
 		event.preventDefault();
@@ -48,7 +61,6 @@
 				expires_in_days: lifetime === 'never' ? undefined : Number(lifetime),
 			});
 			created = { name: result.token.name, plaintext: result.plaintext };
-			name = '';
 			await client.invalidateQueries({ queryKey: key.myTokens });
 		} catch (err) {
 			toast.error(errorMessage(err));
@@ -66,15 +78,23 @@
 			action: 'Revoke',
 		});
 		if (!sure) return;
-		if (created?.name === token.name) created = null;
 		act.mutate(() => api.revokeToken(token.id));
 	}
 
-	function expiry(token: PersonalAccessToken): string {
-		if (!token.expires_at) return 'Does not expire';
-		const expired = new Date(token.expires_at).getTime() < Date.now();
-		return `${expired ? 'Expired' : 'Expires'} ${utcShort(token.expires_at)}`;
+	const DAY = 24 * 60 * 60 * 1000;
+
+	type Expiry = { label: string; tone: 'none' | 'soon' | 'expired' };
+
+	function expiry(token: PersonalAccessToken): Expiry {
+		if (!token.expires_at) return { label: 'Never', tone: 'none' };
+		const remaining = new Date(token.expires_at).getTime() - Date.now();
+		if (remaining < 0) return { label: `Expired ${utcShort(token.expires_at)}`, tone: 'expired' };
+		const days = Math.ceil(remaining / DAY);
+		if (days <= 7) return { label: days === 1 ? 'Within a day' : `In ${days} days`, tone: 'soon' };
+		return { label: utcShort(token.expires_at), tone: 'none' };
 	}
+
+	const snippet = $derived(`curl -H "Authorization: Bearer wst_..." ${page.url.origin}/api/maps`);
 </script>
 
 <div class="flex flex-col gap-6">
@@ -84,128 +104,183 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>New token</Card.Title>
-			<Card.Description>
-				A token acts as you, on every map you can reach, with the role you hold there. Name it after
-				the script that will use it.
-			</Card.Description>
-		</Card.Header>
-		<Card.Content class="flex flex-col gap-4">
-			<form class="flex flex-wrap items-end gap-2" onsubmit={create}>
-				<div class="flex min-w-48 flex-1 flex-col gap-1.5">
-					<Label for="token-name">Name</Label>
-					<Input
-						id="token-name"
-						bind:value={name}
-						placeholder="Fleet intel bot"
-						maxlength={255}
-						required
-						data-testid="token-name"
-					/>
-				</div>
+			<div class="flex items-start justify-between gap-3">
 				<div class="flex flex-col gap-1.5">
-					<Label for="token-lifetime">Lifetime</Label>
-					<Select.Root type="single" bind:value={lifetime}>
-						<Select.Trigger id="token-lifetime" class="w-40" data-testid="token-lifetime">
-							{lifetimes.find((l) => l.value === lifetime)?.label}
-						</Select.Trigger>
-						<Select.Content>
-							{#each lifetimes as option (option.value)}
-								<Select.Item value={option.value} label={option.label} />
-							{/each}
-						</Select.Content>
-					</Select.Root>
+					<Card.Title class="flex items-center gap-2">
+						<KeyRoundIcon class="size-4" />
+						API tokens
+					</Card.Title>
+					<Card.Description>
+						A token acts as you on every map you can reach, with the role you hold there. Everything
+						the map screen does is open to it.
+					</Card.Description>
 				</div>
-				<Button type="submit" disabled={creating || !name.trim()} data-testid="token-create">
-					Create
+				<Button size="sm" onclick={startCreating} data-testid="token-new">
+					<PlusIcon data-icon="inline-start" />
+					New token
 				</Button>
-			</form>
-
-			{#if created}
-				<div
-					class="flex flex-col gap-2 border border-amber-500/40 bg-amber-500/5 p-3"
-					data-testid="token-created"
-				>
-					<p class="text-sm">
-						<span class="font-medium">{created.name}</span> is ready. Copy it now: it is not shown again.
-					</p>
-					<div class="flex items-center gap-2">
-						<code
-							class="min-w-0 flex-1 overflow-x-auto bg-background px-2 py-1.5 font-mono text-xs"
-							data-testid="token-plaintext">{created.plaintext}</code
-						>
-						<Button
-							variant="outline"
-							size="icon"
-							aria-label="Copy token"
-							onclick={() => created && copyText(created.plaintext, { success: 'Token copied' })}
-							data-testid="token-copy"
-						>
-							<CopyIcon class="size-4" />
-						</Button>
-					</div>
-				</div>
-			{/if}
-		</Card.Content>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Your tokens</Card.Title>
-			<Card.Description>
-				Revoking one locks its script out on the next request. Tokens cannot make or remove other
-				tokens: that only happens here.
-			</Card.Description>
+			</div>
 		</Card.Header>
-		<Card.Content class="flex flex-col divide-y divide-border/40">
-			{#each tokens as token (token.id)}
+
+		<Card.Content class="px-0">
+			{#if tokens.length > 0}
+				<Table.Root data-testid="tokens-list">
+					<Table.Header>
+						<Table.Row class="hover:bg-transparent">
+							<Table.Head class="pl-4">Name</Table.Head>
+							<Table.Head>Created</Table.Head>
+							<Table.Head>Last used</Table.Head>
+							<Table.Head>Expires</Table.Head>
+							<Table.Head class="w-12"></Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body class="[&_tr:last-child]:border-0">
+						{#each tokens as token (token.id)}
+							{@const until = expiry(token)}
+							<Table.Row data-testid="token-row" data-token-name={token.name}>
+								<Table.Cell class="max-w-64 truncate pl-4 font-medium">{token.name}</Table.Cell>
+								<Table.Cell class="text-muted-foreground">{utcShort(token.created_at)}</Table.Cell>
+								<Table.Cell class="text-muted-foreground">
+									{token.last_used_at ? timeAgo(token.last_used_at) : 'Never'}
+								</Table.Cell>
+								<Table.Cell
+									class={cn(
+										'text-muted-foreground',
+										until.tone === 'soon' && 'text-amber-500',
+										until.tone === 'expired' && 'text-destructive',
+									)}
+								>
+									{until.label}
+								</Table.Cell>
+								<Table.Cell class="pr-3 text-right">
+									<Button
+										variant="ghost"
+										size="icon"
+										class="size-8 text-muted-foreground hover:text-destructive"
+										aria-label="Revoke {token.name}"
+										onclick={() => revoke(token)}
+										data-testid="token-revoke"
+									>
+										<TrashIcon />
+									</Button>
+								</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			{:else if !tokensQuery.isPending}
 				<div
-					class="flex items-center gap-3 py-3"
-					data-testid="token-row"
-					data-token-name={token.name}
+					class="flex flex-col items-center gap-3 border-t border-border/40 px-4 py-10 text-center"
+					data-testid="tokens-empty"
 				>
-					<span class="flex min-w-0 flex-1 flex-col">
-						<span class="truncate text-sm font-medium">{token.name}</span>
-						<span class="text-xs text-muted-foreground">
-							{token.last_used_at ? `Last used ${timeAgo(token.last_used_at)}` : 'Never used'}
-							<span aria-hidden="true">·</span>
-							{expiry(token)}
-						</span>
-					</span>
-					<Button
-						variant="ghost"
-						size="icon"
-						class="size-8 text-muted-foreground hover:text-destructive"
-						aria-label="Revoke {token.name}"
-						onclick={() => revoke(token)}
-						data-testid="token-revoke"
-					>
-						<TrashIcon />
+					<KeyRoundIcon class="size-5 text-muted-foreground/60" />
+					<p class="text-sm text-muted-foreground">
+						No tokens yet. Make one for each script, named after what it does.
+					</p>
+					<Button variant="outline" size="sm" onclick={startCreating}>
+						<PlusIcon data-icon="inline-start" />
+						New token
 					</Button>
 				</div>
-			{/each}
-			{#if !tokensQuery.isPending && tokens.length === 0}
-				<p class="py-4 text-sm text-muted-foreground" data-testid="tokens-empty">No tokens yet.</p>
 			{/if}
 		</Card.Content>
-	</Card.Root>
 
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>Using one</Card.Title>
-			<Card.Description>Send it as a bearer header on any request.</Card.Description>
-		</Card.Header>
-		<Card.Content class="flex flex-col gap-3">
-			<pre
-				class="overflow-x-auto bg-muted px-3 py-2 font-mono text-xs">curl -H "Authorization: Bearer wst_..." {page
-					.url.origin}/api/maps</pre>
-			<p class="text-sm text-muted-foreground">
-				Everything the map screen does is open to a token. The full reference is at
-				<a href="/api/docs" class="underline" target="_blank" rel="noopener">/api/docs</a>; see also
-				<a href="/documentation/contributing-and-self-hosting/using-the-api" class="underline"
-					>Using the API</a
-				>.
-			</p>
-		</Card.Content>
+		<Card.Footer class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t">
+			<code class="min-w-0 truncate font-mono text-xs text-muted-foreground" title={snippet}>
+				{snippet}
+			</code>
+			<span class="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+				<a href="/api/docs" class="underline hover:text-foreground" target="_blank" rel="noopener">
+					API reference
+				</a>
+				<a
+					href="/documentation/contributing-and-self-hosting/using-the-api"
+					class="underline hover:text-foreground"
+				>
+					Using the API
+				</a>
+			</span>
+		</Card.Footer>
 	</Card.Root>
 </div>
+
+<Dialog.Root bind:open>
+	<Dialog.Content class="sm:max-w-md" data-testid="token-dialog">
+		{#if created}
+			<Dialog.Header>
+				<Dialog.Title>Copy your token</Dialog.Title>
+				<Dialog.Description>
+					<span class="font-medium text-foreground">{created.name}</span> is ready. This is the only time
+					it is shown.
+				</Dialog.Description>
+			</Dialog.Header>
+			<div class="flex min-w-0 items-center gap-2" data-testid="token-created">
+				<code
+					class="min-w-0 flex-1 border border-border/60 bg-muted px-2.5 py-2 font-mono text-xs break-all"
+					data-testid="token-plaintext">{created.plaintext}</code
+				>
+				<Button
+					variant="outline"
+					size="icon"
+					aria-label="Copy token"
+					onclick={() => created && copyText(created.plaintext, { success: 'Token copied' })}
+					data-testid="token-copy"
+				>
+					<CopyIcon class="size-4" />
+				</Button>
+			</div>
+			<p class="text-xs text-muted-foreground">
+				Send it as <code class="text-foreground">Authorization: Bearer</code> on any request. If it is
+				lost, revoke it and make another.
+			</p>
+			<Dialog.Footer class="mt-2">
+				<Button onclick={() => (open = false)} data-testid="token-done">Done</Button>
+			</Dialog.Footer>
+		{:else}
+			<Dialog.Header>
+				<Dialog.Title>New token</Dialog.Title>
+				<Dialog.Description>
+					Name it after the script that will use it, so revoking the right one later is easy.
+				</Dialog.Description>
+			</Dialog.Header>
+			<form onsubmit={create}>
+				<Field.FieldGroup>
+					<Field.Field>
+						<Field.FieldLabel for="token-name">Name</Field.FieldLabel>
+						<Input
+							id="token-name"
+							bind:value={name}
+							placeholder="Fleet intel bot"
+							maxlength={255}
+							required
+							autofocus
+							data-testid="token-name"
+						/>
+					</Field.Field>
+					<Field.Field>
+						<Field.FieldLabel for="token-lifetime">Lifetime</Field.FieldLabel>
+						<Select.Root type="single" bind:value={lifetime}>
+							<Select.Trigger id="token-lifetime" class="w-full" data-testid="token-lifetime">
+								{lifetimes.find((l) => l.value === lifetime)?.label}
+							</Select.Trigger>
+							<Select.Content>
+								{#each lifetimes as option (option.value)}
+									<Select.Item value={option.value} label={option.label} />
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						<Field.FieldDescription>
+							A token that expires is one less thing to remember to revoke.
+						</Field.FieldDescription>
+					</Field.Field>
+				</Field.FieldGroup>
+				<Dialog.Footer class="mt-4">
+					<Button type="button" variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+					<Button type="submit" disabled={creating || !name.trim()} data-testid="token-create">
+						Create
+					</Button>
+				</Dialog.Footer>
+			</form>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>
