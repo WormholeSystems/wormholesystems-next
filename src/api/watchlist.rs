@@ -1,10 +1,10 @@
 //! The map's watchlist: systems somebody wants a standing route to.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
 use super::extract::{ShareQuery, acting_on, read_map_as};
@@ -30,44 +30,44 @@ pub fn routes() -> Router<AppState> {
 /// `GET /api/maps/{id}/watchlist`: the map's tracked destinations.
 pub async fn list_watchlist(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<WatchlistEntry>> {
-    read_map_as(&state, &jar, map_id, &share).await?;
+    read_map_as(&state, &creds, map_id, &share).await?;
     let entries = crate::maps::watchlist::read_watchlist(&state.db, map_id).await?;
     Ok(Json(entries))
 }
 
 pub async fn add_watchlist_entry(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddWatchlistEntry>,
 ) -> ApiResult<WatchlistEntry> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let entry = crate::maps::watchlist::add_watchlist_entry(&state.db, actor, cmd).await?;
     Ok(Json(entry))
 }
 
 pub async fn set_watchlist_pinned(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<SetWatchlistPinned>,
 ) -> ApiResult<WatchlistEntry> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let entry = crate::maps::watchlist::set_watchlist_pinned(&state.db, actor, cmd).await?;
     Ok(Json(entry))
 }
 
 pub async fn remove_watchlist_entry(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveWatchlistEntry>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::watchlist::remove_watchlist_entry(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }

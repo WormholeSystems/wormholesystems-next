@@ -106,6 +106,45 @@ describe('parseScan', () => {
 		]);
 	});
 
+	it('files faction warfare anomalies under their category with the pasted type name', () => {
+		const fwCatalog: SignatureCatalog = {
+			...catalog,
+			categories: [
+				...catalog.categories,
+				{ id: 6, name: 'Ore Site', code: 'ore' },
+				{ id: 8, name: 'Factional Warfare Site', code: 'faction-warfare' },
+			],
+		};
+		const paste = [
+			'BBL-893\tCosmic Anomaly\tFactional Warfare Site - Combat Site\tAmarr Scout BSC-1\t100,0%\t6,84 AU',
+			'CBA-620\tCosmic Anomaly\tOre Site\tGlacial Mass Belt\t100,0%\t7,02 AU',
+			'DXA-556\tCosmic Signature\t\t\t0,0%\t6,51 AU',
+			'MSA-264\tCosmic Anomaly\tFactional Warfare Site - Combat Site\tAmarr Moderate NVY-3\t100,0%\t60,60 AU',
+		].join('\n');
+
+		expect(parseScan(paste, fwCatalog)).toEqual([
+			{
+				signature_id: 'BBL-893',
+				group: 'faction_warfare',
+				signature_type_id: undefined,
+				name: 'Amarr Scout BSC-1',
+			},
+			{
+				signature_id: 'CBA-620',
+				group: 'ore',
+				signature_type_id: undefined,
+				name: 'Glacial Mass Belt',
+			},
+			{ signature_id: 'DXA-556', group: undefined, signature_type_id: undefined, name: undefined },
+			{
+				signature_id: 'MSA-264',
+				group: 'faction_warfare',
+				signature_type_id: undefined,
+				name: 'Amarr Moderate NVY-3',
+			},
+		]);
+	});
+
 	it('parses nothing from empty input', () => {
 		expect(parseScan('', catalog)).toEqual([]);
 	});

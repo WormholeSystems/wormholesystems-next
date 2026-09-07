@@ -78,6 +78,7 @@ pub async fn evaluate(
                     universe,
                     &[origin],
                     &chain.edges,
+                    &chain.ignored,
                     target_id,
                     alert.max_jumps,
                 ) else {
@@ -99,6 +100,7 @@ pub async fn evaluate(
                     universe,
                     &chain.systems,
                     &chain.edges,
+                    &chain.ignored,
                     target_id,
                     alert.max_jumps,
                 ) else {

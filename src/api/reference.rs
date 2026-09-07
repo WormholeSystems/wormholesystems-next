@@ -1,11 +1,11 @@
 //! Reference reads: the fixed universe and the caches over it. None of it belongs to a
 //! map, so none of it is authorized against one; a few need a session, no more.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::get;
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::require_actor;
@@ -161,10 +161,10 @@ pub struct SearchQuery {
 /// cannot drift apart in what they return.
 pub async fn search_systems(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Query(query): Query<SearchQuery>,
 ) -> ApiResult<Vec<SystemSearchResult>> {
-    require_actor(&state.db, &jar).await?;
+    require_actor(&state.db, &creds).await?;
     let q = query.q.trim();
     if q.len() < 2 {
         return Ok(Json(Vec::new()));
@@ -492,10 +492,10 @@ pub struct ResolveQuery {
 /// k-space systems (threat is only computed for wormhole space).
 pub async fn threat_analysis(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(solar_system_id): Path<i64>,
 ) -> ApiResult<ThreatAnalysis> {
-    require_actor(&state.db, &jar).await?;
+    require_actor(&state.db, &creds).await?;
     let row = sqlx::query!(
         r#"select threat_level as "threat_level: crate::maps::ThreatLevel", threat_analyzed_at
            from wormhole_systems where solar_system_id = $1"#,
@@ -530,9 +530,9 @@ pub async fn threat_analysis(
 /// no per-map gating; a session is still required, like the rest of the API.
 pub async fn skyhooks(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
 ) -> ApiResult<Vec<crate::skyhooks::Skyhook>> {
-    require_actor(&state.db, &jar).await?;
+    require_actor(&state.db, &creds).await?;
     Ok(Json(crate::skyhooks::list(&state.db).await?))
 }
 

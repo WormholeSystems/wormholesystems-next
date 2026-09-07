@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select notes from map_solar_system_details\n             where map_id = $1 and solar_system_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "notes",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_solar_system_details",
+            "name": "notes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c1f3bd96d3671f0fd7e89fceec1329efd0b0540e74da5cfe90800e70d5a6fa16"
+}

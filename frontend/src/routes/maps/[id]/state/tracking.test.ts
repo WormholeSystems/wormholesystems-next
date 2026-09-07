@@ -46,6 +46,7 @@ function fakeHost(over: Partial<TrackerHost> = {}) {
 			tracked_character_ids: [],
 		}),
 		naming: () => null,
+		ignored: () => new Set(),
 		stargates: () => new Map(),
 		whenRoutingLoaded: () => Promise.resolve(),
 		loadCatalog: () => Promise.resolve(CATALOG),
@@ -105,6 +106,30 @@ describe('JumpTracker', () => {
 			to_solar_system_id: 200,
 		});
 		expect(tracker.prompt).toBeNull();
+	});
+
+	it('flies through an ignored system without mapping it', async () => {
+		const { host, trackJump, setPilots } = fakeHost({ ignored: () => new Set([200]) });
+		const tracker = new JumpTracker(host);
+		await fly(tracker, setPilots, 100, 200);
+		expect(trackJump).not.toHaveBeenCalled();
+		expect(tracker.prompt).toBeNull();
+	});
+
+	it('still records a jump into an ignored system somebody placed by hand', async () => {
+		const { host, trackJump, setPilots } = fakeHost({
+			systems: () => [system(1, 100), system(2, 200)],
+			ignored: () => new Set([200]),
+			settings: () => ({
+				tracking_allowed: true,
+				prompt_for_signature: false,
+				suggest_alias: false,
+				tracked_character_ids: [],
+			}),
+		});
+		const tracker = new JumpTracker(host);
+		await fly(tracker, setPilots, 100, 200);
+		expect(trackJump).toHaveBeenCalledOnce();
 	});
 
 	it('maps every tracked pilot, and only them', async () => {

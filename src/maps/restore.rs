@@ -239,6 +239,7 @@ pub(super) async fn apply_restore_systems(tx: &mut Tx<'_>, cmd: RestoreSystems) 
         map_id: cmd.map_id,
         system_ids: cmd.systems.iter().map(|s| s.id).collect(),
         connection_ids: cmd.connections.iter().map(|c| c.id).collect(),
+        signature_ids: Vec::new(),
     });
     if cmd.is_connection_only() {
         let events: Vec<MapEvent> = cmd
@@ -272,6 +273,10 @@ pub struct RemoveRestored {
     pub map_id: i64,
     pub system_ids: Vec<i64>,
     pub connection_ids: Vec<i64>,
+    /// Signatures added to placements that stay: the database cascades only the ones on
+    /// placements that go.
+    #[serde(default)]
+    pub signature_ids: Vec<i64>,
 }
 
 pub(super) async fn apply_remove_restored(tx: &mut Tx<'_>, cmd: RemoveRestored) -> Result<Effect> {
@@ -283,6 +288,19 @@ pub(super) async fn apply_remove_restored(tx: &mut Tx<'_>, cmd: RemoveRestored) 
             snapshot.connections.extend(extra.connections);
         }
     }
+    let extra = super::signatures::capture_signatures(tx, cmd.map_id, &cmd.signature_ids).await?;
+    for s in extra.signatures {
+        if !snapshot.signatures.iter().any(|known| known.id == s.id) {
+            snapshot.signatures.push(s);
+        }
+    }
+    sqlx::query!(
+        "delete from signatures where map_id = $1 and id = any($2)",
+        cmd.map_id,
+        &cmd.signature_ids,
+    )
+    .execute(&mut **tx)
+    .await?;
     sqlx::query!(
         "delete from map_connections where map_id = $1 and id = any($2)",
         cmd.map_id,
@@ -298,7 +316,7 @@ pub(super) async fn apply_remove_restored(tx: &mut Tx<'_>, cmd: RemoveRestored) 
     .execute(&mut **tx)
     .await?;
 
-    let count = (cmd.system_ids.len() + cmd.connection_ids.len()) as i64;
+    let count = (cmd.system_ids.len() + cmd.connection_ids.len() + cmd.signature_ids.len()) as i64;
     Ok(
         Effect::new("systems.removed", "undid a restore", CommandOutput::None)
             .entries(count)

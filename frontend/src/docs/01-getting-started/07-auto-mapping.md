@@ -16,7 +16,7 @@ When you move from a system on the map into a new one, the app helps you record 
 
 That last step is why connections are trustworthy: the map only adds a hole when a real pilot says "I went through this one", rather than guessing. You need **Member** access or higher to record jumps.
 
-> Prefer to be nudged? A per-map setting can **prompt you for the signature** each time you jump, so logging the chain becomes a single click as you roam.
+> Prefer to be nudged? A per-map setting can **prompt you for the signature** each time you jump, so logging the chain becomes a single click as you roam. Turn on **Preselect the likeliest signature** as well and the prompt opens with the best match already chosen, so scanning holes in order is one Enter per jump.
 
 ## Keeping the map tidy
 

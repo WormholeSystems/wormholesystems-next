@@ -1,11 +1,11 @@
 //! Systems on a map: placing, moving, removing, and the per-system details (alias,
 //! status, occupier, home, rally, pinned, notes) that are all the same shape.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
 use super::extract::{acting_on, require_actor};
@@ -42,77 +42,77 @@ pub fn routes() -> Router<AppState> {
 /// be. Merging into an existing placement removes the ghost, so that goes out too.
 pub async fn resolve_ghost_system(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<crate::maps::ghost::ResolveGhostSystem>,
 ) -> ApiResult<MapSolarSystem> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let placed = crate::maps::ghost::resolve_ghost_system(&state.db, actor, cmd).await?;
     Ok(Json(placed))
 }
 
 pub async fn add_system(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddSystem>,
 ) -> ApiResult<MapSolarSystem> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let placed = crate::maps::solar_system::add_system(&state.db, actor, cmd).await?;
     Ok(Json(placed))
 }
 
 pub async fn move_system(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<MoveSystem>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::solar_system::move_system(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
 pub async fn move_systems(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<MoveSystems>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::solar_system::move_systems(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
 pub async fn remove_system(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSystem>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::solar_system::remove_system(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
 pub async fn remove_systems(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSystems>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::solar_system::remove_systems(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
 pub async fn clear_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<ClearMap>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::solar_system::clear_map(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -121,11 +121,11 @@ macro_rules! detail_handler {
     ($name:ident, $cmd:ty, $action:path) => {
         pub async fn $name(
             State(state): State<AppState>,
-            jar: CookieJar,
+            creds: Credentials,
             Path(map_id): Path<i64>,
             Json(cmd): Json<$cmd>,
         ) -> ApiResult<()> {
-            let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+            let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
             $action(&state.db, actor, cmd).await?;
             Ok(Json(()))
         }
@@ -153,10 +153,10 @@ detail_handler!(set_pinned, SetPinned, crate::maps::solar_system::set_pinned);
 /// `GET /api/maps/{id}/systems/{mss}/details`, member-gated intel (notes). 403 for viewers.
 pub async fn system_details(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, mss)): Path<(i64, i64)>,
 ) -> ApiResult<SystemDetails> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let details = crate::maps::solar_system::system_details(&state.db, actor, map_id, mss).await?;
     Ok(Json(details))
 }

@@ -20,6 +20,8 @@ export function keysFor(mapId: number, event: MapEvent | null): QueryKey[] {
 			return [key.killmails(mapId)];
 		case 'watchlist_changed':
 			return [key.watchlist(mapId)];
+		case 'ignored_systems_changed':
+			return [key.ignored(mapId)];
 		// Undo, redo and jumping to a step all publish this, and moving the cursor can
 		// touch anything the steps it crosses did — the server says so where it
 		// publishes it. Enumerated rather than the whole prefix, so killmails and
@@ -29,6 +31,7 @@ export function keysFor(mapId: number, event: MapEvent | null): QueryKey[] {
 				key.mapView(mapId),
 				key.signatures(mapId),
 				key.watchlist(mapId),
+				key.ignored(mapId),
 				key.history(mapId),
 				key.stale(mapId),
 			];

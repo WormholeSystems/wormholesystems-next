@@ -5,13 +5,13 @@
 //! client already has it in memory (it peeks inside to offer the section choices), and the
 //! server validates the text the same way either way.
 
+use super::extract::Credentials;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 
 use super::extract::require_actor;
@@ -39,10 +39,10 @@ pub fn routes() -> Router<AppState> {
 /// Manager+.
 async fn counts(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<TransferCounts> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     Ok(Json(transfer_counts(&state.db, actor, map_id).await?))
 }
 
@@ -56,11 +56,11 @@ struct ExportQuery {
 /// download. Manager+. A GET with a `content-disposition`, so the browser does the saving.
 async fn export(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(query): Query<ExportQuery>,
 ) -> Result<Response, ApiError> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let sections = SectionSet::from_names(
         &query
             .sections
@@ -122,12 +122,12 @@ struct ImportBody {
 /// Manager+.
 async fn import(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     body: Result<Json<ImportBody>, JsonRejection>,
 ) -> ApiResult<ImportSummary> {
     let Json(body) = body.map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let sections = SectionSet::from_names(&body.sections)?;
     let parsed = parse_export(&body.content, sections, false)?;
     Ok(Json(import_map(&state.db, actor, map_id, &parsed).await?))
@@ -146,11 +146,11 @@ struct ImportNewBody {
 /// acting character.
 async fn import_new(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     body: Result<Json<ImportNewBody>, JsonRejection>,
 ) -> ApiResult<crate::maps::Map> {
     let Json(body) = body.map_err(|e| ApiError::bad_request(e.to_string()))?;
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let sections = SectionSet::from_names(&body.sections)?;
     let parsed = parse_export(&body.content, sections, true)?;
     Ok(Json(

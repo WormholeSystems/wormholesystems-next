@@ -64,6 +64,7 @@ pub(super) fn category_id_for(group: SignatureGroup) -> Option<i64> {
         SignatureGroup::Gas => Some(5),
         SignatureGroup::Ore => Some(6),
         SignatureGroup::Homefront => Some(7),
+        SignatureGroup::FactionWarfare => Some(8),
         SignatureGroup::Unknown => None,
     }
 }

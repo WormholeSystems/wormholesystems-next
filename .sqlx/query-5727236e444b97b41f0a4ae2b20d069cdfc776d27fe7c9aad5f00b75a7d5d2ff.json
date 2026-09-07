@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_ignored_solar_systems (map_id, solar_system_id) values ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5727236e444b97b41f0a4ae2b20d069cdfc776d27fe7c9aad5f00b75a7d5d2ff"
+}

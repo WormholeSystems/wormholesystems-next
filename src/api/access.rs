@@ -1,11 +1,11 @@
 //! Who may see a map and what they may do there: grants, ownership, and the share
 //! tokens that let somebody watch without an account.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::ApiResult;
@@ -43,10 +43,10 @@ pub fn routes() -> Router<AppState> {
 /// accepting a raw EVE id.
 pub async fn search_access_subjects(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Query(query): Query<SearchQuery>,
 ) -> ApiResult<Vec<AccessSubject>> {
-    require_actor(&state.db, &jar).await?;
+    require_actor(&state.db, &creds).await?;
     let q = query.q.trim();
     if q.len() < 2 {
         return Ok(Json(Vec::new()));
@@ -88,32 +88,32 @@ pub async fn search_access_subjects(
 /// `GET /api/maps/{id}/access`, who can see this map, and at what role. Viewer+.
 pub async fn list_access(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<AccessEntry>> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let entries = crate::maps::access::list_access(&state.db, actor, map_id).await?;
     Ok(Json(entries))
 }
 
 pub async fn set_access(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<SetAccess>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::access::set_access(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
 pub async fn revoke_access(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RevokeAccess>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::access::revoke_access(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -121,11 +121,11 @@ pub async fn revoke_access(
 /// `POST /api/maps/{id}/access/transfer`, hand the map to another character on it.
 pub async fn transfer_ownership(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<crate::maps::access::TransferOwnership>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::access::transfer_ownership(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -133,10 +133,10 @@ pub async fn transfer_ownership(
 /// `POST /api/maps/{id}/share`, mint a share link, replacing any earlier one.
 pub async fn rotate_share_token(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<String> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let token = crate::maps::map::rotate_share_token(&state.db, actor, map_id).await?;
     Ok(Json(token))
 }
@@ -144,10 +144,10 @@ pub async fn rotate_share_token(
 /// `DELETE /api/maps/{id}/share`, withdraw the share link.
 pub async fn revoke_share_token(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<()> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     crate::maps::map::revoke_share_token(&state.db, actor, map_id).await?;
     Ok(Json(()))
 }

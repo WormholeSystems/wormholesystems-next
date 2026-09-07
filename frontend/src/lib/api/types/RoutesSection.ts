@@ -4,7 +4,6 @@ import type { RouteRow } from "./RouteRow";
 
 export type RoutesSection = { route_solarsystems: Array<RouteRow>, 
 /**
- * Router-avoided systems, a legacy feature vector does not have: exported empty,
- * skipped on import.
+ * The map's ignore list: routed around by everyone, never placed by jump tracking.
  */
 ignored_solarsystems: Array<IgnoredRow>, };

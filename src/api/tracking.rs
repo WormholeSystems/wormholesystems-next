@@ -1,10 +1,10 @@
 //! Recording a jump a pilot has made, which places, connects and links in one step.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::post;
-use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
 use super::extract::acting_on;
@@ -19,11 +19,11 @@ pub fn routes() -> Router<AppState> {
 /// it can touch a system, a connection and a signature at once, so clients just refetch.
 pub async fn track_jump(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<crate::maps::tracking::TrackJump>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::tracking::track_jump(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }

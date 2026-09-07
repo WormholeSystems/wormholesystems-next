@@ -2,16 +2,23 @@
 	// What the map shows you, per viewer. Placement is the exception: the mode is the map's,
 	// and the row only appears when the map hands the choice to each viewer.
 	import { createQuery } from '@tanstack/svelte-query';
+	import ImageUpIcon from '@lucide/svelte/icons/image-up';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { toast } from 'svelte-sonner';
 	import { page } from '$app/state';
 	import { userSettingsSaver } from '$lib/map/user-settings';
 	import { KILLMAIL_FILTERS } from '$lib/map/killmails';
 	import { PLACEMENTS as BASE_PLACEMENTS } from '$lib/map/placement';
-	import { q } from '$lib/api/queries';
+	import { api } from '$lib/api/client';
+	import { apiAction } from '$lib/api/mutations';
+	import { key, q } from '$lib/api/queries';
 	import type { MapView } from '$lib/api/types/MapView';
 	import SettingRow from '$lib/components/settings/SettingRow.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
+	import type { BackgroundMode } from '$lib/api/types/BackgroundMode';
 	import type { MapLayout } from '$lib/api/types/MapLayout';
 	import type { KillmailScope } from '$lib/api/types/KillmailScope';
 	import { oneOf } from '$lib/lookup';
@@ -25,6 +32,32 @@
 	const view = $derived(viewQuery.data);
 
 	const saveUserSettings = userSettingsSaver(() => mapId);
+
+	// The image goes as a file rather than a settings patch, so it has its own action.
+	const imageAction = apiAction(() => [key.userSettings(mapId)]);
+	const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+	let fileInput = $state<HTMLInputElement | null>(null);
+
+	function chooseImage(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		// Cleared so picking the same file again after a removal fires change again.
+		input.value = '';
+		if (!file) return;
+		if (file.size > MAX_IMAGE_BYTES) {
+			toast.error('That image is over 8 MiB. Shrink it first.');
+			return;
+		}
+		imageAction.mutate(() => api.uploadBackgroundImage(mapId, file));
+	}
+
+	const BACKGROUND_MODES: readonly { value: BackgroundMode; label: string }[] = [
+		{ value: 'grid', label: 'Moves with the map' },
+		{ value: 'viewport', label: 'Fills the panel' },
+	];
+	const BACKGROUND_MODE_VALUES = BACKGROUND_MODES.map((m) => m.value);
+	const backgroundMode = $derived(settings?.background_image_mode ?? 'grid');
+	const backgroundImage = $derived(settings?.background_image_url ?? null);
 
 	// `map` is not a layout, it is the absence of an override: this viewer follows whatever
 	// the map itself is set to.
@@ -115,6 +148,86 @@
 									<Select.Item value={option.value} label={option.label}>
 										{option.label}
 									</Select.Item>
+								{/each}
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				{/snippet}
+			</SettingRow>
+		{/if}
+
+		<SettingRow
+			id="background-image"
+			label="Background image"
+			description="A picture behind the chain, for you only. PNG, JPEG, GIF or WebP, up to 8 MiB."
+		>
+			{#snippet control()}
+				<input
+					bind:this={fileInput}
+					type="file"
+					accept="image/png,image/jpeg,image/gif,image/webp"
+					class="hidden"
+					data-testid="background-image-input"
+					onchange={chooseImage}
+				/>
+				{#if backgroundImage}
+					<img
+						src={backgroundImage}
+						alt=""
+						class="h-9 w-16 border border-border object-cover"
+						data-testid="background-image-preview"
+					/>
+				{/if}
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={imageAction.isPending}
+					onclick={() => fileInput?.click()}
+					data-testid="background-image-choose"
+				>
+					<ImageUpIcon data-icon="inline-start" />
+					{backgroundImage ? 'Replace' : 'Choose image'}
+				</Button>
+				{#if backgroundImage}
+					<Button
+						variant="ghost"
+						size="sm"
+						class="text-muted-foreground hover:text-destructive"
+						disabled={imageAction.isPending}
+						onclick={() => imageAction.mutate(() => api.removeBackgroundImage(mapId))}
+						aria-label="Remove background image"
+						data-testid="background-image-remove"
+					>
+						<Trash2Icon data-icon="inline-start" />
+						Remove
+					</Button>
+				{/if}
+			{/snippet}
+		</SettingRow>
+
+		{#if backgroundImage}
+			<SettingRow
+				id="background-image-mode"
+				label="How the picture sits"
+				description="Moving with the map paints it across the whole grid, so it pans and zooms with the systems. Filling the panel keeps it still behind everything."
+			>
+				{#snippet control()}
+					<Select.Root
+						type="single"
+						value={backgroundMode}
+						onValueChange={(v) => {
+							const picked = oneOf(BACKGROUND_MODE_VALUES, v);
+							if (picked) saveUserSettings({ background_image_mode: picked });
+						}}
+					>
+						<Select.Trigger class="w-52" data-testid="background-mode-select">
+							{BACKGROUND_MODES.find((m) => m.value === backgroundMode)?.label}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Group>
+								{#each BACKGROUND_MODES as option (option.value)}
+									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item
+									>
 								{/each}
 							</Select.Group>
 						</Select.Content>

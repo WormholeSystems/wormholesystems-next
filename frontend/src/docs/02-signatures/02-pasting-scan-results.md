@@ -20,4 +20,4 @@ The app reads the tab-separated rows EVE copies (signature ID, group, category, 
 
 You stay in control of the missing ones: confirm to delete the stale signatures, or keep them. Because the paste reconciles rather than blindly replacing, you can re-paste a fresh scan any time and the list stays current.
 
-> Signatures only need their ID to be recorded — the six-character code is enough. You can resolve the type later, by hand or by pasting a more complete scan once you've probed it down. Temporary event sites that aren't in the database can be stored under a free-text name.
+> Signatures only need their ID to be recorded — the six-character code is enough. You can resolve the type later, by hand or by pasting a more complete scan once you've probed it down. Temporary event sites that aren't in the database can be stored under a free-text name. Factional Warfare sites, which the scanner labels `Factional Warfare Site - Combat Site`, are filed under their own category with the pasted type name.

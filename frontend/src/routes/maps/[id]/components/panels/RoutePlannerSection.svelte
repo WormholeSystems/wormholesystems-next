@@ -20,7 +20,7 @@
 			map.route.fromId,
 			map.route.toId,
 			map.routingSettings,
-			map.route.ignoredSystems,
+			map.route.avoided,
 		);
 	});
 	const abPath = $derived(abResult?.route.map((s) => s.id) ?? []);

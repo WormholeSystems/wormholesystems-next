@@ -23,7 +23,7 @@
 	const result = $derived.by(() => {
 		const to = rally?.kind === 'system' ? rally.solar_system_id : null;
 		if (!map.route.graph || homeId === null || to === null || homeId === to) return null;
-		return findRoute(map.route.graph, homeId, to, map.routingSettings, map.route.ignoredSystems);
+		return findRoute(map.route.graph, homeId, to, map.routingSettings, map.route.avoided);
 	});
 </script>
 

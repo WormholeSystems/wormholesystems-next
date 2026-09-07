@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into map_user_settings (map_id, user_id, background_image_path)\n         values ($1, $2, $3)\n         on conflict (map_id, user_id) do update set\n             background_image_path = $3,\n             updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f03311ab3db7ac3fb29f0f945dfc6a59442ea57a690a74639c9cbd9da759ee73"
+}

@@ -15,7 +15,7 @@
 	import type { MapSystemView } from '$lib/api/types/MapSystemView';
 	import type { MapUserSettings } from '$lib/api/types/MapUserSettings';
 	import type { MapView } from '$lib/api/types/MapView';
-	import { NODE_W, railEndpoint, gridBackground } from '$lib/map/helpers';
+	import { NODE_W, railEndpoint, canvasBackground } from '$lib/map/helpers';
 	import { connectionCountByPlacement, pilotsBySystem, sigCountsBySystem } from '$lib/map/grouping';
 	import { curveBetween } from '$lib/map/edges';
 	import CanvasControls from './canvas/CanvasControls.svelte';
@@ -89,6 +89,16 @@
 	setMapContext(() => map);
 
 	let viewportEl = $state<HTMLElement | null>(null);
+
+	// The viewer's own picture behind the chain, if they put one there.
+	const background = $derived(
+		canvasBackground({
+			gridLines: !map.layoutLocked,
+			cell: map.grid.cell_size,
+			image: map.userSettings?.background_image_url ?? null,
+			mode: map.userSettings?.background_image_mode ?? 'grid',
+		}),
+	);
 
 	// The walkthrough hands over to the spotlight tour the moment it closes.
 	let tourOpen = $state(false);
@@ -265,15 +275,15 @@
 			ev.preventDefault();
 			map.openMenu(ev.clientX, ev.clientY, { kind: 'map' });
 		}}
+		style={background.viewport}
 	>
 		<IntroductionDialog {map} onfinished={() => (tourOpen = true)} />
 
 		<div
 			class="absolute top-0 left-0 origin-top-left"
+			style={background.world}
 			style:width="{map.grid.world_width}px"
 			style:height="{map.grid.world_height}px"
-			style:background-image={map.layoutLocked ? undefined : gridBackground()}
-			style:background-size="{map.grid.cell_size}px {map.grid.cell_size}px"
 			style:transform="translate({map.camera.pan.x}px, {map.camera.pan.y}px) scale({map.camera
 				.zoom})"
 		>

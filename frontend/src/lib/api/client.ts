@@ -7,6 +7,9 @@ import type { AddSignature } from './types/AddSignature';
 import type { AddSystem } from './types/AddSystem';
 import type { ResolveGhostSystem } from './types/ResolveGhostSystem';
 import type { CharacterRef } from './types/CharacterRef';
+import type { CreateToken } from './types/CreateToken';
+import type { CreatedToken } from './types/CreatedToken';
+import type { PersonalAccessToken } from './types/PersonalAccessToken';
 import type { DiscordAccount } from './types/DiscordAccount';
 import type { MapAlert } from './types/MapAlert';
 import type { MapAlertEvent } from './types/MapAlertEvent';
@@ -52,9 +55,14 @@ import type { Signature } from './types/Signature';
 import type { MapKillmail } from './types/MapKillmail';
 import type { Skyhook } from './types/Skyhook';
 import type { TrackJump } from './types/TrackJump';
+import type { AddEveScoutToMap } from './types/AddEveScoutToMap';
 import type { ShipSearchResult } from './types/ShipSearchResult';
 import type { SignatureCatalog } from './types/SignatureCatalog';
+import type { AddIgnoredSystem } from './types/AddIgnoredSystem';
 import type { AddWatchlistEntry } from './types/AddWatchlistEntry';
+import type { ClearIgnoredSystems } from './types/ClearIgnoredSystems';
+import type { IgnoredSystem } from './types/IgnoredSystem';
+import type { RemoveIgnoredSystem } from './types/RemoveIgnoredSystem';
 import type { RemoveWatchlistEntry } from './types/RemoveWatchlistEntry';
 import type { SetWatchlistPinned } from './types/SetWatchlistPinned';
 import type { SystemDetails } from './types/SystemDetails';
@@ -146,6 +154,9 @@ export const api = {
 	myScopes: () => get<ScopeStatus[]>('/api/me/scopes'),
 	myDiscord: () => get<DiscordAccount | null>('/api/me/discord'),
 	unlinkDiscord: () => post<null>('/api/me/discord/unlink', {}),
+	myTokens: () => get<PersonalAccessToken[]>('/api/me/tokens'),
+	createToken: (cmd: CreateToken) => post<CreatedToken>('/api/me/tokens', cmd),
+	revokeToken: (id: number) => del<null>(`/api/me/tokens/${id}`),
 	switchCharacter: (characterId: number) =>
 		post<null>('/api/me/switch-character', { character_id: characterId }),
 	removeCharacter: (characterId: number) =>
@@ -180,6 +191,17 @@ export const api = {
 	mapUserSettings: (mapId: number) => get<MapUserSettings>(`/api/maps/${mapId}/settings/user`),
 	updateMapUserSettings: (mapId: number, update: UpdateMapUserSettings) =>
 		post<MapUserSettings>(`/api/maps/${mapId}/settings/user`, update),
+	uploadBackgroundImage: (mapId: number, file: File) => {
+		const body = new FormData();
+		body.append('image', file);
+		// No content-type header: the browser sets multipart with its boundary.
+		return request<MapUserSettings>(`/api/maps/${mapId}/background-image`, {
+			method: 'PUT',
+			body,
+		});
+	},
+	removeBackgroundImage: (mapId: number) =>
+		del<MapUserSettings>(`/api/maps/${mapId}/background-image`),
 
 	// Systems
 	addSystem: (cmd: AddSystem) => post<MapSolarSystem>(`/api/maps/${cmd.map_id}/systems/add`, cmd),
@@ -227,6 +249,10 @@ export const api = {
 
 	// Navigation
 	eveScout: () => get<EveScoutConnection[]>('/api/evescout'),
+	// Puts a hub's public holes on the map in one undoable step; answers with how many
+	// connections it added, the socket drives the refetch.
+	addEveScoutToMap: (cmd: AddEveScoutToMap) =>
+		post<number>(`/api/maps/${cmd.map_id}/evescout/add`, cmd),
 	listWatchlist: (mapId: number) => get<WatchlistEntry[]>(`/api/maps/${mapId}/watchlist`),
 	addWatchlistEntry: (cmd: AddWatchlistEntry) =>
 		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/add`, cmd),
@@ -234,6 +260,13 @@ export const api = {
 		post<WatchlistEntry>(`/api/maps/${cmd.map_id}/watchlist/set-pinned`, cmd),
 	removeWatchlistEntry: (cmd: RemoveWatchlistEntry) =>
 		post<null>(`/api/maps/${cmd.map_id}/watchlist/remove`, cmd),
+	listIgnored: (mapId: number) => get<IgnoredSystem[]>(`/api/maps/${mapId}/ignored`),
+	addIgnored: (cmd: AddIgnoredSystem) =>
+		post<IgnoredSystem>(`/api/maps/${cmd.map_id}/ignored/add`, cmd),
+	removeIgnored: (cmd: RemoveIgnoredSystem) =>
+		post<null>(`/api/maps/${cmd.map_id}/ignored/remove`, cmd),
+	clearIgnored: (cmd: ClearIgnoredSystems) =>
+		post<number>(`/api/maps/${cmd.map_id}/ignored/clear`, cmd),
 
 	// Import / export
 	transferCounts: (mapId: number) => get<TransferCounts>(`/api/maps/${mapId}/transfer/counts`),

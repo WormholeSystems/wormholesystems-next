@@ -44,6 +44,7 @@ import { CharactersApi } from './characters';
 import { ConnectionsApi } from './connections';
 import { SignaturesApi } from './signatures';
 import { SystemsApi } from './systems';
+import { IgnoredApi } from './ignored';
 import { WatchlistApi } from './watchlist';
 import { WaypointsApi } from './waypoints';
 
@@ -101,6 +102,7 @@ export class MapState {
 	connections: ConnectionsApi;
 	signatures: SignaturesApi;
 	watchlist: WatchlistApi;
+	ignored: IgnoredApi;
 	characters: CharactersApi;
 	waypoints: WaypointsApi;
 
@@ -112,6 +114,9 @@ export class MapState {
 	}
 	get eveScout() {
 		return this.queries.eveScout.data ?? [];
+	}
+	private get ignoredRows() {
+		return this.queries.ignored.data ?? [];
 	}
 	get userSettings() {
 		return this.queries.settings.data ?? null;
@@ -253,6 +258,10 @@ export class MapState {
 
 	/** Editing takes the member role; below it the map is read-only. */
 	canWrite = $derived(atLeast(this.data?.role, 'member'));
+	/** The map-wide settings, the ignore list among them, are a manager's to change. */
+	canManage = $derived(atLeast(this.data?.role, 'manager'));
+	/** What the whole map keeps off its routes, as the router and the tracker read it. */
+	ignoredIds = $derived(new Set(this.ignoredRows.map((row) => row.solar_system_id)));
 
 	constructor(
 		mapId: number,
@@ -299,6 +308,11 @@ export class MapState {
 		this.watchlist = new WatchlistApi({
 			mapId,
 			all: () => this.queries.watchlist.data ?? [],
+			run,
+		});
+		this.ignored = new IgnoredApi({
+			mapId,
+			all: () => this.queries.ignored.data ?? [],
 			run,
 		});
 		this.characters = new CharactersApi({
@@ -384,6 +398,7 @@ export class MapState {
 			grid: () => this.grid,
 			settings: () => this.userSettings,
 			naming: () => this.naming,
+			ignored: () => this.ignoredIds,
 			stargates: () => this.route.stargates,
 			whenRoutingLoaded: () => this.route.whenLoaded(),
 			loadCatalog: () => loadCatalog(this.queries.client),
@@ -402,6 +417,7 @@ export class MapState {
 			sigs: () => this.signatures.all,
 			eveScout: () => this.eveScout,
 			useEveScout: () => this.useEveScout,
+			mapIgnored: () => this.ignoredIds,
 			loadTables: () => this.queries.client.ensureQueryData(q.routingGraph()),
 		};
 	}

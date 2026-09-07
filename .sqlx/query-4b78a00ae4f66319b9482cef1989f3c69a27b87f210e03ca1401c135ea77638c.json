@@ -1,11 +1,22 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select \"group\", connection_id\n           from signatures where id = $1 and map_id = $2",
+  "query": "select id, \"group\" as \"group: SignatureGroup\", connection_id\n           from signatures\n           where map_id = $1 and solar_system_id = $2 and signature_id = $3",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "group",
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "group: SignatureGroup",
         "type_info": {
           "Custom": {
             "name": "signature_group",
@@ -31,7 +42,7 @@
         }
       },
       {
-        "ordinal": 1,
+        "ordinal": 2,
         "name": "connection_id",
         "type_info": "Int8",
         "origin": {
@@ -45,13 +56,15 @@
     "parameters": {
       "Left": [
         "Int8",
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
       false,
+      false,
       true
     ]
   },
-  "hash": "dec878492dcb3b56f2017d06f4b972445498c67b8bf0d958f1ac0e51b214f3d0"
+  "hash": "4b78a00ae4f66319b9482cef1989f3c69a27b87f210e03ca1401c135ea77638c"
 }

@@ -1,6 +1,10 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference, security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark, follow_character,\n                  tracked_character_ids, killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
+<<<<<<<< HEAD:.sqlx/query-22d119d82ffe47dea56a0ab7d937dfd625edf7b5ede7fec036570710c46caaaa.json
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference, security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, preselect_signature, suggest_alias, copy_bookmark,\n                  follow_character,\n                  tracked_character_ids, killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
+========
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference,\n                  security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark, follow_character,\n                  tracked_character_ids,\n                  killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned,\n                  background_image_path,\n                  background_image_mode\n           from map_user_settings where map_id = $1 and user_id = $2",
+>>>>>>>> feat/map-background-image:.sqlx/query-ed023fe3536ad881e9cc60ddab782085469dc5ac7afe9a9d699b0d19eadc15c9.json
   "describe": {
     "columns": [
       {
@@ -148,6 +152,17 @@
       },
       {
         "ordinal": 10,
+        "name": "preselect_signature",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "preselect_signature"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
         "name": "suggest_alias",
         "type_info": "Bool",
         "origin": {
@@ -158,7 +173,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "copy_bookmark",
         "type_info": "Bool",
         "origin": {
@@ -169,7 +184,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "follow_character",
         "type_info": "Bool",
         "origin": {
@@ -180,7 +195,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "tracked_character_ids",
         "type_info": "Int8Array",
         "origin": {
@@ -191,7 +206,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "killmail_filter",
         "type_info": {
           "Custom": {
@@ -213,7 +228,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "is_archived",
         "type_info": "Bool",
         "origin": {
@@ -224,13 +239,13 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "introduction_confirmed!",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "hidden_panels",
         "type_info": "TextArray",
         "origin": {
@@ -241,7 +256,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "layout_breakpoints",
         "type_info": "Jsonb",
         "origin": {
@@ -252,7 +267,7 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "layout_override",
         "type_info": {
           "Custom": {
@@ -273,13 +288,45 @@
         }
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "is_pinned",
         "type_info": "Bool",
         "origin": {
           "Table": {
             "table": "map_user_settings",
             "name": "is_pinned"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "background_image_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "background_image_path"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "background_image_mode",
+        "type_info": {
+          "Custom": {
+            "name": "map_background_mode",
+            "kind": {
+              "Enum": [
+                "grid",
+                "viewport"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "background_image_mode"
           }
         }
       }
@@ -307,12 +354,19 @@
       false,
       false,
       false,
+      false,
       null,
       false,
       true,
       true,
+      false,
+      true,
       false
     ]
   },
-  "hash": "f9e8f7e96dc1d03c726480cb48e88e8909fa57f6d9b849bb9f7204d745494e19"
+<<<<<<<< HEAD:.sqlx/query-22d119d82ffe47dea56a0ab7d937dfd625edf7b5ede7fec036570710c46caaaa.json
+  "hash": "22d119d82ffe47dea56a0ab7d937dfd625edf7b5ede7fec036570710c46caaaa"
+========
+  "hash": "ed023fe3536ad881e9cc60ddab782085469dc5ac7afe9a9d699b0d19eadc15c9"
+>>>>>>>> feat/map-background-image:.sqlx/query-ed023fe3536ad881e9cc60ddab782085469dc5ac7afe9a9d699b0d19eadc15c9.json
 }

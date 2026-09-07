@@ -29,6 +29,8 @@ pub struct AppState {
     /// given. The session cookie is marked `Secure` when it is, so a browser will not send
     /// it in the clear; local development over plain http would never receive it back.
     pub secure_cookies: bool,
+    /// Where the per-viewer map background images live.
+    pub backgrounds: crate::maps::BackgroundStore,
 }
 
 pub struct Auth {

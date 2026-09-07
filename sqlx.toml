@@ -15,3 +15,4 @@
 'time_status' = "crate::maps::TimeStatus"
 'wormhole_size' = "crate::maps::WormholeSize"
 'threat_level' = "crate::maps::ThreatLevel"
+'map_background_mode' = "crate::maps::BackgroundMode"

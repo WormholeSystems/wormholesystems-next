@@ -62,7 +62,15 @@ describe('canBeConnection', () => {
 	});
 
 	it('rejects sites, which are never a way out of the system', () => {
-		for (const group of ['data', 'relic', 'gas', 'combat', 'ore', 'homefront'] as const) {
+		for (const group of [
+			'data',
+			'relic',
+			'gas',
+			'combat',
+			'ore',
+			'homefront',
+			'faction_warfare',
+		] as const) {
 			expect(canBeConnection(sig('ABC-123', { group }))).toBe(false);
 		}
 	});

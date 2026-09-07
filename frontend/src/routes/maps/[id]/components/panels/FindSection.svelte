@@ -123,7 +123,7 @@
 			matches,
 			Number(findLimit),
 			map.routingSettings,
-			map.route.ignoredSystems,
+			map.route.avoided,
 		);
 	});
 </script>

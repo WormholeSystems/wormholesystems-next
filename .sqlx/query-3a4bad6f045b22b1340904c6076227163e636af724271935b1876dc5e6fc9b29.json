@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select created_by_user_id from map_alerts where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "created_by_user_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "created_by_user_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "3a4bad6f045b22b1340904c6076227163e636af724271935b1876dc5e6fc9b29"
+}

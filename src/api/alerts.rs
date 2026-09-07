@@ -4,11 +4,11 @@
 //! somebody's Discord server. The alert rows themselves live in [`crate::maps::alerts`];
 //! these handlers check the role, validate the request, and answer.
 
+use super::extract::Credentials;
 use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::{delete, get, post, put};
 use axum::{Json, extract::Query};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::AppState;
@@ -60,18 +60,22 @@ pub struct MapAlertEvent {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-async fn require_manager(state: &AppState, jar: &CookieJar, map_id: i64) -> Result<i64, ApiError> {
-    let actor = super::extract::require_role_on_map(state, jar, map_id, Role::Manager).await?;
+async fn require_manager(
+    state: &AppState,
+    creds: &Credentials,
+    map_id: i64,
+) -> Result<i64, ApiError> {
+    let actor = super::extract::require_role_on_map(state, creds, map_id, Role::Manager).await?;
     Ok(actor.user_id)
 }
 
 /// `GET /api/maps/{id}/alerts`, every alert on the map. Manager+.
 pub async fn list_alerts(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapAlert>> {
-    require_manager(&state, &jar, map_id).await?;
+    require_manager(&state, &creds, map_id).await?;
     Ok(Json(store::list(&state.db, map_id).await?))
 }
 
@@ -116,10 +120,10 @@ fn webhook_summary(url: &str) -> String {
 /// `GET /api/maps/{id}/webhooks`: the map's destinations. Manager+.
 pub async fn list_webhooks(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapWebhook>> {
-    require_manager(&state, &jar, map_id).await?;
+    require_manager(&state, &creds, map_id).await?;
     let rows = sqlx::query!(
         r#"select w.id, w.name, w.url,
                   (select count(*) from map_alerts a where a.map_webhook_id = w.id) as "alert_count!"
@@ -153,11 +157,11 @@ pub struct SaveWebhook {
 /// `POST /api/maps/{id}/webhooks`, register a destination. Manager+.
 pub async fn create_webhook(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(body): Json<SaveWebhook>,
 ) -> ApiResult<MapWebhook> {
-    let user_id = require_manager(&state, &jar, map_id).await?;
+    let user_id = require_manager(&state, &creds, map_id).await?;
     if body.name.trim().is_empty() {
         return Err(ApiError::bad_request("give the destination a name"));
     }
@@ -198,10 +202,10 @@ pub async fn create_webhook(
 /// deleted too, rather than left enabled with nowhere to post.
 pub async fn delete_webhook(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, webhook_id)): Path<(i64, i64)>,
 ) -> ApiResult<()> {
-    let user_id = require_manager(&state, &jar, map_id).await?;
+    let user_id = require_manager(&state, &creds, map_id).await?;
     let name = sqlx::query_scalar!(
         "delete from map_webhooks where id = $1 and map_id = $2 returning name",
         webhook_id,
@@ -227,10 +231,10 @@ pub async fn delete_webhook(
 /// `GET /api/maps/{id}/roles`: the map's named Discord roles. Manager+.
 pub async fn list_roles(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapWebhookRole>> {
-    require_manager(&state, &jar, map_id).await?;
+    require_manager(&state, &creds, map_id).await?;
     let rows = sqlx::query!(
         "select id, name, discord_role_id from map_webhook_roles
          where map_id = $1 order by name",
@@ -259,11 +263,11 @@ pub struct SaveRole {
 /// `POST /api/maps/{id}/roles`, register a role to ping. Manager+.
 pub async fn create_role(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(body): Json<SaveRole>,
 ) -> ApiResult<MapWebhookRole> {
-    require_manager(&state, &jar, map_id).await?;
+    require_manager(&state, &creds, map_id).await?;
     let role_id = body.discord_role_id.trim();
     if body.name.trim().is_empty() {
         return Err(ApiError::bad_request("give the role a name"));
@@ -294,10 +298,10 @@ pub async fn create_role(
 /// `DELETE /api/maps/{id}/roles/{role_id}`. Manager+.
 pub async fn delete_role(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, role_id)): Path<(i64, i64)>,
 ) -> ApiResult<()> {
-    require_manager(&state, &jar, map_id).await?;
+    require_manager(&state, &creds, map_id).await?;
     let deleted = sqlx::query!(
         "delete from map_webhook_roles where id = $1 and map_id = $2",
         role_id,
@@ -311,117 +315,26 @@ pub async fn delete_role(
     Ok(Json(()))
 }
 
-/// A destination or role from another map would be a way to post into a Discord server
-/// you were never given, so both are checked to belong here.
-async fn check_belongs(state: &AppState, map_id: i64, body: &SaveAlert) -> Result<(), ApiError> {
-    if let Some(id) = body.map_webhook_id {
-        let ok = sqlx::query_scalar!(
-            "select exists(select 1 from map_webhooks where id = $1 and map_id = $2)",
-            id,
-            map_id,
-        )
-        .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
-        if !ok {
-            return Err(ApiError::bad_request("that destination is not on this map"));
-        }
-    }
-    if let Some(id) = body.map_webhook_role_id {
-        let ok = sqlx::query_scalar!(
-            "select exists(select 1 from map_webhook_roles where id = $1 and map_id = $2)",
-            id,
-            map_id,
-        )
-        .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
-        if !ok {
-            return Err(ApiError::bad_request("that role is not on this map"));
-        }
-    }
-    Ok(())
-}
-
-/// A system id that names nothing would only surface as a foreign key error on insert.
-async fn check_systems_exist(state: &AppState, body: &SaveAlert) -> Result<(), ApiError> {
-    for id in [body.target_solar_system_id, body.origin_solar_system_id]
-        .into_iter()
-        .flatten()
-    {
-        let ok = sqlx::query_scalar!(
-            "select exists(select 1 from solar_systems where id = $1)",
-            id
-        )
-        .fetch_one(&state.db)
-        .await?
-        .unwrap_or(false);
-        if !ok {
-            return Err(ApiError::bad_request("that system does not exist"));
-        }
-    }
-    Ok(())
-}
-
-fn validate(body: &SaveAlert) -> Result<(), ApiError> {
-    use crate::alerts::{AlertDelivery, AlertKind, AlertMention};
-    if body.name.trim().is_empty() {
-        return Err(ApiError::bad_request("an alert needs a name"));
-    }
-    if !(0..=30).contains(&body.max_jumps) {
-        return Err(ApiError::bad_request("jumps must be between 0 and 30"));
-    }
-    match body.delivery {
-        AlertDelivery::Webhook => {
-            if body.map_webhook_id.is_none() {
-                return Err(ApiError::bad_request("pick a destination"));
-            }
-        }
-        AlertDelivery::DiscordChannel => {
-            if body.discord_channel_id.is_none() {
-                return Err(ApiError::bad_request("pick a channel to post in"));
-            }
-        }
-        AlertDelivery::DiscordDm => {}
-    }
-    if body.mention == AlertMention::Role && body.map_webhook_role_id.is_none() {
-        return Err(ApiError::bad_request("pick a role to mention"));
-    }
-    // Proximity and jump range are about a place; a killmail alert is about who.
-    if matches!(body.kind, AlertKind::Proximity | AlertKind::JumpRange)
-        && body.target_solar_system_id.is_none()
-    {
-        return Err(ApiError::bad_request("pick a system to watch"));
-    }
-    if body.kind != AlertKind::Proximity && body.origin_solar_system_id.is_some() {
-        return Err(ApiError::bad_request(
-            "only a proximity alert has a starting point",
-        ));
-    }
-    if body.kind == AlertKind::JumpRange {
-        if body.ship_type.is_none() {
-            return Err(ApiError::bad_request(
-                "pick the ship whose range to measure",
-            ));
-        }
-        if !(0..=5).contains(&body.jdc_level.unwrap_or(-1)) {
-            return Err(ApiError::bad_request("JDC level must be between 0 and 5"));
-        }
-    }
-    Ok(())
+/// A save that fails its checks answers with the message alone: the form shows it under
+/// the field, where the "invalid:" the error type adds would only be noise.
+async fn check(state: &AppState, map_id: i64, body: &SaveAlert) -> Result<(), ApiError> {
+    store::check(&state.db, map_id, body)
+        .await
+        .map_err(|err| match err {
+            MapError::Validation(message) => ApiError::bad_request(message),
+            other => ApiError::from(other),
+        })
 }
 
 /// `POST /api/maps/{id}/alerts`, create one. Manager+.
 pub async fn create_alert(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(body): Json<SaveAlert>,
 ) -> ApiResult<MapAlert> {
-    let user_id = require_manager(&state, &jar, map_id).await?;
-    validate(&body)?;
-    check_belongs(&state, map_id, &body).await?;
-    check_systems_exist(&state, &body).await?;
+    let user_id = require_manager(&state, &creds, map_id).await?;
+    check(&state, map_id, &body).await?;
     Ok(Json(
         store::create(&state.db, map_id, user_id, &body).await?,
     ))
@@ -430,14 +343,12 @@ pub async fn create_alert(
 /// `PUT /api/maps/{id}/alerts/{alert_id}`, replace its settings. Manager+.
 pub async fn update_alert(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, alert_id)): Path<(i64, i64)>,
     Json(body): Json<SaveAlert>,
 ) -> ApiResult<MapAlert> {
-    let user_id = require_manager(&state, &jar, map_id).await?;
-    validate(&body)?;
-    check_belongs(&state, map_id, &body).await?;
-    check_systems_exist(&state, &body).await?;
+    let user_id = require_manager(&state, &creds, map_id).await?;
+    check(&state, map_id, &body).await?;
     Ok(Json(
         store::update(&state.db, map_id, alert_id, user_id, &body).await?,
     ))
@@ -452,11 +363,11 @@ pub struct SetAlertActive {
 /// `POST /api/maps/{id}/alerts/{alert_id}/active`, turn it on or off by hand. Manager+.
 pub async fn set_alert_active(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, alert_id)): Path<(i64, i64)>,
     Json(body): Json<SetAlertActive>,
 ) -> ApiResult<MapAlert> {
-    let user_id = require_manager(&state, &jar, map_id).await?;
+    let user_id = require_manager(&state, &creds, map_id).await?;
     Ok(Json(
         store::set_active(&state.db, map_id, alert_id, user_id, body.is_active).await?,
     ))
@@ -465,10 +376,10 @@ pub async fn set_alert_active(
 /// `DELETE /api/maps/{id}/alerts/{alert_id}`. Manager+.
 pub async fn delete_alert(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, alert_id)): Path<(i64, i64)>,
 ) -> ApiResult<()> {
-    let user_id = require_manager(&state, &jar, map_id).await?;
+    let user_id = require_manager(&state, &creds, map_id).await?;
     store::delete(&state.db, map_id, alert_id, user_id).await?;
     Ok(Json(()))
 }
@@ -482,11 +393,11 @@ pub struct EventsQuery {
 /// `GET /api/maps/{id}/alerts/events`: the audit trail. Manager+.
 pub async fn list_alert_events(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(query): Query<EventsQuery>,
 ) -> ApiResult<Vec<MapAlertEvent>> {
-    require_manager(&state, &jar, map_id).await?;
+    require_manager(&state, &creds, map_id).await?;
     let limit = query.limit.unwrap_or(50).clamp(1, 200);
     let rows = sqlx::query!(
         r#"select e.id, e.map_alert_id, a.name as "alert_name?", e.kind, e.detail, e.created_at,

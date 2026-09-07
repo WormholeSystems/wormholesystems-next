@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Account settings: the things that are true of you wherever you are, not of one map.
 	import IdCardIcon from '@lucide/svelte/icons/id-card';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
 
 	import SettingsShell from '$lib/components/settings/SettingsShell.svelte';
@@ -20,6 +21,12 @@
 			label: 'Discord',
 			description: 'Linking, and what the bot answers',
 			icon: MessageCircleIcon,
+		},
+		{
+			href: '/settings/tokens',
+			label: 'API tokens',
+			description: 'Keys for scripts that act as you',
+			icon: KeyRoundIcon,
 		},
 	];
 </script>

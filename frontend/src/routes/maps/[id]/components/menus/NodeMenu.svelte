@@ -8,6 +8,7 @@
 	import MapIcon from '@lucide/svelte/icons/map';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import NavigationIcon from '@lucide/svelte/icons/navigation';
+	import BanIcon from '@lucide/svelte/icons/ban';
 	import PinIcon from '@lucide/svelte/icons/pin';
 	import RouteIcon from '@lucide/svelte/icons/route';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -188,6 +189,22 @@
 				<NavigationIcon class="size-4" />
 				Set as destination
 			</button>
+			{#if map.canManage}
+				{@const ignored = map.ignored.has(s.solar_system_id)}
+				<div class="my-0.5 border-t border-border"></div>
+				<button
+					class={item}
+					data-testid="ignore-for-everyone"
+					onclick={() => {
+						if (ignored) map.ignored.remove(s.solar_system_id);
+						else map.ignored.add(s.solar_system_id);
+						close();
+					}}
+				>
+					<BanIcon class="size-4" />
+					{ignored ? 'Stop ignoring for everyone' : 'Ignore for everyone'}
+				</button>
+			{/if}
 		</div>
 	</div>
 

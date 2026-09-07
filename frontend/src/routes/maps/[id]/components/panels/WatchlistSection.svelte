@@ -31,7 +31,7 @@
 			origin,
 			map.watchlist.all.map((w) => w.solar_system_id),
 			map.routingSettings,
-			map.route.ignoredSystems,
+			map.route.avoided,
 		);
 	});
 

@@ -9,3 +9,4 @@ frontend/.svelte-kit/
 frontend/build/
 frontend/test-results/
 .git/
+data/uploads/

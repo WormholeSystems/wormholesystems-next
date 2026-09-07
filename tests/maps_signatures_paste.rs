@@ -693,3 +693,36 @@ async fn expiry_purges_stale_unlinked_signatures(pool: PgPool) {
         "sites under 7 days stay"
     );
 }
+
+#[sqlx::test]
+async fn paste_files_faction_warfare_sites_under_their_own_group(pool: PgPool) {
+    let w = world(&pool).await;
+    seed_catalog(&pool).await;
+    place(&pool, w.owner, w.map_id, SYS_A).await;
+
+    // The scanner labels these anomalies "Factional Warfare Site - Combat Site" with a
+    // type name that rotates with the war, so the parser sends the group and the raw name.
+    paste_signatures(
+        &pool,
+        w.owner,
+        PasteSignatures {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signatures: vec![PastedSignature {
+                signature_id: "BUH-704".into(),
+                group: Some(SignatureGroup::FactionWarfare),
+                signature_type_id: None,
+                name: Some("Minmatar Large NVY-1".into()),
+            }],
+        },
+    )
+    .await
+    .unwrap();
+
+    let sig = sig_by_id(&pool, w.owner, w.map_id, "BUH-704")
+        .await
+        .unwrap();
+    assert_eq!(sig.group, SignatureGroup::FactionWarfare);
+    assert_eq!(sig.signature_type_id, None);
+    assert_eq!(sig.name.as_deref(), Some("Minmatar Large NVY-1"));
+}

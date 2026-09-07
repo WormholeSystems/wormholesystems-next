@@ -61,8 +61,30 @@ Per-user, per-map preferences.
 | `tracking_allowed`  | bool, default false  | explicit opt-in to share the user's characters' live location on this map |
 | `show_threat_level` | bool, default true   | whether threat rings render for this user |
 | `follow_character`  | bool, default false  | select the system a tracked pilot is in as they fly, so the side cards keep up |
+| `prompt_for_signature` | bool, default true | ask which signature was jumped on arriving somewhere new, rather than mapping the hole unlinked |
+| `preselect_signature` | bool, default false | open that prompt with the likeliest signature already chosen, so scanner-order jumps are one Enter each. Only read while `prompt_for_signature` is on |
 | `tracked_character_ids` | bigint[], default empty | the user's pilots whose jumps build this map; empty means the character the session acts as. Chosen per map, so a farm alt maps the farm chain and never the main map |
+| `background_image_path` | text, nullable | the file this user put behind the canvas on this map, relative to the uploads directory. Null means the plain grid |
+| `background_image_mode` | enum `map_background_mode`, default `grid` | `grid` paints the image across the whole world so it pans and zooms with the systems; `viewport` pins it to the visible panel |
 | `updated_at`        | timestamptz          |                                           |
+
+### Background image
+
+A viewer may put a picture behind their own view of the map: a corp logo, a chain
+diagram, anything. It is theirs alone, like every other row in this table, so two people
+on the same chain can look at different backgrounds.
+
+- The file lives on the API server's disk under `UPLOADS_DIR` (default `data/uploads`),
+  at `map-backgrounds/{map_id}/{user_id}-{stamp}.{ext}`; the row keeps that relative
+  path. The stamp makes every upload a new URL, so a browser never shows a stale cached
+  image after a replacement.
+- PNG, JPEG, GIF and WebP only, by the bytes rather than the declared type, and at most
+  8 MiB. Anything else is refused before it touches the disk.
+- Replacing or removing the image deletes the old file. Deleting the map or the user
+  cascades the row away but leaves the file; it is cleaned up by hand, and is bounded by
+  8 MiB per viewer per map.
+- The image is served back only to its owner, and only while they can still view the map.
+  Guests on a share link have no settings row and see the plain grid.
 
 Presence (`GET /api/maps/{id}/characters`) shows a character only when: its user opted in
 here, the character holds a location-scoped ESI token, it is online, and the user has

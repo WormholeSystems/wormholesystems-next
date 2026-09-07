@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update signatures\n           set \"group\" = $1, signature_type_id = coalesce(signature_type_id, $2), updated_at = now()\n           where id = $3 and map_id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9006c506960334a217a6f32bdabf99a01928dd9fbac27581b07725a6ed2acf90"
+}

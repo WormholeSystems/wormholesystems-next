@@ -1,0 +1,69 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select \"group\", signature_type_id, connection_id\n           from signatures where id = $1 and map_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "group",
+        "type_info": {
+          "Custom": {
+            "name": "signature_group",
+            "kind": {
+              "Enum": [
+                "wormhole",
+                "data",
+                "relic",
+                "gas",
+                "combat",
+                "ore",
+                "homefront",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "group"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "signature_type_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "signature_type_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "connection_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "connection_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "b289fd5182f619313bb126ff5ff0af4b1acf0c94421f8e07c0c16ad3bd5adfd3"
+}

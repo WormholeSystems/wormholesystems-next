@@ -1,11 +1,11 @@
 //! Who is signed in, which character they are flying, and the ESI calls that act on
 //! that character alone (autopilot waypoints). Nothing here is about a map.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::State;
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::{require_actor, session_actor, session_id};
@@ -72,9 +72,9 @@ pub fn routes() -> Router<AppState> {
 /// `GET /api/me`, who's signed in, if anyone.
 pub async fn me(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
 ) -> ApiResult<Option<CharacterSummary>> {
-    let Some(actor) = session_actor(&state.db, &jar).await? else {
+    let Some(actor) = session_actor(&state.db, &creds).await? else {
         return Ok(Json(None));
     };
     let row = sqlx::query!(
@@ -92,9 +92,9 @@ pub async fn me(
 /// `GET /api/me/status`, live status of the active character (online / system / ship).
 pub async fn me_status(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
 ) -> ApiResult<Option<CharacterStatus>> {
-    let Some(actor) = session_actor(&state.db, &jar).await? else {
+    let Some(actor) = session_actor(&state.db, &creds).await? else {
         return Ok(Json(None));
     };
     let row = sqlx::query!(
@@ -123,17 +123,17 @@ pub async fn me_status(
 /// `GET /api/me/discord`: the linked Discord account, if any.
 pub async fn my_discord(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
 ) -> ApiResult<Option<crate::discord::DiscordAccount>> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     Ok(Json(
         crate::discord::account_for(&state.db, actor.user_id).await,
     ))
 }
 
 /// `POST /api/me/discord/unlink`, forget it, and stop what depended on it.
-pub async fn unlink_discord(State(state): State<AppState>, jar: CookieJar) -> ApiResult<()> {
-    let actor = require_actor(&state.db, &jar).await?;
+pub async fn unlink_discord(State(state): State<AppState>, creds: Credentials) -> ApiResult<()> {
+    let actor = require_actor(&state.db, &creds).await?;
     crate::discord::link::unlink(&state.db, actor.user_id).await;
     Ok(Json(()))
 }
@@ -142,9 +142,9 @@ pub async fn unlink_discord(State(state): State<AppState>, jar: CookieJar) -> Ap
 /// character has granted it. Always the full list, so the UI can show what is missing.
 pub async fn my_scopes(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
 ) -> ApiResult<Vec<crate::api::ScopeStatus>> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let granted = crate::auth::granted_scopes(&state.db, actor.character_id).await;
     Ok(Json(
         crate::esi::scopes::Scope::ALL
@@ -160,9 +160,9 @@ pub async fn my_scopes(
 /// `GET /api/me/characters`: the user's characters, marking the active and preferred ones.
 pub async fn my_characters(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
 ) -> ApiResult<Vec<CharacterRef>> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let rows = sqlx::query!(
         r#"select c.id, c.name, c.is_preferred, coalesce(s.online, false) as "online!",
                   case when s.online then s.solar_system_id end as "solar_system_id?"
@@ -196,10 +196,10 @@ pub struct CharacterIdBody {
 /// `POST /api/me/switch-character`, switch the session's active character.
 pub async fn switch_character(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Json(body): Json<CharacterIdBody>,
 ) -> ApiResult<()> {
-    let Some(session_id) = session_id(&jar) else {
+    let Some(session_id) = session_id(&creds) else {
         return Err(ApiError::unauthorized());
     };
     let ok =
@@ -213,10 +213,10 @@ pub async fn switch_character(
 /// `POST /api/me/preferred-character`, choose which character new sessions start as.
 pub async fn preferred_character(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Json(body): Json<CharacterIdBody>,
 ) -> ApiResult<()> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let ok = crate::session::set_preferred_character(&state.db, actor.user_id, body.character_id)
         .await?;
     if !ok {
@@ -230,13 +230,13 @@ pub async fn preferred_character(
 /// the session isn't cascade-deleted).
 pub async fn remove_character(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Json(body): Json<CharacterIdBody>,
 ) -> ApiResult<()> {
-    let Some(session_id) = session_id(&jar) else {
+    let Some(session_id) = session_id(&creds) else {
         return Err(ApiError::unauthorized());
     };
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let character_id = body.character_id;
 
     let count = sqlx::query_scalar!(
@@ -381,10 +381,10 @@ async fn validate_waypoint_destination(
 /// `POST /api/waypoints`, set a destination/waypoint for one of the caller's characters.
 pub async fn set_waypoint(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Json(body): Json<SetWaypointBody>,
 ) -> ApiResult<()> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let owns = sqlx::query_scalar!(
         "select exists(select 1 from characters where id = $1 and user_id = $2)",
         body.character_id,
@@ -413,10 +413,10 @@ pub async fn set_waypoint(
 /// succeed.
 pub async fn set_waypoint_all(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Json(body): Json<SetWaypointAllBody>,
 ) -> ApiResult<()> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     validate_waypoint_destination(&state, body.destination_id).await?;
     let ids = sqlx::query_scalar!(
         "select c.id from characters c

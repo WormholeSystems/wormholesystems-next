@@ -46,6 +46,31 @@ Roles are named the same way, so an alert can say who to ping without anyone rec
 > If the instance you are on has no Discord application configured, the alerts page says
 > so. Webhooks still work; direct messages and bot posts do not.
 
+## From Discord
+
+The bot creates alerts too, so a scout does not have to leave the channel. Every command
+starts with the destination, then the kind, then exactly the options that kind takes:
+
+| Command                        | Options                                            |
+| ------------------------------ | -------------------------------------------------- |
+| `/wh alert-dm proximity`       | map, system, jumps, optional starting point        |
+| `/wh alert-dm jump-range`      | map, system, ship, JDC level                       |
+| `/wh alert-dm killmail`        | map, jumps                                         |
+| `/wh alert-channel proximity`  | the same, plus who to mention and an optional role |
+| `/wh alert-channel jump-range` | the same, plus who to mention and an optional role |
+| `/wh alert-channel killmail`   | the same, plus who to mention and an optional role |
+
+A direct-message alert needs only access to the map: it reaches nobody but you. A channel
+alert posts into the channel the command was run in, so it takes a **manager** on the map
+and the **Manage Channels** permission in that server. Mentioning a role also needs
+**Manage Roles**, and mentioning everyone needs **Mention Everyone**. A role picked this
+way is registered on the map under its Discord name, the same as one added on the alerts
+page, and the alert appears there with the others: it can be renamed, edited, switched off,
+or deleted like any other.
+
+Alerts made from Discord get a name from what they watch, such as "Jita within 5 jumps"
+or "Kills within 5 jumps of the chain". `/wh alerts list` shows the ones you created.
+
 ## When an alert stops
 
 An alert disables itself rather than failing quietly, and says why: the creator unlinked

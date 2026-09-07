@@ -5,16 +5,19 @@
 //! One module per area, each owning its handlers, its routes and the wire types it serves.
 //! [`extract`] holds the shared request plumbing, [`router`] merges the area routers.
 //!
-//! The acting [`Actor`](crate::maps::Actor) is resolved from the session cookie
-//! server-side, never sent by the client. Each mutating handler publishes the matching
-//! [`MapEvent`](crate::maps::MapEvent) to the hub after the action commits.
+//! The acting [`Actor`](crate::maps::Actor) is resolved server-side from the session
+//! cookie or a bearer token ([`extract::Credentials`]), never sent by the client. Each
+//! mutating handler publishes the matching [`MapEvent`](crate::maps::MapEvent) to the hub
+//! after the action commits.
 pub mod access;
 pub mod alerts;
+pub mod background_image;
 pub mod connections;
 pub mod eve_scout;
 pub mod extract;
 pub mod history;
 pub mod identity;
+pub mod ignored;
 pub mod killmails;
 pub mod layout;
 pub mod maps;
@@ -22,9 +25,11 @@ pub mod reference;
 pub mod search;
 pub mod signatures;
 pub mod systems;
+pub mod tokens;
 pub mod tracking;
 pub mod transfer;
 pub mod user_settings;
+pub mod v1;
 pub mod watchlist;
 pub mod ws;
 
@@ -116,12 +121,16 @@ pub fn router() -> Router<AppState> {
         .merge(connections::routes())
         .merge(signatures::routes())
         .merge(watchlist::routes())
+        .merge(ignored::routes())
         .merge(search::routes())
         .merge(access::routes())
         .merge(history::routes())
         .merge(killmails::routes())
         .merge(tracking::routes())
         .merge(user_settings::routes())
+        .merge(background_image::routes())
         .merge(alerts::routes())
         .merge(transfer::routes())
+        .merge(tokens::routes())
+        .merge(v1::routes())
 }

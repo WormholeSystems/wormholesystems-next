@@ -1,8 +1,10 @@
 <script lang="ts">
 	// How routes are chosen. The same settings the route planner's popover edits, in a form
-	// with room to say what each one costs you.
+	// with room to say what each one costs you, and below them the map's own ignore list.
 	import { createQuery } from '@tanstack/svelte-query';
 	import { page } from '$app/state';
+	import type { MapView } from '$lib/api/types/MapView';
+	import { atLeast } from '$lib/map/roles';
 	import { userSettingsSaver } from '$lib/map/user-settings';
 	import {
 		ROUTE_LIFETIMES,
@@ -16,10 +18,15 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Slider } from '$lib/components/ui/slider';
 	import { Switch } from '$lib/components/ui/switch';
+	import IgnoredSystemsCard from './IgnoredSystemsCard.svelte';
+
+	let { data }: { data: { view: MapView } } = $props();
 
 	const mapId = $derived(Number(page.params.id) || 0);
 	const settingsQuery = createQuery(() => q.mapUserSettings(mapId));
 	const settings = $derived(settingsQuery.data ?? null);
+	const ignoredQuery = createQuery(() => q.listIgnored(mapId));
+	const canManage = $derived(atLeast(data.view.role, 'manager'));
 
 	const saveUserSettings = userSettingsSaver(() => mapId);
 
@@ -63,82 +70,86 @@
 	</Select.Root>
 {/snippet}
 
-<Card.Root>
-	<Card.Header>
-		<Card.Title>Routing</Card.Title>
-		<Card.Description>
-			How the route planner and every jump count on the map are worked out. Yours alone.
-		</Card.Description>
-	</Card.Header>
-	<Card.Content class="flex flex-col py-0">
-		<SettingRow
-			id="route-preference"
-			label="Route preference"
-			description="Shortest counts jumps and nothing else. The other two bias the search towards or away from high security, at the cost of extra jumps."
-		>
-			{#snippet control()}
-				{@render picker(PREFERENCES, preference, 'route_preference', 'route-preference')}
-			{/snippet}
-		</SettingRow>
+<div class="flex flex-col gap-6">
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Routing</Card.Title>
+			<Card.Description>
+				How the route planner and every jump count on the map are worked out. Yours alone.
+			</Card.Description>
+		</Card.Header>
+		<Card.Content class="flex flex-col py-0">
+			<SettingRow
+				id="route-preference"
+				label="Route preference"
+				description="Shortest counts jumps and nothing else. The other two bias the search towards or away from high security, at the cost of extra jumps."
+			>
+				{#snippet control()}
+					{@render picker(PREFERENCES, preference, 'route_preference', 'route-preference')}
+				{/snippet}
+			</SettingRow>
 
-		<SettingRow
-			id="security-penalty"
-			label="How hard to avoid, or seek, low security"
-			description="Only applies to the safer and less-secure preferences. At zero they behave like shortest; at a hundred they will take a long way round to get what they want."
-			disabled={preference === 'shorter'}
-			blocked={preference === 'shorter' ? 'Shortest ignores security entirely.' : undefined}
-		>
-			{#snippet control()}
-				<span class="flex items-center gap-3">
-					<Slider
-						type="single"
-						min={0}
-						max={100}
-						step={5}
-						value={penalty}
-						disabled={preference === 'shorter'}
-						aria-label="Security penalty"
-						class="w-40"
-						data-testid="security-penalty"
-						onValueCommit={(v) => saveUserSettings({ security_penalty: v })}
+			<SettingRow
+				id="security-penalty"
+				label="How hard to avoid, or seek, low security"
+				description="Only applies to the safer and less-secure preferences. At zero they behave like shortest; at a hundred they will take a long way round to get what they want."
+				disabled={preference === 'shorter'}
+				blocked={preference === 'shorter' ? 'Shortest ignores security entirely.' : undefined}
+			>
+				{#snippet control()}
+					<span class="flex items-center gap-3">
+						<Slider
+							type="single"
+							min={0}
+							max={100}
+							step={5}
+							value={penalty}
+							disabled={preference === 'shorter'}
+							aria-label="Security penalty"
+							class="w-40"
+							data-testid="security-penalty"
+							onValueCommit={(v) => saveUserSettings({ security_penalty: v })}
+						/>
+						<span class="w-10 text-right font-mono text-xs tabular-nums">{penalty}%</span>
+					</span>
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
+				id="route-lifetime"
+				label="Wormholes to route through, by lifetime"
+				description="An end-of-life hole may close while you are in it. This decides whether the router offers one anyway."
+			>
+				{#snippet control()}
+					{@render picker(LIFETIMES, lifetime, 'route_allow_time_status', 'route-lifetime')}
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
+				id="route-mass"
+				label="Wormholes to route through, by mass"
+				description="A hole that has already passed most of its mass may not take your ship."
+			>
+				{#snippet control()}
+					{@render picker(MASSES, mass, 'route_allow_mass_status', 'route-mass')}
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
+				id="route-evescout"
+				label="Use EVE Scout connections"
+				description="Routes may go through the public Thera and Turnur holes. They are scouted by hand and can be stale, which is why this is a choice."
+			>
+				{#snippet control()}
+					<Switch
+						checked={settings?.route_use_evescout ?? false}
+						aria-label="Use EVE Scout connections"
+						onCheckedChange={(v) => saveUserSettings({ route_use_evescout: v })}
 					/>
-					<span class="w-10 text-right font-mono text-xs tabular-nums">{penalty}%</span>
-				</span>
-			{/snippet}
-		</SettingRow>
+				{/snippet}
+			</SettingRow>
+		</Card.Content>
+	</Card.Root>
 
-		<SettingRow
-			id="route-lifetime"
-			label="Wormholes to route through, by lifetime"
-			description="An end-of-life hole may close while you are in it. This decides whether the router offers one anyway."
-		>
-			{#snippet control()}
-				{@render picker(LIFETIMES, lifetime, 'route_allow_time_status', 'route-lifetime')}
-			{/snippet}
-		</SettingRow>
-
-		<SettingRow
-			id="route-mass"
-			label="Wormholes to route through, by mass"
-			description="A hole that has already passed most of its mass may not take your ship."
-		>
-			{#snippet control()}
-				{@render picker(MASSES, mass, 'route_allow_mass_status', 'route-mass')}
-			{/snippet}
-		</SettingRow>
-
-		<SettingRow
-			id="route-evescout"
-			label="Use EVE Scout connections"
-			description="Routes may go through the public Thera and Turnur holes. They are scouted by hand and can be stale, which is why this is a choice."
-		>
-			{#snippet control()}
-				<Switch
-					checked={settings?.route_use_evescout ?? false}
-					aria-label="Use EVE Scout connections"
-					onCheckedChange={(v) => saveUserSettings({ route_use_evescout: v })}
-				/>
-			{/snippet}
-		</SettingRow>
-	</Card.Content>
-</Card.Root>
+	<IgnoredSystemsCard {mapId} ignored={ignoredQuery.data ?? []} {canManage} />
+</div>

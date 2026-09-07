@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select c.id, c.name\n         from map_access_live a\n         join characters c on c.id = a.subject_id\n         where a.map_id = $1 and a.role = 'owner' and a.subject_type = 'character'\n         order by a.id\n         limit 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "characters",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f22e1aaf6ae44e5bc3b1a57d8b2165147661a1be8efef6e6019180a584816e1c"
+}

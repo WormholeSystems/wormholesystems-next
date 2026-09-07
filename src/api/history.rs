@@ -1,10 +1,10 @@
 //! The map's event log and the moves through it: undo, redo, and jumping to any step.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
 use super::extract::{acting_on, require_actor};
@@ -22,10 +22,10 @@ pub fn routes() -> Router<AppState> {
 /// `GET /api/maps/{id}/events`: the map's history tree and where it currently sits. Viewer+.
 pub async fn list_map_events(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<MapHistory> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let history = crate::maps::events_log::list_history(&state.db, actor, map_id).await?;
     Ok(Json(history))
 }
@@ -35,11 +35,11 @@ pub async fn list_map_events(
 /// `HistoryChanged` and clients refetch rather than trying to reconstruct a targeted event.
 pub async fn undo_map_event(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<MapIdBody>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::events_log::undo(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -47,11 +47,11 @@ pub async fn undo_map_event(
 /// `POST /api/maps/{id}/events/redo`, step forward onto the most recent next point. Member+.
 pub async fn redo_map_event(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<MapIdBody>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::events_log::redo(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -60,11 +60,11 @@ pub async fn redo_map_event(
 /// branch that was left behind by an undo. Member+.
 pub async fn goto_map_event(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<GotoMapEvent>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::events_log::goto(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }

@@ -79,6 +79,8 @@ export interface TrackerHost {
 		'tracking_allowed' | 'prompt_for_signature' | 'suggest_alias' | 'tracked_character_ids'
 	> | null;
 	naming(): MapNaming | null;
+	/** The map's ignore list: a jump into one of these is flown, not mapped. */
+	ignored(): Set<number>;
 	stargates(): Map<number, number[]> | null;
 	whenRoutingLoaded(): Promise<void>;
 	loadCatalog(): Promise<SignatureCatalog>;
@@ -149,6 +151,9 @@ export class JumpTracker {
 
 		const arrival = map.systems().find((s) => solarSystemId(s) === toSystemId);
 		const existing = arrival?.kind === 'system' ? arrival : null;
+		// A trade hub the map keeps off stays off. Placed by hand it is somebody's choice,
+		// and the jump into it is worth recording.
+		if (!existing && map.ignored().has(toSystemId)) return;
 		const linked = existing
 			? existingConnection(origin, existing, map.connections(), map.sigs())
 			: null;

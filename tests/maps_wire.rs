@@ -54,6 +54,7 @@ fn map_event_round_trips_and_reports_its_map() {
         },
         MapEvent::AccessChanged { map_id: 5 },
         MapEvent::WatchlistChanged { map_id: 6 },
+        MapEvent::IgnoredSystemsChanged { map_id: 8 },
         MapEvent::HistoryChanged { map_id: 7 },
     ];
     for ev in events {

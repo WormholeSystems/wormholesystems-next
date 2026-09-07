@@ -1,10 +1,10 @@
 //! Kills on the systems of one map.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::get;
-use axum_extra::extract::CookieJar;
 
 use super::ApiResult;
 use super::extract::{ShareQuery, read_map_as};
@@ -18,11 +18,11 @@ pub fn routes() -> Router<AppState> {
 /// Viewer+, like reading the graph: a killmail is public record on zKillboard anyway.
 pub async fn map_killmails(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<crate::killmails::MapKillmail>> {
-    let reader = read_map_as(&state, &jar, map_id, &share).await?;
+    let reader = read_map_as(&state, &creds, map_id, &share).await?;
     // Which kills to show is a per-user preference, and a watcher has nowhere to keep one.
     let filter = match reader.actor {
         Some(actor) => sqlx::query_scalar!(

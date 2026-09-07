@@ -52,6 +52,8 @@ pub enum MapEvent {
     AccessChanged { map_id: i64 },
     /// The navigation watchlist changed (entry added/pinned/removed).
     WatchlistChanged { map_id: i64 },
+    /// The map's ignore list changed: routes and jump tracking steer differently now.
+    IgnoredSystemsChanged { map_id: i64 },
     /// A tracked pilot on this map moved, changed ship, or came on/offline. Sent to the
     /// whole map, unlike the per-user status ping, because everyone's pilot list shows it.
     CharactersChanged { map_id: i64 },
@@ -77,6 +79,7 @@ impl MapEvent {
             | MapEvent::SignatureChanged { map_id, .. }
             | MapEvent::AccessChanged { map_id }
             | MapEvent::WatchlistChanged { map_id }
+            | MapEvent::IgnoredSystemsChanged { map_id }
             | MapEvent::HistoryChanged { map_id } => map_id,
         }
     }

@@ -219,6 +219,7 @@ async fn main() {
         grid: config.grid,
         server,
         secure_cookies,
+        backgrounds: wormholesystems::maps::BackgroundStore::new(config.uploads_dir),
     };
 
     let app = Router::new()

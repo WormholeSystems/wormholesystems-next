@@ -1,11 +1,11 @@
 //! The map as a whole: the list, creating and deleting one, reading the graph, the
 //! per-user settings that hang off it, and who is currently flying it.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::ApiResult;
@@ -73,8 +73,11 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// `GET /api/maps`, every map the signed-in character can access, with their role.
-pub async fn my_maps(State(state): State<AppState>, jar: CookieJar) -> ApiResult<Vec<MapEntry>> {
-    let actor = require_actor(&state.db, &jar).await?;
+pub async fn my_maps(
+    State(state): State<AppState>,
+    creds: Credentials,
+) -> ApiResult<Vec<MapEntry>> {
+    let actor = require_actor(&state.db, &creds).await?;
     let maps = crate::maps::map::list_maps(&state.db, actor.user_id).await?;
     let ids: Vec<i64> = maps.iter().map(|(m, _)| m.id).collect();
 
@@ -147,10 +150,10 @@ pub struct CreateMapBody {
 /// `POST /api/maps`, create a map owned by the active character.
 pub async fn create_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Json(body): Json<CreateMapBody>,
 ) -> ApiResult<Map> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let map = crate::maps::map::create_map(
         &state.db,
         actor,
@@ -166,10 +169,10 @@ pub async fn create_map(
 /// `DELETE /api/maps/{id}`, delete a map (owner only).
 pub async fn delete_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<()> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     crate::maps::map::delete_map(&state.db, actor, crate::maps::map::DeleteMap { map_id }).await?;
     Ok(Json(()))
 }
@@ -177,11 +180,11 @@ pub async fn delete_map(
 /// `GET /api/maps/{id}`: the full map view (map + systems + connections).
 pub async fn fetch_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(share): Query<ShareQuery>,
 ) -> ApiResult<MapView> {
-    let reader = read_map_as(&state, &jar, map_id, &share).await?;
+    let reader = read_map_as(&state, &creds, map_id, &share).await?;
     let view =
         crate::maps::map::read_map(&state.db, reader, crate::maps::map::GetMap { map_id }).await?;
     Ok(Json(view))
@@ -192,7 +195,7 @@ pub async fn fetch_map(
 /// the response gives a guesser nothing to work from.
 pub async fn fetch_shared_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(token): Path<String>,
 ) -> ApiResult<MapView> {
     if token.is_empty() {
@@ -203,7 +206,7 @@ pub async fn fetch_shared_map(
         .await?
         .ok_or(crate::maps::MapError::NotFound)?;
 
-    let actor = session_actor(&state.db, &jar).await?;
+    let actor = session_actor(&state.db, &creds).await?;
     let reader =
         crate::maps::access::reader_for(&state.db, map_id, actor, Some(token.as_str())).await?;
     let view =
@@ -216,12 +219,12 @@ pub async fn fetch_shared_map(
 /// access. Member+ may view (viewers never see pilot data).
 pub async fn map_characters(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<MapCharacter>> {
     // Member+: a viewer does not get to see where anyone is.
     let actor =
-        super::extract::require_role_on_map(&state, &jar, map_id, crate::maps::Role::Member)
+        super::extract::require_role_on_map(&state, &creds, map_id, crate::maps::Role::Member)
             .await?;
     let rows = sqlx::query!(
         r#"select c.id as character_id, c.name, co.ticker as corporation_ticker,
@@ -282,11 +285,11 @@ pub async fn map_characters(
 /// `POST /api/maps/{id}/update`, rename a map or change its description/image. Manager+.
 pub async fn update_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<UpdateMap>,
 ) -> ApiResult<Map> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let map = crate::maps::map::update_map(&state.db, actor, cmd).await?;
     Ok(Json(map))
 }

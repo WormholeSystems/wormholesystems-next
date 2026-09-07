@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select background_image_path from map_user_settings\n         where map_id = $1 and user_id = $2 for update",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "background_image_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_user_settings",
+            "name": "background_image_path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "095141cf3de14202ea65ca7f7b0448e7cb259a9bbf9ff029c4bc50d77c862e6d"
+}

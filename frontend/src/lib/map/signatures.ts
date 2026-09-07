@@ -5,6 +5,7 @@ import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 import CloudIcon from '@lucide/svelte/icons/cloud';
 import DatabaseIcon from '@lucide/svelte/icons/database';
 import FanIcon from '@lucide/svelte/icons/fan';
+import FlagIcon from '@lucide/svelte/icons/flag';
 import GemIcon from '@lucide/svelte/icons/gem';
 import LandmarkIcon from '@lucide/svelte/icons/landmark';
 import ShieldIcon from '@lucide/svelte/icons/shield';
@@ -87,6 +88,14 @@ export const CATEGORIES: CategoryMeta[] = [
 		abbrev: 'HF',
 		icon: ShieldIcon,
 		color: 'text-rose-400',
+	},
+	{
+		group: 'faction_warfare',
+		categoryId: 8,
+		label: 'Factional Warfare Site',
+		abbrev: 'FW',
+		icon: FlagIcon,
+		color: 'text-fuchsia-400',
 	},
 	{
 		group: 'unknown',

@@ -1,11 +1,11 @@
 //! Connections between mapped systems, the jump log kept against them, and the sweep
 //! that clears out the ones nobody has been through in hours.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::{ShareQuery, acting_on, read_map_as, require_actor};
@@ -71,11 +71,11 @@ pub fn routes() -> Router<AppState> {
 /// an unmapped hole may have, and that goes through the same command from the inside.
 pub async fn add_connection(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddConnection>,
 ) -> ApiResult<MapConnection> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let ghost_endpoint = sqlx::query_scalar!(
         r#"select exists(
                select 1 from map_solar_systems
@@ -98,22 +98,22 @@ pub async fn add_connection(
 
 pub async fn set_connection_status(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<SetConnectionStatus>,
 ) -> ApiResult<MapConnection> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let conn = crate::maps::connection::set_connection_status(&state.db, actor, cmd).await?;
     Ok(Json(conn))
 }
 
 pub async fn remove_connection(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveConnection>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::connection::remove_connection(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -121,44 +121,44 @@ pub async fn remove_connection(
 /// `GET /api/maps/{id}/connections/{cid}/jumps`: the latest 10 jump-log rows.
 pub async fn list_connection_jumps(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path((map_id, connection_id)): Path<(i64, i64)>,
     Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<ConnectionJump>> {
-    read_map_as(&state, &jar, map_id, &share).await?;
+    read_map_as(&state, &creds, map_id, &share).await?;
     let jumps = crate::maps::jumps::read_jumps(&state.db, map_id, connection_id).await?;
     Ok(Json(jumps))
 }
 
 pub async fn add_connection_jump(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddConnectionJump>,
 ) -> ApiResult<ConnectionJump> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let jump = crate::maps::jumps::add_jump(&state.db, actor, cmd).await?;
     Ok(Json(jump))
 }
 
 pub async fn update_connection_jump(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<UpdateConnectionJump>,
 ) -> ApiResult<ConnectionJump> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let jump = crate::maps::jumps::update_jump(&state.db, actor, cmd).await?;
     Ok(Json(jump))
 }
 
 pub async fn remove_connection_jump(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveConnectionJump>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::jumps::remove_jump(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -166,10 +166,10 @@ pub async fn remove_connection_jump(
 /// `GET /api/maps/{id}/connections/stale`, edges that have been critical for over an hour.
 pub async fn list_stale_connections(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
 ) -> ApiResult<Vec<StaleConnection>> {
-    let actor = require_actor(&state.db, &jar).await?;
+    let actor = require_actor(&state.db, &creds).await?;
     let rows = crate::maps::connection::list_stale_connections(&state.db, actor, map_id).await?;
     Ok(Json(rows))
 }
@@ -178,11 +178,11 @@ pub async fn list_stale_connections(
 /// orphan, as one undoable change.
 pub async fn clean_stale_connections(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<CleanStaleConnections>,
 ) -> ApiResult<u64> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let removed = crate::maps::connection::clean_stale_connections(&state.db, actor, cmd).await?;
     Ok(Json(removed))
 }

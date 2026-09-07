@@ -160,6 +160,17 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
     .fetch_optional(&mut **tx)
     .await?;
 
+    // The client checks too, but this is the copy that decides: a pilot passing through
+    // a trade hub the map keeps off does not put the hub on the chain. Already placed, it
+    // is on the map by somebody's choice and stays reachable.
+    if placed.is_none()
+        && super::ignored::is_ignored_tx(tx, cmd.map_id, cmd.to_solar_system_id).await?
+    {
+        return Err(MapError::Validation(format!(
+            "{target_name} is on this map's ignore list"
+        )));
+    }
+
     // A system reached by another route is linked to, not duplicated.
     let (to_placement, added) = match placed {
         Some(id) => {
@@ -234,6 +245,7 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
         map_id: cmd.map_id,
         system_ids: added.into_iter().collect(),
         connection_ids: vec![connection_id],
+        signature_ids: Vec::new(),
     }));
     let inverse = MapCommand::Sequence(Sequence {
         map_id: cmd.map_id,
@@ -276,9 +288,11 @@ pub(super) async fn apply_track_jump(tx: &mut Tx<'_>, cmd: TrackJump) -> Result<
 }
 
 /// What the signature looked like before the jump touched it.
+#[derive(Debug, Clone)]
 pub(super) struct SignatureState {
     pk: i64,
     group: SignatureGroup,
+    signature_type_id: Option<i64>,
     connection_id: Option<i64>,
 }
 
@@ -288,7 +302,7 @@ pub(super) async fn signature_state(
     pk: i64,
 ) -> Result<SignatureState> {
     let row = sqlx::query!(
-        r#"select "group", connection_id
+        r#"select "group", signature_type_id, connection_id
            from signatures where id = $1 and map_id = $2"#,
         pk,
         map_id,
@@ -299,6 +313,7 @@ pub(super) async fn signature_state(
     Ok(SignatureState {
         pk,
         group: row.group,
+        signature_type_id: row.signature_type_id,
         connection_id: row.connection_id,
     })
 }
@@ -317,7 +332,7 @@ pub(super) fn undo_signature(map_id: i64, before: Option<&SignatureState>) -> Ve
         signature_pk: before.pk,
         signature_id: None,
         group: Some(before.group),
-        signature_type_id: None,
+        signature_type_id: Some(before.signature_type_id),
         name: None,
         size: None,
         mass_status: None,

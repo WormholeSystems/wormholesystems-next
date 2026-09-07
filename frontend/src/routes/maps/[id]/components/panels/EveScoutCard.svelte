@@ -4,6 +4,7 @@
 	// The jump count is measured through your own chain, which is the reason to look, so rows
 	// sort by it by default.
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { solarSystemId } from '$lib/map/system';
 
 	import type { EveScoutConnection } from '$lib/api/types/EveScoutConnection';
@@ -62,6 +63,7 @@
 	});
 
 	const hubRows = $derived(connections.filter((c) => c.hub === hub));
+	const hubSolarSystemId = $derived(hubRows[0]?.hub_solar_system_id ?? null);
 	// One search from the origin covers every row. The hub itself is excluded as a stepping
 	// stone: a route to a Thera hole that goes through Thera measures the wrong thing.
 	// svelte-ignore state_referenced_locally -- the map instance is stable for this mount.
@@ -145,6 +147,26 @@
 						{/each}
 					</Tabs.List>
 				</Tabs.Root>
+				{#if map.canWrite && hubSolarSystemId !== null}
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="ghost"
+									size="icon"
+									class="size-6"
+									aria-label="Add all {hub} holes to the map"
+									data-testid="evescout-add"
+									onclick={() => map.systems.addEveScout(hubSolarSystemId)}
+								>
+									<PlusIcon />
+								</Button>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content>Add all {hub} holes to the map</Tooltip.Content>
+					</Tooltip.Root>
+				{/if}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						{#snippet child({ props })}

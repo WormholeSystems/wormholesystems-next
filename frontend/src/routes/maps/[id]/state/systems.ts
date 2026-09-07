@@ -61,6 +61,27 @@ export class SystemsApi {
 		);
 	}
 
+	/**
+	 * Put every public hole out of a hub (Thera or Turnur) on the map. The server holds the
+	 * list; the client only says where the hub goes if it is new: the middle of the view.
+	 */
+	addEveScout(hubSolarSystemId: number) {
+		const at = centerWorld(
+			this.host.camera.pan,
+			this.host.camera.zoom,
+			this.host.camera.viewportRect(),
+		);
+		this.host.run(
+			'addEveScout',
+			api.addEveScoutToMap({
+				map_id: this.host.mapId,
+				hub_solar_system_id: hubSolarSystemId,
+				x: at.x,
+				y: at.y,
+			}),
+		);
+	}
+
 	/** Move placements to where a drag dropped them; the optimistic override is the caller's. */
 	move(moves: { map_solar_system_id: number; x: number; y: number }[]) {
 		this.host.run('moveSystems', api.moveSystems({ map_id: this.host.mapId, moves }));

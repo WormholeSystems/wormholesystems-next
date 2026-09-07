@@ -207,7 +207,114 @@ pub async fn get(pool: &PgPool, map_id: i64, alert_id: i64) -> Result<MapAlert> 
         .ok_or(MapError::NotFound)
 }
 
-/// Inserts the alert and logs who set it up. The caller validates first.
+/// What a saved alert must satisfy, wherever it was written: the settings page and the
+/// Discord bot share one rule.
+pub fn validate(body: &SaveAlert) -> Result<()> {
+    let invalid = |message: &str| Err(MapError::Validation(message.into()));
+    if body.name.trim().is_empty() {
+        return invalid("an alert needs a name");
+    }
+    if !(0..=30).contains(&body.max_jumps) {
+        return invalid("jumps must be between 0 and 30");
+    }
+    match body.delivery {
+        AlertDelivery::Webhook => {
+            if body.map_webhook_id.is_none() {
+                return invalid("pick a destination");
+            }
+        }
+        AlertDelivery::DiscordChannel => {
+            if body.discord_channel_id.is_none() {
+                return invalid("pick a channel to post in");
+            }
+        }
+        AlertDelivery::DiscordDm => {}
+    }
+    if body.mention == AlertMention::Role && body.map_webhook_role_id.is_none() {
+        return invalid("pick a role to mention");
+    }
+    // Proximity and jump range are about a place; a killmail alert is about who.
+    if matches!(body.kind, AlertKind::Proximity | AlertKind::JumpRange)
+        && body.target_solar_system_id.is_none()
+    {
+        return invalid("pick a system to watch");
+    }
+    if body.kind != AlertKind::Proximity && body.origin_solar_system_id.is_some() {
+        return invalid("only a proximity alert has a starting point");
+    }
+    if body.kind == AlertKind::JumpRange {
+        if body.ship_type.is_none() {
+            return invalid("pick the ship whose range to measure");
+        }
+        if !(0..=5).contains(&body.jdc_level.unwrap_or(-1)) {
+            return invalid("JDC level must be between 0 and 5");
+        }
+    }
+    Ok(())
+}
+
+/// A destination or role from another map would be a way to post into a Discord server
+/// you were never given, so both are checked to belong here.
+pub async fn check_belongs(pool: &PgPool, map_id: i64, body: &SaveAlert) -> Result<()> {
+    if let Some(id) = body.map_webhook_id {
+        let ok = sqlx::query_scalar!(
+            "select exists(select 1 from map_webhooks where id = $1 and map_id = $2)",
+            id,
+            map_id,
+        )
+        .fetch_one(pool)
+        .await?
+        .unwrap_or(false);
+        if !ok {
+            return Err(MapError::Validation(
+                "that destination is not on this map".into(),
+            ));
+        }
+    }
+    if let Some(id) = body.map_webhook_role_id {
+        let ok = sqlx::query_scalar!(
+            "select exists(select 1 from map_webhook_roles where id = $1 and map_id = $2)",
+            id,
+            map_id,
+        )
+        .fetch_one(pool)
+        .await?
+        .unwrap_or(false);
+        if !ok {
+            return Err(MapError::Validation("that role is not on this map".into()));
+        }
+    }
+    Ok(())
+}
+
+/// A system id that names nothing would only surface as a foreign key error on insert.
+pub async fn check_systems_exist(pool: &PgPool, body: &SaveAlert) -> Result<()> {
+    for id in [body.target_solar_system_id, body.origin_solar_system_id]
+        .into_iter()
+        .flatten()
+    {
+        let ok = sqlx::query_scalar!(
+            "select exists(select 1 from solar_systems where id = $1)",
+            id
+        )
+        .fetch_one(pool)
+        .await?
+        .unwrap_or(false);
+        if !ok {
+            return Err(MapError::Validation("that system does not exist".into()));
+        }
+    }
+    Ok(())
+}
+
+/// Every check a save has to pass, in the order that gives the clearest message.
+pub async fn check(pool: &PgPool, map_id: i64, body: &SaveAlert) -> Result<()> {
+    validate(body)?;
+    check_belongs(pool, map_id, body).await?;
+    check_systems_exist(pool, body).await
+}
+
+/// Inserts the alert and logs who set it up. The caller runs [`check`] first.
 pub async fn create(
     pool: &PgPool,
     map_id: i64,
@@ -246,7 +353,7 @@ pub async fn create(
     get(pool, map_id, id).await
 }
 
-/// Replaces the alert's settings. The caller validates first.
+/// Replaces the alert's settings. The caller runs [`check`] first.
 pub async fn update(
     pool: &PgPool,
     map_id: i64,

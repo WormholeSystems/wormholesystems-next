@@ -1,11 +1,11 @@
 //! Scan results: the signatures on each system, the paste that replaces them wholesale,
 //! and the links that tie one to a connection.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::{ShareQuery, acting_on, read_map_as};
@@ -73,77 +73,77 @@ pub fn routes() -> Router<AppState> {
 /// `GET /api/maps/{id}/signatures`, all signatures on the map.
 pub async fn list_signatures(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<Signature>> {
-    read_map_as(&state, &jar, map_id, &share).await?;
+    read_map_as(&state, &creds, map_id, &share).await?;
     let sigs = crate::maps::signatures::read_signatures(&state.db, map_id).await?;
     Ok(Json(sigs))
 }
 
 pub async fn add_signature(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<AddSignature>,
 ) -> ApiResult<Signature> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::add_signature(&state.db, actor, cmd).await?;
     Ok(Json(sig))
 }
 
 pub async fn paste_signatures(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<PasteSignatures>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::signatures::paste_signatures(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
 
 pub async fn update_signature(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<UpdateSignature>,
 ) -> ApiResult<Signature> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::update_signature(&state.db, actor, cmd).await?;
     Ok(Json(sig))
 }
 
 pub async fn link_signature(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<LinkSignature>,
 ) -> ApiResult<Signature> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::link_signature(&state.db, actor, cmd).await?;
     Ok(Json(sig))
 }
 
 pub async fn unlink_signature(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<UnlinkSignature>,
 ) -> ApiResult<Signature> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     let sig = crate::maps::signatures::unlink_signature(&state.db, actor, cmd).await?;
     Ok(Json(sig))
 }
 
 pub async fn remove_signature(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSignature>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::signatures::remove_signature(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }
@@ -152,11 +152,11 @@ pub async fn remove_signature(
 /// signatures" path, with the legacy connection + orphan-endpoint cascade.
 pub async fn remove_signatures_bulk(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(cmd): Json<RemoveSignatures>,
 ) -> ApiResult<()> {
-    let actor = acting_on(&state.db, &jar, map_id, cmd.map_id).await?;
+    let actor = acting_on(&state.db, &creds, map_id, cmd.map_id).await?;
     crate::maps::signatures::remove_signatures(&state.db, actor, cmd).await?;
     Ok(Json(()))
 }

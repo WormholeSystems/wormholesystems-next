@@ -5,12 +5,15 @@
 use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 
-use crate::maps::{KillmailScope, MapLayout, MassStatus, Role, RoutePreference, TimeStatus};
+use crate::maps::{
+    BackgroundMode, KillmailScope, MapLayout, MassStatus, Role, RoutePreference, TimeStatus,
+};
 
 use super::layout::PanelLayouts;
+use super::extract::Credentials;
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 
@@ -39,6 +42,8 @@ pub struct MapUserSettings {
     pub route_use_evescout: bool,
     /// Ask which signature was jumped, rather than mapping the hole unlinked.
     pub prompt_for_signature: bool,
+    /// Open that prompt with the likeliest signature already chosen.
+    pub preselect_signature: bool,
     /// Prefill the jump dialog's alias from the chain's naming scheme.
     pub suggest_alias: bool,
     /// Put the new connection's bookmark on the clipboard once the jump is mapped.
@@ -64,6 +69,10 @@ pub struct MapUserSettings {
     /// Per-breakpoint tile positions. `None` = the built-in arrangement.
     #[ts(optional)]
     pub layout_breakpoints: Option<PanelLayouts>,
+    /// Where to fetch the picture behind this user's map from, or `None` for the plain
+    /// grid. Changes with every upload, so it is safe to cache hard.
+    pub background_image_url: Option<String>,
+    pub background_image_mode: BackgroundMode,
 }
 
 /// Partial update of [`MapUserSettings`]; absent fields stay unchanged.
@@ -109,6 +118,9 @@ pub struct UpdateMapUserSettings {
     pub prompt_for_signature: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
+    pub preselect_signature: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
     pub suggest_alias: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
@@ -136,36 +148,46 @@ pub struct UpdateMapUserSettings {
     #[serde(default)]
     #[ts(optional)]
     pub layout_breakpoints: Option<PanelLayouts>,
+    /// The image itself goes through `/api/maps/{id}/background-image`; this is only how
+    /// it is laid out.
+    #[serde(default)]
+    #[ts(optional)]
+    pub background_image_mode: Option<BackgroundMode>,
 }
 
-/// `GET /api/maps/{id}/settings/user`: the caller's per-map preferences (defaults when
-/// no row exists yet). Requires any access to the map.
-pub async fn map_user_settings(
-    State(state): State<AppState>,
-    jar: CookieJar,
-    Path(map_id): Path<i64>,
-) -> ApiResult<MapUserSettings> {
-    let actor = super::extract::require_role_on_map(&state, &jar, map_id, Role::Viewer).await?;
+/// The URL the stored file is fetched from. The file name is the cache key: a replacement
+/// is a new file, so a browser that cached the old one asks again.
+pub fn background_image_url(map_id: i64, path: Option<&str>) -> Option<String> {
+    let file = path?.rsplit('/').next()?;
+    Some(format!("/api/maps/{map_id}/background-image?v={file}"))
+}
+
+/// A user's settings on a map, or the defaults when no row exists yet.
+pub async fn load(db: &PgPool, map_id: i64, user_id: i64) -> Result<MapUserSettings, sqlx::Error> {
     let row = sqlx::query!(
         r#"select tracking_allowed, show_threat_level, compact_signature_list,
                   show_statics_first,
-                  route_preference, security_penalty,
+                  route_preference,
+                  security_penalty,
                   route_allow_time_status,
                   route_allow_mass_status,
                   route_use_evescout,
-                  prompt_for_signature, suggest_alias, copy_bookmark, follow_character,
-                  tracked_character_ids, killmail_filter,
+                  prompt_for_signature, preselect_signature, suggest_alias, copy_bookmark,
+                  follow_character, tracked_character_ids,
+                  killmail_filter,
                   is_archived,
                   (introduction_confirmed_at is not null) as "introduction_confirmed!",
                   hidden_panels, layout_breakpoints,
-                  layout_override, is_pinned
+                  layout_override, is_pinned,
+                  background_image_path,
+                  background_image_mode
            from map_user_settings where map_id = $1 and user_id = $2"#,
         map_id,
-        actor.user_id,
+        user_id,
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(db)
     .await?;
-    Ok(Json(match row {
+    Ok(match row {
         Some(r) => MapUserSettings {
             tracking_allowed: r.tracking_allowed,
             show_threat_level: r.show_threat_level,
@@ -177,6 +199,7 @@ pub async fn map_user_settings(
             route_allow_mass_status: r.route_allow_mass_status,
             route_use_evescout: r.route_use_evescout,
             prompt_for_signature: r.prompt_for_signature,
+            preselect_signature: r.preselect_signature,
             suggest_alias: r.suggest_alias,
             copy_bookmark: r.copy_bookmark,
             follow_character: r.follow_character,
@@ -192,6 +215,8 @@ pub async fn map_user_settings(
                 .map(serde_json::from_value)
                 .transpose()
                 .unwrap_or(None),
+            background_image_url: background_image_url(map_id, r.background_image_path.as_deref()),
+            background_image_mode: r.background_image_mode,
         },
         None => MapUserSettings {
             layout_override: None,
@@ -206,6 +231,7 @@ pub async fn map_user_settings(
             route_allow_mass_status: MassStatus::Reduced,
             route_use_evescout: false,
             prompt_for_signature: true,
+            preselect_signature: false,
             suggest_alias: true,
             copy_bookmark: false,
             follow_character: false,
@@ -215,19 +241,32 @@ pub async fn map_user_settings(
             introduction_confirmed: false,
             hidden_panels: Vec::new(),
             layout_breakpoints: None,
+            background_image_url: None,
+            background_image_mode: BackgroundMode::Grid,
         },
-    }))
+    })
+}
+
+/// `GET /api/maps/{id}/settings/user`: the caller's per-map preferences (defaults when
+/// no row exists yet). Requires any access to the map.
+pub async fn map_user_settings(
+    State(state): State<AppState>,
+    creds: Credentials,
+    Path(map_id): Path<i64>,
+) -> ApiResult<MapUserSettings> {
+    let actor = super::extract::require_role_on_map(&state, &creds, map_id, Role::Viewer).await?;
+    Ok(Json(load(&state.db, map_id, actor.user_id).await?))
 }
 
 /// `POST /api/maps/{id}/settings/user`, partial update (upsert) of the caller's per-map
 /// preferences.
 pub async fn update_map_user_settings(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Json(body): Json<UpdateMapUserSettings>,
 ) -> ApiResult<MapUserSettings> {
-    let actor = super::extract::require_role_on_map(&state, &jar, map_id, Role::Viewer).await?;
+    let actor = super::extract::require_role_on_map(&state, &creds, map_id, Role::Viewer).await?;
     // The tolerances and the preference are enums, so a value outside them never gets this
     // far: serde rejects the body. Only the number still needs saying out loud.
     if let Some(p) = body.security_penalty
@@ -262,7 +301,7 @@ pub async fn update_map_user_settings(
             None => None,
         };
 
-    let row = sqlx::query!(
+    sqlx::query!(
         r#"insert into map_user_settings
              (map_id, user_id, tracking_allowed, show_threat_level,
               compact_signature_list, show_statics_first,
@@ -270,7 +309,8 @@ pub async fn update_map_user_settings(
               route_allow_mass_status, route_use_evescout, prompt_for_signature,
               suggest_alias, copy_bookmark, killmail_filter, is_archived,
               introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,
-              is_pinned, follow_character, tracked_character_ids)
+              is_pinned, follow_character, tracked_character_ids, background_image_mode,
+              preselect_signature)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  -- The literals need naming as their type: `coalesce` has to agree with the
@@ -282,7 +322,8 @@ pub async fn update_map_user_settings(
                  coalesce($15, 'all'::killmail_scope), coalesce($16, false),
                  case when $17 then now() end,
                  coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false),
-                 coalesce($23, false), coalesce($24, '{}'::bigint[]))
+                 coalesce($23, false), coalesce($24, '{}'::bigint[]),
+                 coalesce($25, 'grid'::map_background_mode), coalesce($26, false))
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -314,19 +355,9 @@ pub async fn update_map_user_settings(
              is_pinned = coalesce($22, map_user_settings.is_pinned),
              follow_character = coalesce($23, map_user_settings.follow_character),
              tracked_character_ids = coalesce($24, map_user_settings.tracked_character_ids),
-             updated_at = now()
-         returning tracking_allowed, show_threat_level, compact_signature_list,
-                   show_statics_first,
-                   route_preference, security_penalty,
-                   route_allow_time_status,
-                   route_allow_mass_status,
-                   route_use_evescout,
-                   prompt_for_signature, suggest_alias, copy_bookmark, follow_character,
-                   tracked_character_ids, killmail_filter,
-                   is_archived,
-                   (introduction_confirmed_at is not null) as introduction_confirmed,
-                   hidden_panels, layout_breakpoints,
-                   layout_override, is_pinned"#,
+             background_image_mode = coalesce($25, map_user_settings.background_image_mode),
+             preselect_signature = coalesce($26, map_user_settings.preselect_signature),
+             updated_at = now()"#,
         map_id,
         actor.user_id,
         body.tracking_allowed,
@@ -351,8 +382,10 @@ pub async fn update_map_user_settings(
         body.is_pinned,
         body.follow_character,
         body.tracked_character_ids.as_deref(),
+        body.background_image_mode,
+        body.preselect_signature,
     )
-    .fetch_one(&state.db)
+    .execute(&state.db)
     .await?;
 
     // Whether this user shares their position decides whether they appear on everyone
@@ -364,31 +397,19 @@ pub async fn update_map_user_settings(
             .publish(crate::maps::MapEvent::CharactersChanged { map_id });
     }
 
-    Ok(Json(MapUserSettings {
-        layout_override: row.layout_override,
-        is_pinned: row.is_pinned,
-        follow_character: row.follow_character,
-        tracked_character_ids: row.tracked_character_ids,
-        tracking_allowed: row.tracking_allowed,
-        show_threat_level: row.show_threat_level,
-        compact_signature_list: row.compact_signature_list,
-        show_statics_first: row.show_statics_first,
-        route_preference: row.route_preference,
-        security_penalty: row.security_penalty,
-        route_allow_time_status: row.route_allow_time_status,
-        route_allow_mass_status: row.route_allow_mass_status,
-        route_use_evescout: row.route_use_evescout,
-        prompt_for_signature: row.prompt_for_signature,
-        suggest_alias: row.suggest_alias,
-        copy_bookmark: row.copy_bookmark,
-        killmail_filter: row.killmail_filter,
-        is_archived: row.is_archived,
-        introduction_confirmed: row.introduction_confirmed.unwrap_or(false),
-        hidden_panels: row.hidden_panels,
-        layout_breakpoints: row
-            .layout_breakpoints
-            .map(serde_json::from_value)
-            .transpose()
-            .unwrap_or(None),
-    }))
+    Ok(Json(load(&state.db, map_id, actor.user_id).await?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::background_image_url;
+
+    #[test]
+    fn the_url_carries_the_file_name_so_a_replacement_is_a_new_url() {
+        assert_eq!(background_image_url(4, None), None);
+        assert_eq!(
+            background_image_url(4, Some("map-backgrounds/4/9-1700000000000.png")).as_deref(),
+            Some("/api/maps/4/background-image?v=9-1700000000000.png")
+        );
+    }
 }

@@ -20,6 +20,7 @@ function host(over: Partial<RouteHost> = {}): RouteHost {
 		sigs: () => [],
 		eveScout: () => [],
 		useEveScout: () => false,
+		mapIgnored: () => new Set<number>(),
 		loadTables: () => Promise.resolve(TABLES),
 		...over,
 	};
@@ -64,5 +65,13 @@ describe('RoutePlanner', () => {
 		expect(planner.ignoredSystems).toEqual(new Set([100, 200]));
 		planner.clearIgnored();
 		expect(planner.ignoredSystems.size).toBe(0);
+	});
+
+	it('routes around the map-wide list as well as its own', () => {
+		const planner = new RoutePlanner(host({ mapIgnored: () => new Set([300]) }));
+		planner.ignoreSystem(100);
+		expect(planner.avoided).toEqual(new Set([100, 300]));
+		planner.clearIgnored();
+		expect(planner.avoided).toEqual(new Set([300]));
 	});
 });

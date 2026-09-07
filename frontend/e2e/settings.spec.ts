@@ -259,4 +259,7 @@ test('mapping settings hold back what location sharing gates', async ({ page, ap
 	const prompt = page.locator('[data-setting="prompt-for-signature"]');
 	await expect(prompt.getByRole('switch')).toBeDisabled();
 	await expect(prompt).toContainText('Needs location sharing');
+	const preselect = page.locator('[data-setting="preselect-signature"]');
+	await expect(preselect.getByRole('switch')).toBeDisabled();
+	await expect(preselect).toContainText('Needs location sharing');
 });

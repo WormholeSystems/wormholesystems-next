@@ -1,10 +1,10 @@
 //! Searching one map: systems, aliases, notes and recent kills, ranked together.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::get;
-use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
 use super::extract::{ShareQuery, read_map_as};
@@ -54,12 +54,12 @@ pub fn routes() -> Router<AppState> {
 /// system named like the query always beats one whose intel merely mentions it. Viewer+.
 pub async fn search_map(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     Path(map_id): Path<i64>,
     Query(query): Query<SearchQuery>,
     Query(share): Query<ShareQuery>,
 ) -> ApiResult<Vec<MapSearchHit>> {
-    let role = read_map_as(&state, &jar, map_id, &share).await?.role;
+    let role = read_map_as(&state, &creds, map_id, &share).await?.role;
     let q = query.q.trim();
     if q.len() < 2 {
         return Ok(Json(Vec::new()));

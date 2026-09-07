@@ -128,6 +128,33 @@ impl Interaction {
 pub struct Member {
     #[serde(default)]
     pub user: Option<super::DiscordUser>,
+    /// The sender's permissions in the channel, as Discord's decimal bitfield string.
+    #[serde(default)]
+    pub permissions: Option<String>,
+}
+
+/// The permission bits the alert commands ask about, from Discord's permission table.
+#[derive(Debug, Clone, Copy)]
+pub enum Permission {
+    Administrator = 1 << 3,
+    ManageChannels = 1 << 4,
+    MentionEveryone = 1 << 17,
+    ManageRoles = 1 << 28,
+}
+
+impl Member {
+    /// Whether the sender holds the permission here. Administrators hold every one, which
+    /// Discord does not spell out bit by bit.
+    pub fn can(&self, permission: Permission) -> bool {
+        let Some(bits) = self
+            .permissions
+            .as_deref()
+            .and_then(|p| p.parse::<u64>().ok())
+        else {
+            return false;
+        };
+        bits & Permission::Administrator as u64 != 0 || bits & permission as u64 != 0
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -136,6 +163,31 @@ pub struct CommandData {
     pub name: String,
     #[serde(default)]
     pub options: Vec<CommandOption>,
+    /// The objects behind role, user and channel options, keyed by id.
+    #[serde(default)]
+    pub resolved: Option<Resolved>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct Resolved {
+    #[serde(default)]
+    pub roles: std::collections::HashMap<String, ResolvedRole>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ResolvedRole {
+    pub name: String,
+}
+
+impl CommandData {
+    /// The name of a role option's role, when Discord sent it along.
+    pub fn role_name(&self, role_id: &str) -> Option<&str> {
+        self.resolved
+            .as_ref()?
+            .roles
+            .get(role_id)
+            .map(|role| role.name.as_str())
+    }
 }
 
 /// An option, or a subcommand carrying its own. Discord nests them in the same shape.
@@ -231,6 +283,33 @@ mod tests {
             Some(30000142)
         );
         assert!(option(&data.options, "missing").is_none());
+    }
+
+    /// Administrator is one bit that stands for all of them; an unreadable field is no
+    /// permission at all rather than a guess.
+    #[test]
+    fn permissions_are_read_from_the_bitfield() {
+        let member = |permissions: Option<&str>| Member {
+            user: None,
+            permissions: permissions.map(str::to_string),
+        };
+        let manage_channels = (Permission::ManageChannels as u64).to_string();
+        assert!(member(Some(&manage_channels)).can(Permission::ManageChannels));
+        assert!(!member(Some(&manage_channels)).can(Permission::ManageRoles));
+        let administrator = (Permission::Administrator as u64).to_string();
+        assert!(member(Some(&administrator)).can(Permission::MentionEveryone));
+        assert!(!member(None).can(Permission::ManageChannels));
+        assert!(!member(Some("lots")).can(Permission::ManageChannels));
+    }
+
+    #[test]
+    fn a_role_option_is_named_from_the_resolved_objects() {
+        let data: CommandData = serde_json::from_str(
+            r#"{"name":"wh","options":[],"resolved":{"roles":{"77":{"name":"Scouts"}}}}"#,
+        )
+        .unwrap();
+        assert_eq!(data.role_name("77"), Some("Scouts"));
+        assert_eq!(data.role_name("78"), None);
     }
 
     /// Discord marks the focused option inside whichever subcommand it belongs to.

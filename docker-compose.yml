@@ -35,6 +35,9 @@ services:
       # The unpacked SDE, ~550MB downloaded on first boot. In a volume so recreating the
       # container (every update) does not download it all over again.
       - sde:/app/data/sde
+      # Background images people upload for their maps. Small, but theirs: a rebuild must
+      # not lose them.
+      - uploads:/app/data/uploads
 
   web:
     build: frontend
@@ -70,5 +73,6 @@ services:
 volumes:
   pgdata:
   sde:
+  uploads:
   caddy_data:
   caddy_config:

@@ -158,12 +158,28 @@ pub struct SignatureRow {
     pub lifetime_updated_at: Option<DateTime<Utc>>,
 }
 
+/// The wire spelling of a group is the legacy category code, which hyphenates the one
+/// two-word category where the enum uses an underscore.
+fn category_code(group: SignatureGroup) -> Option<&'static str> {
+    match group {
+        SignatureGroup::Unknown => None,
+        SignatureGroup::FactionWarfare => Some("faction-warfare"),
+        group => Some(group.as_str()),
+    }
+}
+
+fn group_for_category_code(code: &str) -> Option<SignatureGroup> {
+    match code {
+        "faction-warfare" => Some(SignatureGroup::FactionWarfare),
+        code => SignatureGroup::from_db(code),
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct RoutesSection {
     pub route_solarsystems: Vec<RouteRow>,
-    /// Router-avoided systems, a legacy feature vector does not have: exported empty,
-    /// skipped on import.
+    /// The map's ignore list: routed around by everyone, never placed by jump tracking.
     pub ignored_solarsystems: Vec<IgnoredRow>,
 }
 
@@ -727,10 +743,7 @@ async fn export_signatures(
         .map(|r| SignatureRow {
             solarsystem_id: r.solar_system_id,
             signature_id: Some(r.signature_id),
-            category: match r.sig_group {
-                SignatureGroup::Unknown => None,
-                group => Some(group.as_str().to_string()),
-            },
+            category: category_code(r.sig_group).map(str::to_string),
             type_name: r.type_name,
             raw_type_name: r.name,
             wormhole: r.code.filter(|_| r.sig_group == SignatureGroup::Wormhole),
@@ -753,6 +766,12 @@ async fn export_routes(pool: &PgPool, map_id: i64) -> Result<RoutesSection> {
     )
     .fetch_all(pool)
     .await?;
+    let ignored = sqlx::query_scalar!(
+        "select solar_system_id from map_ignored_solar_systems where map_id = $1 order by id",
+        map_id,
+    )
+    .fetch_all(pool)
+    .await?;
     Ok(RoutesSection {
         route_solarsystems: rows
             .into_iter()
@@ -761,7 +780,10 @@ async fn export_routes(pool: &PgPool, map_id: i64) -> Result<RoutesSection> {
                 is_pinned: r.is_pinned,
             })
             .collect(),
-        ignored_solarsystems: Vec::new(),
+        ignored_solarsystems: ignored
+            .into_iter()
+            .map(|solarsystem_id| IgnoredRow { solarsystem_id })
+            .collect(),
     })
 }
 
@@ -951,6 +973,7 @@ async fn known_solarsystem_ids(tx: &mut Tx<'_>, sections: &Sections) -> Result<H
     }
     if let Some(routes) = &sections.routes {
         ids.extend(routes.route_solarsystems.iter().map(|r| r.solarsystem_id));
+        ids.extend(routes.ignored_solarsystems.iter().map(|r| r.solarsystem_id));
     }
 
     let found = sqlx::query_scalar!("select id from solar_systems where id = any($1)", &ids,)
@@ -1313,7 +1336,7 @@ async fn import_signatures(
         let group = entry
             .category
             .as_deref()
-            .and_then(SignatureGroup::from_db)
+            .and_then(group_for_category_code)
             .unwrap_or(SignatureGroup::Unknown);
         // A type from the wrong category (or one this database does not know) is dropped
         // rather than mislinked.
@@ -1428,8 +1451,32 @@ async fn import_routes(
         }
     }
 
-    // Vector has no router ignore-list to put these in.
-    counts.skipped += routes.ignored_solarsystems.len() as i64;
+    let ignored: HashSet<i64> = sqlx::query_scalar!(
+        "select solar_system_id from map_ignored_solar_systems where map_id = $1",
+        map_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?
+    .into_iter()
+    .collect();
+    for entry in &routes.ignored_solarsystems {
+        if !known.contains(&entry.solarsystem_id) {
+            counts.skipped += 1;
+            continue;
+        }
+        if ignored.contains(&entry.solarsystem_id) {
+            counts.updated += 1;
+            continue;
+        }
+        sqlx::query!(
+            "insert into map_ignored_solar_systems (map_id, solar_system_id) values ($1, $2)",
+            map_id,
+            entry.solarsystem_id,
+        )
+        .execute(&mut **tx)
+        .await?;
+        counts.created += 1;
+    }
     Ok(())
 }
 
@@ -1468,7 +1515,9 @@ pub async fn transfer_counts(pool: &PgPool, actor: Actor, map_id: i64) -> Result
                   and f.solar_system_id is not null
                   and t.solar_system_id is not null) as "connections!",
                (select count(*) from signatures s where s.map_id = $1) as "signatures!",
-               (select count(*) from map_watchlist w where w.map_id = $1) as "routes!""#,
+               (select count(*) from map_watchlist w where w.map_id = $1)
+               + (select count(*) from map_ignored_solar_systems i where i.map_id = $1)
+                 as "routes!""#,
         map_id,
     )
     .fetch_one(pool)

@@ -56,6 +56,8 @@ export interface RouteHost {
 	sigs(): Signature[];
 	eveScout(): EveScoutConnection[];
 	useEveScout(): boolean;
+	/** The map's own ignore list, which every viewer routes around. */
+	mapIgnored(): Set<number>;
 	loadTables(): Promise<RoutingTables>;
 }
 
@@ -69,8 +71,14 @@ export class RoutePlanner {
 	path = $state<number[]>([]);
 	// A route hovered in a side panel temporarily replaces the pinned A→B highlight.
 	hoverPath = $state<number[] | null>(null);
-	// Systems the router steers around (per map, persisted locally).
+	// Systems this viewer steers around (per map, persisted locally).
 	ignoredSystems = $state<Set<number>>(new Set());
+	/** Everything the router steps around: the viewer's own list plus the map's. */
+	avoided = $derived.by<Set<number>>(() => {
+		const shared = this.map.mapIgnored();
+		if (shared.size === 0) return this.ignoredSystems;
+		return new Set([...this.ignoredSystems, ...shared]);
+	});
 
 	// The static routing data, fetched once and shared: the navigation card plans routes
 	// with it, and the pilots card measures distances with it. One home, one fetch.

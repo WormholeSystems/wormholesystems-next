@@ -28,6 +28,7 @@
 
 	const hasLocation = $derived(scopes.some((s) => s.scope === LOCATION_SCOPE && s.granted));
 	const tracking = $derived(settings?.tracking_allowed ?? false);
+	const prompting = $derived(tracking && (settings?.prompt_for_signature ?? true));
 	const canManage = $derived(atLeast(viewQuery.data.role, 'manager'));
 	const ghosting = $derived(viewQuery.data.map.ghost_unlinked_wormholes);
 
@@ -102,6 +103,27 @@
 						disabled={!tracking}
 						aria-label="Ask which signature I jumped"
 						onCheckedChange={(v) => saveUserSettings({ prompt_for_signature: v })}
+					/>
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
+				id="preselect-signature"
+				label="Preselect the likeliest signature"
+				description="The prompt opens with the best match already chosen, so working through freshly scanned holes in order is one Enter each. Off, nothing is chosen until you pick it."
+				disabled={!prompting}
+				blocked={prompting
+					? undefined
+					: tracking
+						? 'Needs the signature prompt.'
+						: 'Needs location sharing.'}
+			>
+				{#snippet control()}
+					<Switch
+						checked={(settings?.preselect_signature ?? false) && prompting}
+						disabled={!prompting}
+						aria-label="Preselect the likeliest signature"
+						onCheckedChange={(v) => saveUserSettings({ preselect_signature: v })}
 					/>
 				{/snippet}
 			</SettingRow>

@@ -50,6 +50,10 @@ export function createMapQueries(
 		...q.listWatchlist(mapId),
 		meta: { toastOnError: true },
 	}));
+	const ignored = createQuery(() => ({
+		...q.listIgnored(mapId),
+		meta: { toastOnError: true },
+	}));
 	// Everything below fails silently, as the old fetchers did: a watcher's 403 or a blip
 	// leaves the panel empty rather than raising a toast.
 	const history = createQuery(() => ({ ...q.mapHistory(mapId), enabled: signedIn }));
@@ -110,6 +114,7 @@ export function createMapQueries(
 		graph,
 		signatures,
 		watchlist,
+		ignored,
 		history,
 		stale,
 		settings,

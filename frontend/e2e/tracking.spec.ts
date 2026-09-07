@@ -117,7 +117,9 @@ test('a jump through a scanned hole places the system, connects it and links the
 }) => {
 	const mapId = await createMap(api, 'E2E Tracking');
 	await addSystem(api, mapId, J122515, null);
-	const pilot = await openAsPilot(browser, playwright, 9, mapId, J122515);
+	const pilot = await openAsPilot(browser, playwright, 9, mapId, J122515, {
+		preselect_signature: true,
+	});
 
 	await paste(pilot.page, 'WHX-401\tCosmic Signature\tWormhole\t\t100%\t1 AU');
 	await expect(pilot.page.getByTestId('sig-row')).toHaveCount(1);
@@ -127,9 +129,10 @@ test('a jump through a scanned hole places the system, connects it and links the
 	const dialog = pilot.page.getByTestId('tracking-dialog');
 	await expect(dialog).toBeVisible();
 	await expect(dialog.getByTestId('tracking-target')).toHaveText('J005482');
-	// The lone candidate starts selected and the next chain alias is prefilled, so the
-	// whole prompt is one keystroke.
+	// With preselection on, the lone candidate starts selected and the next chain alias is
+	// prefilled, so the whole prompt is one keystroke.
 	await expect(dialog.getByTestId('tracking-option')).toHaveCount(1);
+	await expect(dialog.getByTestId('tracking-option').getByRole('radio')).toBeChecked();
 	await expect(dialog.getByTestId('tracking-alias')).toHaveValue('1');
 	await dialog.getByTestId('tracking-confirm').click();
 	await expect(dialog).toBeHidden();
@@ -156,6 +159,31 @@ test('a jump through a scanned hole places the system, connects it and links the
 	const undone = await (await api.get(`/api/maps/${mapId}/signatures`)).json();
 	expect(undone).toHaveLength(1);
 	expect(undone[0].connection_id).toBeNull();
+
+	await pilot.close();
+});
+
+test('without preselection the prompt opens on Unknown', async ({ api, browser, playwright }) => {
+	const mapId = await createMap(api, 'E2E Tracking Unchosen');
+	await addSystem(api, mapId, J122515, null);
+	const pilot = await openAsPilot(browser, playwright, 9, mapId, J122515);
+
+	await paste(pilot.page, 'WHX-401\tCosmic Signature\tWormhole\t\t100%\t1 AU');
+	await expect(pilot.page.getByTestId('sig-row')).toHaveCount(1);
+
+	await jumpTo(pilot.page, pilot.identity.characterId, J005482);
+
+	const dialog = pilot.page.getByTestId('tracking-dialog');
+	await expect(dialog).toBeVisible();
+	// The default: the candidate is listed but nobody has chosen it, so a reflex Enter
+	// maps the hole unlinked rather than guessing.
+	await expect(dialog.getByTestId('tracking-option')).toHaveCount(1);
+	await expect(dialog.getByTestId('tracking-option').getByRole('radio')).not.toBeChecked();
+	await expect(dialog.getByTestId('tracking-unknown')).toBeChecked();
+
+	// The arrow keys still walk the list from there.
+	await dialog.getByTestId('tracking-search').press('ArrowDown');
+	await expect(dialog.getByTestId('tracking-option').getByRole('radio')).toBeChecked();
 
 	await pilot.close();
 });

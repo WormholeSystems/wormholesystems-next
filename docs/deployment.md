@@ -130,6 +130,9 @@ Cloudflare's own certificate and put Caddy behind it.
 | `POSTGRES_PASSWORD` | Generated once. Changing it means changing it in Postgres too. |
 
 Discord and the killmail ingest are optional and off unless configured; see `.env.example`.
+`UPLOADS_DIR` (default `data/uploads`) is where uploaded background images land. In the
+container that path is the `uploads` volume, so leave it alone unless the API runs outside
+Docker.
 
 ## Discord
 
@@ -152,15 +155,21 @@ Two things have to wait until the stack is running, because Discord checks them:
 
 1. Set the Interactions Endpoint URL to `https://your-domain/discord/interactions`. Discord
    signs a ping at it and refuses to save if it does not answer.
-2. `wsctl discord-register` uploads the `/wh` command. It is registered globally,
-   so Discord takes a few minutes to show it.
+2. `wsctl discord-register` uploads the `/wh` command: account, alerts, route, and the
+   `alert-dm` and `alert-channel` groups that create alerts from a channel. It is
+   registered globally, so Discord takes a few minutes to show it.
 
 ## Backups
 
-Not automated. The database is the only thing that matters:
+Not automated. The database is what matters:
 
 ```sh
 docker compose exec -T db pg_dump -U vector vector | gzip > wormholesystems-$(date +%F).sql.gz
 ```
 
 Restoring is the same in reverse, into a stopped stack with an empty database.
+
+The one thing outside it is the `uploads` volume: the background images people put behind
+their maps. Losing it costs each of them a picture and nothing else; a settings row that
+points at a missing file simply shows the plain grid again. Copy it out with
+`docker compose cp api:/app/data/uploads ./uploads` if it is worth keeping.

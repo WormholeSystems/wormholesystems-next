@@ -2,12 +2,16 @@
 
 use axum::Json;
 use axum::Router;
-use axum::extract::State;
-use axum::routing::get;
+use axum::extract::{Path, State};
+use axum::routing::{get, post};
+use super::extract::Credentials;
 use serde::{Deserialize, Serialize};
 
 use super::ApiResult;
+use super::extract::acting_on;
 use crate::auth::AppState;
+use crate::maps::eve_scout::{AddEveScoutConnections, EveScoutHole, HUBS, size_from_eve_scout};
+use crate::maps::{MassStatus, TimeStatus};
 
 /// A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it. Oriented
 /// hub-first rather than in EVE Scout's in/out terms, and statuses normalized to WormholeSystems's
@@ -37,11 +41,10 @@ pub struct EveScoutConnection {
 }
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/evescout", get(eve_scout))
+    Router::new()
+        .route("/api/evescout", get(eve_scout))
+        .route("/api/maps/{id}/evescout/add", post(add_to_map))
 }
-
-/// Thera and Turnur, the two systems EVE Scout keeps public connections for.
-const HUBS: [(i64, &str); 2] = [(31000005, "Thera"), (30002086, "Turnur")];
 
 /// Normalize one EVE Scout signature. Tolerant of shape drift: unknown fields default to
 /// healthy/fresh, and a row without both endpoints, or with neither end at a hub, is
@@ -99,6 +102,10 @@ pub(crate) fn eve_scout_connection(sig: &serde_json::Value) -> Option<EveScoutCo
 /// `GET /api/evescout`, public Thera/Turnur connections, proxied and cached for 60s.
 /// Upstream failures degrade to an empty list.
 pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScoutConnection>> {
+    Ok(Json(cached_connections().await))
+}
+
+async fn cached_connections() -> Vec<EveScoutConnection> {
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
     type Cached = Option<(Instant, Vec<EveScoutConnection>)>;
@@ -108,12 +115,71 @@ pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScout
     if let Some((at, edges)) = cache.lock().expect("cache lock").as_ref()
         && at.elapsed() < Duration::from_secs(60)
     {
-        return Ok(Json(edges.clone()));
+        return edges.clone();
     }
 
     let edges = fetch_eve_scout().await.unwrap_or_default();
     *cache.lock().expect("cache lock") = Some((Instant::now(), edges.clone()));
-    Ok(Json(edges))
+    edges
+}
+
+/// What the client sends to put a hub's holes on the map: the list itself is the server's,
+/// fetched fresh so a stale card cannot map holes that have since collapsed.
+#[derive(Debug, Clone, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub struct AddEveScoutToMap {
+    pub map_id: i64,
+    pub hub_solar_system_id: i64,
+    /// Where to put the hub if it is not on the map yet; the server picks otherwise.
+    #[serde(default)]
+    #[ts(optional)]
+    pub x: Option<f64>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub y: Option<f64>,
+}
+
+/// `POST /api/maps/{id}/evescout/add`, put every public hole out of one hub on the map.
+/// Member+. Answers with how many connections it added; the socket drives the refetch.
+pub async fn add_to_map(
+    State(state): State<AppState>,
+    creds: Credentials,
+    Path(map_id): Path<i64>,
+    Json(body): Json<AddEveScoutToMap>,
+) -> ApiResult<u64> {
+    let actor = acting_on(&state.db, &creds, map_id, body.map_id).await?;
+    let holes = cached_connections()
+        .await
+        .iter()
+        .filter(|c| c.hub_solar_system_id == body.hub_solar_system_id)
+        .map(hole_from_connection)
+        .collect();
+    let added = crate::maps::eve_scout::add_eve_scout_connections(
+        &state.db,
+        actor,
+        AddEveScoutConnections {
+            map_id: body.map_id,
+            hub_solar_system_id: body.hub_solar_system_id,
+            at: body.x.zip(body.y),
+            holes,
+        },
+    )
+    .await?;
+    Ok(Json(added))
+}
+
+/// The card's row in the command's vocabulary. The statuses were normalised on the way
+/// in, so a word the map does not know is a bug, answered with the safe default.
+fn hole_from_connection(c: &EveScoutConnection) -> EveScoutHole {
+    EveScoutHole {
+        solar_system_id: c.solar_system_id,
+        hub_signature: c.hub_signature.clone(),
+        signature: c.signature.clone(),
+        wormhole_type: c.wormhole_type.clone(),
+        mass_status: MassStatus::from_db(&c.mass_status).unwrap_or(MassStatus::Stable),
+        time_status: TimeStatus::from_db(&c.time_status).unwrap_or(TimeStatus::Stable),
+        size: c.max_ship_size.as_deref().and_then(size_from_eve_scout),
+    }
 }
 
 async fn fetch_eve_scout() -> Option<Vec<EveScoutConnection>> {

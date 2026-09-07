@@ -62,6 +62,7 @@ pub async fn evaluate(
             universe,
             &chain.systems,
             &chain.edges,
+            &chain.ignored,
             kill.solar_system_id,
             alert.max_jumps,
         ) else {
@@ -172,9 +173,12 @@ async fn system_name(pool: &PgPool, id: i64) -> sqlx::Result<System> {
 pub struct Chain {
     pub systems: Vec<i64>,
     pub edges: Vec<(i64, i64)>,
+    /// The map's ignore list, which no route through the chain may pass.
+    pub ignored: Vec<i64>,
 }
 
-/// A map's placed systems and the connections between them, in solar-system ids.
+/// A map's placed systems, the connections between them, and what it routes around, in
+/// solar-system ids.
 pub async fn chain_of(pool: &PgPool, map_id: i64) -> Option<Chain> {
     let systems: Vec<i64> = sqlx::query_scalar!(
         r#"select solar_system_id as "solar_system_id!" from map_solar_systems
@@ -201,7 +205,12 @@ pub async fn chain_of(pool: &PgPool, map_id: i64) -> Option<Chain> {
     .into_iter()
     .filter_map(|row| Some((row.from_id?, row.to_id?)))
     .collect();
-    Some(Chain { systems, edges })
+    let ignored = crate::maps::ignored::ignored_ids(pool, map_id).await.ok()?;
+    Some(Chain {
+        systems,
+        edges,
+        ignored,
+    })
 }
 
 #[cfg(test)]

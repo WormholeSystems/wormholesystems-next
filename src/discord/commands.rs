@@ -6,9 +6,13 @@
 
 use serde_json::{Value, json};
 
+use crate::alerts::ships::JumpShip;
+use crate::alerts::{AlertDelivery, AlertKind, AlertMention, filters};
 use crate::auth::AppState;
+use crate::maps::alerts::SaveAlert;
+use crate::maps::{MapError, Role};
 
-use super::interactions::{CommandOption, Interaction, focused, option};
+use super::interactions::{CommandData, CommandOption, Interaction, Permission, focused, option};
 
 /// The command tree, as Discord wants it registered.
 pub fn definition() -> Value {
@@ -21,6 +25,8 @@ pub fn definition() -> Value {
                 "name": "account",
                 "description": "Show which WormholeSystems account this Discord user is linked to"
             },
+            alert_group("alert-dm", "Create an alert delivered to you by direct message", false),
+            alert_group("alert-channel", "Create an alert posted in this channel", true),
             {
                 "type": 2,
                 "name": "alerts",
@@ -75,6 +81,87 @@ pub fn definition() -> Value {
     })
 }
 
+/// One destination's worth of alert subcommands. Discord nests a command at most two deep,
+/// so the destination is a group and each kind is a subcommand under it; the channel group
+/// carries the mention options, which a direct message has no use for.
+fn alert_group(name: &str, description: &str, channel: bool) -> Value {
+    let map = json!({
+        "type": 3, "name": "map", "description": "Which map",
+        "required": true, "autocomplete": true
+    });
+    let system = json!({
+        "type": 3, "name": "system", "description": "Which system to watch",
+        "required": true, "autocomplete": true
+    });
+    let jumps = json!({
+        "type": 4, "name": "jumps", "description": "Within this many gate jumps",
+        "required": true, "min_value": 1, "max_value": 30
+    });
+    let ship = json!({
+        "type": 3, "name": "ship", "description": "Which hull's range to measure",
+        "required": true,
+        "choices": JumpShip::ALL.iter()
+            .map(|ship| json!({ "name": ship.label(), "value": ship.as_str() }))
+            .collect::<Vec<_>>()
+    });
+    let jdc = json!({
+        "type": 4, "name": "jdc", "description": "Jump Drive Calibration level",
+        "required": true, "min_value": 0, "max_value": 5
+    });
+    let from = json!({
+        "type": 3, "name": "from", "description": "Measure from this system through the chain",
+        "required": false, "autocomplete": true
+    });
+    let mention = json!({
+        "type": 3, "name": "mention", "description": "Who to ping",
+        "required": true,
+        "choices": [
+            { "name": "Nobody", "value": AlertMention::None.as_str() },
+            { "name": "Me", "value": AlertMention::Creator.as_str() },
+            { "name": "A role", "value": AlertMention::Role.as_str() },
+            { "name": "Everyone", "value": AlertMention::Everyone.as_str() }
+        ]
+    });
+    let role = json!({
+        "type": 8, "name": "role", "description": "The role to ping", "required": false
+    });
+
+    // Discord lists required options before optional ones, and rejects the other order.
+    let options = |required: Vec<Value>, optional: Vec<Value>| {
+        let mut all = required;
+        if channel {
+            all.push(mention.clone());
+        }
+        all.extend(optional);
+        if channel {
+            all.push(role.clone());
+        }
+        all
+    };
+    json!({
+        "type": 2,
+        "name": name,
+        "description": description,
+        "options": [
+            {
+                "type": 1, "name": "proximity",
+                "description": "The chain comes within gate jumps of a system",
+                "options": options(vec![map.clone(), system.clone(), jumps.clone()], vec![from])
+            },
+            {
+                "type": 1, "name": "jump-range",
+                "description": "A k-space exit lands within capital jump range of a system",
+                "options": options(vec![map.clone(), system, ship, jdc], vec![])
+            },
+            {
+                "type": 1, "name": "killmail",
+                "description": "Something dies within gate jumps of the chain",
+                "options": options(vec![map, jumps], vec![])
+            }
+        ]
+    })
+}
+
 /// Upload the command tree to Discord, replacing whatever is registered.
 ///
 /// Registered globally rather than per guild, so nothing has to track which servers WormholeSystems
@@ -113,6 +200,9 @@ pub async fn run(state: &AppState, interaction: &Interaction) -> String {
 
     match parse(&data.options) {
         Action::Account => account(state, user_id).await,
+        Action::AlertCreate(request) => {
+            create_alert(state, user_id, interaction, data, request).await
+        }
         Action::AlertsList { map } => alerts(state, user_id, map).await,
         Action::AlertsSetActive { alert, active } => {
             set_active(state, user_id, alert, active).await
@@ -135,6 +225,7 @@ pub async fn run(state: &AppState, interaction: &Interaction) -> String {
 #[derive(Debug, PartialEq)]
 enum Action<'a> {
     Account,
+    AlertCreate(AlertRequest),
     AlertsList {
         map: Option<&'a str>,
     },
@@ -154,12 +245,56 @@ enum Action<'a> {
     Nothing,
 }
 
+/// An alert as the command spelled it out, before anything is looked up.
+#[derive(Debug, PartialEq)]
+struct AlertRequest {
+    delivery: AlertDelivery,
+    kind: AlertKind,
+    map: Option<i64>,
+    system: Option<i64>,
+    from: Option<i64>,
+    jumps: Option<i64>,
+    ship: Option<JumpShip>,
+    jdc: Option<i64>,
+    /// Absent for a direct message, which pings nobody.
+    mention: Option<AlertMention>,
+    role: Option<String>,
+}
+
+fn parse_alert(group: &CommandOption, delivery: AlertDelivery) -> Action<'_> {
+    let Some(variant) = group.options.first() else {
+        return Action::Nothing;
+    };
+    let kind = match variant.name.as_str() {
+        "proximity" => AlertKind::Proximity,
+        "jump-range" => AlertKind::JumpRange,
+        "killmail" => AlertKind::Killmail,
+        other => return Action::Unknown(other),
+    };
+    let integer = |name: &str| option(&variant.options, name).and_then(|o| o.integer());
+    let string = |name: &str| option(&variant.options, name).and_then(|o| o.string());
+    Action::AlertCreate(AlertRequest {
+        delivery,
+        kind,
+        map: integer("map"),
+        system: integer("system"),
+        from: integer("from"),
+        jumps: integer("jumps"),
+        ship: string("ship").and_then(JumpShip::from_db),
+        jdc: integer("jdc"),
+        mention: string("mention").and_then(AlertMention::from_db),
+        role: string("role").map(str::to_string),
+    })
+}
+
 fn parse(options: &[CommandOption]) -> Action<'_> {
     let Some(sub) = options.first() else {
         return Action::Nothing;
     };
     match sub.name.as_str() {
         "account" => Action::Account,
+        "alert-dm" => parse_alert(sub, AlertDelivery::DiscordDm),
+        "alert-channel" => parse_alert(sub, AlertDelivery::DiscordChannel),
         "alerts" => {
             let Some(action) = sub.options.first() else {
                 return Action::Nothing;
@@ -231,6 +366,206 @@ async fn account(state: &AppState, user_id: i64) -> String {
         },
         if maps == 1 { "map" } else { "maps" }
     )
+}
+
+/// The name an alert made from Discord goes by on the settings page, from what it
+/// watches, since the command has nowhere to ask for one.
+fn alert_name(body: &SaveAlert, target: Option<&str>, origin: Option<&str>) -> String {
+    let target = target.unwrap_or("a system");
+    match body.kind {
+        AlertKind::Proximity => match origin {
+            Some(origin) => format!("{target} within {} jumps of {origin}", body.max_jumps),
+            None => format!("{target} within {} jumps", body.max_jumps),
+        },
+        AlertKind::JumpRange => format!(
+            "{} range of {target}",
+            body.ship_type.map(JumpShip::label).unwrap_or("Capital")
+        ),
+        AlertKind::Killmail => format!("Kills within {} jumps of the chain", body.max_jumps),
+    }
+}
+
+async fn system_name(state: &AppState, id: i64) -> Option<String> {
+    sqlx::query_scalar!("select name from solar_systems where id = $1", id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+}
+
+/// A role picked in Discord becomes one the map has registered, under the name Discord
+/// sent along, so the alert reads on the settings page like one made there.
+async fn register_role(
+    state: &AppState,
+    map_id: i64,
+    discord_role_id: &str,
+    name: Option<&str>,
+) -> Option<i64> {
+    sqlx::query_scalar!(
+        "insert into map_webhook_roles (map_id, name, discord_role_id) values ($1, $2, $3)
+         on conflict (map_id, discord_role_id) do update set name = excluded.name
+         returning id",
+        map_id,
+        name.unwrap_or(discord_role_id),
+        discord_role_id,
+    )
+    .fetch_one(&state.db)
+    .await
+    .ok()
+}
+
+/// What stands between a channel alert and the channel: the sender's own permissions
+/// there. A direct message needs none of this.
+fn denied_in_channel(interaction: &Interaction, mention: AlertMention) -> Option<&'static str> {
+    let Some(member) = interaction.member.as_ref() else {
+        return Some("Channel alerts are created from inside a server channel.");
+    };
+    if !member.can(Permission::ManageChannels) {
+        return Some("You need the Manage Channels permission to create an alert in this channel.");
+    }
+    if mention == AlertMention::Role && !member.can(Permission::ManageRoles) {
+        return Some("You need the Manage Roles permission to mention a role.");
+    }
+    if mention == AlertMention::Everyone && !member.can(Permission::MentionEveryone) {
+        return Some("You need the Mention Everyone permission to mention everyone.");
+    }
+    None
+}
+
+async fn create_alert(
+    state: &AppState,
+    user_id: i64,
+    interaction: &Interaction,
+    data: &CommandData,
+    request: AlertRequest,
+) -> String {
+    let Some(map_id) = request.map else {
+        return "Pick a map from the suggestions.".into();
+    };
+    let is_channel = request.delivery == AlertDelivery::DiscordChannel;
+    let mention = if is_channel {
+        request.mention.unwrap_or(AlertMention::None)
+    } else {
+        AlertMention::None
+    };
+
+    let (guild_id, channel_id) = if is_channel {
+        let (Some(guild), Some(channel)) = (&interaction.guild_id, &interaction.channel_id) else {
+            return "Channel alerts are created from inside a server channel.".into();
+        };
+        if let Some(denied) = denied_in_channel(interaction, mention) {
+            return denied.into();
+        }
+        (Some(guild.clone()), Some(channel.clone()))
+    } else {
+        (None, None)
+    };
+
+    // A direct message reaches only its creator, so seeing the map is enough; a channel
+    // post reaches a server, which is the manager's call, as it is on the settings page.
+    if is_channel {
+        match crate::maps::access::require_role(&state.db, map_id, user_id, Role::Manager).await {
+            Ok(_) => {}
+            Err(MapError::Forbidden) => {
+                return "Only map managers can create channel alerts.".into();
+            }
+            Err(_) => return "You do not have access to that map.".into(),
+        }
+    } else if !crate::maps::access::can_see(&state.db, map_id, user_id).await {
+        return "You do not have access to that map.".into();
+    }
+    let Some(map_name) = sqlx::query_scalar!("select name from maps where id = $1", map_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return "You do not have access to that map.".into();
+    };
+
+    let target = match (request.kind, request.system) {
+        (AlertKind::Killmail, _) => None,
+        (_, None) => return "Pick a system from the suggestions.".into(),
+        (_, Some(id)) => match system_name(state, id).await {
+            Some(name) => Some((id, name)),
+            None => return "That system is unavailable.".into(),
+        },
+    };
+    let origin = match request.from {
+        None => None,
+        Some(id) => match system_name(state, id).await {
+            Some(name) => Some((id, name)),
+            None => return "That starting point is unavailable.".into(),
+        },
+    };
+
+    let role_id = match (request.role.as_deref(), mention) {
+        (Some(role), AlertMention::Role) => {
+            match register_role(state, map_id, role, data.role_name(role)).await {
+                Some(id) => Some(id),
+                None => return "I could not register that role just now.".into(),
+            }
+        }
+        (Some(_), _) => return "Pick a role only when the mention is A role.".into(),
+        (None, _) => None,
+    };
+
+    let jumps = match (request.kind, request.jumps) {
+        (AlertKind::JumpRange, _) => 0,
+        (_, Some(jumps)) => jumps as i32,
+        (_, None) => return "Say how many jumps.".into(),
+    };
+    let mut body = SaveAlert {
+        name: String::new(),
+        kind: request.kind,
+        delivery: request.delivery,
+        map_webhook_id: None,
+        discord_guild_id: guild_id,
+        discord_channel_id: channel_id,
+        map_webhook_role_id: role_id,
+        mention,
+        target_solar_system_id: target.as_ref().map(|(id, _)| *id),
+        origin_solar_system_id: origin.as_ref().map(|(id, _)| *id),
+        max_jumps: jumps,
+        ship_type: request.ship,
+        jdc_level: request.jdc.map(|level| level as i32),
+        filters: Vec::new(),
+        filter_match: filters::Match::Any,
+    };
+    let target_name = target.as_ref().map(|(_, name)| name.as_str());
+    let origin_name = origin.as_ref().map(|(_, name)| name.as_str());
+    body.name = alert_name(&body, target_name, origin_name);
+
+    let saved = match crate::maps::alerts::check(&state.db, map_id, &body).await {
+        Ok(()) => crate::maps::alerts::create(&state.db, map_id, user_id, &body).await,
+        Err(err) => Err(err),
+    };
+    match saved {
+        Ok(_) => {}
+        Err(MapError::Validation(message)) => {
+            return format!("That alert is not right: {message}.");
+        }
+        Err(_) => return "I could not save that alert just now.".into(),
+    }
+
+    let target_name = target_name.unwrap_or("a system");
+    match (body.kind, origin_name) {
+        (AlertKind::Proximity, Some(origin)) => format!(
+            "Alert created for **{target_name}** within {jumps} jumps of **{origin}** through the **{map_name}** chain."
+        ),
+        (AlertKind::Proximity, None) => {
+            format!("Alert created for **{target_name}** within {jumps} jumps of **{map_name}**.")
+        }
+        (AlertKind::JumpRange, _) => format!(
+            "Alert created for exits within {:.1} ly of **{target_name}** on **{map_name}**.",
+            body.ship_type
+                .map(|ship| ship.max_range_ly(body.jdc_level.unwrap_or(0)))
+                .unwrap_or(0.0)
+        ),
+        (AlertKind::Killmail, _) => {
+            format!("Alert created for kills within {jumps} jumps of the **{map_name}** chain.")
+        }
+    }
 }
 
 async fn alerts(state: &AppState, user_id: i64, map_filter: Option<&str>) -> String {
@@ -350,6 +685,7 @@ async fn route(state: &AppState, user_id: i64, map_id: i64, system_id: i64) -> S
         &universe,
         &chain.systems,
         &chain.edges,
+        &chain.ignored,
         system_id,
         // Beyond this nobody is flying it anyway, and the search stays bounded.
         30,
@@ -400,7 +736,7 @@ pub async fn autocomplete(state: &AppState, interaction: &Interaction) -> Vec<Va
 
     match field.name.as_str() {
         "map" => maps_for(state, user_id, &typed).await,
-        "system" => systems_like(state, &typed).await,
+        "system" | "from" => systems_like(state, &typed).await,
         "alert" => alerts_for(state, user_id, &typed).await,
         _ => Vec::new(),
     }
@@ -505,7 +841,7 @@ mod tests {
         let definition = definition();
         assert_eq!(definition["name"], "wh");
         let subs = definition["options"].as_array().unwrap();
-        assert_eq!(subs.len(), 3);
+        assert_eq!(subs.len(), 5);
         for sub in subs {
             // Type 1 is a subcommand, type 2 a group of them.
             assert!(sub["type"] == 1 || sub["type"] == 2);
@@ -603,6 +939,217 @@ mod tests {
             )),
             Action::Unknown("wat")
         );
+    }
+
+    fn names(options: &Value) -> Vec<&str> {
+        options
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["name"].as_str().unwrap())
+            .collect()
+    }
+
+    /// Discord rejects a required option after an optional one, and validates the whole
+    /// tree on upload, so the exact option order is worth pinning per variant.
+    #[test]
+    fn each_destination_offers_every_kind_with_only_its_own_options() {
+        let definition = definition();
+        let subs = definition["options"].as_array().unwrap();
+        for (group, channel) in [("alert-dm", false), ("alert-channel", true)] {
+            let group = subs.iter().find(|s| s["name"] == group).unwrap();
+            assert_eq!(group["type"], 2);
+            assert_eq!(
+                names(&group["options"]),
+                vec!["proximity", "jump-range", "killmail"]
+            );
+            let variant = |name: &str| {
+                group["options"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|v| v["name"] == name)
+                    .unwrap()
+                    .clone()
+            };
+            let expected = |own: &[&'static str], optional: &[&'static str]| {
+                let mut all: Vec<&'static str> = own.to_vec();
+                if channel {
+                    all.push("mention");
+                }
+                all.extend(optional);
+                if channel {
+                    all.push("role");
+                }
+                all
+            };
+            assert_eq!(
+                names(&variant("proximity")["options"]),
+                expected(&["map", "system", "jumps"], &["from"])
+            );
+            assert_eq!(
+                names(&variant("jump-range")["options"]),
+                expected(&["map", "system", "ship", "jdc"], &[])
+            );
+            assert_eq!(
+                names(&variant("killmail")["options"]),
+                expected(&["map", "jumps"], &[])
+            );
+            for variant in group["options"].as_array().unwrap() {
+                let mut seen_optional = false;
+                for option in variant["options"].as_array().unwrap() {
+                    let required = option["required"] == true;
+                    assert!(
+                        !(required && seen_optional),
+                        "{}: required after optional",
+                        variant["name"]
+                    );
+                    seen_optional |= !required;
+                }
+            }
+        }
+        let ship =
+            &subs.iter().find(|s| s["name"] == "alert-dm").unwrap()["options"][1]["options"][2];
+        assert_eq!(ship["name"], "ship");
+        assert_eq!(
+            ship["choices"].as_array().unwrap().len(),
+            JumpShip::ALL.len()
+        );
+    }
+
+    /// The destination is the group and the kind the subcommand, so both are read off
+    /// the tree and every option comes from the leaf.
+    #[test]
+    fn an_alert_request_is_read_from_its_destination_and_kind() {
+        let channel = options(
+            r#"{"name":"wh","options":[{"name":"alert-channel","type":2,"options":[
+                 {"name":"proximity","type":1,"options":[
+                     {"name":"map","value":"7"},{"name":"system","value":"30000142"},
+                     {"name":"jumps","value":5},{"name":"mention","value":"role"},
+                     {"name":"from","value":"30000144"},{"name":"role","value":"77"}]}]}]}"#,
+        );
+        assert_eq!(
+            parse(&channel),
+            Action::AlertCreate(AlertRequest {
+                delivery: AlertDelivery::DiscordChannel,
+                kind: AlertKind::Proximity,
+                map: Some(7),
+                system: Some(30000142),
+                from: Some(30000144),
+                jumps: Some(5),
+                ship: None,
+                jdc: None,
+                mention: Some(AlertMention::Role),
+                role: Some("77".into()),
+            })
+        );
+
+        let dm = options(
+            r#"{"name":"wh","options":[{"name":"alert-dm","type":2,"options":[
+                 {"name":"jump-range","type":1,"options":[
+                     {"name":"map","value":"7"},{"name":"system","value":"30000142"},
+                     {"name":"ship","value":"carrier"},{"name":"jdc","value":4}]}]}]}"#,
+        );
+        assert_eq!(
+            parse(&dm),
+            Action::AlertCreate(AlertRequest {
+                delivery: AlertDelivery::DiscordDm,
+                kind: AlertKind::JumpRange,
+                map: Some(7),
+                system: Some(30000142),
+                from: None,
+                jumps: None,
+                ship: Some(JumpShip::Carrier),
+                jdc: Some(4),
+                mention: None,
+                role: None,
+            })
+        );
+
+        let stale = options(
+            r#"{"name":"wh","options":[{"name":"alert-dm","type":2,"options":[
+                 {"name":"skyhook","type":1}]}]}"#,
+        );
+        assert_eq!(parse(&stale), Action::Unknown("skyhook"));
+    }
+
+    fn body(kind: AlertKind) -> SaveAlert {
+        SaveAlert {
+            name: String::new(),
+            kind,
+            delivery: AlertDelivery::DiscordDm,
+            map_webhook_id: None,
+            discord_guild_id: None,
+            discord_channel_id: None,
+            map_webhook_role_id: None,
+            mention: AlertMention::None,
+            target_solar_system_id: None,
+            origin_solar_system_id: None,
+            max_jumps: 5,
+            ship_type: Some(JumpShip::Dreadnought),
+            jdc_level: Some(5),
+            filters: Vec::new(),
+            filter_match: filters::Match::Any,
+        }
+    }
+
+    /// The name is what the settings page and `/wh alerts list` show, so it has to say
+    /// what the alert watches without the person having typed anything.
+    #[test]
+    fn an_alert_made_from_discord_is_named_after_what_it_watches() {
+        assert_eq!(
+            alert_name(&body(AlertKind::Proximity), Some("Jita"), None),
+            "Jita within 5 jumps"
+        );
+        assert_eq!(
+            alert_name(&body(AlertKind::Proximity), Some("Jita"), Some("J123456")),
+            "Jita within 5 jumps of J123456"
+        );
+        assert_eq!(
+            alert_name(&body(AlertKind::JumpRange), Some("Jita"), None),
+            "Dreadnought range of Jita"
+        );
+        assert_eq!(
+            alert_name(&body(AlertKind::Killmail), None, None),
+            "Kills within 5 jumps of the chain"
+        );
+    }
+
+    fn interaction(json: &str) -> Interaction {
+        serde_json::from_str(json).unwrap()
+    }
+
+    /// Discord itself has already rejected the command for someone who cannot see the
+    /// channel; what it does not check is whether they may speak for it.
+    #[test]
+    fn a_channel_alert_needs_the_senders_own_permissions_there() {
+        let with = |permissions: u64| {
+            interaction(&format!(
+                r#"{{"type":2,"guild_id":"1","channel_id":"2","member":{{"permissions":"{permissions}"}}}}"#
+            ))
+        };
+        let manage_channels = Permission::ManageChannels as u64;
+        assert!(denied_in_channel(&with(0), AlertMention::None).is_some());
+        assert!(denied_in_channel(&with(manage_channels), AlertMention::None).is_none());
+        assert!(denied_in_channel(&with(manage_channels), AlertMention::Creator).is_none());
+        assert!(denied_in_channel(&with(manage_channels), AlertMention::Role).is_some());
+        assert!(denied_in_channel(&with(manage_channels), AlertMention::Everyone).is_some());
+        assert!(
+            denied_in_channel(
+                &with(manage_channels | Permission::ManageRoles as u64),
+                AlertMention::Role
+            )
+            .is_none()
+        );
+        assert!(
+            denied_in_channel(
+                &with(Permission::Administrator as u64),
+                AlertMention::Everyone
+            )
+            .is_none()
+        );
+        let in_dm = interaction(r#"{"type":2,"user":{"id":"42","username":"pilot"}}"#);
+        assert!(denied_in_channel(&in_dm, AlertMention::None).is_some());
     }
 
     #[test]

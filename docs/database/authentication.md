@@ -24,6 +24,11 @@ We use the **Authorization Code** flow (server-side app holding a client secret)
 short-lived handshake state — the CSRF `state`, plus a PKCE `code_verifier` if we
 adopt PKCE — is held in [`oauth_login_flows`](#oauth_login_flows) until the callback.
 
+A user may also mint **personal access tokens** for scripts and other tools. A token
+stands in for the user the way a session does, but it is presented as a bearer header
+rather than a cookie, and it is a long-lived secret the user hands out on purpose; see
+[`personal_access_tokens`](#personal_access_tokens) and [`docs/api.md`](../api.md).
+
 > **Scopes drive features.** Live pilot-location tracking (the
 > [viewer-vs-member line](./access.md#roles--capabilities)) requires the character to
 > have granted the location scope. A feature checks for a token of that character
@@ -200,3 +205,41 @@ redirect until the callback. Single-use.
 > **Open — state store.** This is classic ephemeral session data. Keep it as a
 > Postgres table (simple, transactional) or push it to a cache (Redis)? Modelled as a
 > table here; trivial to swap.
+
+---
+
+## `personal_access_tokens`
+
+A long-lived credential a user creates for a script or an integration, presented as
+`Authorization: Bearer <token>`. Only a hash of the token is kept: the plaintext is shown
+once, at creation, and never again.
+
+| Column         | Type              | Notes                                                    |
+|----------------|-------------------|----------------------------------------------------------|
+| `id`           | pk                |                                                          |
+| `user_id`      | fk users          | the account the token acts as                            |
+| `name`         | text              | what the user called it (the integration, the script)    |
+| `token_hash`   | text              | unique; SHA-256 of the plaintext, hex                    |
+| `last_used_at` | timestamptz, null | bumped on each authenticated request                     |
+| `expires_at`   | timestamptz, null | `null` lasts until revoked                               |
+| `created_at`   | timestamptz       |                                                          |
+
+**Invariants & expected behaviour**
+
+- A token belongs to exactly one user; deleting the user deletes its tokens.
+- **Only the hash is stored.** The plaintext is returned by the create call and nowhere
+  else: not in the list, not in logs. A leaked database does not leak usable tokens.
+- The plaintext is random, at least 128 bits of entropy, and carries a recognisable
+  prefix so one can be spotted in a log or a config file.
+- A request presenting a token acts as the token's **user**, with the user's *preferred*
+  character as the active one (the lowest character id when none is preferred). Every
+  authorization rule that applies to a session applies unchanged: the token grants no
+  more than the user could do signed in.
+- An unknown, revoked or expired token is refused with `401`, never quietly downgraded to
+  a guest: a client with a bad token must find out.
+- `last_used_at` is set on every successful authentication, so a user can tell a live
+  token from a forgotten one.
+- **Tokens are managed from a session only.** Listing, creating and revoking need the
+  session cookie; a bearer token cannot mint or revoke tokens, so a leaked one cannot
+  quietly make itself permanent.
+- `name` is required and at most 255 characters; an expiry, when given, is in the future.

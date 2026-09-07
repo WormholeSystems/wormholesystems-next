@@ -6,12 +6,15 @@
 
 pub mod access;
 pub mod alerts;
+pub mod background;
 pub mod command;
 pub mod connection;
 pub mod error;
+pub mod eve_scout;
 pub mod events;
 pub mod events_log;
 pub mod ghost;
+pub mod ignored;
 pub mod jumps;
 pub mod map;
 pub mod restore;
@@ -33,6 +36,7 @@ static HUB: std::sync::OnceLock<events::MapHub> = std::sync::OnceLock::new();
 pub fn hub() -> &'static events::MapHub {
     HUB.get_or_init(events::MapHub::default)
 }
+pub use background::{BackgroundMode, BackgroundStore};
 pub use connection::MapConnection;
 pub use error::{MapError, Result};
 pub use events::MapEvent;
@@ -204,6 +208,7 @@ text_enum! {
         Combat => "combat",
         Ore => "ore",
         Homefront => "homefront",
+        FactionWarfare => "faction_warfare",
         Unknown => "unknown",
     }
 }

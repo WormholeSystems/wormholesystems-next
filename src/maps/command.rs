@@ -16,8 +16,10 @@ use super::connection::{
     SetConnectionStatus,
 };
 use super::error::{MapError, Result};
+use super::eve_scout::AddEveScoutConnections;
 use super::events_log;
 use super::ghost::{AddGhostSystem, ResolveGhostSystem, RestoreGhostSystem};
+use super::ignored::{AddIgnoredSystem, ClearIgnoredSystems, RemoveIgnoredSystem};
 use super::jumps::{AddConnectionJump, RemoveConnectionJump, UpdateConnectionJump};
 use super::restore::{RemoveRestored, RestoreSystems};
 use super::signatures::{
@@ -31,8 +33,9 @@ use super::solar_system::{
 use super::tracking::TrackJump;
 use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
 use super::{
-    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, ghost, jumps, restore,
-    signatures, solar_system, tracking, watchlist,
+    Actor, MapConnection, MapSolarSystem, Role, Signature, connection, eve_scout, ghost, ignored,
+    jumps,
+    restore, signatures, solar_system, tracking, watchlist,
 };
 
 /// An open transaction, threaded through every `apply_*` so the write and its audit
@@ -95,6 +98,7 @@ pub enum MapCommand {
     AgeConnection(AgeConnection),
     ExpireConnections(ExpireConnections),
     TrackJump(TrackJump),
+    AddEveScoutConnections(AddEveScoutConnections),
     AddSignature(AddSignature),
     UpdateSignature(UpdateSignature),
     RemoveSignature(RemoveSignature),
@@ -109,6 +113,9 @@ pub enum MapCommand {
     AddWatchlistEntry(AddWatchlistEntry),
     SetWatchlistPinned(SetWatchlistPinned),
     RemoveWatchlistEntry(RemoveWatchlistEntry),
+    AddIgnoredSystem(AddIgnoredSystem),
+    RemoveIgnoredSystem(RemoveIgnoredSystem),
+    ClearIgnoredSystems(ClearIgnoredSystems),
 }
 
 /// What a command hands back to its caller.
@@ -121,6 +128,7 @@ pub enum CommandOutput {
     Signature(Box<Signature>),
     Jump(Box<super::jumps::ConnectionJump>),
     Watchlist(Box<super::watchlist::WatchlistEntry>),
+    Ignored(Box<super::ignored::IgnoredSystem>),
     Removal(Box<super::signatures::RemovedSignature>),
     BulkRemoval(Box<super::signatures::BulkRemoveOutcome>),
 }
@@ -163,6 +171,13 @@ impl CommandOutput {
     pub(super) fn watchlist(self) -> Result<super::watchlist::WatchlistEntry> {
         match self {
             CommandOutput::Watchlist(x) => Ok(*x),
+            other => Err(other.wrong()),
+        }
+    }
+
+    pub(super) fn ignored(self) -> Result<super::ignored::IgnoredSystem> {
+        match self {
+            CommandOutput::Ignored(x) => Ok(*x),
             other => Err(other.wrong()),
         }
     }
@@ -267,6 +282,7 @@ impl MapCommand {
             MapCommand::AgeConnection(c) => c.map_id,
             MapCommand::ExpireConnections(c) => c.map_id,
             MapCommand::TrackJump(c) => c.map_id,
+            MapCommand::AddEveScoutConnections(c) => c.map_id,
             MapCommand::AddSignature(c) => c.map_id,
             MapCommand::UpdateSignature(c) => c.map_id,
             MapCommand::RemoveSignature(c) => c.map_id,
@@ -281,13 +297,22 @@ impl MapCommand {
             MapCommand::AddWatchlistEntry(c) => c.map_id,
             MapCommand::SetWatchlistPinned(c) => c.map_id,
             MapCommand::RemoveWatchlistEntry(c) => c.map_id,
+            MapCommand::AddIgnoredSystem(c) => c.map_id,
+            MapCommand::RemoveIgnoredSystem(c) => c.map_id,
+            MapCommand::ClearIgnoredSystems(c) => c.map_id,
         }
     }
 
-    /// Every map mutation is Member+ today; the ceiling lives here so a new command
-    /// cannot forget its check.
+    /// The ceiling lives here so a new command cannot forget its check. Editing the graph
+    /// is Member+; the ignore list changes where everyone's routes and jumps go, so it is
+    /// a manager's call.
     pub(super) fn required_role(&self) -> Role {
-        Role::Member
+        match self {
+            MapCommand::AddIgnoredSystem(_)
+            | MapCommand::RemoveIgnoredSystem(_)
+            | MapCommand::ClearIgnoredSystems(_) => Role::Manager,
+            _ => Role::Member,
+        }
     }
 
     pub(super) async fn apply(self, tx: &mut Tx<'_>, actor: EventActor) -> Result<Effect> {
@@ -320,6 +345,9 @@ impl MapCommand {
             MapCommand::AgeConnection(c) => connection::apply_age_connection(tx, c).await,
             MapCommand::ExpireConnections(c) => connection::apply_expire_connections(tx, c).await,
             MapCommand::TrackJump(c) => tracking::apply_track_jump(tx, c).await,
+            MapCommand::AddEveScoutConnections(c) => {
+                eve_scout::apply_add_eve_scout_connections(tx, c).await
+            }
             MapCommand::AddSignature(c) => signatures::apply_add_signature(tx, c).await,
             MapCommand::UpdateSignature(c) => signatures::apply_update_signature(tx, c).await,
             MapCommand::RemoveSignature(c) => signatures::apply_remove_signature(tx, c).await,
@@ -334,6 +362,9 @@ impl MapCommand {
             MapCommand::AddWatchlistEntry(c) => watchlist::apply_add_entry(tx, c).await,
             MapCommand::SetWatchlistPinned(c) => watchlist::apply_set_pinned(tx, c).await,
             MapCommand::RemoveWatchlistEntry(c) => watchlist::apply_remove_entry(tx, c).await,
+            MapCommand::AddIgnoredSystem(c) => ignored::apply_add(tx, c).await,
+            MapCommand::RemoveIgnoredSystem(c) => ignored::apply_remove(tx, c).await,
+            MapCommand::ClearIgnoredSystems(c) => ignored::apply_clear(tx, c).await,
         }
         .map(|effect| {
             // Background writers never offer an undo.

@@ -26,7 +26,7 @@ const NODE_GAP_CELLS: f64 = 1.0;
 /// The first free slot beside `base`, then down that column: the client's `freePosition`,
 /// for placements made inside a command. Siblings stack under the first one rather than
 /// marching right across the map.
-fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
+pub(super) fn free_position(placed: &[(f64, f64)], base: (f64, f64)) -> (f64, f64) {
     let grid = super::grid();
     let node_h = 2.0 * grid.cell_size;
     let gap = NODE_GAP_CELLS * grid.cell_size;
@@ -107,6 +107,7 @@ pub(super) async fn reconcile(
                 map_id,
                 system_ids: raised,
                 connection_ids: Vec::new(),
+                signature_ids: Vec::new(),
             }));
         }
     }
@@ -335,6 +336,7 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
         map_id: cmd.map_id,
         system_ids: vec![ghost.id],
         connection_ids: vec![connection.id],
+        signature_ids: Vec::new(),
     }));
 
     let mut events = vec![MapEvent::SystemAdded {

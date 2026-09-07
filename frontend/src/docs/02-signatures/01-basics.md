@@ -15,15 +15,18 @@ A signature on the map records:
 
 ## Categories
 
-| Category  | Shown as             |
-| --------- | -------------------- |
-| Wormhole  | Wormhole             |
-| Data      | Data Site            |
-| Relic     | Relic Site           |
-| Combat    | Combat Site          |
-| Gas       | Gas Site             |
-| Ore       | Ore Site             |
-| Homefront | Homefront Operations |
+| Category          | Shown as               |
+| ----------------- | ---------------------- |
+| Wormhole          | Wormhole               |
+| Data              | Data Site              |
+| Relic             | Relic Site             |
+| Combat            | Combat Site            |
+| Gas               | Gas Site               |
+| Ore               | Ore Site               |
+| Homefront         | Homefront Operations   |
+| Factional Warfare | Factional Warfare Site |
+
+Factional Warfare sites are anomalies in the war zones. Their type names change with the war, so they are kept under their pasted name rather than a catalogue type.
 
 ## Why it matters
 

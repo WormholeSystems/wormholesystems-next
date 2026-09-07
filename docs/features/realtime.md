@@ -40,6 +40,8 @@ a half-applied push diff.
 | `ConnectionChanged` | `map_id`, `connection_id` | connection added / removed / state changed (incl. trigger-driven sync) |
 | `SignatureChanged` | `map_id`, `solar_system_id` | a signature added / edited / linked / unlinked / removed |
 | `AccessChanged` | `map_id` | a grant or role changed |
+| `WatchlistChanged` | `map_id` | a watchlist entry added / pinned / removed |
+| `IgnoredSystemsChanged` | `map_id` | the map's ignore list changed |
 
 Coarse on purpose: each variant names a slice the client re-reads. Finer payloads (e.g. the
 changed row inline) are an additive change later if refetch volume warrants it.

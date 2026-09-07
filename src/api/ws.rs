@@ -1,11 +1,11 @@
 //! The realtime WebSocket handlers: the per-map event stream and the per-user private
 //! channel / activity heartbeat.
 
+use crate::api::extract::Credentials;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum_extra::extract::CookieJar;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::auth::AppState;
@@ -18,14 +18,14 @@ use crate::user_channel::UserHub;
 pub async fn map_ws(
     Path(map_id): Path<i64>,
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let actor = crate::api::extract::session_actor(&state.db, &jar)
+    let actor = crate::api::extract::session_actor(&state.db, &creds)
         .await
         .ok()
         .flatten();
-    let token = crate::api::extract::share_cookie(&jar, map_id);
+    let token = crate::api::extract::share_cookie(&creds, map_id);
 
     match crate::maps::access::reader_for(&state.db, map_id, actor, token.as_deref()).await {
         Ok(_) => ws.on_upgrade(move |socket| stream_map_events(socket, state.hub, map_id)),
@@ -39,10 +39,10 @@ pub async fn map_ws(
 /// the tracking poller.
 pub async fn user_ws(
     State(state): State<AppState>,
-    jar: CookieJar,
+    creds: Credentials,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let actor = crate::api::extract::session_actor(&state.db, &jar)
+    let actor = crate::api::extract::session_actor(&state.db, &creds)
         .await
         .ok()
         .flatten();

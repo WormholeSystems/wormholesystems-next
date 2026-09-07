@@ -26,6 +26,8 @@ export const MAP_ACTIONS = {
 	setRally: { failed: 'Could not set the rally point' },
 	setNotes: { failed: 'Could not save the notes' },
 	assignSystem: { failed: 'Could not assign the system' },
+	// The hub may be anywhere on the map, and a list already mapped adds nothing visible.
+	addEveScout: { failed: 'Could not add the EVE Scout holes', done: 'EVE Scout holes added' },
 
 	// --- connections ---
 	addConnection: { failed: 'Could not connect the systems' },
@@ -56,6 +58,9 @@ export const MAP_ACTIONS = {
 	// --- the map's own state ---
 	watch: { failed: 'Could not add it to the watchlist' },
 	unwatch: { failed: 'Could not remove it from the watchlist' },
+	ignore: { failed: 'Could not add it to the ignore list' },
+	unignore: { failed: 'Could not remove it from the ignore list' },
+	clearIgnored: { failed: 'Could not clear the ignore list', done: 'Ignore list cleared' },
 	// The change may be anywhere on the map, including off screen. These three carry the step
 	// they walked past as their detail, so the toast says what moved.
 	undo: { failed: 'Could not undo', done: 'Undone' },

@@ -17,6 +17,11 @@ use wormholesystems::server_status::{ServerState, ServerStatus, ServerWatch};
 /// The real router with a test `AppState`. Auth and the server watch are stubs: nothing
 /// under test touches EVE, but every extractor and error mapping is the production one.
 pub fn app(pool: &PgPool) -> Router {
+    wormholesystems::api::router().with_state(state(pool))
+}
+
+/// The state the router runs on, for the code that takes it directly, such as the bot.
+pub fn state(pool: &PgPool) -> AppState {
     let http = reqwest::Client::new();
     let sso = Sso::stub(
         http.clone(),
@@ -27,7 +32,7 @@ pub fn app(pool: &PgPool) -> Router {
             scopes: Vec::new(),
         },
     );
-    let state = AppState {
+    AppState {
         auth: Arc::new(Auth::new(
             Arc::new(sso),
             wormholesystems::esi::EsiClient::new(),
@@ -50,8 +55,10 @@ pub fn app(pool: &PgPool) -> Router {
         }),
         discord: None,
         secure_cookies: false,
-    };
-    wormholesystems::api::router().with_state(state)
+        backgrounds: wormholesystems::maps::BackgroundStore::new(
+            std::env::temp_dir().join("ws-test-uploads"),
+        ),
+    }
 }
 
 /// A signed-in session for `actor`, as the cookie header value the browser would send.

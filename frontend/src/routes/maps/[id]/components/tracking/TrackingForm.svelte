@@ -33,9 +33,12 @@
 		$props();
 
 	let search = $state('');
-	// Preselected so jumping holes in scanner order costs one keystroke each.
+	// Preselecting makes jumping holes in scanner order one keystroke each, and a wrong
+	// guess confirmed by reflex one wrong link; whoever it is asks for it.
 	/* svelte-ignore state_referenced_locally */
-	let selected = $state<number | null>(prompt.groups.likely[0]?.id ?? null);
+	let selected = $state<number | null>(
+		map.userSettings?.preselect_signature ? (prompt.groups.likely[0]?.id ?? null) : null,
+	);
 	/* svelte-ignore state_referenced_locally */
 	let alias = $state(prompt.suggestedAlias ?? '');
 	let time = $state<TimeStatus>('stable');

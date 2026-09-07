@@ -8,6 +8,9 @@
 /data/sde/
 /data/sde.zip
 
+# What people upload (map background images). A volume in the container.
+/data/uploads/
+
 # Secrets — `.env.example` is committed, real `.env` is not
 .env
 .env.local

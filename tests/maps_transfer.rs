@@ -6,6 +6,7 @@ mod common;
 use common::{SYS_A, SYS_B, SYS_C, world};
 use sqlx::PgPool;
 use wormholesystems::maps::connection::{AddConnection, add_connection};
+use wormholesystems::maps::ignored::{AddIgnoredSystem, add_ignored_system, ignored_ids};
 use wormholesystems::maps::signatures::{
     AddSignature, LinkSignature, add_signature, link_signature,
 };
@@ -141,6 +142,16 @@ async fn populated_world(pool: &PgPool) -> common::World {
     .execute(pool)
     .await
     .unwrap();
+    add_ignored_system(
+        pool,
+        w.owner,
+        AddIgnoredSystem {
+            map_id: w.map_id,
+            solar_system_id: SYS_C,
+        },
+    )
+    .await
+    .unwrap();
     w
 }
 
@@ -209,6 +220,9 @@ async fn a_round_trip_reproduces_the_map(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(home, Some(SYS_A));
+
+    // So did the ignore list, as its own rows on the new map.
+    assert_eq!(ignored_ids(&pool, map.id).await.unwrap(), vec![SYS_C]);
 }
 
 #[sqlx::test]
@@ -510,6 +524,14 @@ async fn importing_routes_into_a_new_map_replaces_the_seeded_watchlist(pool: PgP
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].solar_system_id, SYS_B);
     assert!(entries[0].is_pinned);
+    assert_eq!(ignored_ids(&pool, map.id).await.unwrap(), vec![SYS_C]);
+
+    // Importing the same file again leaves one row, counted as updated rather than made.
+    let parsed = parse_export(&content, sections, true).unwrap();
+    let counts = import_map(&pool, w.owner, map.id, &parsed).await.unwrap();
+    assert_eq!(counts.routes.updated, 2);
+    assert_eq!(counts.routes.created, 0);
+    assert_eq!(ignored_ids(&pool, map.id).await.unwrap(), vec![SYS_C]);
 }
 
 #[sqlx::test]
@@ -520,4 +542,55 @@ async fn export_needs_manager_and_members_are_refused(pool: PgPool) {
         export_map(&pool, member, w.map_id, all_sections()).await,
         Err(MapError::Forbidden)
     ));
+}
+
+#[sqlx::test]
+async fn a_faction_warfare_signature_keeps_the_legacy_code_on_the_wire(pool: PgPool) {
+    let w = populated_world(&pool).await;
+    add_signature(
+        &pool,
+        w.owner,
+        AddSignature {
+            map_id: w.map_id,
+            solar_system_id: SYS_A,
+            signature_id: "MSA-264".into(),
+            group: SignatureGroup::FactionWarfare,
+            name: Some("Amarr Moderate NVY-3".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let file = export_map(&pool, w.owner, w.map_id, all_sections())
+        .await
+        .unwrap();
+    let row = file
+        .sections
+        .signatures
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .find(|s| s.signature_id.as_deref() == Some("MSA-264"))
+        .unwrap();
+    assert_eq!(
+        row.category.as_deref(),
+        Some("faction-warfare"),
+        "legacy spells the category with a hyphen, and reads it back that way"
+    );
+
+    let content = serde_json::to_string(&file).unwrap();
+    let parsed = parse_export(&content, all_sections(), true).unwrap();
+    let map = import_map_as_new(&pool, w.owner, parsed, None)
+        .await
+        .unwrap();
+    let group = sqlx::query_scalar!(
+        r#"select "group" as "group!: SignatureGroup" from signatures
+           where map_id = $1 and signature_id = 'MSA-264'"#,
+        map.id,
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(group, SignatureGroup::FactionWarfare);
 }

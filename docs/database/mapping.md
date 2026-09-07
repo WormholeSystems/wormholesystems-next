@@ -155,7 +155,7 @@ catalogue of signature groups and known wormhole types is
 | `map_id`          | fk maps          |                                                             |
 | `solar_system_id` | int              | SDE `_key` — the system the sig is in                       |
 | `signature_id`    | text             | in-game id, e.g. `ABC-123`                                  |
-| `group`           | enum             | `wormhole`, `data`, `relic`, `gas`, `combat`, `ore`, `homefront`, `unknown` |
+| `group`           | enum             | `wormhole`, `data`, `relic`, `gas`, `combat`, `ore`, `homefront`, `faction_warfare`, `unknown` |
 | `signature_type_id` | fk signature_types, null | the matched catalog type ([static reference](./static.md)) |
 | `name`            | text, null       | raw scanner type name when no catalog type matched          |
 | `size`            | enum, null       | `xl`, `large`, `medium`, `small` (wormholes)                |
@@ -252,6 +252,26 @@ client-side, so the row is just membership plus the pin flag.
 
 Mutations are Member+, reads Viewer+; every change publishes
 `MapEvent::WatchlistChanged`.
+
+---
+
+## `map_ignored_solar_systems`
+
+Systems the map as a whole keeps out of the way (legacy `map_ignored_solarsystems`):
+the router steers around them for everyone, server-side searches (the Discord `route`
+command, proximity and killmail alerts) never pass through them, and mapping as you fly
+never places them. Map-scoped and shared, unlike the viewer's own route-around list,
+which stays in the browser. The row is membership only.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | pk | |
+| `map_id` | fk maps | cascade |
+| `solar_system_id` | fk solar_systems | unique per map |
+
+Mutations are Manager+ (the list changes what every pilot on the map sees and where
+their jumps land), reads Viewer+; every change publishes
+`MapEvent::IgnoredSystemsChanged`.
 
 ---
 

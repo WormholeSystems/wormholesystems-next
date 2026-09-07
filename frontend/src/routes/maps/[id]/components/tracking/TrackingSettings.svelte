@@ -16,24 +16,41 @@
 	// switches that quietly do nothing.
 	const tracking = $derived(settings?.tracking_allowed ?? false);
 
-	const OPTIONS = [
+	const OPTIONS: {
+		key:
+			| 'prompt_for_signature'
+			| 'preselect_signature'
+			| 'suggest_alias'
+			| 'copy_bookmark'
+			| 'follow_character';
+		label: string;
+		hint: string;
+		/** A setting this one only means something under. */
+		needs?: 'prompt_for_signature';
+	}[] = [
 		{
-			key: 'prompt_for_signature' as const,
+			key: 'prompt_for_signature',
 			label: 'Ask which signature',
 			hint: 'Otherwise the hole is mapped without a signature linked.',
 		},
 		{
-			key: 'suggest_alias' as const,
+			key: 'preselect_signature',
+			label: 'Preselect the likeliest',
+			hint: 'The prompt opens with the best match chosen, so Enter confirms it.',
+			needs: 'prompt_for_signature',
+		},
+		{
+			key: 'suggest_alias',
 			label: 'Suggest an alias',
 			hint: "Prefills the next name in the chain's sequence.",
 		},
 		{
-			key: 'copy_bookmark' as const,
+			key: 'copy_bookmark',
 			label: 'Copy the bookmark',
 			hint: 'Puts the new bookmark on your clipboard once the jump is mapped.',
 		},
 		{
-			key: 'follow_character' as const,
+			key: 'follow_character',
 			label: 'Follow me',
 			hint: 'Selects the system you are in as you fly, so the cards keep up.',
 		},
@@ -91,7 +108,7 @@
 					</span>
 					<Switch
 						id="tracking-{option.key}"
-						disabled={!tracking}
+						disabled={!tracking || (option.needs !== undefined && !settings?.[option.needs])}
 						checked={settings?.[option.key] ?? false}
 						onCheckedChange={(v) => update(option.key, v)}
 						data-testid="setting-{option.key}"

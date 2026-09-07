@@ -9,6 +9,7 @@ import { api } from './client';
 export const key = {
 	me: ['me'] as const,
 	myCharacters: ['me', 'characters'] as const,
+	myTokens: ['me', 'tokens'] as const,
 	serverStatus: ['server-status'] as const,
 	// The myMaps list; also the prefix over every per-map subtree, so invalidating it
 	// refreshes the list and all open map data at once.
@@ -22,6 +23,7 @@ export const key = {
 	killmails: (id: number) => ['maps', id, 'killmails'] as const,
 	history: (id: number) => ['maps', id, 'history'] as const,
 	watchlist: (id: number) => ['maps', id, 'watchlist'] as const,
+	ignored: (id: number) => ['maps', id, 'ignored'] as const,
 	transferCounts: (id: number) => ['maps', id, 'transfer-counts'] as const,
 	stale: (id: number) => ['maps', id, 'stale-connections'] as const,
 	// Alerts, their events, webhooks and roles share this prefix: the alerts page edits
@@ -37,6 +39,7 @@ export const q = {
 	myCharacters: () => queryOptions({ queryKey: key.myCharacters, queryFn: api.myCharacters }),
 	myScopes: () => queryOptions({ queryKey: ['me', 'scopes'], queryFn: api.myScopes }),
 	myDiscord: () => queryOptions({ queryKey: ['me', 'discord'], queryFn: api.myDiscord }),
+	myTokens: () => queryOptions({ queryKey: key.myTokens, queryFn: api.myTokens }),
 
 	instance: () =>
 		queryOptions({ queryKey: ['instance'], queryFn: api.instance, staleTime: Infinity }),
@@ -84,6 +87,8 @@ export const q = {
 		queryOptions({ queryKey: key.history(id), queryFn: () => api.mapHistory(id) }),
 	listWatchlist: (id: number) =>
 		queryOptions({ queryKey: key.watchlist(id), queryFn: () => api.listWatchlist(id) }),
+	listIgnored: (id: number) =>
+		queryOptions({ queryKey: key.ignored(id), queryFn: () => api.listIgnored(id) }),
 	listStaleConnections: (id: number) =>
 		queryOptions({ queryKey: key.stale(id), queryFn: () => api.listStaleConnections(id) }),
 	transferCounts: (id: number) =>

@@ -23,11 +23,16 @@ describe('keysFor', () => {
 		expect(keysFor(1, event('watchlist_changed'))).toEqual([key.watchlist(1)]);
 	});
 
+	it('routes an ignore-list change to the ignore list alone', () => {
+		expect(keysFor(1, event('ignored_systems_changed'))).toEqual([key.ignored(1)]);
+	});
+
 	it('routes a history change to every slice, but not killmails or presence', () => {
 		expect(keysFor(1, event('history_changed'))).toEqual([
 			key.mapView(1),
 			key.signatures(1),
 			key.watchlist(1),
+			key.ignored(1),
 			key.history(1),
 			key.stale(1),
 		]);

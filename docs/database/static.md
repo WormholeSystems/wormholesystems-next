@@ -102,13 +102,20 @@ Primary key `(solar_system_id, wormhole_code)`.
 ## `signature_categories`
 
 *Source: `signatures.json` `categories`.* The cosmic-signature groups; `code` mirrors
-the [`signatures.group`](./mapping.md#signatures) enum.
+the [`signatures.group`](./mapping.md#signatures) enum. The one exception is the legacy
+code `faction-warfare`, which the enum spells `faction_warfare`; the import/export
+file keeps the legacy spelling so files still move between the two apps.
+
+Factional Warfare sites are anomalies that the scanner labels
+`Factional Warfare Site - Combat Site`, with a type name (`Amarr Scout BSC-1`,
+`Minmatar Large NVY-1`, ...) that rotates with the war. The catalogue carries the
+category only; the type stays the pasted raw name.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | pk | |
 | `name` | text | e.g. `Wormhole`, `Data Site` |
-| `code` | text, unique | `wormhole`, `data`, `relic`, `combat`, `gas`, `ore`, `homefront` |
+| `code` | text, unique | `wormhole`, `data`, `relic`, `combat`, `gas`, `ore`, `homefront`, `faction-warfare` |
 
 ## `signature_types`
 

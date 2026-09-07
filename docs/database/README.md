@@ -13,7 +13,8 @@ invariants and measure the implementation against them.
   `map_solar_system_details`, `signatures`, `map_connections`. The live graph: systems
   placed on a map and the wormhole / stargate connections between them.
 - **[Authentication](./authentication.md)** — `users`, `characters`, `tokens`,
-  `scopes`, `token_scopes`, `oauth_login_flows`. EVE SSO identity and ESI tokens.
+  `scopes`, `token_scopes`, `oauth_login_flows`, `personal_access_tokens`. EVE SSO
+  identity, ESI tokens, and the bearer tokens for scripts.
 - **[Access](./access.md)** — `map_access` and the role / capability model. Who can
   see and do what on a map.
 - **[Tracking](./tracking.md)** — `character_status`. Live ESI presence (location,

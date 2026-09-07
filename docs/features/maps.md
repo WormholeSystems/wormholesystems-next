@@ -81,6 +81,7 @@ requires; a user passes if their effective role is `>=` it.
 | View / list / get   | Viewer       |
 | Edit the graph (systems, connections) | Member |
 | Manage access (grant / revoke / set role) | Manager |
+| The map's ignore list (add / remove / clear) | Manager |
 | Modify the map (rename, settings, delete) | Owner |
 
 This mirrors the capability table in [access.md](../database/access.md#roles--capabilities).
@@ -327,6 +328,38 @@ Mark a connection's wormhole life-cycle state — works whether or not a signatu
   `connection_id` cleared (DB `on delete set null`).
 - **Invariant:** a connection id not on this map → `NotFound`.
 
+### `add_eve_scout_connections(actor, map_id, hub_solar_system_id, at?) -> count`
+
+Put EVE Scout's public holes out of a hub (Thera or Turnur) on the map in one step. The
+API fetches the current EVE Scout list (`GET /api/evescout`, see [Navigation](#navigation))
+and hands the hub's rows to the command; the command never talks to EVE Scout itself.
+
+- **Auth:** `Member`.
+- **Validates:** `hub_solar_system_id` is Thera or Turnur (else `Validation`). A row whose
+  far side is not in `solar_systems` is skipped, not fatal.
+- **Effect, in order, all idempotent:**
+  1. Place the hub if it is not on the map: at `at` when given, else at the map's
+     default spot, moved to the first free slot either way.
+  2. For each hole, sorted known space by security (highest first) then wormholes by
+     class: place the far system if it is not on the map, at the first free slot beside
+     the hub; siblings stack down the column.
+  3. Connect the hub and the far system unless any connection already joins the two
+     placements. A new one is a `wormhole` sized from EVE Scout's `max_ship_size`, then
+     given EVE Scout's mass and lifetime state. An existing one is left alone.
+  4. On each end, the signature EVE Scout names (a 7-character id; anything else is
+     skipped): a missing one is added as a `wormhole` with the identified type (the
+     `signature_types` row whose code is EVE Scout's `wh_type`, on both ends as the
+     legacy did) and the hole's state, then linked. An existing `unknown` or unlinked
+     `wormhole` signature is promoted, given the type when it has none, and linked; the
+     link's merge reconciles its state. A signature that is linked already, or scanned
+     as another group, is left as it is.
+- **Returns:** how many connections were added.
+- **Undo:** one step. Signatures that were promoted or linked go back to how they were
+  scanned; everything the command added (placements, connections, signatures) is
+  removed. A run that changed nothing records an audit row with no undo.
+- **Events:** `SystemAdded` per placement, `ConnectionChanged` per new connection,
+  `SignatureChanged` per system whose signatures changed.
+
 ---
 
 ## Signatures
@@ -398,6 +431,20 @@ when nothing matched.
 
 ---
 
+## Per-viewer background image
+
+`PUT /api/maps/{id}/background-image` (multipart, one `image` part), `GET` the same path
+to fetch it, `DELETE` to take it away. All three need viewer access; the file is the
+caller's own, so no role above that is involved and nobody else's view changes.
+
+- The upload replaces whatever was there and answers with the caller's full settings, the
+  same shape `GET /api/maps/{id}/settings/user` gives, now carrying
+  `background_image_url`. That URL points at the `GET` and changes with every upload.
+- Validation is on the bytes: PNG, JPEG, GIF or WebP by signature, 8 MiB at most. A part
+  that is not an image, or is too large, is a 400 with the reason; a body over the limit
+  is refused by the server before the handler runs.
+- The mode (`grid` or `viewport`) is an ordinary field of the settings update.
+
 ## Testing approach
 
 Every action has DB-backed tests using `#[sqlx::test]`, which provisions an **isolated
@@ -437,7 +484,44 @@ map's live wormhole edges, and optionally EVE Scout's public Thera/Turnur edges 
   `route_allow_time_status` (`stable`/`eol`/`critical` = worst lifetime still
   traversed), `route_allow_mass_status` (`stable`/`reduced`/`critical`), and
   `route_use_evescout`.
-- The ignore list (route-around systems) is client-side per map, deliberately not
-  server state.
+- Two ignore lists. The viewer's own route-around list is client-side per map,
+  deliberately not server state: it is a scratch decision for one trip. The map's
+  ignore list (`map_ignored_solar_systems`) is shared, see below.
+- EVE Scout's holes can also be put on the map, one hub at a time:
+  [`add_eve_scout_connections`](#add_eve_scout_connectionsactor-map_id-hub_solar_system_id-at---count).
 - `GET /api/routing-graph` also carries `jove` and `stations` system-id sets for the
   Find (closest systems) conditions.
+
+## Ignored systems
+
+`map_ignored_solar_systems` is the map-wide list of systems everyone steers around.
+Three things read it:
+
+- the client router leaves them out of every route, jump count and Find result, on top
+  of the viewer's own list;
+- the server searches (`alerts::proximity::nearest`, so the Discord `route` command and
+  the proximity / killmail alerts) never traverse one, except as the origin or the target
+  of the search itself;
+- `track_jump` refuses to place one: a tracked pilot flying through a trade hub does not
+  put the hub on the chain. A system already on the map stays reachable.
+
+### `list_ignored_systems(actor, map_id) -> Vec<IgnoredSystem>`
+
+Viewer+. Share-link watchers read it through the same unauthenticated path as the
+watchlist.
+
+### `add_ignored_system(actor, map_id, solar_system_id) -> IgnoredSystem`
+
+Manager+. Idempotent per map and system; an unknown system is `Validation`. Inverse is
+`remove_ignored_system`.
+
+### `remove_ignored_system(actor, map_id, solar_system_id)`
+
+Manager+. A system not on the list is `NotFound`. Inverse is `add_ignored_system`.
+
+### `clear_ignored_systems(actor, map_id) -> count`
+
+Manager+. Inverse re-adds every row it removed, as one history step.
+
+All three publish `MapEvent::IgnoredSystemsChanged { map_id }`. Import and export carry
+the list in the `routes.ignored_solarsystems` section of the legacy file format.

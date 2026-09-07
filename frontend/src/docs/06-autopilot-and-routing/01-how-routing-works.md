@@ -21,6 +21,8 @@ It runs a **weighted shortest-path search** (Dijkstra). Every link is an edge, a
 
 All routing settings are stored **per map, per user**. Tuning your own filters or preference never changes how the chain or routes look for anyone else.
 
+The one thing that is shared is the map's [ignore list](/documentation/organizing-your-map/pinning-and-ignore-list): systems a manager has taken out of every route on the map. The router treats them as if they were not there, on top of anything you have ignored yourself from a route.
+
 ## Defaults
 
 Out of the box, routing is tuned to "just get me there":

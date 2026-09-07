@@ -24,6 +24,9 @@ pub struct Config {
     /// Absent when the application has no Discord app configured, which is the normal
     /// state for a dev machine: the alerts UI still works, the bot half simply is not there.
     pub discord: Option<DiscordConfig>,
+    /// Where uploaded files (map background images) are kept. Relative to the working
+    /// directory unless absolute; in the container it is a volume, so it outlives updates.
+    pub uploads_dir: std::path::PathBuf,
 }
 
 /// What the Discord half of the integration needs.
@@ -60,6 +63,9 @@ impl Config {
             esi_base_url: std::env::var("ESI_BASE_URL")
                 .unwrap_or_else(|_| crate::esi::BASE_URL.to_string()),
             discord: discord_from_env(),
+            uploads_dir: nonempty("UPLOADS_DIR")
+                .map(Into::into)
+                .unwrap_or_else(|| std::path::PathBuf::from("data/uploads")),
         })
     }
 }

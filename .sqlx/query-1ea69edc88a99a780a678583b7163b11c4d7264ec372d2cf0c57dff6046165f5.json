@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select solar_system_id from map_ignored_solar_systems where map_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "solar_system_id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "map_ignored_solar_systems",
+            "name": "solar_system_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1ea69edc88a99a780a678583b7163b11c4d7264ec372d2cf0c57dff6046165f5"
+}

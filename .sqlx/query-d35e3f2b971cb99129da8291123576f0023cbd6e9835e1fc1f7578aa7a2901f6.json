@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select discord_guild_id from map_alerts where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "discord_guild_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "map_alerts",
+            "name": "discord_guild_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d35e3f2b971cb99129da8291123576f0023cbd6e9835e1fc1f7578aa7a2901f6"
+}
