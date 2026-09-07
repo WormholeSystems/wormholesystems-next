@@ -2,6 +2,7 @@
 	// Signatures for the active system: sortable columns, category filters, clipboard paste
 	// with diff tints and lazy delete, and per-row editing.
 	import ClipboardPasteIcon from '@lucide/svelte/icons/clipboard-paste';
+	import LayersIcon from '@lucide/svelte/icons/layers';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Rows2Icon from '@lucide/svelte/icons/rows-2';
 	import Rows3Icon from '@lucide/svelte/icons/rows-3';
@@ -22,11 +23,12 @@
 	import { q } from '$lib/api/queries';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import * as ToggleGroup from '$lib/components/ui/toggle-group';
+	import { Separator } from '$lib/components/ui/separator';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import MapPanel from '$lib/components/map-panel/MapPanel.svelte';
 	import MapPanelContent from '$lib/components/map-panel/MapPanelContent.svelte';
 	import MapPanelHeader from '$lib/components/map-panel/MapPanelHeader.svelte';
+	import { cn } from '$lib/utils';
 	import {
 		CATEGORIES,
 		compareSignatures,
@@ -76,10 +78,6 @@
 	$effect(() => {
 		writeStored('signatures-category-hidden-filters', hidden);
 	});
-	const activeFilters = $derived(
-		CATEGORIES.map((c) => c.group as string).filter((g) => !hidden.includes(g)),
-	);
-
 	// Default: id desc, ties by id ascending, nulls last.
 	const sort = sortState('signatures-sort', SORT_COLUMNS, { column: 'id', direction: 'desc' });
 
@@ -208,93 +206,172 @@
 			<span class="ml-1 text-muted-foreground/70">{hiddenCount} hidden</span>
 		{/if}
 		{#snippet actions()}
-			<Button
-				variant="ghost"
-				size="icon"
-				class="size-6 text-muted-foreground hover:text-foreground"
-				aria-label={compact
-					? 'Switch to comfortable signature list'
-					: 'Switch to compact signature list'}
-				title={compact
-					? 'Switch to comfortable signature list'
-					: 'Switch to compact signature list'}
-				data-testid="compact-toggle"
-				onclick={() => setSetting({ compact_signature_list: !compact })}
-			>
-				{#if compact}
-					<Rows2Icon class="size-3.5" />
-				{:else}
-					<Rows3Icon class="size-3.5" />
+			<Tooltip.Provider delayDuration={300}>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon"
+								class="size-6 text-muted-foreground hover:text-foreground"
+								aria-label={compact
+									? 'Switch to comfortable signature list'
+									: 'Switch to compact signature list'}
+								aria-pressed={compact}
+								data-testid="compact-toggle"
+								onclick={() => setSetting({ compact_signature_list: !compact })}
+							>
+								{#if compact}
+									<Rows2Icon class="size-3.5" />
+								{:else}
+									<Rows3Icon class="size-3.5" />
+								{/if}
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>
+						{compact ? 'Comfortable rows' : 'Compact rows'}
+					</Tooltip.Content>
+				</Tooltip.Root>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="ghost"
+								size="icon"
+								class={cn(
+									'relative size-6',
+									showStaticsFirst
+										? 'text-foreground hover:text-foreground'
+										: 'text-muted-foreground hover:text-foreground',
+								)}
+								aria-pressed={showStaticsFirst}
+								aria-label="Statics first in the wormhole type picker"
+								data-testid="statics-first-toggle"
+								onclick={() => setSetting({ show_statics_first: !showStaticsFirst })}
+							>
+								<LayersIcon class="size-3.5" />
+								{#if showStaticsFirst}
+									<span class="absolute inset-x-1.5 bottom-0.5 h-px bg-current"></span>
+								{/if}
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content>
+						Statics first in the type picker: {showStaticsFirst ? 'on' : 'off'}
+					</Tooltip.Content>
+				</Tooltip.Root>
+				<Separator orientation="vertical" class="mx-0.5 data-[orientation=vertical]:h-4" />
+				<div class="flex items-center gap-0.5">
+					{#each CATEGORIES as c (c.group)}
+						{@const shown = !hidden.includes(c.group)}
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="ghost"
+										size="icon"
+										class={cn(
+											'size-6',
+											shown ? c.color : 'text-muted-foreground/40 hover:text-muted-foreground',
+										)}
+										aria-pressed={shown}
+										aria-label={c.label}
+										data-testid="filter-{c.group}"
+										onclick={() => {
+											hidden = shown ? [...hidden, c.group] : hidden.filter((g) => g !== c.group);
+										}}
+									>
+										<c.icon class="size-3.5" />
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>{shown ? `Hide ${c.label}` : `Show ${c.label}`}</Tooltip.Content>
+						</Tooltip.Root>
+					{/each}
+				</div>
+				<Separator orientation="vertical" class="mx-0.5 data-[orientation=vertical]:h-4" />
+				{#if canWrite}
+					{#if pasted !== null}
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="ghost"
+										class="h-6 px-2 text-[11px] leading-none"
+										onclick={() => (pasted = null)}
+									>
+										Unselect
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>Drop the highlight from the last paste</Tooltip.Content>
+						</Tooltip.Root>
+					{/if}
+					{#if deletedSigs.length > 0}
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="destructive"
+										size="icon"
+										class="size-6"
+										aria-label="Delete missing signatures"
+										data-testid="delete-missing"
+										onclick={deleteMissing}
+									>
+										<TrashIcon class="size-3.5" />
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content>
+								Delete the {deletedSigs.length} missing and their connections
+							</Tooltip.Content>
+						</Tooltip.Root>
+					{/if}
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="ghost"
+									size="icon"
+									class="size-6 text-muted-foreground hover:text-foreground"
+									aria-label="Paste signatures"
+									data-testid="paste-clipboard"
+									onclick={pasteFromClipboard}
+								>
+									<ClipboardPasteIcon class="size-3.5" />
+								</Button>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content>Paste from the clipboard (Ctrl/Cmd + V)</Tooltip.Content>
+					</Tooltip.Root>
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="ghost"
+									size="icon"
+									class="size-6 text-muted-foreground hover:text-foreground"
+									aria-label="Create new signature"
+									data-testid="new-signature"
+									onclick={startCreate}
+								>
+									<PlusIcon class="size-3.5" />
+								</Button>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content>New signature</Tooltip.Content>
+					</Tooltip.Root>
 				{/if}
-			</Button>
-			<ToggleGroup.Root
-				type="multiple"
-				size="sm"
-				variant="outline"
-				value={activeFilters}
-				onValueChange={(values) => {
-					hidden = CATEGORIES.map((c) => c.group as string).filter((g) => !values.includes(g));
-				}}
-			>
-				{#each CATEGORIES as c (c.group)}
-					<ToggleGroup.Item
-						value={c.group}
-						aria-label={c.label}
-						title={c.label}
-						class="size-6 min-w-0"
-						data-testid="filter-{c.group}"
-					>
-						<c.icon class="size-3 {c.color}" />
-					</ToggleGroup.Item>
-				{/each}
-			</ToggleGroup.Root>
-			{#if canWrite}
-				{#if pasted !== null}
-					<Button
-						variant="ghost"
-						class="h-6 px-2 text-[11px] leading-none"
-						title="Unselect signatures"
-						onclick={() => (pasted = null)}
-					>
-						Unselect
-					</Button>
-				{/if}
-				{#if deletedSigs.length > 0}
-					<Button
-						variant="destructive"
-						size="icon"
-						class="size-6"
-						aria-label="Delete missing signatures"
-						title="Delete missing signatures and their connections"
-						data-testid="delete-missing"
-						onclick={deleteMissing}
-					>
-						<TrashIcon class="size-3.5" />
-					</Button>
-				{/if}
-				<Button
-					variant="ghost"
-					size="icon"
-					class="size-6 text-muted-foreground hover:text-foreground"
-					aria-label="Paste signatures"
-					title="Paste signatures from clipboard (Ctrl/Cmd + V)"
-					data-testid="paste-clipboard"
-					onclick={pasteFromClipboard}
-				>
-					<ClipboardPasteIcon class="size-3.5" />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon"
-					class="size-6 text-muted-foreground hover:text-foreground"
-					aria-label="Create new signature"
-					title="Create new signature"
-					data-testid="new-signature"
-					onclick={startCreate}
-				>
-					<PlusIcon class="size-3.5" />
-				</Button>
-			{/if}
+			</Tooltip.Provider>
 		{/snippet}
 	</MapPanelHeader>
 	<MapPanelContent>

@@ -20,7 +20,8 @@
 	import SovereigntyBadge from '$lib/components/SovereigntyBadge.svelte';
 	import RouteOriginBadge from './RouteOriginBadge.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import * as ToggleGroup from '$lib/components/ui/toggle-group';
+	import { Button } from '$lib/components/ui/button';
+	import { Separator } from '$lib/components/ui/separator';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { jumpTone } from '$lib/routing/algorithm';
 	import {
@@ -157,33 +158,40 @@
 						{/each}
 					</Tabs.List>
 				</Tabs.Root>
-				<ToggleGroup.Root
-					type="multiple"
-					size="sm"
-					variant="outline"
-					value={shown}
-					onValueChange={(v) => (shown = v)}
-					data-testid="skyhook-filters"
-				>
+				<Separator orientation="vertical" class="mx-0.5 data-[orientation=vertical]:h-4" />
+				<div class="flex items-center gap-0.5" data-testid="skyhook-filters">
 					{#each FILTERS as filter (filter.key)}
+						{@const on = shown.includes(filter.key)}
 						<Tooltip.Root>
 							<Tooltip.Trigger>
 								{#snippet child({ props })}
-									<ToggleGroup.Item
+									<Button
 										{...props}
-										value={filter.key}
-										aria-label={filter.label}
+										variant="ghost"
+										size="icon"
 										class="size-6"
+										aria-pressed={on}
+										aria-label={filter.label}
+										data-testid="skyhook-filter-{filter.key}"
+										onclick={() => {
+											shown = on ? shown.filter((k) => k !== filter.key) : [...shown, filter.key];
+										}}
 									>
-										<span class={cn('inline-block size-2 rounded-full', statusDot(filter.key))}
+										<span
+											class={cn(
+												'inline-block size-2 rounded-full',
+												on ? statusDot(filter.key) : 'bg-muted-foreground/30',
+											)}
 										></span>
-									</ToggleGroup.Item>
+									</Button>
 								{/snippet}
 							</Tooltip.Trigger>
-							<Tooltip.Content>{filter.label}</Tooltip.Content>
+							<Tooltip.Content
+								>{on ? `Hide ${filter.label}` : `Show ${filter.label}`}</Tooltip.Content
+							>
 						</Tooltip.Root>
 					{/each}
-				</ToggleGroup.Root>
+				</div>
 			{/snippet}
 		</MapPanelHeader>
 

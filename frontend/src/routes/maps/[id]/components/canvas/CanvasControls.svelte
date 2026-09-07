@@ -4,6 +4,7 @@
 	import WorkflowIcon from '@lucide/svelte/icons/workflow';
 
 	import type { MapState } from '../../state/map-state.svelte';
+	import BackgroundPopover from './BackgroundPopover.svelte';
 
 	let { map }: { map: MapState } = $props();
 </script>
@@ -44,8 +45,9 @@
 	data-testid="zoom-controls"
 	onpointerdown={(ev) => ev.stopPropagation()}
 >
+	<BackgroundPopover {map} />
 	<button
-		class="px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+		class="border-l border-border px-2.5 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
 		aria-label="Zoom out"
 		onclick={() => map.camera.zoomBy(-1)}
 	>

@@ -3,7 +3,6 @@
 	// never about one system.
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import EyeIcon from '@lucide/svelte/icons/eye';
-	import LayersIcon from '@lucide/svelte/icons/layers';
 	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 	import RadarIcon from '@lucide/svelte/icons/radar';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -48,7 +47,7 @@
 		reconnecting: 'Disconnected. Retrying, the map may be out of date',
 	} satisfies Record<typeof map.socket, string>;
 
-	function toggleSetting(key: 'tracking_allowed' | 'show_threat_level' | 'show_statics_first') {
+	function toggleSetting(key: 'tracking_allowed' | 'show_threat_level') {
 		const current = map.userSettings;
 		if (!current) return;
 		map
@@ -64,7 +63,7 @@
 	label: string,
 	on: boolean,
 	Icon: typeof EyeIcon,
-	key: 'tracking_allowed' | 'show_threat_level' | 'show_statics_first',
+	key: 'tracking_allowed' | 'show_threat_level',
 	testid: string,
 )}
 	<Tooltip.Root>
@@ -249,13 +248,6 @@
 				RadarIcon,
 				'show_threat_level',
 				'threat-toggle',
-			)}
-			{@render toggle(
-				'Statics first',
-				map.userSettings.show_statics_first,
-				LayersIcon,
-				'show_statics_first',
-				'statics-first-toggle',
 			)}
 		{/if}
 

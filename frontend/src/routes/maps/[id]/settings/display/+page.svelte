@@ -7,6 +7,12 @@
 	import { toast } from 'svelte-sonner';
 	import { page } from '$app/state';
 	import { userSettingsSaver } from '$lib/map/user-settings';
+	import {
+		ACCEPTED_IMAGE_TYPES,
+		BACKGROUND_MODES,
+		BACKGROUND_MODE_VALUES,
+		rejectImage,
+	} from '$lib/map/background';
 	import { KILLMAIL_FILTERS } from '$lib/map/killmails';
 	import { PLACEMENTS as BASE_PLACEMENTS } from '$lib/map/placement';
 	import { api } from '$lib/api/client';
@@ -18,7 +24,6 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
-	import type { BackgroundMode } from '$lib/api/types/BackgroundMode';
 	import type { MapLayout } from '$lib/api/types/MapLayout';
 	import type { KillmailScope } from '$lib/api/types/KillmailScope';
 	import { oneOf } from '$lib/lookup';
@@ -35,7 +40,6 @@
 
 	// The image goes as a file rather than a settings patch, so it has its own action.
 	const imageAction = apiAction(() => [key.userSettings(mapId)]);
-	const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 	let fileInput = $state<HTMLInputElement | null>(null);
 
 	function chooseImage(event: Event) {
@@ -44,18 +48,14 @@
 		// Cleared so picking the same file again after a removal fires change again.
 		input.value = '';
 		if (!file) return;
-		if (file.size > MAX_IMAGE_BYTES) {
-			toast.error('That image is over 8 MiB. Shrink it first.');
+		const reason = rejectImage(file);
+		if (reason) {
+			toast.error(reason);
 			return;
 		}
 		imageAction.mutate(() => api.uploadBackgroundImage(mapId, file));
 	}
 
-	const BACKGROUND_MODES: readonly { value: BackgroundMode; label: string }[] = [
-		{ value: 'grid', label: 'Moves with the map' },
-		{ value: 'viewport', label: 'Fills the panel' },
-	];
-	const BACKGROUND_MODE_VALUES = BACKGROUND_MODES.map((m) => m.value);
 	const backgroundMode = $derived(settings?.background_image_mode ?? 'grid');
 	const backgroundImage = $derived(settings?.background_image_url ?? null);
 
@@ -165,7 +165,7 @@
 				<input
 					bind:this={fileInput}
 					type="file"
-					accept="image/png,image/jpeg,image/gif,image/webp"
+					accept={ACCEPTED_IMAGE_TYPES}
 					class="hidden"
 					data-testid="background-image-input"
 					onchange={chooseImage}

@@ -10,12 +10,14 @@ on the map sees it, and you can have a different one on every map.
 
 ## Setting one
 
-Open the map's settings, go to **Display**, and use **Background image**. Pick a PNG, JPEG,
-GIF or WebP file of up to 8 MiB. It shows up behind the chain straight away, and stays with
-your account, so it follows you to another browser or machine.
+Click the picture button in the map's bottom-right corner, next to the zoom controls. Drop
+a file onto the box, or click it to pick one: a PNG, JPEG, GIF or WebP of up to 8 MiB. It
+shows up behind the chain straight away, and stays with your account, so it follows you to
+another browser or machine.
 
-**Replace** swaps it for another file, **Remove** takes it away and brings the plain grid
-back.
+The same box swaps it for another file, and **Remove** takes it away and brings the plain
+grid back. The map's settings page has the same controls under **Display**, if you would
+rather set it there.
 
 ## How it sits
 

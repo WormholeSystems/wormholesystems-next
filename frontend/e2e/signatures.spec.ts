@@ -243,16 +243,10 @@ test('compact toggle persists via map user settings', async ({ page, api }) => {
 
 	await gotoApp(page, `/maps/${mapId}?system=${J122515}`);
 	await page.getByTestId('compact-toggle').click();
-	await expect(page.getByTestId('compact-toggle')).toHaveAttribute(
-		'title',
-		'Switch to comfortable signature list',
-	);
+	await expect(page.getByTestId('compact-toggle')).toHaveAttribute('aria-pressed', 'true');
 	await page.reload();
 	await page.waitForSelector('html[data-hydrated="true"]');
-	await expect(page.getByTestId('compact-toggle')).toHaveAttribute(
-		'title',
-		'Switch to comfortable signature list',
-	);
+	await expect(page.getByTestId('compact-toggle')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('row actions: EOL color, preserve mass, copy bookmark', async ({ browser, api }) => {

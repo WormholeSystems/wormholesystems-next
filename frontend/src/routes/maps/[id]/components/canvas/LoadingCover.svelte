@@ -9,7 +9,7 @@
 
 	let { map, top }: { map: MapState; top: number } = $props();
 
-	const COVER_MS = 500;
+	const COVER_MS = 250;
 	let covered = $state(true);
 	$effect(() => {
 		// Re-covers when the map changes: switching maps rebuilds all of this, and the gap
@@ -34,7 +34,7 @@
 		)}
 		style:top="{top}px"
 		data-testid="map-loading"
-		out:fade={{ duration: 350 }}
+		out:fade={{ duration: 200 }}
 	>
 		<div class="flex flex-col items-center gap-5">
 			<svg class="size-9 animate-spin text-muted-foreground" viewBox="0 0 36 36" fill="none">
