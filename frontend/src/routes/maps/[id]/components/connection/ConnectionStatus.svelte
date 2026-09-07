@@ -14,6 +14,7 @@
 	let { connection, sigs }: { connection: MapConnection; sigs: Signature[] } = $props();
 
 	const clock = tickingMs();
+	const HOUR_MS = 3_600_000;
 
 	const typeMeta = $derived(
 		connection.kind === 'stargate'
@@ -36,16 +37,26 @@
 		}
 	});
 	// A mark's countdown replaces the threshold it stands for; before one, the class
-	// lifetime bounds what is left.
+	// lifetime bounds what is left, and without even that the status's own hint stands in.
 	const deadline = $derived(lifetimeDeadline(connection));
-	const lifetimeDetail = $derived.by(() => {
+	const lifetimeLeft = $derived.by(() => {
 		if (deadline === null) {
 			const hint = LIFETIME_OPTIONS.find((o) => o.value === connection.time_status)?.hint;
-			return hint ? `(${hint})` : null;
+			return hint ? { label: hint, text: lifetimeMeta.text } : null;
 		}
 		const left = formatRemaining(deadline.at, clock.current);
-		return deadline.estimated ? `up to ${left}` : `${left} left`;
+		return {
+			label: deadline.estimated ? `≈ ${left}` : left,
+			text: lifetimeTone(deadline.at - clock.current),
+		};
 	});
+	// The same thresholds a mark stands for, so an estimate reads in the mark's colour once
+	// it crosses them.
+	function lifetimeTone(remainingMs: number): string {
+		if (remainingMs < HOUR_MS) return 'text-red-500';
+		if (remainingMs < 4 * HOUR_MS) return 'text-purple-500';
+		return 'text-green-500';
+	}
 	const massMeta = $derived.by(() => {
 		const option = MASS_OPTIONS.find((o) => o.value === connection.mass_status);
 		if (!option) return { label: 'Unknown', text: 'text-muted-foreground', dot: 'bg-neutral-500' };
@@ -107,13 +118,19 @@
 				{:else}
 					<span>{lifetimeMeta.label}</span>
 				{/if}
-				{#if lifetimeDetail}
-					<span class="text-[10px] opacity-80" data-testid="popover-lifetime-detail">
-						{lifetimeDetail}
-					</span>
-				{/if}
 			</span>
 		</div>
+		{#if lifetimeLeft}
+			<div class="col-span-full grid grid-cols-subgrid">
+				<span>Lifetime left</span>
+				<span
+					class="text-right tabular-nums {lifetimeLeft.text}"
+					data-testid="popover-lifetime-detail"
+				>
+					{lifetimeLeft.label}
+				</span>
+			</div>
+		{/if}
 		<div class="col-span-full grid grid-cols-subgrid">
 			<span>Mass Status</span>
 			<span class="flex items-center justify-end gap-1.5 text-right {massMeta.text}">
