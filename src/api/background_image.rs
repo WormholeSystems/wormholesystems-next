@@ -3,11 +3,12 @@
 //! lives here, because a file does not travel well inside JSON.
 
 use super::extract::Credentials;
+use axum::Json;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use axum::{Json, Router};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::{ApiError, ApiResult, user_settings};
 use crate::auth::AppState;
@@ -18,17 +19,22 @@ use crate::maps::background::MAX_IMAGE_BYTES;
 /// checked against the real limit once it is out of the envelope.
 const UPLOAD_BODY_LIMIT: usize = MAX_IMAGE_BYTES + 64 * 1024;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/api/maps/{id}/background-image",
-            get(show).put(upload).delete(remove),
-        )
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(show, upload, remove))
         .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT))
 }
 
 /// `GET /api/maps/{id}/background-image`: the caller's own image on this map. The `?v=`
 /// the settings URL carries is only a cache key; the row says which file it is.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/background-image",
+    tag = "background image",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, description = "The image bytes", content_type = "image/*"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn show(
     State(state): State<AppState>,
     creds: Credentials,
@@ -59,8 +65,27 @@ async fn show(
         .into_response())
 }
 
+/// The one part the upload carries. Documentation only: the handler reads the multipart
+/// stream itself.
+#[derive(utoipa::ToSchema)]
+#[allow(dead_code)]
+struct BackgroundImageUpload {
+    /// PNG, JPEG, GIF or WebP, at most 8 MiB.
+    #[schema(value_type = String, format = Binary, content_media_type = "image/*")]
+    image: Vec<u8>,
+}
+
 /// `PUT /api/maps/{id}/background-image`: multipart with one `image` part. Replaces the
 /// previous image and answers with the caller's settings, URL included.
+#[utoipa::path(
+    put,
+    path = "/api/maps/{id}/background-image",
+    tag = "background image",
+    params(("id" = i64, Path, description = "The map")),
+    request_body(content = BackgroundImageUpload, content_type = "multipart/form-data"),
+    responses((status = 200, body = user_settings::MapUserSettings, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn upload(
     State(state): State<AppState>,
     creds: Credentials,
@@ -96,6 +121,14 @@ async fn upload(
 }
 
 /// `DELETE /api/maps/{id}/background-image`: back to the plain grid.
+#[utoipa::path(
+    delete,
+    path = "/api/maps/{id}/background-image",
+    tag = "background image",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = user_settings::MapUserSettings, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn remove(
     State(state): State<AppState>,
     creds: Credentials,

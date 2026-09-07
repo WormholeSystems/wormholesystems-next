@@ -8,7 +8,7 @@ pub const CARD_WINDOW_DAYS: i32 = 7;
 pub const CARD_LIMIT: i64 = 60;
 
 /// One entity as a killmail row names it: a portrait, and something to call them.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct KillParty {
     #[ts(optional)]
@@ -35,7 +35,7 @@ pub struct KillParty {
 }
 
 /// A killmail as the card shows it: what a row renders, not the raw payload.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapKillmail {
     pub id: i64,

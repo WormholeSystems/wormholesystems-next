@@ -82,6 +82,13 @@ processes:
     auto_restart: false
     restart_when_changed: []
     env: {}
+  Export OpenAPI document:
+    command: cargo test --test openapi
+    working_dir: null
+    auto_start: false
+    auto_restart: false
+    restart_when_changed: []
+    env: {}
   Seed SDE:
     command: cargo run -- seed
     working_dir: null

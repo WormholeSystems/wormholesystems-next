@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 const CHANNEL_CAPACITY: usize = 64;
 
 /// An event addressed to a single user.
-#[derive(Clone, Debug, Serialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UserEvent {

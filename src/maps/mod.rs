@@ -69,7 +69,7 @@ macro_rules! text_enum {
         // snake_case rather than lowercase: it agrees with the string each variant maps to,
         // which lowercase does not once a variant is two words (`LessSecure`). serde and
         // sqlx are told the same thing, so the wire and the database never disagree.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS, sqlx::Type)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema, sqlx::Type)]
         #[serde(rename_all = "snake_case")]
         #[sqlx(type_name = $pg, rename_all = "snake_case")]
         #[ts(export)]
@@ -79,7 +79,7 @@ macro_rules! text_enum {
     };
     ($(#[$m:meta])* $vis:vis enum $name:ident { $($(#[$vm:meta])* $variant:ident => $s:literal),+ $(,)? }) => {
         $(#[$m])*
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema)]
         #[serde(rename_all = "snake_case")]
         #[ts(export)]
         $vis enum $name { $($(#[$vm])* $variant),+ }
@@ -274,7 +274,7 @@ pub struct Actor {
 }
 
 /// The graph as seen by a viewer: the map plus its placed systems and connections.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapView {
     pub map: Map,
@@ -292,7 +292,7 @@ pub struct MapView {
 /// Map canvas geometry. Server-owned (built from env in `crate::config`), fetched by the
 /// client so layout has a single source of truth. Node height is `2 * cell_size`;
 /// dimensions are world-space px.
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct GridConfig {
     pub cell_size: f64,

@@ -6,8 +6,20 @@ title: Using the API
 
 Anything the map does, a script can do too. The map screen talks to WormholeSystems over
 a JSON API, and every part of it accepts a personal access token in place of being signed
-in. A small, stable part of it lives under `/api/v1/` in the same shape the previous
-version of WormholeSystems served, so a tool written against that keeps working.
+in. There is no separate, smaller API for scripts: what the screen uses is what you use.
+
+The API of the previous version of WormholeSystems is not carried over. A tool written
+against it needs to be pointed at the endpoints described below.
+
+## Finding your way around
+
+Open `/api/docs` on your instance. It is the full reference, generated from the server
+itself, so it is never out of date: every endpoint, what it takes, what it answers, and
+which role it needs. You can try calls from there once you have a token. The same
+document is served as `/api/openapi.json` for tools that generate clients from it.
+
+Live updates go over WebSockets, which that page cannot show. They are described in the
+repository under `docs/realtime-api.md`.
 
 ## Getting a token
 
@@ -25,13 +37,17 @@ revoke it from the same page and the leak stops there.
 Send the token as a bearer header:
 
 ```
-curl -H "Authorization: Bearer wst_..." https://your.instance/api/v1/maps
+curl -H "Authorization: Bearer wst_..." https://your.instance/api/maps
 ```
 
-The reads and writes available under `/api/v1/` are the map list, one map, renaming a
-map, and reading, placing, editing and removing a system on a map. Sovereignty for every
-claimed system is at `/api/v1/sovereignties` and needs no token. The full reference, with
-the shape of each response, is in the repository under `docs/api.md`.
+That lists your maps. Map actions are `POST` requests under `/api/maps/{id}/` with a JSON
+body that names the map again; the reference shows the body for each one.
+
+## Expect it to change
+
+WormholeSystems is pre-alpha, and the API follows the map screen. Endpoints get renamed and
+bodies gain and lose fields without notice. If a script stops working after an update,
+`/api/docs` is where to look for what moved.
 
 ## When a token stops working
 

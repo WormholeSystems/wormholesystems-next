@@ -15,7 +15,7 @@ use crate::maps::{Actor, MapError, Result};
 const PREFIX: &str = "wst_";
 
 /// A token as the account settings list it: everything except the secret.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct PersonalAccessToken {
     pub id: i64,
@@ -27,7 +27,7 @@ pub struct PersonalAccessToken {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CreateToken {
     pub name: String,
@@ -53,7 +53,7 @@ impl CreateToken {
 }
 
 /// The one response that carries the secret.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CreatedToken {
     pub token: PersonalAccessToken,

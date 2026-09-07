@@ -11,7 +11,7 @@ use super::command::{CommandOutput, Effect, MapCommand, Sequence, Tx, execute};
 use super::error::{MapError, Result};
 use super::{Actor, MapEvent, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct IgnoredSystem {
     pub id: i64,
@@ -70,7 +70,7 @@ pub(super) async fn is_ignored_tx(
     Ok(ignored.unwrap_or(false))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddIgnoredSystem {
     pub map_id: i64,
@@ -126,7 +126,7 @@ pub(super) async fn apply_add(tx: &mut Tx<'_>, cmd: AddIgnoredSystem) -> Result<
     .emit(MapEvent::IgnoredSystemsChanged { map_id: cmd.map_id }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveIgnoredSystem {
     pub map_id: i64,
@@ -168,7 +168,7 @@ pub(super) async fn apply_remove(tx: &mut Tx<'_>, cmd: RemoveIgnoredSystem) -> R
     .emit(MapEvent::IgnoredSystemsChanged { map_id: cmd.map_id }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ClearIgnoredSystems {
     pub map_id: i64,

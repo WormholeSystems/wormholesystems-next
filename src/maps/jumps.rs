@@ -19,7 +19,7 @@ use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
 use super::{Actor, MapEvent, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ConnectionJump {
     pub id: i64,
@@ -38,7 +38,9 @@ pub struct ConnectionJump {
 }
 
 /// Which way a manual jump went, relative to the connection's `from_system` endpoint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum JumpDirection {
@@ -90,7 +92,7 @@ where
     Ok(mass.unwrap_or(0.0).round() as i64)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddConnectionJump {
     pub map_id: i64,
@@ -168,7 +170,7 @@ pub(super) async fn apply_add_jump(tx: &mut Tx<'_>, cmd: AddConnectionJump) -> R
     .emit(event))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct UpdateConnectionJump {
     pub map_id: i64,
@@ -272,7 +274,7 @@ pub(super) async fn apply_update_jump(
     .emit(event))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveConnectionJump {
     pub map_id: i64,

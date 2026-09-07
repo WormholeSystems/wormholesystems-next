@@ -30,7 +30,9 @@ fn interval_secs() -> Duration {
 
 /// Which reagent a skyhook's planet yields, the only reason anyone sorts them. Derived from
 /// the type name rather than a list of type ids, so a new variant classifies itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum PlanetKind {
@@ -53,7 +55,7 @@ impl PlanetKind {
 }
 
 /// A raidable skyhook, enriched with everything a row displays.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Skyhook {
     pub planet_id: i64,

@@ -25,7 +25,7 @@ pub struct DiscordUser {
 }
 
 /// A linked account, as the frontend shows it.
-#[derive(Debug, Clone, serde::Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct DiscordAccount {
     pub discord_user_id: String,

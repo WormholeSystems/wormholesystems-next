@@ -2,11 +2,12 @@
 //! they have put their panels, and the toggles that are theirs alone rather than the
 //! map's.
 
+use axum::Json;
 use axum::extract::{Path, State};
-use axum::routing::get;
-use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use crate::maps::{
     BackgroundMode, KillmailScope, MapLayout, MassStatus, Role, RoutePreference, TimeStatus,
@@ -17,15 +18,12 @@ use super::layout::PanelLayouts;
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route(
-        "/api/maps/{id}/settings/user",
-        get(map_user_settings).post(update_map_user_settings),
-    )
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(map_user_settings, update_map_user_settings))
 }
 
 /// A user's per-map preferences.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapUserSettings {
     pub tracking_allowed: bool,
@@ -76,7 +74,7 @@ pub struct MapUserSettings {
 }
 
 /// Partial update of [`MapUserSettings`]; absent fields stay unchanged.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct UpdateMapUserSettings {
     #[serde(default)]
@@ -249,6 +247,14 @@ pub async fn load(db: &PgPool, map_id: i64, user_id: i64) -> Result<MapUserSetti
 
 /// `GET /api/maps/{id}/settings/user`: the caller's per-map preferences (defaults when
 /// no row exists yet). Requires any access to the map.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/settings/user",
+    tag = "user settings",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = MapUserSettings, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn map_user_settings(
     State(state): State<AppState>,
     creds: Credentials,
@@ -260,6 +266,15 @@ pub async fn map_user_settings(
 
 /// `POST /api/maps/{id}/settings/user`, partial update (upsert) of the caller's per-map
 /// preferences.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/settings/user",
+    tag = "user settings",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = UpdateMapUserSettings,
+    responses((status = 200, body = MapUserSettings, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn update_map_user_settings(
     State(state): State<AppState>,
     creds: Credentials,

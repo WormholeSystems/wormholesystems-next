@@ -14,7 +14,7 @@ use super::error::{MapError, Result};
 use super::view::{MapSystemView, sovereignty_of};
 use super::{Actor, AliasScheme, MapLayout, MapView, Role, SubjectType};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Map {
     pub id: i64,
@@ -41,7 +41,7 @@ pub struct Map {
 
 /// How a map names its chain. Map-wide rather than per-user: an alias is written on the
 /// map for everyone to read.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapNaming {
     /// `numeric` (`1`, `11`, `12`) or `alphabetical` (`A`, `AB`, with `H/L/N/P` reserved
@@ -99,7 +99,7 @@ macro_rules! map_from_row {
     }};
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CreateMap {
     pub name: String,
@@ -199,7 +199,7 @@ const TRADE_HUBS: [&str; 5] = ["Jita", "Amarr", "Dodixie", "Rens", "Hek"];
 
 /// A partial update of a map's fields. `None` leaves a field unchanged; `Some(None)`
 /// explicitly clears a nullable field.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct UpdateMap {
     pub map_id: i64,
@@ -315,7 +315,7 @@ pub async fn update_map(pool: &PgPool, actor: Actor, cmd: UpdateMap) -> Result<M
     Ok(map)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct DeleteMap {
     pub map_id: i64,
@@ -369,7 +369,7 @@ pub async fn list_maps(pool: &PgPool, user_id: i64) -> Result<Vec<(Map, Role)>> 
     Ok(out)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct GetMap {
     pub map_id: i64,

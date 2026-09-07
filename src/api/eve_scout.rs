@@ -2,10 +2,10 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::ApiResult;
 use super::extract::acting_on;
@@ -16,7 +16,7 @@ use crate::maps::{MassStatus, TimeStatus};
 /// A public wormhole out of Thera or Turnur, as EVE Scout's scouts have it. Oriented
 /// hub-first rather than in EVE Scout's in/out terms, and statuses normalized to WormholeSystems's
 /// own vocabulary.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct EveScoutConnection {
     pub hub_solar_system_id: i64,
@@ -40,10 +40,10 @@ pub struct EveScoutConnection {
     pub updated_at: Option<String>,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/evescout", get(eve_scout))
-        .route("/api/maps/{id}/evescout/add", post(add_to_map))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(eve_scout))
+        .routes(routes!(add_to_map))
 }
 
 /// Normalize one EVE Scout signature. Tolerant of shape drift: unknown fields default to
@@ -101,6 +101,13 @@ pub(crate) fn eve_scout_connection(sig: &serde_json::Value) -> Option<EveScoutCo
 
 /// `GET /api/evescout`, public Thera/Turnur connections, proxied and cached for 60s.
 /// Upstream failures degrade to an empty list.
+#[utoipa::path(
+    get,
+    path = "/api/evescout",
+    tag = "eve scout",
+    responses((status = 200, body = Vec<EveScoutConnection>, description = "OK")),
+    security(()),
+)]
 pub async fn eve_scout(State(_state): State<AppState>) -> ApiResult<Vec<EveScoutConnection>> {
     Ok(Json(cached_connections().await))
 }
@@ -125,7 +132,7 @@ async fn cached_connections() -> Vec<EveScoutConnection> {
 
 /// What the client sends to put a hub's holes on the map: the list itself is the server's,
 /// fetched fresh so a stale card cannot map holes that have since collapsed.
-#[derive(Debug, Clone, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddEveScoutToMap {
     pub map_id: i64,
@@ -141,6 +148,15 @@ pub struct AddEveScoutToMap {
 
 /// `POST /api/maps/{id}/evescout/add`, put every public hole out of one hub on the map.
 /// Member+. Answers with how many connections it added; the socket drives the refetch.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/evescout/add",
+    tag = "eve scout",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = AddEveScoutToMap,
+    responses((status = 200, body = u64, description = "How many connections were added"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn add_to_map(
     State(state): State<AppState>,
     creds: Credentials,

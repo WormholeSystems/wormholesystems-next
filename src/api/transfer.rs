@@ -6,13 +6,14 @@
 //! server validates the text the same way either way.
 
 use super::extract::Credentials;
+use axum::Json;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::{Json, Router};
 use serde::Deserialize;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::require_actor;
 use super::{ApiError, ApiResult};
@@ -26,17 +27,25 @@ use crate::maps::transfer::{
 /// ceiling.
 const IMPORT_BODY_LIMIT: usize = 32 * 1024 * 1024;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/maps/{id}/transfer/counts", get(counts))
-        .route("/api/maps/{id}/transfer/export", get(export))
-        .route("/api/maps/{id}/transfer/import", post(import))
-        .route("/api/maps/transfer/import-new", post(import_new))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(counts))
+        .routes(routes!(export))
+        .routes(routes!(import))
+        .routes(routes!(import_new))
         .layer(DefaultBodyLimit::max(IMPORT_BODY_LIMIT))
 }
 
 /// `GET /api/maps/{id}/transfer/counts`: how much of the map each section carries.
 /// Manager+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/transfer/counts",
+    tag = "transfer",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = TransferCounts, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn counts(
     State(state): State<AppState>,
     creds: Credentials,
@@ -46,7 +55,8 @@ async fn counts(
     Ok(Json(transfer_counts(&state.db, actor, map_id).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 struct ExportQuery {
     /// Comma-separated section names.
     sections: String,
@@ -54,6 +64,14 @@ struct ExportQuery {
 
 /// `GET /api/maps/{id}/transfer/export?sections=...`: the selected sections as a JSON file
 /// download. Manager+. A GET with a `content-disposition`, so the browser does the saving.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/transfer/export",
+    tag = "transfer",
+    params(("id" = i64, Path, description = "The map"), ExportQuery),
+    responses((status = 200, body = crate::maps::transfer::ExportFile, description = "The export, served as a file download"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn export(
     State(state): State<AppState>,
     creds: Credentials,
@@ -111,7 +129,7 @@ fn slug(name: &str) -> String {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct ImportBody {
     sections: Vec<String>,
     /// The uploaded file, verbatim.
@@ -120,6 +138,15 @@ struct ImportBody {
 
 /// `POST /api/maps/{id}/transfer/import`: merge a file's selected sections into the map.
 /// Manager+.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/transfer/import",
+    tag = "transfer",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = ImportBody,
+    responses((status = 200, body = ImportSummary, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn import(
     State(state): State<AppState>,
     creds: Credentials,
@@ -133,7 +160,7 @@ async fn import(
     Ok(Json(import_map(&state.db, actor, map_id, &parsed).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::ToSchema)]
 struct ImportNewBody {
     /// Overrides the file's map name when present.
     #[serde(default)]
@@ -144,6 +171,14 @@ struct ImportNewBody {
 
 /// `POST /api/maps/transfer/import-new`: create a fresh map from a file, owned by the
 /// acting character.
+#[utoipa::path(
+    post,
+    path = "/api/maps/transfer/import-new",
+    tag = "transfer",
+    request_body = ImportNewBody,
+    responses((status = 200, body = crate::maps::Map, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 async fn import_new(
     State(state): State<AppState>,
     creds: Credentials,

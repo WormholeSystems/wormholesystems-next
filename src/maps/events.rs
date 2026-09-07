@@ -20,7 +20,7 @@ const CHANNEL_CAPACITY: usize = 128;
 
 /// A change to a map that its viewers should react to. Carries ids, not data: consumers
 /// refetch the named slice.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MapEvent {

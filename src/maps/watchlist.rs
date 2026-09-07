@@ -10,7 +10,7 @@ use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
 use super::{Actor, MapEvent, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct WatchlistEntry {
     pub id: i64,
@@ -43,7 +43,7 @@ pub async fn read_watchlist(pool: &PgPool, map_id: i64) -> Result<Vec<WatchlistE
     Ok(entries)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddWatchlistEntry {
     pub map_id: i64,
@@ -86,7 +86,7 @@ pub(super) async fn apply_add_entry(tx: &mut Tx<'_>, cmd: AddWatchlistEntry) -> 
     .emit(MapEvent::WatchlistChanged { map_id: cmd.map_id }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetWatchlistPinned {
     pub map_id: i64,
@@ -144,7 +144,7 @@ fn label_kind(pinned: bool) -> &'static str {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveWatchlistEntry {
     pub map_id: i64,

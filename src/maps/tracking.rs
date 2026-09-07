@@ -20,7 +20,7 @@ use super::signatures::{LinkSignature, UnlinkSignature, UpdateSignature};
 use super::solar_system::{AddSystem, SetAlias};
 use super::{ConnectionType, MapEvent, MassStatus, SignatureGroup, TimeStatus, WormholeSize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct TrackJump {
     pub map_id: i64,

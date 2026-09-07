@@ -3,10 +3,10 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ShareQuery, acting_on, read_map_as, require_actor};
 use super::{ApiError, ApiResult};
@@ -20,7 +20,7 @@ use crate::maps::jumps::{
 };
 
 /// A ship type matched by the manual-jump ship search.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ShipSearchResult {
     pub id: i64,
@@ -30,45 +30,33 @@ pub struct ShipSearchResult {
     pub mass: Option<f64>,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/ships/search", get(search_ships))
-        .route("/api/maps/{id}/connections/add", post(add_connection))
-        .route(
-            "/api/maps/{id}/connections/set-status",
-            post(set_connection_status),
-        )
-        .route("/api/maps/{id}/connections/remove", post(remove_connection))
-        .route(
-            "/api/maps/{id}/connections/{cid}/jumps",
-            get(list_connection_jumps),
-        )
-        .route(
-            "/api/maps/{id}/connections/jumps/add",
-            post(add_connection_jump),
-        )
-        .route(
-            "/api/maps/{id}/connections/jumps/update",
-            post(update_connection_jump),
-        )
-        .route(
-            "/api/maps/{id}/connections/jumps/remove",
-            post(remove_connection_jump),
-        )
-        .route(
-            "/api/maps/{id}/connections/stale",
-            get(list_stale_connections),
-        )
-        .route(
-            "/api/maps/{id}/connections/clean-stale",
-            post(clean_stale_connections),
-        )
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(search_ships))
+        .routes(routes!(add_connection))
+        .routes(routes!(set_connection_status))
+        .routes(routes!(remove_connection))
+        .routes(routes!(list_connection_jumps))
+        .routes(routes!(add_connection_jump))
+        .routes(routes!(update_connection_jump))
+        .routes(routes!(remove_connection_jump))
+        .routes(routes!(list_stale_connections))
+        .routes(routes!(clean_stale_connections))
 }
 
 /// `POST /api/maps/{id}/connections/add`
 ///
 /// The ghost guard sits here, not in the command: raising a ghost creates the one connection
 /// an unmapped hole may have, and that goes through the same command from the inside.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/add",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = AddConnection,
+    responses((status = 200, body = MapConnection, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn add_connection(
     State(state): State<AppState>,
     creds: Credentials,
@@ -96,6 +84,15 @@ pub async fn add_connection(
     Ok(Json(conn))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/set-status",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = SetConnectionStatus,
+    responses((status = 200, body = MapConnection, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn set_connection_status(
     State(state): State<AppState>,
     creds: Credentials,
@@ -107,6 +104,15 @@ pub async fn set_connection_status(
     Ok(Json(conn))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/remove",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = RemoveConnection,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn remove_connection(
     State(state): State<AppState>,
     creds: Credentials,
@@ -119,6 +125,14 @@ pub async fn remove_connection(
 }
 
 /// `GET /api/maps/{id}/connections/{cid}/jumps`: the latest 10 jump-log rows.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/connections/{cid}/jumps",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map"), ("cid" = i64, Path, description = "The connection"), ShareQuery),
+    responses((status = 200, body = Vec<ConnectionJump>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security((), ("bearer" = []), ("session" = [])),
+)]
 pub async fn list_connection_jumps(
     State(state): State<AppState>,
     creds: Credentials,
@@ -130,6 +144,15 @@ pub async fn list_connection_jumps(
     Ok(Json(jumps))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/jumps/add",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = AddConnectionJump,
+    responses((status = 200, body = ConnectionJump, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn add_connection_jump(
     State(state): State<AppState>,
     creds: Credentials,
@@ -141,6 +164,15 @@ pub async fn add_connection_jump(
     Ok(Json(jump))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/jumps/update",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = UpdateConnectionJump,
+    responses((status = 200, body = ConnectionJump, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn update_connection_jump(
     State(state): State<AppState>,
     creds: Credentials,
@@ -152,6 +184,15 @@ pub async fn update_connection_jump(
     Ok(Json(jump))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/jumps/remove",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = RemoveConnectionJump,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn remove_connection_jump(
     State(state): State<AppState>,
     creds: Credentials,
@@ -164,6 +205,14 @@ pub async fn remove_connection_jump(
 }
 
 /// `GET /api/maps/{id}/connections/stale`, edges that have been critical for over an hour.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/connections/stale",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = Vec<StaleConnection>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn list_stale_connections(
     State(state): State<AppState>,
     creds: Credentials,
@@ -176,6 +225,15 @@ pub async fn list_stale_connections(
 
 /// `POST /api/maps/{id}/connections/clean-stale`, sweep them, and the placements they
 /// orphan, as one undoable change.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/connections/clean-stale",
+    tag = "connections",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = CleanStaleConnections,
+    responses((status = 200, body = u64, description = "How many connections were removed"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn clean_stale_connections(
     State(state): State<AppState>,
     creds: Credentials,
@@ -187,13 +245,23 @@ pub async fn clean_stale_connections(
     Ok(Json(removed))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ShipSearchQuery {
+    /// Part of a ship type name.
     pub q: String,
 }
 
 /// `GET /api/ships/search?q=`, published ship types (SDE category 6) by name, with
 /// hull mass for the manual-jump form. Reference data, no actor check.
+#[utoipa::path(
+    get,
+    path = "/api/ships/search",
+    tag = "connections",
+    params(ShipSearchQuery),
+    responses((status = 200, body = Vec<ShipSearchResult>, description = "OK")),
+    security(()),
+)]
 pub async fn search_ships(
     State(state): State<AppState>,
     Query(query): Query<ShipSearchQuery>,

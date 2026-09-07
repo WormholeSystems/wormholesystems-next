@@ -9,7 +9,7 @@ use super::error::Result;
 /// A static wormhole a system always has, plus the class it leads to (`dest_class` is the
 /// `wormhole_class_id` encoding; `None` for the few codes with no fixed destination) and
 /// the hole physics for the static tooltip.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Static {
     pub code: String,
@@ -60,7 +60,7 @@ pub async fn statics_for(
 
 /// One buff/debuff a wormhole effect applies, for the node's effect popover. `kind` is the
 /// effect strength tier; `stat` is what it modifies; `value` is the (already-formatted) amount.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct EffectModifier {
     pub kind: String,
@@ -96,7 +96,7 @@ pub async fn effect_modifiers(
 
 /// Who holds sovereignty in a system. The variant *is* the holder kind, so the node knows
 /// which EVE image endpoint to use for the icon; only alliances/corps carry a ticker.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Sovereignty {
@@ -151,7 +151,7 @@ pub fn sovereignty_of(
 // the larger one would put the wire type behind an indirection to save bytes on a value
 // that is built once per node and serialised immediately.
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MapSystemView {

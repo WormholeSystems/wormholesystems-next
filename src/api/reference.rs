@@ -3,10 +3,10 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::require_actor;
 use super::{ApiError, ApiResult};
@@ -15,7 +15,7 @@ use crate::maps::view::{sovereignty_of, statics_for};
 use crate::maps::{EffectModifier, GridConfig};
 
 /// A solar system matched by the "add system" search, with just enough to display and pick.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SystemSearchResult {
     pub id: i64,
@@ -33,7 +33,7 @@ pub struct SystemSearchResult {
 }
 
 /// One organisation in a system's threat top list.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ThreatEntity {
     pub id: i64,
@@ -43,7 +43,7 @@ pub struct ThreatEntity {
 }
 
 /// A wormhole system's threat analysis, for the threat card.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ThreatAnalysis {
     pub threat_level: crate::maps::ThreatLevel,
@@ -51,23 +51,23 @@ pub struct ThreatAnalysis {
     pub entities: Vec<ThreatEntity>,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/instance", get(instance))
-        .route("/api/grid-config", get(grid_config))
-        .route("/api/effects", get(effect_modifiers))
-        .route("/api/systems/search", get(search_systems))
-        .route("/api/systems/resolve", get(resolve_systems))
-        .route("/api/routing-graph", get(routing_graph))
-        .route("/api/threat/{solar_system_id}", get(threat_analysis))
-        .route("/api/server-status", get(server_status))
-        .route("/api/skyhooks", get(skyhooks))
-        .route("/api/reference-counts", get(reference_counts))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(instance))
+        .routes(routes!(grid_config))
+        .routes(routes!(effect_modifiers))
+        .routes(routes!(search_systems))
+        .routes(routes!(resolve_systems))
+        .routes(routes!(routing_graph))
+        .routes(routes!(threat_analysis))
+        .routes(routes!(server_status))
+        .routes(routes!(skyhooks))
+        .routes(routes!(reference_counts))
 }
 
 /// How much of New Eden this install has loaded. The landing page states these, so they
 /// are the real contents of this database rather than numbers written into a page.
-#[derive(Serialize, ts_rs::TS)]
+#[derive(Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ReferenceCounts {
     pub solar_systems: i64,
@@ -78,6 +78,13 @@ pub struct ReferenceCounts {
 
 /// `GET /api/reference-counts`: how much static data is seeded. Changes only when a new
 /// SDE build is loaded.
+#[utoipa::path(
+    get,
+    path = "/api/reference-counts",
+    tag = "reference",
+    responses((status = 200, body = ReferenceCounts, description = "OK")),
+    security(()),
+)]
 pub async fn reference_counts(State(state): State<AppState>) -> ApiResult<ReferenceCounts> {
     let row = sqlx::query!(
         r#"select
@@ -99,13 +106,13 @@ pub async fn reference_counts(State(state): State<AppState>) -> ApiResult<Refere
 /// What this deployment can actually do, so the interface can say what is switched off
 /// rather than offering something that will quietly never arrive. Self-hosters configure
 /// Discord separately from the rest, and most of them do not configure it at all.
-#[derive(Serialize, ts_rs::TS)]
+#[derive(Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Instance {
     pub discord: DiscordCapability,
 }
 
-#[derive(Serialize, ts_rs::TS)]
+#[derive(Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct DiscordCapability {
     /// Whether an account can be linked at all: the OAuth half of the application.
@@ -117,6 +124,13 @@ pub struct DiscordCapability {
 
 /// `GET /api/instance`: what this deployment has switched on. No actor check; it says
 /// nothing an anonymous visitor could not infer from which buttons appear.
+#[utoipa::path(
+    get,
+    path = "/api/instance",
+    tag = "reference",
+    responses((status = 200, body = Instance, description = "OK")),
+    security(()),
+)]
 pub async fn instance(State(state): State<AppState>) -> ApiResult<Instance> {
     Ok(Json(Instance {
         discord: DiscordCapability {
@@ -130,18 +144,36 @@ pub async fn instance(State(state): State<AppState>) -> ApiResult<Instance> {
 }
 
 /// `GET /api/grid-config`: the server-owned map canvas geometry.
+#[utoipa::path(
+    get,
+    path = "/api/grid-config",
+    tag = "reference",
+    responses((status = 200, body = GridConfig, description = "OK")),
+    security(()),
+)]
 pub async fn grid_config(State(state): State<AppState>) -> ApiResult<GridConfig> {
     Ok(Json(state.grid))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct EffectsQuery {
+    /// The effect, as the map names it (`Pulsar`, `Wolf-Rayet Star`, ...).
     pub name: String,
+    /// The wormhole class the effect applies at.
     pub class: i32,
 }
 
 /// `GET /api/effects?name=&class=`: the buffs/debuffs a wormhole effect applies at a
 /// system's class. Reference data, so no actor/role check.
+#[utoipa::path(
+    get,
+    path = "/api/effects",
+    tag = "reference",
+    params(EffectsQuery),
+    responses((status = 200, body = Vec<EffectModifier>, description = "OK")),
+    security(()),
+)]
 pub async fn effect_modifiers(
     State(state): State<AppState>,
     Query(query): Query<EffectsQuery>,
@@ -150,8 +182,10 @@ pub async fn effect_modifiers(
     Ok(Json(mods))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct SearchQuery {
+    /// What to look for; at least two characters.
     pub q: String,
 }
 
@@ -159,6 +193,14 @@ pub struct SearchQuery {
 /// first, then shorter names, then alphabetical. Returns nothing for queries under 2 chars.
 /// The ranking query only picks ids; [`systems_for`] builds the rows, so search and resolve
 /// cannot drift apart in what they return.
+#[utoipa::path(
+    get,
+    path = "/api/systems/search",
+    tag = "reference",
+    params(SearchQuery),
+    responses((status = 200, body = Vec<SystemSearchResult>, description = "OK"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn search_systems(
     State(state): State<AppState>,
     creds: Credentials,
@@ -197,7 +239,7 @@ pub async fn search_systems(
 /// The static half of the routing graph, typed and built once: k-space stargate
 /// adjacency (Zarzakh excluded since its gates are faction-gated), per-system security
 /// for the safer/less-secure cost functions, and the station indexes the planner offers.
-#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[derive(Clone, serde::Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RoutingGraph {
     pub adjacency: std::collections::HashMap<i64, Vec<i64>>,
@@ -209,7 +251,7 @@ pub struct RoutingGraph {
 }
 
 /// A named set of stations: a service, or the corporation that owns them.
-#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[derive(Clone, serde::Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct StationGroup {
     pub id: i64,
@@ -220,14 +262,14 @@ pub struct StationGroup {
     pub stations: Vec<StationRef>,
 }
 
-#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[derive(Clone, serde::Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct FactionRef {
     pub id: i64,
     pub name: String,
 }
 
-#[derive(Clone, serde::Serialize, ts_rs::TS)]
+#[derive(Clone, serde::Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct StationRef {
     pub id: i64,
@@ -242,6 +284,13 @@ static ROUTING_GRAPH_JSON: tokio::sync::OnceCell<axum::body::Bytes> =
     tokio::sync::OnceCell::const_new();
 
 /// `GET /api/routing-graph`. Static reference data: cacheable for a day.
+#[utoipa::path(
+    get,
+    path = "/api/routing-graph",
+    tag = "reference",
+    responses((status = 200, body = RoutingGraph, description = "OK")),
+    security(()),
+)]
 pub async fn routing_graph(
     State(state): State<AppState>,
 ) -> Result<impl axum::response::IntoResponse, ApiError> {
@@ -414,6 +463,14 @@ fn group_stations(rows: impl Iterator<Item = (i64, String, StationRef)>) -> Vec<
 
 /// `GET /api/systems/resolve?ids=a,b,c`, resolve solar system ids to display data for
 /// route rows. Capped at 200 ids.
+#[utoipa::path(
+    get,
+    path = "/api/systems/resolve",
+    tag = "reference",
+    params(ResolveQuery),
+    responses((status = 200, body = Vec<SystemSearchResult>, description = "OK"), (status = 400, response = super::BadRequest)),
+    security(()),
+)]
 pub async fn resolve_systems(
     State(state): State<AppState>,
     Query(query): Query<ResolveQuery>,
@@ -483,13 +540,23 @@ pub(super) async fn systems_for(
     Ok(results)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ResolveQuery {
+    /// Comma-separated solar system ids, at most 200.
     pub ids: String,
 }
 
 /// `GET /api/threat/{solar_system_id}`: a wormhole system's threat analysis. 404 for
 /// k-space systems (threat is only computed for wormhole space).
+#[utoipa::path(
+    get,
+    path = "/api/threat/{solar_system_id}",
+    tag = "reference",
+    params(("solar_system_id" = i64, Path, description = "The EVE solar system")),
+    responses((status = 200, body = ThreatAnalysis, description = "OK"), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn threat_analysis(
     State(state): State<AppState>,
     creds: Credentials,
@@ -528,6 +595,13 @@ pub async fn threat_analysis(
 
 /// `GET /api/skyhooks`, every skyhook currently or shortly raidable. Public EVE data, so
 /// no per-map gating; a session is still required, like the rest of the API.
+#[utoipa::path(
+    get,
+    path = "/api/skyhooks",
+    tag = "reference",
+    responses((status = 200, body = Vec<crate::skyhooks::Skyhook>, description = "OK"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn skyhooks(
     State(state): State<AppState>,
     creds: Credentials,
@@ -538,6 +612,13 @@ pub async fn skyhooks(
 
 /// `GET /api/server-status`, what Tranquility is doing. Public: the header shows it
 /// signed in or not, and it is the same figure ESI serves to anyone.
+#[utoipa::path(
+    get,
+    path = "/api/server-status",
+    tag = "reference",
+    responses((status = 200, body = crate::server_status::ServerStatus, description = "OK")),
+    security(()),
+)]
 pub async fn server_status(
     State(state): State<AppState>,
 ) -> ApiResult<crate::server_status::ServerStatus> {

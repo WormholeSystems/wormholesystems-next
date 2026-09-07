@@ -11,7 +11,7 @@ use crate::alerts::{AlertDelivery, AlertKind, AlertMention, filters};
 use super::error::{MapError, Result};
 
 /// One alert as the settings page shows it.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapAlert {
     pub id: i64,
@@ -53,7 +53,7 @@ pub struct MapAlert {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SaveAlert {
     pub name: String,

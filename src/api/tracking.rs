@@ -2,21 +2,30 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::post;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::ApiResult;
 use super::extract::acting_on;
 use crate::auth::AppState;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/maps/{id}/track-jump", post(track_jump))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(track_jump))
 }
 
 /// `POST /api/maps/{id}/track-jump`, record a jump: place the system, connect it, and
 /// link the signature it turned out to be. Member+. One command, so it undoes as one step;
 /// it can touch a system, a connection and a signature at once, so clients just refetch.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/track-jump",
+    tag = "tracking",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = crate::maps::tracking::TrackJump,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn track_jump(
     State(state): State<AppState>,
     creds: Credentials,

@@ -3,17 +3,17 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::State;
-use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{require_actor, session_actor, session_id};
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 
 /// The signed-in character, for the UI's auth state.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CharacterSummary {
     pub character_id: i64,
@@ -21,7 +21,7 @@ pub struct CharacterSummary {
 }
 
 /// Live status of the active character, for the navbar readout.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CharacterStatus {
     pub online: bool,
@@ -32,7 +32,7 @@ pub struct CharacterStatus {
 }
 
 /// One of the user's characters, for the switcher.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CharacterRef {
     pub character_id: i64,
@@ -47,29 +47,36 @@ pub struct CharacterRef {
 }
 
 /// One ESI permission and whether the acting character has consented to it.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ScopeStatus {
     pub scope: String,
     pub granted: bool,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/me", get(me))
-        .route("/api/me/status", get(me_status))
-        .route("/api/me/characters", get(my_characters))
-        .route("/api/me/scopes", get(my_scopes))
-        .route("/api/me/discord", get(my_discord))
-        .route("/api/me/discord/unlink", post(unlink_discord))
-        .route("/api/me/switch-character", post(switch_character))
-        .route("/api/me/remove-character", post(remove_character))
-        .route("/api/me/preferred-character", post(preferred_character))
-        .route("/api/waypoints", post(set_waypoint))
-        .route("/api/waypoints/all", post(set_waypoint_all))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(me))
+        .routes(routes!(me_status))
+        .routes(routes!(my_characters))
+        .routes(routes!(my_scopes))
+        .routes(routes!(my_discord))
+        .routes(routes!(unlink_discord))
+        .routes(routes!(switch_character))
+        .routes(routes!(remove_character))
+        .routes(routes!(preferred_character))
+        .routes(routes!(set_waypoint))
+        .routes(routes!(set_waypoint_all))
 }
 
 /// `GET /api/me`, who's signed in, if anyone.
+#[utoipa::path(
+    get,
+    path = "/api/me",
+    tag = "identity",
+    responses((status = 200, body = Option<CharacterSummary>, description = "The acting character, or `null` when nobody is signed in"), (status = 401, response = super::Unauthorized)),
+    security((), ("bearer" = []), ("session" = [])),
+)]
 pub async fn me(
     State(state): State<AppState>,
     creds: Credentials,
@@ -90,6 +97,13 @@ pub async fn me(
 }
 
 /// `GET /api/me/status`, live status of the active character (online / system / ship).
+#[utoipa::path(
+    get,
+    path = "/api/me/status",
+    tag = "identity",
+    responses((status = 200, body = Option<CharacterStatus>, description = "The live status, or `null` when it is not tracked yet"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn me_status(
     State(state): State<AppState>,
     creds: Credentials,
@@ -121,6 +135,13 @@ pub async fn me_status(
 }
 
 /// `GET /api/me/discord`: the linked Discord account, if any.
+#[utoipa::path(
+    get,
+    path = "/api/me/discord",
+    tag = "identity",
+    responses((status = 200, body = Option<crate::discord::DiscordAccount>, description = "The linked account, or `null`"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn my_discord(
     State(state): State<AppState>,
     creds: Credentials,
@@ -132,6 +153,13 @@ pub async fn my_discord(
 }
 
 /// `POST /api/me/discord/unlink`, forget it, and stop what depended on it.
+#[utoipa::path(
+    post,
+    path = "/api/me/discord/unlink",
+    tag = "identity",
+    responses((status = 200, description = "Done; the body is `null`"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn unlink_discord(State(state): State<AppState>, creds: Credentials) -> ApiResult<()> {
     let actor = require_actor(&state.db, &creds).await?;
     crate::discord::link::unlink(&state.db, actor.user_id).await;
@@ -140,6 +168,13 @@ pub async fn unlink_discord(State(state): State<AppState>, creds: Credentials) -
 
 /// `GET /api/me/scopes`, every ESI permission the app can use, and whether the acting
 /// character has granted it. Always the full list, so the UI can show what is missing.
+#[utoipa::path(
+    get,
+    path = "/api/me/scopes",
+    tag = "identity",
+    responses((status = 200, body = Vec<crate::api::ScopeStatus>, description = "OK"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn my_scopes(
     State(state): State<AppState>,
     creds: Credentials,
@@ -158,6 +193,13 @@ pub async fn my_scopes(
 }
 
 /// `GET /api/me/characters`: the user's characters, marking the active and preferred ones.
+#[utoipa::path(
+    get,
+    path = "/api/me/characters",
+    tag = "identity",
+    responses((status = 200, body = Vec<CharacterRef>, description = "OK"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn my_characters(
     State(state): State<AppState>,
     creds: Credentials,
@@ -187,13 +229,21 @@ pub async fn my_characters(
     ))
 }
 
-#[derive(Deserialize, ts_rs::TS)]
+#[derive(Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CharacterIdBody {
     pub character_id: i64,
 }
 
 /// `POST /api/me/switch-character`, switch the session's active character.
+#[utoipa::path(
+    post,
+    path = "/api/me/switch-character",
+    tag = "identity",
+    request_body = CharacterIdBody,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn switch_character(
     State(state): State<AppState>,
     creds: Credentials,
@@ -211,6 +261,14 @@ pub async fn switch_character(
 }
 
 /// `POST /api/me/preferred-character`, choose which character new sessions start as.
+#[utoipa::path(
+    post,
+    path = "/api/me/preferred-character",
+    tag = "identity",
+    request_body = CharacterIdBody,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn preferred_character(
     State(state): State<AppState>,
     creds: Credentials,
@@ -228,6 +286,14 @@ pub async fn preferred_character(
 /// `POST /api/me/remove-character`, remove one of the user's characters. Refuses to remove
 /// the last one. If it's the active character, the session switches to another first (so
 /// the session isn't cascade-deleted).
+#[utoipa::path(
+    post,
+    path = "/api/me/remove-character",
+    tag = "identity",
+    request_body = CharacterIdBody,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn remove_character(
     State(state): State<AppState>,
     creds: Credentials,
@@ -289,7 +355,7 @@ pub async fn remove_character(
     Ok(Json(()))
 }
 
-#[derive(Deserialize, ts_rs::TS)]
+#[derive(Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetWaypointBody {
     pub character_id: i64,
@@ -302,7 +368,7 @@ pub struct SetWaypointBody {
     pub clear_other_waypoints: Option<bool>,
 }
 
-#[derive(Deserialize, ts_rs::TS)]
+#[derive(Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetWaypointAllBody {
     pub destination_id: i64,
@@ -379,6 +445,14 @@ async fn validate_waypoint_destination(
 }
 
 /// `POST /api/waypoints`, set a destination/waypoint for one of the caller's characters.
+#[utoipa::path(
+    post,
+    path = "/api/waypoints",
+    tag = "identity",
+    request_body = SetWaypointBody,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict), (status = 502, response = super::UpstreamFailed)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn set_waypoint(
     State(state): State<AppState>,
     creds: Credentials,
@@ -411,6 +485,14 @@ pub async fn set_waypoint(
 /// `POST /api/waypoints/all`, set the destination for every online character of the
 /// caller. Best-effort: characters without the scope are skipped; fails only when none
 /// succeed.
+#[utoipa::path(
+    post,
+    path = "/api/waypoints/all",
+    tag = "identity",
+    request_body = SetWaypointAllBody,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 409, response = super::Conflict), (status = 502, response = super::UpstreamFailed)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn set_waypoint_all(
     State(state): State<AppState>,
     creds: Credentials,

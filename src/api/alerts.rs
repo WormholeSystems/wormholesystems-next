@@ -5,11 +5,11 @@
 //! these handlers check the role, validate the request, and answer.
 
 use super::extract::Credentials;
-use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::{delete, get, post, put};
 use axum::{Json, extract::Query};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use crate::auth::AppState;
 use crate::maps::alerts as store;
@@ -19,32 +19,20 @@ pub use crate::maps::alerts::{MapAlert, SaveAlert};
 
 use super::{ApiError, ApiResult};
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/maps/{id}/alerts", get(list_alerts).post(create_alert))
-        .route("/api/maps/{id}/alerts/events", get(list_alert_events))
-        .route(
-            "/api/maps/{id}/alerts/{alert_id}",
-            put(update_alert).delete(delete_alert),
-        )
-        .route(
-            "/api/maps/{id}/alerts/{alert_id}/active",
-            post(set_alert_active),
-        )
-        .route(
-            "/api/maps/{id}/webhooks",
-            get(list_webhooks).post(create_webhook),
-        )
-        .route(
-            "/api/maps/{id}/webhooks/{webhook_id}",
-            delete(delete_webhook),
-        )
-        .route("/api/maps/{id}/roles", get(list_roles).post(create_role))
-        .route("/api/maps/{id}/roles/{role_id}", delete(delete_role))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(list_alerts, create_alert))
+        .routes(routes!(list_alert_events))
+        .routes(routes!(update_alert, delete_alert))
+        .routes(routes!(set_alert_active))
+        .routes(routes!(list_webhooks, create_webhook))
+        .routes(routes!(delete_webhook))
+        .routes(routes!(list_roles, create_role))
+        .routes(routes!(delete_role))
 }
 
 /// One line of an alert's history.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapAlertEvent {
     pub id: i64,
@@ -70,6 +58,14 @@ async fn require_manager(
 }
 
 /// `GET /api/maps/{id}/alerts`, every alert on the map. Manager+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/alerts",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = Vec<MapAlert>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn list_alerts(
     State(state): State<AppState>,
     creds: Credentials,
@@ -80,7 +76,7 @@ pub async fn list_alerts(
 }
 
 /// A registered destination, named once and pointed at by any number of alerts.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapWebhook {
     pub id: i64,
@@ -93,7 +89,7 @@ pub struct MapWebhook {
 }
 
 /// A registered role, so alerts ping "Scouts" rather than 1189734502938472.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapWebhookRole {
     pub id: i64,
@@ -118,6 +114,14 @@ fn webhook_summary(url: &str) -> String {
 }
 
 /// `GET /api/maps/{id}/webhooks`: the map's destinations. Manager+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/webhooks",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = Vec<MapWebhook>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn list_webhooks(
     State(state): State<AppState>,
     creds: Credentials,
@@ -144,7 +148,7 @@ pub async fn list_webhooks(
     ))
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SaveWebhook {
     pub name: String,
@@ -155,6 +159,15 @@ pub struct SaveWebhook {
 }
 
 /// `POST /api/maps/{id}/webhooks`, register a destination. Manager+.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/webhooks",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = SaveWebhook,
+    responses((status = 200, body = MapWebhook, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn create_webhook(
     State(state): State<AppState>,
     creds: Credentials,
@@ -200,6 +213,14 @@ pub async fn create_webhook(
 
 /// `DELETE /api/maps/{id}/webhooks/{webhook_id}`. Manager+. Alerts pointing at it are
 /// deleted too, rather than left enabled with nowhere to post.
+#[utoipa::path(
+    delete,
+    path = "/api/maps/{id}/webhooks/{webhook_id}",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map"), ("webhook_id" = i64, Path, description = "The webhook")),
+    responses((status = 200, description = "Done; the body is `null`"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn delete_webhook(
     State(state): State<AppState>,
     creds: Credentials,
@@ -229,6 +250,14 @@ pub async fn delete_webhook(
 }
 
 /// `GET /api/maps/{id}/roles`: the map's named Discord roles. Manager+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/roles",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = Vec<MapWebhookRole>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn list_roles(
     State(state): State<AppState>,
     creds: Credentials,
@@ -253,7 +282,7 @@ pub async fn list_roles(
     ))
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SaveRole {
     pub name: String,
@@ -261,6 +290,15 @@ pub struct SaveRole {
 }
 
 /// `POST /api/maps/{id}/roles`, register a role to ping. Manager+.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/roles",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = SaveRole,
+    responses((status = 200, body = MapWebhookRole, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn create_role(
     State(state): State<AppState>,
     creds: Credentials,
@@ -296,6 +334,14 @@ pub async fn create_role(
 }
 
 /// `DELETE /api/maps/{id}/roles/{role_id}`. Manager+.
+#[utoipa::path(
+    delete,
+    path = "/api/maps/{id}/roles/{role_id}",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map"), ("role_id" = i64, Path, description = "The role")),
+    responses((status = 200, description = "Done; the body is `null`"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn delete_role(
     State(state): State<AppState>,
     creds: Credentials,
@@ -327,6 +373,15 @@ async fn check(state: &AppState, map_id: i64, body: &SaveAlert) -> Result<(), Ap
 }
 
 /// `POST /api/maps/{id}/alerts`, create one. Manager+.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/alerts",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = SaveAlert,
+    responses((status = 200, body = MapAlert, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn create_alert(
     State(state): State<AppState>,
     creds: Credentials,
@@ -341,6 +396,15 @@ pub async fn create_alert(
 }
 
 /// `PUT /api/maps/{id}/alerts/{alert_id}`, replace its settings. Manager+.
+#[utoipa::path(
+    put,
+    path = "/api/maps/{id}/alerts/{alert_id}",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map"), ("alert_id" = i64, Path, description = "The alert")),
+    request_body = SaveAlert,
+    responses((status = 200, body = MapAlert, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn update_alert(
     State(state): State<AppState>,
     creds: Credentials,
@@ -354,13 +418,22 @@ pub async fn update_alert(
     ))
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetAlertActive {
     pub is_active: bool,
 }
 
 /// `POST /api/maps/{id}/alerts/{alert_id}/active`, turn it on or off by hand. Manager+.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/alerts/{alert_id}/active",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map"), ("alert_id" = i64, Path, description = "The alert")),
+    request_body = SetAlertActive,
+    responses((status = 200, body = MapAlert, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn set_alert_active(
     State(state): State<AppState>,
     creds: Credentials,
@@ -374,6 +447,14 @@ pub async fn set_alert_active(
 }
 
 /// `DELETE /api/maps/{id}/alerts/{alert_id}`. Manager+.
+#[utoipa::path(
+    delete,
+    path = "/api/maps/{id}/alerts/{alert_id}",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map"), ("alert_id" = i64, Path, description = "The alert")),
+    responses((status = 200, description = "Done; the body is `null`"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn delete_alert(
     State(state): State<AppState>,
     creds: Credentials,
@@ -384,13 +465,23 @@ pub async fn delete_alert(
     Ok(Json(()))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct EventsQuery {
+    /// How many of the newest lines to return.
     #[serde(default)]
     pub limit: Option<i64>,
 }
 
 /// `GET /api/maps/{id}/alerts/events`: the audit trail. Manager+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/alerts/events",
+    tag = "alerts",
+    params(("id" = i64, Path, description = "The map"), EventsQuery),
+    responses((status = 200, body = Vec<MapAlertEvent>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn list_alert_events(
     State(state): State<AppState>,
     creds: Credentials,

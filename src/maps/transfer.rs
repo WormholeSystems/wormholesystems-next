@@ -34,7 +34,7 @@ pub const VERSION: i64 = 1;
 // The wire format
 // ---------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ExportFile {
     pub format: String,
@@ -46,7 +46,7 @@ pub struct ExportFile {
 
 /// Only the sections that were asked for are present; on import, only the requested ones
 /// are read at all, so a broken section nobody selected does not fail the file.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Sections {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,7 +69,7 @@ pub struct Sections {
     pub routes: Option<RoutesSection>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SettingsSection {
     pub name: String,
@@ -89,7 +89,7 @@ pub struct SettingsSection {
     pub rally_solarsystem_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AccessRow {
     pub entity_type: SubjectType,
@@ -101,7 +101,7 @@ pub struct AccessRow {
     pub expires_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SolarsystemRow {
     pub solarsystem_id: i64,
@@ -117,7 +117,7 @@ pub struct SolarsystemRow {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ConnectionRow {
     pub from_solarsystem_id: i64,
@@ -136,7 +136,7 @@ pub struct ConnectionRow {
     pub preserve_mass: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SignatureRow {
     pub solarsystem_id: i64,
@@ -175,7 +175,7 @@ fn group_for_category_code(code: &str) -> Option<SignatureGroup> {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RoutesSection {
     pub route_solarsystems: Vec<RouteRow>,
@@ -183,7 +183,7 @@ pub struct RoutesSection {
     pub ignored_solarsystems: Vec<IgnoredRow>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RouteRow {
     pub solarsystem_id: i64,
@@ -191,7 +191,7 @@ pub struct RouteRow {
     pub is_pinned: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct IgnoredRow {
     pub solarsystem_id: i64,
@@ -226,7 +226,9 @@ fn lenient_bool_opt<'de, D: serde::Deserializer<'de>>(
 
 /// Legacy's mass vocabulary. Vector's `stable` is legacy's `fresh`, and vector says
 /// "unknown" with a null.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum WireMassStatus {
@@ -257,7 +259,9 @@ impl WireMassStatus {
 }
 
 /// Legacy names hole sizes by the ship class that fits through.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum WireShipSize {
@@ -290,7 +294,9 @@ impl WireShipSize {
 
 /// Legacy's lifetime vocabulary has no "unknown": `healthy` is both vector's `stable` and
 /// its null, and imports as the null (nothing remarkable to show).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum WireLifetime {
@@ -792,7 +798,7 @@ async fn export_routes(pool: &PgPool, map_id: i64) -> Result<RoutesSection> {
 // ---------------------------------------------------------------------------------------
 
 /// What happened to one section of an import.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SectionCounts {
     pub created: i64,
@@ -806,7 +812,7 @@ impl SectionCounts {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ImportSummary {
     pub settings: SectionCounts,
@@ -1485,7 +1491,7 @@ async fn import_routes(
 // ---------------------------------------------------------------------------------------
 
 /// How much of the map each section would carry, for the export UI. Manager+.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct TransferCounts {
     pub access: i64,

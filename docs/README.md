@@ -22,8 +22,9 @@ with layered access control and Discord alerting.
   — the in-process event bus that pushes map changes to viewers.)
 - [`esi/`](./esi/) — the EVE ESI endpoints we consume: parameters, response
   structure, and examples, one file per endpoint.
-- [`api.md`](./api.md) — the API for scripts: personal access tokens, and the stable
-  `/api/v1/` surface in the legacy shape.
+- [`api.md`](./api.md) — the API: the generated OpenAPI document, tokens, errors and
+  conventions; [`realtime-api.md`](./realtime-api.md) — the WebSocket streams the
+  document cannot describe.
 - [`processes.md`](./processes.md) — background / scheduled work (e.g. affiliation
   refresh) and the data it touches.
 - [`ui-style-guide.md`](./ui-style-guide.md) — the interface design language: slim,

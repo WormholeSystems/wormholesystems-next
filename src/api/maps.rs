@@ -3,10 +3,10 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::ApiResult;
 use super::extract::{ShareQuery, acting_on, read_map_as, require_actor, session_actor};
@@ -15,7 +15,7 @@ use crate::maps::map::UpdateMap;
 use crate::maps::{Map, MapView};
 
 /// A map in the user's list, with their role on it.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapEntry {
     pub id: i64,
@@ -41,7 +41,7 @@ pub struct MapEntry {
 
 /// An online, tracked character on the map (presence), for the node pilot rows and the
 /// pilots card.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapCharacter {
     pub character_id: i64,
@@ -61,18 +61,23 @@ pub struct MapCharacter {
     pub is_mine: bool,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/maps", get(my_maps).post(create_map))
-        .route("/api/maps/{id}", get(fetch_map).delete(delete_map))
-        // Resolving a share link: the holder has a token and nothing else, not even the
-        // map's id.
-        .route("/api/share/{token}", get(fetch_shared_map))
-        .route("/api/maps/{id}/update", post(update_map))
-        .route("/api/maps/{id}/characters", get(map_characters))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(my_maps, create_map))
+        .routes(routes!(fetch_map, delete_map))
+        .routes(routes!(fetch_shared_map))
+        .routes(routes!(update_map))
+        .routes(routes!(map_characters))
 }
 
 /// `GET /api/maps`, every map the signed-in character can access, with their role.
+#[utoipa::path(
+    get,
+    path = "/api/maps",
+    tag = "maps",
+    responses((status = 200, body = Vec<MapEntry>, description = "OK"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn my_maps(
     State(state): State<AppState>,
     creds: Credentials,
@@ -137,7 +142,7 @@ pub async fn my_maps(
     ))
 }
 
-#[derive(Deserialize, ts_rs::TS)]
+#[derive(Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CreateMapBody {
     pub name: String,
@@ -148,6 +153,14 @@ pub struct CreateMapBody {
 }
 
 /// `POST /api/maps`, create a map owned by the active character.
+#[utoipa::path(
+    post,
+    path = "/api/maps",
+    tag = "maps",
+    request_body = CreateMapBody,
+    responses((status = 200, body = Map, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn create_map(
     State(state): State<AppState>,
     creds: Credentials,
@@ -167,6 +180,14 @@ pub async fn create_map(
 }
 
 /// `DELETE /api/maps/{id}`, delete a map (owner only).
+#[utoipa::path(
+    delete,
+    path = "/api/maps/{id}",
+    tag = "maps",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, description = "Done; the body is `null`"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn delete_map(
     State(state): State<AppState>,
     creds: Credentials,
@@ -178,6 +199,14 @@ pub async fn delete_map(
 }
 
 /// `GET /api/maps/{id}`: the full map view (map + systems + connections).
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}",
+    tag = "maps",
+    params(("id" = i64, Path, description = "The map"), ShareQuery),
+    responses((status = 200, body = MapView, description = "OK"), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security((), ("bearer" = []), ("session" = [])),
+)]
 pub async fn fetch_map(
     State(state): State<AppState>,
     creds: Credentials,
@@ -193,6 +222,14 @@ pub async fn fetch_map(
 /// `GET /api/share/{token}`: the map a share link leads to, for whoever holds it. A token
 /// that matches nothing, a withdrawn one and a never-shared map all answer `NotFound`, so
 /// the response gives a guesser nothing to work from.
+#[utoipa::path(
+    get,
+    path = "/api/share/{token}",
+    tag = "maps",
+    params(("token" = String, Path, description = "The share token")),
+    responses((status = 200, body = MapView, description = "OK"), (status = 404, response = super::NotFound)),
+    security((), ("bearer" = []), ("session" = [])),
+)]
 pub async fn fetch_shared_map(
     State(state): State<AppState>,
     creds: Credentials,
@@ -217,6 +254,14 @@ pub async fn fetch_shared_map(
 /// `GET /api/maps/{id}/characters`, presence: online characters of users who opted into
 /// tracking on this map, holding the location scope, whose user has member-or-better
 /// access. Member+ may view (viewers never see pilot data).
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/characters",
+    tag = "maps",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = Vec<MapCharacter>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn map_characters(
     State(state): State<AppState>,
     creds: Credentials,
@@ -283,6 +328,15 @@ pub async fn map_characters(
 }
 
 /// `POST /api/maps/{id}/update`, rename a map or change its description/image. Manager+.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/update",
+    tag = "maps",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = UpdateMap,
+    responses((status = 200, body = Map, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn update_map(
     State(state): State<AppState>,
     creds: Credentials,

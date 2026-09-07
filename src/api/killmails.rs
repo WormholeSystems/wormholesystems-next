@@ -2,20 +2,28 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::ApiResult;
 use super::extract::{ShareQuery, read_map_as};
 use crate::auth::AppState;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/maps/{id}/killmails", get(map_killmails))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(map_killmails))
 }
 
 /// `GET /api/maps/{id}/killmails`, recent kills in this map's systems, newest first.
 /// Viewer+, like reading the graph: a killmail is public record on zKillboard anyway.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/killmails",
+    tag = "killmails",
+    params(("id" = i64, Path, description = "The map"), ShareQuery),
+    responses((status = 200, body = Vec<crate::killmails::MapKillmail>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security((), ("bearer" = []), ("session" = [])),
+)]
 pub async fn map_killmails(
     State(state): State<AppState>,
     creds: Credentials,

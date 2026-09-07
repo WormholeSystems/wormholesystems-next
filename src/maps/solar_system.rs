@@ -12,7 +12,7 @@ use super::error::{MapError, Result};
 use super::restore::{capture_systems, remove_captured_signatures};
 use super::{Actor, MapEvent, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapSolarSystem {
     pub id: i64,
@@ -25,7 +25,7 @@ pub struct MapSolarSystem {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddSystem {
     pub map_id: i64,
@@ -95,7 +95,7 @@ pub(super) async fn apply_add_system(tx: &mut Tx<'_>, cmd: AddSystem) -> Result<
     .emit(event))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveSystem {
     pub map_id: i64,
@@ -162,7 +162,7 @@ pub(super) async fn apply_remove_system(tx: &mut Tx<'_>, cmd: RemoveSystem) -> R
         .emit_all(events))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveSystems {
     pub map_id: i64,
@@ -225,7 +225,7 @@ pub(super) async fn apply_remove_systems(tx: &mut Tx<'_>, cmd: RemoveSystems) ->
     )
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ClearMap {
     pub map_id: i64,
@@ -265,7 +265,7 @@ pub(super) async fn apply_clear_map(tx: &mut Tx<'_>, cmd: ClearMap) -> Result<Ef
     .emit(MapEvent::MapUpdated { map_id: cmd.map_id }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MoveSystem {
     pub map_id: i64,
@@ -321,7 +321,7 @@ pub(super) async fn apply_move_system(tx: &mut Tx<'_>, cmd: MoveSystem) -> Resul
     )
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SystemMove {
     pub map_solar_system_id: i64,
@@ -329,7 +329,7 @@ pub struct SystemMove {
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MoveSystems {
     pub map_id: i64,
@@ -399,7 +399,7 @@ pub(super) async fn apply_move_systems(tx: &mut Tx<'_>, cmd: MoveSystems) -> Res
         .emit(MapEvent::MapUpdated { map_id: cmd.map_id }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetAlias {
     pub map_id: i64,
@@ -447,7 +447,7 @@ pub(super) async fn apply_set_alias(tx: &mut Tx<'_>, cmd: SetAlias) -> Result<Ef
         }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetStatus {
     pub map_id: i64,
@@ -521,7 +521,7 @@ pub(super) async fn apply_set_status(tx: &mut Tx<'_>, cmd: SetStatus) -> Result<
     }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetOccupier {
     pub map_id: i64,
@@ -573,7 +573,7 @@ pub(super) async fn apply_set_occupier(tx: &mut Tx<'_>, cmd: SetOccupier) -> Res
         }))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetNotes {
     pub map_id: i64,
@@ -619,7 +619,7 @@ pub(super) async fn apply_set_notes(tx: &mut Tx<'_>, cmd: SetNotes) -> Result<Ef
 
 /// A placed system's member-gated intel details (currently just the notes). Viewers never
 /// receive this: the read itself requires Member.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SystemDetails {
     pub notes: Option<String>,
@@ -648,7 +648,7 @@ pub async fn system_details(
     Ok(SystemDetails { notes: row.notes })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetHome {
     pub map_id: i64,
@@ -730,7 +730,7 @@ exclusive_flag!(
     "cleared the home system"
 );
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetRally {
     pub map_id: i64,
@@ -756,7 +756,7 @@ exclusive_flag!(
     "cleared the rally point"
 );
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetPinned {
     pub map_id: i64,

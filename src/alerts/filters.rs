@@ -8,7 +8,9 @@
 use serde::{Deserialize, Serialize};
 
 /// What a rule is about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum Subject {
@@ -20,7 +22,9 @@ pub enum Subject {
 }
 
 /// Which end of the killmail to look at.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum Side {
@@ -30,7 +34,9 @@ pub enum Side {
     Either,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum Mode {
@@ -47,7 +53,7 @@ crate::maps::text_enum! {
 }
 
 /// One rule. The ids within a rule are an OR: "any of these alliances".
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Rule {
     pub subject: Subject,

@@ -368,7 +368,7 @@ pub(super) async fn apply_add_ghost_system(tx: &mut Tx<'_>, cmd: AddGhostSystem)
 /// The rest is what flying the hole taught us about it, carried here rather than sent as
 /// follow-up writes so that one jump stays one undo. All of it is ignored when taking a
 /// node back to a ghost.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ResolveGhostSystem {
     pub map_id: i64,

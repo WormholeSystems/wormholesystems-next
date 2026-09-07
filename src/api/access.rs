@@ -3,10 +3,10 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::ApiResult;
 use super::extract::{acting_on, require_actor};
@@ -15,7 +15,7 @@ use crate::auth::AppState;
 use crate::maps::access::{AccessEntry, RevokeAccess, SetAccess};
 
 /// A grantable subject from the access-subject search.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AccessSubject {
     pub subject_type: crate::maps::SubjectType,
@@ -24,23 +24,28 @@ pub struct AccessSubject {
     pub ticker: Option<String>,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/access-subjects/search", get(search_access_subjects))
-        .route("/api/maps/{id}/access", get(list_access))
-        .route("/api/maps/{id}/access/set", post(set_access))
-        .route("/api/maps/{id}/access/revoke", post(revoke_access))
-        .route("/api/maps/{id}/access/transfer", post(transfer_ownership))
-        .route(
-            "/api/maps/{id}/share",
-            post(rotate_share_token).delete(revoke_share_token),
-        )
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(search_access_subjects))
+        .routes(routes!(list_access))
+        .routes(routes!(set_access))
+        .routes(routes!(revoke_access))
+        .routes(routes!(transfer_ownership))
+        .routes(routes!(rotate_share_token, revoke_share_token))
 }
 
 /// `GET /api/access-subjects/search?q=`, characters, corporations and alliances that can
 /// be granted access. Only entities WormholeSystems has already cached are searchable (a character
 /// who has signed in, or a corp/alliance one of them belongs to), hence the UI also
 /// accepting a raw EVE id.
+#[utoipa::path(
+    get,
+    path = "/api/access-subjects/search",
+    tag = "access",
+    params(SearchQuery),
+    responses((status = 200, body = Vec<AccessSubject>, description = "OK"), (status = 401, response = super::Unauthorized)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn search_access_subjects(
     State(state): State<AppState>,
     creds: Credentials,
@@ -86,6 +91,14 @@ pub async fn search_access_subjects(
 }
 
 /// `GET /api/maps/{id}/access`, who can see this map, and at what role. Viewer+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/access",
+    tag = "access",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = Vec<AccessEntry>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn list_access(
     State(state): State<AppState>,
     creds: Credentials,
@@ -96,6 +109,15 @@ pub async fn list_access(
     Ok(Json(entries))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/access/set",
+    tag = "access",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = SetAccess,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn set_access(
     State(state): State<AppState>,
     creds: Credentials,
@@ -107,6 +129,15 @@ pub async fn set_access(
     Ok(Json(()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/access/revoke",
+    tag = "access",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = RevokeAccess,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn revoke_access(
     State(state): State<AppState>,
     creds: Credentials,
@@ -119,6 +150,15 @@ pub async fn revoke_access(
 }
 
 /// `POST /api/maps/{id}/access/transfer`, hand the map to another character on it.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/access/transfer",
+    tag = "access",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = crate::maps::access::TransferOwnership,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn transfer_ownership(
     State(state): State<AppState>,
     creds: Credentials,
@@ -131,6 +171,14 @@ pub async fn transfer_ownership(
 }
 
 /// `POST /api/maps/{id}/share`, mint a share link, replacing any earlier one.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/share",
+    tag = "access",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, body = String, description = "The new share token"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn rotate_share_token(
     State(state): State<AppState>,
     creds: Credentials,
@@ -142,6 +190,14 @@ pub async fn rotate_share_token(
 }
 
 /// `DELETE /api/maps/{id}/share`, withdraw the share link.
+#[utoipa::path(
+    delete,
+    path = "/api/maps/{id}/share",
+    tag = "access",
+    params(("id" = i64, Path, description = "The map")),
+    responses((status = 200, description = "Done; the body is `null`"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn revoke_share_token(
     State(state): State<AppState>,
     creds: Credentials,

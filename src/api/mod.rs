@@ -29,7 +29,6 @@ pub mod tokens;
 pub mod tracking;
 pub mod transfer;
 pub mod user_settings;
-pub mod v1;
 pub mod watchlist;
 pub mod ws;
 
@@ -37,7 +36,12 @@ use axum::Json;
 use axum::Router;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use serde_json::json;
+use axum::routing::get;
+use serde::Serialize;
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::{Modify, OpenApi, ToResponse, ToSchema};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_scalar::{Scalar, Servable};
 
 use crate::auth::AppState;
 use crate::maps::MapError;
@@ -62,6 +66,46 @@ pub struct ApiError {
     pub message: String,
 }
 
+/// What every error answers with.
+#[derive(Serialize, ToSchema)]
+pub struct ErrorBody {
+    pub error: String,
+}
+
+// The error responses, named once so every handler can point at the same description.
+// They exist for the document only; the field is what says the body is an `ErrorBody`.
+#[allow(dead_code)]
+#[derive(ToResponse)]
+#[response(
+    description = "The request does not make sense: a missing field, a value out of range, or a body naming a different map than the URL"
+)]
+pub struct BadRequest(ErrorBody);
+
+#[allow(dead_code)]
+#[derive(ToResponse)]
+#[response(description = "Nobody is signed in, or the bearer token is unknown, revoked or expired")]
+pub struct Unauthorized(ErrorBody);
+
+#[allow(dead_code)]
+#[derive(ToResponse)]
+#[response(description = "Signed in, but the role on this map does not allow it")]
+pub struct Forbidden(ErrorBody);
+
+#[allow(dead_code)]
+#[derive(ToResponse)]
+#[response(description = "No such thing, or not one the caller may know about")]
+pub struct NotFound(ErrorBody);
+
+#[allow(dead_code)]
+#[derive(ToResponse)]
+#[response(description = "The change contradicts the map's current state")]
+pub struct Conflict(ErrorBody);
+
+#[allow(dead_code)]
+#[derive(ToResponse)]
+#[response(description = "EVE's API refused or failed")]
+pub struct UpstreamFailed(ErrorBody);
+
 impl ApiError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         ApiError {
@@ -80,7 +124,13 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, Json(json!({ "error": self.message }))).into_response()
+        (
+            self.status,
+            Json(ErrorBody {
+                error: self.message,
+            }),
+        )
+            .into_response()
     }
 }
 
@@ -111,8 +161,89 @@ impl From<sqlx::Error> for ApiError {
 
 pub type ApiResult<T> = Result<Json<T>, ApiError>;
 
-pub fn router() -> Router<AppState> {
-    Router::new()
+const DESCRIPTION: &str = "\
+Everything the map screen does goes over this API, and all of it is open to a script \
+holding a personal access token. It is generated from the same handlers and wire types \
+the frontend uses, so it is complete and current by construction.
+
+**Pre-alpha.** The API follows the frontend and changes with it, without notice and \
+without a migration path. Pin the version you tested against and expect to revisit.
+
+Sign in with the session cookie a browser holds, or send `Authorization: Bearer wst_...` \
+with a token minted under Settings, API tokens. A token acts as the user who made it, with \
+exactly their access. Endpoints marked with no security requirement are public; the ones \
+that also accept a share token (`?share=`) say so in their parameters.
+
+Live updates go over WebSockets, which this document cannot describe: see \
+`docs/realtime-api.md` in the repository.";
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "WormholeSystems API",
+        description = DESCRIPTION,
+        license(name = "MIT", url = "https://github.com/WormholeSystems/wormholesystems-next/blob/main/LICENSE"),
+    ),
+    modifiers(&Security),
+    security(("bearer" = []), ("session" = [])),
+    tags(
+        (name = "maps", description = "The maps themselves: list yours, create one, read a whole map in one call, rename or reconfigure it, and who is on it right now. Everything else hangs off a map id from here."),
+        (name = "access", description = "Who may see and edit a map. Roles are granted to a character, corporation or alliance, ownership can be handed over, and a share token gives read-only access without an account."),
+        (name = "systems", description = "The nodes on the map: placing and removing solar systems, moving them, and everything written on a node such as its alias, status, notes, occupier, and the home and rally markers. Also the unresolved hole placeholders and clearing a map."),
+        (name = "connections", description = "The wormholes between two placed systems: adding and removing them, setting mass and lifetime status, the jump log that feeds the mass estimate, and pruning connections nobody has used in a while."),
+        (name = "signatures", description = "Scan results per system: pasting the probe scanner, editing single signatures, and linking a wormhole signature to the connection it turned out to be. The type catalogue for the pickers lives here too."),
+        (name = "tracking", description = "Jump tracking on behalf of a pilot: telling the map a character moved from one system to another, so the hole gets mapped and linked the way the automatic tracker would."),
+        (name = "history", description = "The map's undo history: the event log, stepping back and forward, and jumping to a point in it. Every write elsewhere lands here as an event."),
+        (name = "watchlist", description = "Systems a map keeps an eye on for routing: the list, adding and removing entries, and pinning the ones that matter most."),
+        (name = "ignored systems", description = "Systems the whole map routes around and never auto-places, kept on the server so route planning, Discord routes and alerts all agree. Manager only."),
+        (name = "eve scout", description = "The public holes out of Thera and Turnur as EVE Scout's scouts report them, and putting one hub's connections on the map in one step."),
+        (name = "alerts", description = "What a map watches for and where it tells people: proximity, killmail and jump-range alerts, their delivery to Discord channels or DMs, the roles that can be mentioned, and the webhooks a map posts to."),
+        (name = "killmails", description = "Recent kills in and around the chain, as the map's killmail feed shows them."),
+        (name = "search", description = "Searching within one map: systems, aliases, signatures and notes in one query."),
+        (name = "transfer", description = "Moving a map between instances: export to a file, import into an existing map, or create a new map from a file. The format is the one the legacy app reads and writes."),
+        (name = "user settings", description = "One person's preferences on one map: routing tolerances, what the tracker does for them, which panels are shown and where. Nothing here affects other viewers."),
+        (name = "background image", description = "A picture behind one viewer's map: upload, fetch and remove, with the layout mode set through user settings."),
+        (name = "identity", description = "The signed-in user: their characters, which one they act as, ESI scopes, Discord link, and setting in-game waypoints through ESI."),
+        (name = "tokens", description = "Personal access tokens for scripts. Managed only from a browser session; the plaintext is shown once at creation."),
+        (name = "reference", description = "Static and instance-wide data the frontend needs: the universe graph for routing, wormhole effects, signature types, threat analysis, skyhook timers, server status and the instance's configuration."),
+    ),
+    components(
+        responses(BadRequest, Unauthorized, Forbidden, NotFound, Conflict, UpstreamFailed),
+        // The WebSocket frames, so a client generated from the document has them too.
+        schemas(crate::maps::MapEvent, crate::user_channel::UserEvent),
+    ),
+)]
+struct ApiDoc;
+
+/// The two ways in: the bearer token a script sends, and the cookie a browser holds.
+struct Security;
+
+impl Modify for Security {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("wst_...")
+                    .description(Some("A personal access token from Settings, API tokens"))
+                    .build(),
+            ),
+        );
+        components.add_security_scheme(
+            "session",
+            SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::with_description(
+                crate::session::SESSION_COOKIE,
+                "The session a browser holds after signing in with EVE",
+            ))),
+        );
+    }
+}
+
+/// Every area's routes on one router, carrying the document they describe.
+fn areas() -> OpenApiRouter<AppState> {
+    OpenApiRouter::with_openapi(ApiDoc::openapi())
         .merge(identity::routes())
         .merge(reference::routes())
         .merge(eve_scout::routes())
@@ -132,5 +263,18 @@ pub fn router() -> Router<AppState> {
         .merge(alerts::routes())
         .merge(transfer::routes())
         .merge(tokens::routes())
-        .merge(v1::routes())
+}
+
+/// The OpenAPI document for everything [`router`] serves.
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    let (_, api) = areas().split_for_parts();
+    api
+}
+
+pub fn router() -> Router<AppState> {
+    let (router, api) = areas().split_for_parts();
+    let spec = api.clone();
+    router
+        .route("/api/openapi.json", get(move || async move { Json(spec) }))
+        .merge(Scalar::with_url("/api/docs", api))
 }

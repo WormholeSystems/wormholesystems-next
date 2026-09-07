@@ -198,10 +198,10 @@
 		<Card.Content class="flex flex-col gap-3">
 			<pre
 				class="overflow-x-auto bg-muted px-3 py-2 font-mono text-xs">curl -H "Authorization: Bearer wst_..." {page
-					.url.origin}/api/v1/maps</pre>
+					.url.origin}/api/maps</pre>
 			<p class="text-sm text-muted-foreground">
-				The stable surface for scripts lives under <code>/api/v1/</code>. The rest of the API works
-				too. See
+				Everything the map screen does is open to a token. The full reference is at
+				<a href="/api/docs" class="underline" target="_blank" rel="noopener">/api/docs</a>; see also
 				<a href="/documentation/contributing-and-self-hosting/using-the-api" class="underline"
 					>Using the API</a
 				>.

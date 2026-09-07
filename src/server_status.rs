@@ -27,7 +27,9 @@ fn poll_interval() -> Duration {
 }
 
 /// What the server is doing, as one word for the client to render.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema,
+)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
 pub enum ServerState {
@@ -64,7 +66,7 @@ impl ServerState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ServerStatus {
     pub state: ServerState,

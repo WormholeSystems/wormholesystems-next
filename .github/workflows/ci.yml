@@ -85,6 +85,9 @@ jobs:
       - name: Generated TS bindings are committed
         run: git diff --exit-code frontend/src/lib/api/types
 
+      - name: Generated OpenAPI document is committed
+        run: git diff --exit-code docs/openapi.json
+
   frontend:
     name: frontend
     runs-on: ubuntu-latest

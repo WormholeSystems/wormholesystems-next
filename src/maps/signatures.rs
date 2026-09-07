@@ -25,7 +25,7 @@ use super::command::{CommandOutput, Effect, MapCommand, Tx, execute};
 use super::error::{MapError, Result};
 use super::{Actor, MapEvent, MapHub, Role};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct Signature {
     pub id: i64,
@@ -99,7 +99,7 @@ async fn validate_type_for_group(
     Ok(())
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddSignature {
     pub map_id: i64,
@@ -216,7 +216,7 @@ pub(super) async fn apply_add_signature(tx: &mut Tx<'_>, cmd: AddSignature) -> R
 /// Changing the group clears the catalog type, the connection link, and any wormhole state
 /// (matching the legacy category select), unless a new type is supplied in the same call.
 /// Editing a linked wormhole's state propagates to its connection via the DB trigger.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct UpdateSignature {
     pub map_id: i64,
@@ -398,7 +398,7 @@ pub(super) async fn apply_update_signature(
     .emit_all(events))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveSignature {
     pub map_id: i64,
@@ -517,7 +517,7 @@ fn undo_with_raised(
     })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveSignatures {
     pub map_id: i64,
@@ -686,7 +686,7 @@ async fn delete_connection_if_side_empty(
     Ok(endpoints.map(|e| [e.from_system, e.to_system]))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct LinkSignature {
     pub map_id: i64,
@@ -777,7 +777,7 @@ pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) ->
     .emit_all(events))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct UnlinkSignature {
     pub map_id: i64,
@@ -836,7 +836,7 @@ pub(super) async fn apply_unlink_signature(
 /// One row of a parsed scanner paste. `group` is `None` when the scanner line carried no
 /// classification (legacy: keep whatever the row already has). The catalog type is only
 /// ever client-matched for site categories; wormhole types never come from a paste.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct PastedSignature {
     pub signature_id: String,
@@ -851,7 +851,7 @@ pub struct PastedSignature {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct PasteSignatures {
     pub map_id: i64,

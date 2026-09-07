@@ -25,7 +25,7 @@ pub const RETENTION_DAYS: i32 = 7;
 /// How many entries the history endpoint returns.
 const HISTORY_LIMIT: i64 = 50;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapEventEntry {
     pub id: i64,
@@ -48,7 +48,7 @@ pub struct MapEventEntry {
 }
 
 /// The history as the status bar needs it: the entries plus where the map is sitting.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapHistory {
     pub entries: Vec<MapEventEntry>,
@@ -199,7 +199,7 @@ async fn newest_child(tx: &mut Tx<'_>, map_id: i64, node: Option<i64>) -> Result
     Ok(id)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct GotoMapEvent {
     pub map_id: i64,
@@ -302,7 +302,7 @@ pub async fn goto(pool: &PgPool, actor: Actor, cmd: GotoMapEvent) -> Result<()> 
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapIdBody {
     pub map_id: i64,

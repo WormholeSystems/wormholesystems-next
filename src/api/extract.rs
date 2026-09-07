@@ -130,8 +130,10 @@ pub(crate) async fn require_role_on_map(
 }
 
 /// The share token, when the caller has one.
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ShareQuery {
+    /// A share token, for reading a map that was opened with a link rather than a grant.
     #[serde(default)]
     pub share: Option<String>,
 }

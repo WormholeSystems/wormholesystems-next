@@ -2,10 +2,10 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
 use serde::{Deserialize, Serialize};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::extract::{ShareQuery, read_map_as};
 use super::reference::{SearchQuery, systems_for};
@@ -16,7 +16,7 @@ use crate::maps::view::statics_for;
 
 /// One hit from the map command palette. `map_solar_system_id` is set when the system is
 /// already placed; otherwise the hit is an off-map system the palette can add.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapSearchHit {
     pub system: SystemSearchResult,
@@ -33,7 +33,7 @@ pub struct MapSearchHit {
 }
 
 /// An organisation the threat analysis found operating in a system, as the palette shows it.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct ThreatMatch {
     pub entity_id: i64,
@@ -44,14 +44,22 @@ pub struct ThreatMatch {
     pub kills: i32,
 }
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/maps/{id}/search", get(search_map))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().routes(routes!(search_map))
 }
 
 /// `GET /api/maps/{id}/search?q=`: the map command palette. Matches placed systems by
 /// name, alias, occupier and (for members) notes, then falls back to off-map systems the
 /// palette can offer to add. Hits come back ranked by what matched ([`match_rank`]): a
 /// system named like the query always beats one whose intel merely mentions it. Viewer+.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/search",
+    tag = "search",
+    params(("id" = i64, Path, description = "The map"), SearchQuery, ShareQuery),
+    responses((status = 200, body = Vec<MapSearchHit>, description = "OK"), (status = 401, response = super::Unauthorized), (status = 404, response = super::NotFound)),
+    security((), ("bearer" = []), ("session" = [])),
+)]
 pub async fn search_map(
     State(state): State<AppState>,
     creds: Credentials,

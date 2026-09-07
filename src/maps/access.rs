@@ -176,7 +176,7 @@ pub(super) async fn owns_character(pool: &PgPool, user_id: i64, character_id: i6
 
 /// One grant, with the subject's name resolved for display. `name` is `None` when the
 /// subject is an entity we have never cached (a corp nobody on this map belongs to).
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AccessEntry {
     pub subject_type: SubjectType,
@@ -220,7 +220,7 @@ pub async fn list_access(pool: &PgPool, actor: Actor, map_id: i64) -> Result<Vec
     Ok(entries)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetAccess {
     pub map_id: i64,
@@ -273,7 +273,7 @@ pub async fn set_access(pool: &PgPool, actor: Actor, cmd: SetAccess) -> Result<(
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RevokeAccess {
     pub map_id: i64,
@@ -303,7 +303,7 @@ pub async fn revoke_access(pool: &PgPool, actor: Actor, cmd: RevokeAccess) -> Re
     Ok(())
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct TransferOwnership {
     pub map_id: i64,

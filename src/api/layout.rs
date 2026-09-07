@@ -9,7 +9,7 @@ use super::ApiError;
 pub type PanelLayouts = std::collections::BTreeMap<String, BreakpointLayout>;
 
 /// One breakpoint's arrangement.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct BreakpointLayout {
     pub cols: i32,
@@ -19,7 +19,7 @@ pub struct BreakpointLayout {
 
 /// One tile. Minimum sizes deliberately live in the client's panel registry instead, so
 /// tightening one still reaches people who have already saved a layout.
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct LayoutItem {
     /// Panel id. Named `i` to match the stored shape.

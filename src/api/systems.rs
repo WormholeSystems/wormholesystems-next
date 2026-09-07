@@ -3,9 +3,9 @@
 
 use super::extract::Credentials;
 use axum::Json;
-use axum::Router;
 use axum::extract::{Path, State};
-use axum::routing::{get, post};
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
 
 use super::ApiResult;
 use super::extract::{acting_on, require_actor};
@@ -16,30 +16,36 @@ use crate::maps::solar_system::{
     SetNotes, SetOccupier, SetPinned, SetRally, SetStatus, SystemDetails,
 };
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/maps/{id}/clear", post(clear_map))
-        .route("/api/maps/{id}/systems/add", post(add_system))
-        .route(
-            "/api/maps/{id}/systems/resolve-ghost",
-            post(resolve_ghost_system),
-        )
-        .route("/api/maps/{id}/systems/move", post(move_systems))
-        .route("/api/maps/{id}/systems/move-one", post(move_system))
-        .route("/api/maps/{id}/systems/remove", post(remove_systems))
-        .route("/api/maps/{id}/systems/remove-one", post(remove_system))
-        .route("/api/maps/{id}/systems/set-alias", post(set_alias))
-        .route("/api/maps/{id}/systems/set-status", post(set_status))
-        .route("/api/maps/{id}/systems/set-occupier", post(set_occupier))
-        .route("/api/maps/{id}/systems/set-home", post(set_home))
-        .route("/api/maps/{id}/systems/set-rally", post(set_rally))
-        .route("/api/maps/{id}/systems/set-pinned", post(set_pinned))
-        .route("/api/maps/{id}/systems/set-notes", post(set_notes))
-        .route("/api/maps/{id}/systems/{mss}/details", get(system_details))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(clear_map))
+        .routes(routes!(add_system))
+        .routes(routes!(resolve_ghost_system))
+        .routes(routes!(move_systems))
+        .routes(routes!(move_system))
+        .routes(routes!(remove_systems))
+        .routes(routes!(remove_system))
+        .routes(routes!(set_alias))
+        .routes(routes!(set_status))
+        .routes(routes!(set_occupier))
+        .routes(routes!(set_home))
+        .routes(routes!(set_rally))
+        .routes(routes!(set_pinned))
+        .routes(routes!(set_notes))
+        .routes(routes!(system_details))
 }
 
 /// `POST /api/maps/{id}/systems/resolve-ghost`, say which system a ghost turned out to
 /// be. Merging into an existing placement removes the ghost, so that goes out too.
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/systems/resolve-ghost",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = crate::maps::ghost::ResolveGhostSystem,
+    responses((status = 200, body = MapSolarSystem, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn resolve_ghost_system(
     State(state): State<AppState>,
     creds: Credentials,
@@ -51,6 +57,15 @@ pub async fn resolve_ghost_system(
     Ok(Json(placed))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/systems/add",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = AddSystem,
+    responses((status = 200, body = MapSolarSystem, description = "OK"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn add_system(
     State(state): State<AppState>,
     creds: Credentials,
@@ -62,6 +77,15 @@ pub async fn add_system(
     Ok(Json(placed))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/systems/move-one",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = MoveSystem,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn move_system(
     State(state): State<AppState>,
     creds: Credentials,
@@ -73,6 +97,15 @@ pub async fn move_system(
     Ok(Json(()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/systems/move",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = MoveSystems,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn move_systems(
     State(state): State<AppState>,
     creds: Credentials,
@@ -84,6 +117,15 @@ pub async fn move_systems(
     Ok(Json(()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/systems/remove-one",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = RemoveSystem,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn remove_system(
     State(state): State<AppState>,
     creds: Credentials,
@@ -95,6 +137,15 @@ pub async fn remove_system(
     Ok(Json(()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/systems/remove",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = RemoveSystems,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn remove_systems(
     State(state): State<AppState>,
     creds: Credentials,
@@ -106,6 +157,15 @@ pub async fn remove_systems(
     Ok(Json(()))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/maps/{id}/clear",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map")),
+    request_body = ClearMap,
+    responses((status = 200, description = "Done; the body is `null`"), (status = 400, response = super::BadRequest), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound), (status = 409, response = super::Conflict)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn clear_map(
     State(state): State<AppState>,
     creds: Credentials,
@@ -117,8 +177,25 @@ pub async fn clear_map(
     Ok(Json(()))
 }
 
+#[rustfmt::skip]
 macro_rules! detail_handler {
-    ($name:ident, $cmd:ty, $action:path) => {
+    ($name:ident, $path:literal, $cmd:ty, $action:path) => {
+        #[utoipa::path(
+            post,
+            path = $path,
+            tag = "systems",
+            params(("id" = i64, Path, description = "The map")),
+            request_body = $cmd,
+            responses(
+                (status = 200, description = "Done; the body is `null`"),
+                (status = 400, response = super::BadRequest),
+                (status = 401, response = super::Unauthorized),
+                (status = 403, response = super::Forbidden),
+                (status = 404, response = super::NotFound),
+                (status = 409, response = super::Conflict),
+            ),
+            security(("bearer" = []), ("session" = [])),
+        )]
         pub async fn $name(
             State(state): State<AppState>,
             creds: Credentials,
@@ -132,25 +209,64 @@ macro_rules! detail_handler {
     };
 }
 
-detail_handler!(set_alias, SetAlias, crate::maps::solar_system::set_alias);
+detail_handler!(
+    set_alias,
+    "/api/maps/{id}/systems/set-alias",
+    SetAlias,
+    crate::maps::solar_system::set_alias
+);
 
-detail_handler!(set_status, SetStatus, crate::maps::solar_system::set_status);
+detail_handler!(
+    set_status,
+    "/api/maps/{id}/systems/set-status",
+    SetStatus,
+    crate::maps::solar_system::set_status
+);
 
 detail_handler!(
     set_occupier,
+    "/api/maps/{id}/systems/set-occupier",
     SetOccupier,
     crate::maps::solar_system::set_occupier
 );
 
-detail_handler!(set_notes, SetNotes, crate::maps::solar_system::set_notes);
+detail_handler!(
+    set_notes,
+    "/api/maps/{id}/systems/set-notes",
+    SetNotes,
+    crate::maps::solar_system::set_notes
+);
 
-detail_handler!(set_home, SetHome, crate::maps::solar_system::set_home);
+detail_handler!(
+    set_home,
+    "/api/maps/{id}/systems/set-home",
+    SetHome,
+    crate::maps::solar_system::set_home
+);
 
-detail_handler!(set_rally, SetRally, crate::maps::solar_system::set_rally);
+detail_handler!(
+    set_rally,
+    "/api/maps/{id}/systems/set-rally",
+    SetRally,
+    crate::maps::solar_system::set_rally
+);
 
-detail_handler!(set_pinned, SetPinned, crate::maps::solar_system::set_pinned);
+detail_handler!(
+    set_pinned,
+    "/api/maps/{id}/systems/set-pinned",
+    SetPinned,
+    crate::maps::solar_system::set_pinned
+);
 
 /// `GET /api/maps/{id}/systems/{mss}/details`, member-gated intel (notes). 403 for viewers.
+#[utoipa::path(
+    get,
+    path = "/api/maps/{id}/systems/{mss}/details",
+    tag = "systems",
+    params(("id" = i64, Path, description = "The map"), ("mss" = i64, Path, description = "The placement (map solar system id)")),
+    responses((status = 200, body = SystemDetails, description = "OK"), (status = 401, response = super::Unauthorized), (status = 403, response = super::Forbidden), (status = 404, response = super::NotFound)),
+    security(("bearer" = []), ("session" = [])),
+)]
 pub async fn system_details(
     State(state): State<AppState>,
     creds: Credentials,

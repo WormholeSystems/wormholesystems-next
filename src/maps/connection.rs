@@ -23,7 +23,7 @@ use super::access::require_role;
 use super::command::{CommandOutput, Effect, EventActor, MapCommand, Tx, execute, execute_as};
 use super::error::{MapError, Result};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct MapConnection {
     pub id: i64,
@@ -116,7 +116,7 @@ async fn fetch_connection_tx(
         .ok_or(MapError::NotFound)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct AddConnection {
     pub map_id: i64,
@@ -243,7 +243,7 @@ pub(super) async fn apply_add_connection(tx: &mut Tx<'_>, cmd: AddConnection) ->
 /// A partial update of a connection's wormhole state. `None` leaves a field unchanged;
 /// `Some(None)` clears it to unknown; `Some(Some(v))` sets it. Setting any field triggers
 /// the DB sync, so linked signatures follow.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct SetConnectionStatus {
     pub map_id: i64,
@@ -329,7 +329,7 @@ pub(super) async fn apply_set_connection_status(
     .emit(event))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct RemoveConnection {
     pub map_id: i64,
@@ -399,14 +399,14 @@ pub(super) async fn apply_remove_connection(
 /// means nobody is flying it any more.
 pub const STALE_AFTER_MINUTES: i64 = 60;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct CleanStaleConnections {
     pub map_id: i64,
 }
 
 /// One stale edge, for the status bar's cleanup popover.
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, utoipa::ToSchema)]
 #[ts(export)]
 pub struct StaleConnection {
     pub connection_id: i64,
