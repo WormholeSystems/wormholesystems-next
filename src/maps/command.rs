@@ -34,8 +34,7 @@ use super::tracking::TrackJump;
 use super::watchlist::{AddWatchlistEntry, RemoveWatchlistEntry, SetWatchlistPinned};
 use super::{
     Actor, MapConnection, MapSolarSystem, Role, Signature, connection, eve_scout, ghost, ignored,
-    jumps,
-    restore, signatures, solar_system, tracking, watchlist,
+    jumps, restore, signatures, solar_system, tracking, watchlist,
 };
 
 /// An open transaction, threaded through every `apply_*` so the write and its audit

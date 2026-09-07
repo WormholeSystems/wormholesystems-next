@@ -12,8 +12,8 @@ use crate::maps::{
     BackgroundMode, KillmailScope, MapLayout, MassStatus, Role, RoutePreference, TimeStatus,
 };
 
-use super::layout::PanelLayouts;
 use super::extract::Credentials;
+use super::layout::PanelLayouts;
 use super::{ApiError, ApiResult};
 use crate::auth::AppState;
 

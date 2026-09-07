@@ -1,10 +1,6 @@
 {
   "db_name": "PostgreSQL",
-<<<<<<<< HEAD:.sqlx/query-22d119d82ffe47dea56a0ab7d937dfd625edf7b5ede7fec036570710c46caaaa.json
-  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference, security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, preselect_signature, suggest_alias, copy_bookmark,\n                  follow_character,\n                  tracked_character_ids, killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned\n           from map_user_settings where map_id = $1 and user_id = $2",
-========
-  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference,\n                  security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, suggest_alias, copy_bookmark, follow_character,\n                  tracked_character_ids,\n                  killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned,\n                  background_image_path,\n                  background_image_mode\n           from map_user_settings where map_id = $1 and user_id = $2",
->>>>>>>> feat/map-background-image:.sqlx/query-ed023fe3536ad881e9cc60ddab782085469dc5ac7afe9a9d699b0d19eadc15c9.json
+  "query": "select tracking_allowed, show_threat_level, compact_signature_list,\n                  show_statics_first,\n                  route_preference,\n                  security_penalty,\n                  route_allow_time_status,\n                  route_allow_mass_status,\n                  route_use_evescout,\n                  prompt_for_signature, preselect_signature, suggest_alias, copy_bookmark,\n                  follow_character, tracked_character_ids,\n                  killmail_filter,\n                  is_archived,\n                  (introduction_confirmed_at is not null) as \"introduction_confirmed!\",\n                  hidden_panels, layout_breakpoints,\n                  layout_override, is_pinned,\n                  background_image_path,\n                  background_image_mode\n           from map_user_settings where map_id = $1 and user_id = $2",
   "describe": {
     "columns": [
       {
@@ -299,7 +295,7 @@
         }
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "background_image_path",
         "type_info": "Text",
         "origin": {
@@ -310,7 +306,7 @@
         }
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "background_image_mode",
         "type_info": {
           "Custom": {
@@ -364,9 +360,5 @@
       false
     ]
   },
-<<<<<<<< HEAD:.sqlx/query-22d119d82ffe47dea56a0ab7d937dfd625edf7b5ede7fec036570710c46caaaa.json
-  "hash": "22d119d82ffe47dea56a0ab7d937dfd625edf7b5ede7fec036570710c46caaaa"
-========
-  "hash": "ed023fe3536ad881e9cc60ddab782085469dc5ac7afe9a9d699b0d19eadc15c9"
->>>>>>>> feat/map-background-image:.sqlx/query-ed023fe3536ad881e9cc60ddab782085469dc5ac7afe9a9d699b0d19eadc15c9.json
+  "hash": "b6c42cf907fc666485c30da081ded18430309f50d868934f71a4ed56f4a1fac8"
 }

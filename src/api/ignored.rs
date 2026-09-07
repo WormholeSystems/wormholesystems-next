@@ -1,10 +1,10 @@
 //! The map's ignore list: systems everyone routes around and never maps by flying.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use super::extract::Credentials;
 
 use super::ApiResult;
 use super::extract::{ShareQuery, acting_on, read_map_as};

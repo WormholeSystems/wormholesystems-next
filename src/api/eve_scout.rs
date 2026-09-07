@@ -1,10 +1,10 @@
 //! The public EVE Scout feed: Thera and Turnur connections, refreshed on demand.
 
+use super::extract::Credentials;
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::{get, post};
-use super::extract::Credentials;
 use serde::{Deserialize, Serialize};
 
 use super::ApiResult;

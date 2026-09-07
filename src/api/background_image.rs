@@ -2,12 +2,12 @@
 //! away. The layout mode is an ordinary field of the user settings; only the file itself
 //! lives here, because a file does not travel well inside JSON.
 
+use super::extract::Credentials;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use super::extract::Credentials;
 
 use super::{ApiError, ApiResult, user_settings};
 use crate::auth::AppState;

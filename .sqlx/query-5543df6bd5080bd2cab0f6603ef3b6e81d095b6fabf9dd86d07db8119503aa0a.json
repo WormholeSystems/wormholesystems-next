@@ -62,6 +62,7 @@
                 "combat",
                 "ore",
                 "homefront",
+                "faction_warfare",
                 "unknown"
               ]
             }
@@ -225,6 +226,7 @@
                 "combat",
                 "ore",
                 "homefront",
+                "faction_warfare",
                 "unknown"
               ]
             }
