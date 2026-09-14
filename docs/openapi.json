@@ -8438,6 +8438,7 @@
           "route_allow_time_status",
           "route_allow_mass_status",
           "route_use_evescout",
+          "route_use_wormholes",
           "prompt_for_signature",
           "preselect_signature",
           "suggest_alias",
@@ -8538,6 +8539,10 @@
           },
           "route_use_evescout": {
             "type": "boolean"
+          },
+          "route_use_wormholes": {
+            "type": "boolean",
+            "description": "Whether the chain's own holes are route edges. Off routes over stargates alone."
           },
           "security_penalty": {
             "type": "integer",
@@ -11249,6 +11254,12 @@
             ]
           },
           "route_use_evescout": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "route_use_wormholes": {
             "type": [
               "boolean",
               "null"

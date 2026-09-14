@@ -136,6 +136,20 @@
 			</SettingRow>
 
 			<SettingRow
+				id="route-wormholes"
+				label="Use chain connections"
+				description="Routes may go through this map's own wormholes. Turn it off to count stargate jumps only, so a route never sends you back through the chain."
+			>
+				{#snippet control()}
+					<Switch
+						checked={settings?.route_use_wormholes ?? true}
+						aria-label="Use chain connections"
+						onCheckedChange={(v) => saveUserSettings({ route_use_wormholes: v })}
+					/>
+				{/snippet}
+			</SettingRow>
+
+			<SettingRow
 				id="route-evescout"
 				label="Use EVE Scout connections"
 				description="Routes may go through the public Thera and Turnur holes. They are scouted by hand and can be stale, which is why this is a choice."

@@ -23,12 +23,14 @@ function placementSystems(systems: MapSystemView[]): Map<number, number> {
  * whose far side is unknown leads nowhere the router could take you. Stargate-kind
  * connections (drawn to simulate Ansiblex bridges) count as plain gate jumps, so they
  * carry no mass or lifetime for the tolerance settings to drop them over. EVE Scout's
- * public holes ride along only when asked for.
+ * public holes ride along only when asked for, and so does the chain itself: a viewer who
+ * has turned its holes off routes over gates alone, EVE Scout's own switch untouched.
  */
 export function chainEdges(
 	systems: MapSystemView[],
 	connections: MapConnection[],
 	eveScout: EveScoutConnection[] | null,
+	useWormholes = true,
 ): DynamicEdge[] {
 	const placement = placementSystems(systems);
 	const edges: DynamicEdge[] = [];
@@ -37,6 +39,7 @@ export function chainEdges(
 		const b = placement.get(c.to_system);
 		if (a === undefined || b === undefined || a === b) continue;
 		if (c.kind === 'wormhole') {
+			if (!useWormholes) continue;
 			edges.push({ a, b, via: 'wormhole', mass: c.mass_status, time: c.time_status });
 		} else {
 			edges.push({ a, b, via: 'stargate', mass: null, time: null });

@@ -196,6 +196,7 @@ export class MapState {
 		allowMassStatus: this.userSettings?.route_allow_mass_status ?? 'reduced',
 	});
 	useEveScout = $derived(this.userSettings?.route_use_evescout ?? false);
+	useWormholes = $derived(this.userSettings?.route_use_wormholes ?? true);
 
 	nodeH = $derived(2 * this.grid.cell_size);
 
@@ -417,6 +418,7 @@ export class MapState {
 			sigs: () => this.signatures.all,
 			eveScout: () => this.eveScout,
 			useEveScout: () => this.useEveScout,
+			useWormholes: () => this.useWormholes,
 			mapIgnored: () => this.ignoredIds,
 			loadTables: () => this.queries.client.ensureQueryData(q.routingGraph()),
 		};

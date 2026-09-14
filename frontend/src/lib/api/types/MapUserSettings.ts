@@ -24,6 +24,10 @@ route_allow_time_status: TimeStatus,
  */
 route_allow_mass_status: MassStatus, route_use_evescout: boolean, 
 /**
+ * Whether the chain's own holes are route edges. Off routes over stargates alone.
+ */
+route_use_wormholes: boolean, 
+/**
  * Ask which signature was jumped, rather than mapping the hole unlinked.
  */
 prompt_for_signature: boolean, 

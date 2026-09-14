@@ -20,6 +20,7 @@ function host(over: Partial<RouteHost> = {}): RouteHost {
 		sigs: () => [],
 		eveScout: () => [],
 		useEveScout: () => false,
+		useWormholes: () => true,
 		mapIgnored: () => new Set<number>(),
 		loadTables: () => Promise.resolve(TABLES),
 		...over,

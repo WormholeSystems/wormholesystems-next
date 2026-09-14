@@ -38,6 +38,8 @@ pub struct MapUserSettings {
     /// Worst wormhole mass still routed through.
     pub route_allow_mass_status: MassStatus,
     pub route_use_evescout: bool,
+    /// Whether the chain's own holes are route edges. Off routes over stargates alone.
+    pub route_use_wormholes: bool,
     /// Ask which signature was jumped, rather than mapping the hole unlinked.
     pub prompt_for_signature: bool,
     /// Open that prompt with the likeliest signature already chosen.
@@ -113,6 +115,9 @@ pub struct UpdateMapUserSettings {
     pub route_use_evescout: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
+    pub route_use_wormholes: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
     pub prompt_for_signature: Option<bool>,
     #[serde(default)]
     #[ts(optional)]
@@ -170,6 +175,7 @@ pub async fn load(db: &PgPool, map_id: i64, user_id: i64) -> Result<MapUserSetti
                   route_allow_time_status,
                   route_allow_mass_status,
                   route_use_evescout,
+                  route_use_wormholes,
                   prompt_for_signature, preselect_signature, suggest_alias, copy_bookmark,
                   follow_character, tracked_character_ids,
                   killmail_filter,
@@ -196,6 +202,7 @@ pub async fn load(db: &PgPool, map_id: i64, user_id: i64) -> Result<MapUserSetti
             route_allow_time_status: r.route_allow_time_status,
             route_allow_mass_status: r.route_allow_mass_status,
             route_use_evescout: r.route_use_evescout,
+            route_use_wormholes: r.route_use_wormholes,
             prompt_for_signature: r.prompt_for_signature,
             preselect_signature: r.preselect_signature,
             suggest_alias: r.suggest_alias,
@@ -228,6 +235,7 @@ pub async fn load(db: &PgPool, map_id: i64, user_id: i64) -> Result<MapUserSetti
             route_allow_time_status: TimeStatus::Critical,
             route_allow_mass_status: MassStatus::Reduced,
             route_use_evescout: false,
+            route_use_wormholes: true,
             prompt_for_signature: true,
             preselect_signature: false,
             suggest_alias: true,
@@ -325,7 +333,7 @@ pub async fn update_map_user_settings(
               suggest_alias, copy_bookmark, killmail_filter, is_archived,
               introduction_confirmed_at, hidden_panels, layout_breakpoints, layout_override,
               is_pinned, follow_character, tracked_character_ids, background_image_mode,
-              preselect_signature)
+              preselect_signature, route_use_wormholes)
          values ($1, $2, coalesce($3, false), coalesce($4, true),
                  coalesce($5, false), coalesce($6, false),
                  -- The literals need naming as their type: `coalesce` has to agree with the
@@ -338,7 +346,8 @@ pub async fn update_map_user_settings(
                  case when $17 then now() end,
                  coalesce($18, '{}'::text[]), $19, $20, coalesce($22, false),
                  coalesce($23, false), coalesce($24, '{}'::bigint[]),
-                 coalesce($25, 'grid'::map_background_mode), coalesce($26, false))
+                 coalesce($25, 'grid'::map_background_mode), coalesce($26, false),
+                 coalesce($27, true))
          on conflict (map_id, user_id) do update set
              tracking_allowed = coalesce($3, map_user_settings.tracking_allowed),
              show_threat_level = coalesce($4, map_user_settings.show_threat_level),
@@ -372,6 +381,7 @@ pub async fn update_map_user_settings(
              tracked_character_ids = coalesce($24, map_user_settings.tracked_character_ids),
              background_image_mode = coalesce($25, map_user_settings.background_image_mode),
              preselect_signature = coalesce($26, map_user_settings.preselect_signature),
+             route_use_wormholes = coalesce($27, map_user_settings.route_use_wormholes),
              updated_at = now()"#,
         map_id,
         actor.user_id,
@@ -399,6 +409,7 @@ pub async fn update_map_user_settings(
         body.tracked_character_ids.as_deref(),
         body.background_image_mode,
         body.preselect_signature,
+        body.route_use_wormholes,
     )
     .execute(&state.db)
     .await?;

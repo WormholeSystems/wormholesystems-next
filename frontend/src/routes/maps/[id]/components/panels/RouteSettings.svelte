@@ -103,6 +103,14 @@
 			'route_allow_mass_status',
 		)}
 		<label class="flex items-center justify-between gap-2 text-xs">
+			Use chain connections
+			<Switch
+				checked={settings?.route_use_wormholes ?? true}
+				onCheckedChange={(v) => update({ route_use_wormholes: v })}
+				data-testid="setting-wormholes"
+			/>
+		</label>
+		<label class="flex items-center justify-between gap-2 text-xs">
 			Use EVE Scout
 			<Switch
 				checked={settings?.route_use_evescout ?? false}

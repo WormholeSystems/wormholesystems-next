@@ -32,6 +32,7 @@ Out of the box, routing is tuned to "just get me there":
 | Route preference         | **Shorter** (fewest jumps)          |
 | Wormhole lifetime filter | **Critical** (allow all)            |
 | Wormhole mass filter     | **Reduced** (allow fresh + reduced) |
+| Use chain connections    | **On**                              |
 | Use EVE Scout            | **Off**                             |
 | Security penalty         | **50**                              |
 

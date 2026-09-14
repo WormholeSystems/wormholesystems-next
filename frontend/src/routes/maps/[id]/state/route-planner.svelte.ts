@@ -56,6 +56,8 @@ export interface RouteHost {
 	sigs(): Signature[];
 	eveScout(): EveScoutConnection[];
 	useEveScout(): boolean;
+	/** Whether the chain's own holes count as route edges. */
+	useWormholes(): boolean;
 	/** The map's own ignore list, which every viewer routes around. */
 	mapIgnored(): Set<number>;
 	loadTables(): Promise<RoutingTables>;
@@ -102,6 +104,7 @@ export class RoutePlanner {
 			this.map.systems(),
 			this.map.connections(),
 			this.map.useEveScout() ? this.map.eveScout() : null,
+			this.map.useWormholes(),
 		);
 		return { stargates, dynamic: buildDynamicAdjacency(edges), security: this.security };
 	});

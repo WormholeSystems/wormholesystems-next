@@ -8,6 +8,8 @@ Filters decide **which wormholes the router may use**. A connection that fails a
 
 There are two independent filters, and each one names the **riskiest** state you're willing to accept — picking a level also allows everything healthier than it.
 
+Above both sits **Use chain connections**. Turn it off and the router ignores your map's wormholes altogether, routing over stargates alone — useful when you want the gate distance to somewhere rather than a path that sends you back through the chain. [EVE Scout](/documentation/autopilot-and-routing/eve-scout) keeps its own switch, so Thera can still be routed through with the chain switched off.
+
 ## Lifetime filter
 
 | Option           | Help text    | Wormholes allowed        |

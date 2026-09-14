@@ -39,6 +39,13 @@ describe('chainEdges', () => {
 		expect(chainEdges([...SYSTEMS, system(4, 31000001)], [conn(10, 1, 4)], null)).toEqual([]);
 	});
 
+	it("drops the chain's own holes when the viewer routes over gates alone", () => {
+		const chain = [conn(10, 1, 2), conn(11, 1, 2, 'stargate')];
+		expect(chainEdges(SYSTEMS, chain, null, false)).toEqual([
+			{ a: 31000001, b: 31000002, via: 'stargate', mass: null, time: null },
+		]);
+	});
+
 	it('adds EVE Scout holes only when handed them', () => {
 		const scout = [
 			{
@@ -51,6 +58,20 @@ describe('chainEdges', () => {
 		expect(chainEdges(SYSTEMS, [], null)).toEqual([]);
 		expect(chainEdges(SYSTEMS, [], scout)).toEqual([
 			{ a: 31000005, b: 30000142, via: 'evescout', mass: 'reduced', time: 'eol' },
+		]);
+	});
+
+	it('keeps EVE Scout holes when the chain is switched off, since they are a separate choice', () => {
+		const scout = [
+			{
+				hub_solar_system_id: 31000005,
+				solar_system_id: 30000142,
+				mass_status: 'stable',
+				time_status: 'stable',
+			} as EveScoutConnection,
+		];
+		expect(chainEdges(SYSTEMS, [conn(10, 1, 2)], scout, false)).toEqual([
+			{ a: 31000005, b: 30000142, via: 'evescout', mass: 'stable', time: 'stable' },
 		]);
 	});
 });
