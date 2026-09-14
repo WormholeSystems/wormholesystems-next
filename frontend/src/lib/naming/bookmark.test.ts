@@ -90,6 +90,14 @@ describe('formatBookmark', () => {
 		);
 	});
 
+	it('names only the restrictive sizes, large being the one that goes without saying', () => {
+		const format = { wormhole: '{alias} {sig} {size}' };
+		expect(formatBookmark(wormhole, { ...context, size: 'small' }, format)).toBe('D2 ABC SM');
+		expect(formatBookmark(wormhole, { ...context, size: 'medium' }, format)).toBe('D2 ABC MD');
+		expect(formatBookmark(wormhole, { ...context, size: 'xl' }, format)).toBe('D2 ABC XM');
+		expect(formatBookmark(wormhole, { ...context, size: 'large' }, format)).toBe('D2 ABC');
+	});
+
 	it('only shows mass and lifetime once the hole has degraded', () => {
 		const fresh = { ...context, massStatus: 'stable' as const, timeStatus: 'stable' as const };
 		const dying = { ...context, massStatus: 'critical' as const, timeStatus: 'eol' as const };

@@ -8,7 +8,7 @@
 	import { copyText } from '$lib/clipboard';
 
 	import { aliasTargetKind, suggestAlias } from '$lib/naming/alias';
-	import { formatBookmark } from '$lib/naming/bookmark';
+	import { formatBookmark, formatsFromNaming } from '$lib/naming/bookmark';
 	import { classMeta, isWormholeClass } from '$lib/map/classes';
 	import type { MappedSystem } from '$lib/map/system';
 	import type { MassStatus } from '$lib/api/types/MassStatus';
@@ -127,7 +127,7 @@
 				timeStatus: sig.time_status,
 				wormholeCode: type?.signature ?? null,
 			},
-			null,
+			formatsFromNaming(ctx.naming),
 			system.alias,
 		);
 		void copyText(text, { silent: true });

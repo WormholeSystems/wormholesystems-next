@@ -10,7 +10,7 @@
 	import type { MassStatus } from '$lib/api/types/MassStatus';
 	import type { TimeStatus } from '$lib/api/types/TimeStatus';
 	import type { WormholeSize } from '$lib/api/types/WormholeSize';
-	import { formatBookmark } from '$lib/naming/bookmark';
+	import { formatBookmark, formatsFromNaming } from '$lib/naming/bookmark';
 	import ClassBadge from '$lib/components/ClassBadge.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -144,12 +144,7 @@
 				timeStatus: time,
 				wormholeCode: type?.signature ?? null,
 			},
-			{
-				wormhole: naming?.bookmark_wormhole,
-				kspace: naming?.bookmark_kspace,
-				return: naming?.bookmark_return,
-				ignoredAlias: naming?.ignored_alias,
-			},
+			formatsFromNaming(naming),
 			prompt.origin.alias,
 		);
 		void copyText(text, { silent: true });

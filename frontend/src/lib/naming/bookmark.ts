@@ -4,6 +4,7 @@
 
 import { isIgnoredAlias } from '$lib/naming/alias';
 import { classMeta, isWormholeClass } from '$lib/map/classes';
+import type { MapNaming } from '$lib/api/types/MapNaming';
 import type { MassStatus } from '$lib/api/types/MassStatus';
 import type { TimeStatus } from '$lib/api/types/TimeStatus';
 import type { WormholeSize } from '$lib/api/types/WormholeSize';
@@ -33,7 +34,7 @@ export const DEFAULT_IGNORED_ALIAS = 'HOME';
 const SIZE_LABELS: Partial<Record<WormholeSize, string>> = {
 	small: 'SM',
 	medium: 'MD',
-	xl: 'XL',
+	xl: 'XM',
 };
 /** Stable resolves to nothing, so mass only appears once the hole has actually degraded. */
 const MASS_LABELS: Partial<Record<MassStatus, string>> = { reduced: 'reduced', critical: 'crit' };
@@ -64,6 +65,19 @@ export interface BookmarkFormats {
 	kspace?: string | null;
 	return?: string | null;
 	ignoredAlias?: string | null;
+}
+
+/**
+ * The map's naming row as the formats a bookmark renders with. Every copy goes through
+ * this, so a new one cannot quietly fall back to the defaults while the map has its own.
+ */
+export function formatsFromNaming(naming: MapNaming | null | undefined): BookmarkFormats {
+	return {
+		wormhole: naming?.bookmark_wormhole,
+		kspace: naming?.bookmark_kspace,
+		return: naming?.bookmark_return,
+		ignoredAlias: naming?.ignored_alias,
+	};
 }
 
 /**

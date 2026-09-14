@@ -58,6 +58,12 @@ test('edge colors and dashes per state', async ({ page, api }) => {
 	await expect(
 		page.getByTestId('size-submenu').getByRole('button', { name: 'Unknown' }),
 	).toBeVisible();
+
+	// Both ends offer their in-game bookmark name, rendered with the map's formats.
+	await page.getByTestId('copy-name-subtrigger').hover();
+	const names = page.getByTestId('copy-name-submenu').getByRole('button');
+	await expect(names).toHaveCount(2);
+	await expect(names.first()).toHaveText('HS Jita The Forge');
 });
 
 test('unknown status uses the neutral border token', async ({ page, api }) => {
