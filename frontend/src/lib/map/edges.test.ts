@@ -102,6 +102,20 @@ describe('freeEdges', () => {
 		const positions = new Map([[1, { x: 0, y: 0 }]]);
 		expect(freeEdges([connection(10, 1, 2)], positions, NODE_H).size).toBe(0);
 	});
+
+	it('fans two holes between the same pair apart, whichever way round they were drawn', () => {
+		const positions = new Map([
+			[1, { x: 0, y: 0 }],
+			[2, { x: 600, y: 0 }],
+		]);
+		const edges = freeEdges([connection(10, 1, 2), connection(11, 2, 1)], positions, NODE_H);
+		const first = edges.get(10)!;
+		const second = edges.get(11)!;
+
+		expect(first.from.y).not.toBe(second.to.y);
+		// Symmetrical about the rail the single edge would have used.
+		expect(first.from.y + second.to.y).toBe(NODE_H);
+	});
 });
 
 describe('treeEdges', () => {

@@ -12,6 +12,7 @@
 //! skipped rather than refused: a ghost placement is not exported, a signature without a
 //! scanner id is not imported.
 
+use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
@@ -1322,6 +1323,25 @@ async fn import_signatures(
     .map(|r| (r.name, (r.id, r.signature_category_id)))
     .collect();
 
+    // A connection takes one signature per endpoint system. A file that names the same
+    // connection twice from one system describes one hole scanned twice, so the first
+    // claim stands and the rest come in as loose signatures.
+    // Seeded with the links the map already has, keyed by the scanner id holding each, so
+    // re-importing a file over the same map leaves a signature holding its own link.
+    let mut claimed: HashMap<(i64, i64), String> = sqlx::query!(
+        "select connection_id, solar_system_id, signature_id from signatures
+         where map_id = $1 and connection_id is not null",
+        map_id,
+    )
+    .fetch_all(&mut **tx)
+    .await?
+    .into_iter()
+    .filter_map(|r| {
+        r.connection_id
+            .map(|c| ((c, r.solar_system_id), r.signature_id))
+    })
+    .collect();
+
     for entry in entries {
         // Vector requires the scanner id (it is the natural key), and the system must be
         // on the map for the signature to hang off.
@@ -1361,7 +1381,14 @@ async fn import_signatures(
                 entry.lifetime.and_then(WireLifetime::to_status),
                 entry
                     .connection_index
-                    .and_then(|i| connection_ids_by_index.get(&i).copied()),
+                    .and_then(|i| connection_ids_by_index.get(&i).copied())
+                    .filter(|id| match claimed.entry((*id, entry.solarsystem_id)) {
+                        Entry::Occupied(held) => held.get() == signature_id,
+                        Entry::Vacant(free) => {
+                            free.insert(signature_id.to_owned());
+                            true
+                        }
+                    }),
             )
         } else {
             (None, None, None, None)

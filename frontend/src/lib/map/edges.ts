@@ -86,6 +86,29 @@ export function curveBetween(from: Vec2, to: Vec2): string {
 	return `M ${from.x} ${from.y} C ${cp1x} ${from.y}, ${cp2x} ${to.y}, ${to.x} ${to.y}`;
 }
 
+/**
+ * How far each edge is shifted off its rail so that two holes between the same pair of
+ * systems read as two lines. Without it they are drawn exactly on top of each other, and a
+ * chain with a double connection looks like it has one hole whose state keeps changing.
+ */
+function parallelOffsets(connections: MapConnection[], nodeH: number): Map<number, number> {
+	const groups = new Map<string, number[]>();
+	for (const c of connections) {
+		const [low, high] =
+			c.from_system < c.to_system ? [c.from_system, c.to_system] : [c.to_system, c.from_system];
+		const key = `${low}:${high}`;
+		groups.set(key, [...(groups.get(key) ?? []), c.id]);
+	}
+	const offsets = new Map<number, number>();
+	for (const ids of groups.values()) {
+		if (ids.length < 2) continue;
+		// Never wider than the node, however many holes end up between one pair.
+		const spacing = Math.min(PARALLEL_SPACING, (nodeH * 0.7) / (ids.length - 1));
+		ids.forEach((id, i) => offsets.set(id, (i - (ids.length - 1) / 2) * spacing));
+	}
+	return offsets;
+}
+
 /** Endpoints slide along a rail through each node's centre line, pulled toward the other. */
 export function freeEdges(
 	connections: MapConnection[],
@@ -93,12 +116,14 @@ export function freeEdges(
 	nodeH: number,
 ): Map<number, EdgeGeometry> {
 	const out = new Map<number, EdgeGeometry>();
+	const offsets = parallelOffsets(connections, nodeH);
 	for (const c of connections) {
 		const a = positions.get(c.from_system);
 		const b = positions.get(c.to_system);
 		if (!a || !b) continue;
-		const from = railEndpoint(a.x, a.x + NODE_W, a.y + nodeH / 2, b.x + NODE_W / 2);
-		const to = railEndpoint(b.x, b.x + NODE_W, b.y + nodeH / 2, a.x + NODE_W / 2);
+		const rail = nodeH / 2 + (offsets.get(c.id) ?? 0);
+		const from = railEndpoint(a.x, a.x + NODE_W, a.y + rail, b.x + NODE_W / 2);
+		const to = railEndpoint(b.x, b.x + NODE_W, b.y + rail, a.x + NODE_W / 2);
 		out.set(c.id, {
 			id: c.id,
 			kind: 'curve',

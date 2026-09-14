@@ -12,6 +12,8 @@ Linking is **deliberate, not automatic** — pasting a scan won't guess which ho
 
 If a signature stops being a wormhole (for example a re-paste reclassifies it), its connection link is cleared automatically.
 
+A connection takes **one signature per side**: the signature is the hole, so two of them on the same side would be two scans of one hole. Pointing a second signature at a connection that another already holds therefore hands it over, and the first goes back to being an unlinked scan, free to take the hole it really is. That is what you want when two holes in a system lead to the same place: they are two connections, each with its own signature, mass and lifetime.
+
 ## Why it's worth doing
 
 - The connection shows its real signature ID, matching your scanner.

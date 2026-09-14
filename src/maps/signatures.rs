@@ -735,6 +735,22 @@ pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) ->
         ));
     }
 
+    // One signature per side: the group's state is the hole's, and two signatures sharing
+    // it would mean two scans of one hole. Saying "this one is the hole" therefore lets
+    // the other go, rather than refusing; the loose one keeps its own scanned state and
+    // can take the connection it really belongs to.
+    let displaced = sqlx::query_scalar!(
+        "update signatures set connection_id = null, updated_at = now()
+         where map_id = $1 and connection_id = $2 and solar_system_id = $3 and id <> $4
+         returning id",
+        cmd.map_id,
+        cmd.connection_id,
+        sig.solar_system_id,
+        cmd.signature_pk,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
     sqlx::query!(
         "update signatures set connection_id = $1 where id = $2 and map_id = $3",
         cmd.connection_id,
@@ -746,8 +762,9 @@ pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) ->
 
     // Re-read: the merge trigger may have changed this row's state after the UPDATE.
     let linked = fetch_signature_tx(tx, cmd.map_id, cmd.signature_pk).await?;
-    // Undo unlinks and restores the pre-merge life-cycle state.
-    let inverse = MapCommand::UpdateSignature(UpdateSignature {
+    // Undo restores the pre-merge life-cycle state, and hands the connection back to the
+    // signature this link took it from, which unlinks this one again in its turn.
+    let restore_state = MapCommand::UpdateSignature(UpdateSignature {
         map_id: cmd.map_id,
         signature_pk: cmd.signature_pk,
         signature_id: None,
@@ -758,6 +775,20 @@ pub(super) async fn apply_link_signature(tx: &mut Tx<'_>, cmd: LinkSignature) ->
         mass_status: Some(sig.mass_status),
         time_status: Some(sig.time_status),
     });
+    let inverse = match displaced {
+        None => restore_state,
+        Some(signature_pk) => MapCommand::Sequence(super::command::Sequence {
+            map_id: cmd.map_id,
+            steps: vec![
+                restore_state,
+                MapCommand::LinkSignature(LinkSignature {
+                    map_id: cmd.map_id,
+                    signature_pk,
+                    connection_id: cmd.connection_id,
+                }),
+            ],
+        }),
+    };
     let events = [
         MapEvent::SignatureChanged {
             map_id: cmd.map_id,

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update signatures set connection_id = null, updated_at = now()\n         where map_id = $1 and connection_id = $2 and solar_system_id = $3 and id <> $4\n         returning id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "signatures",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bbb89cd8f25220be36a7e7350504f70f64c239f374d1aceee9d682a610f5952a"
+}

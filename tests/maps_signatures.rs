@@ -614,6 +614,111 @@ async fn identified_type_locks_size(pool: PgPool) {
     assert_eq!(c.size, Some(WormholeSize::Xl), "unlinked edit sticks");
 }
 
+/// next#7: two holes in one system leading to the same place are two connections, and each
+/// keeps its own state. Pointing a second signature at a connection another already claims
+/// hands the connection over rather than putting both in one sync group.
+#[sqlx::test]
+async fn a_connection_takes_one_signature_per_system(pool: PgPool) {
+    let w = world(&pool).await;
+    let a = place(&pool, w.owner, w.map_id, SYS_A).await;
+    let b = place(&pool, w.owner, w.map_id, SYS_B).await;
+    let hole = |from: i64, to: i64| AddConnection {
+        map_id: w.map_id,
+        from_system: from,
+        to_system: to,
+        kind: wormholesystems::maps::ConnectionType::Wormhole,
+        size: None,
+    };
+    let first = add_connection(&pool, w.owner, hole(a, b)).await.unwrap();
+    let second = add_connection(&pool, w.owner, hole(a, b)).await.unwrap();
+
+    let scan = |id: &str| AddSignature {
+        map_id: w.map_id,
+        solar_system_id: SYS_A,
+        signature_id: id.into(),
+        group: SignatureGroup::Wormhole,
+        ..Default::default()
+    };
+    let one = add_signature(&pool, w.owner, scan("AAA-111"))
+        .await
+        .unwrap();
+    let two = add_signature(&pool, w.owner, scan("BBB-222"))
+        .await
+        .unwrap();
+    let link = |signature_pk: i64, connection_id: i64| LinkSignature {
+        map_id: w.map_id,
+        signature_pk,
+        connection_id,
+    };
+    link_signature(&pool, w.owner, link(one.id, first.id))
+        .await
+        .unwrap();
+    link_signature(&pool, w.owner, link(two.id, second.id))
+        .await
+        .unwrap();
+
+    // Marking one hole says nothing about the other, though both end in the same system.
+    set_connection_status(
+        &pool,
+        w.owner,
+        SetConnectionStatus {
+            map_id: w.map_id,
+            connection_id: first.id,
+            mass_status: Some(Some(MassStatus::Critical)),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        connection_state(&pool, w.owner, w.map_id, second.id)
+            .await
+            .mass_status,
+        None,
+        "the other hole is untouched"
+    );
+    let scanned = |sigs: &[Signature], id: &str| {
+        sigs.iter()
+            .find(|s| s.signature_id == id)
+            .expect("signature present")
+            .clone()
+    };
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert_eq!(
+        scanned(&sigs, "AAA-111").mass_status,
+        Some(MassStatus::Critical)
+    );
+    assert_eq!(
+        scanned(&sigs, "BBB-222").mass_status,
+        None,
+        "the other signature is not in that group"
+    );
+
+    // Saying the second signature is the first hole takes the connection off the first.
+    link_signature(&pool, w.owner, link(two.id, first.id))
+        .await
+        .unwrap();
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert_eq!(scanned(&sigs, "BBB-222").connection_id, Some(first.id));
+    assert_eq!(
+        scanned(&sigs, "AAA-111").connection_id,
+        None,
+        "displaced, and free to take the hole it really is"
+    );
+
+    // Undoing that hands the connection back rather than leaving it on the new claimant.
+    wormholesystems::maps::events_log::undo(
+        &pool,
+        w.owner,
+        wormholesystems::maps::events_log::MapIdBody { map_id: w.map_id },
+    )
+    .await
+    .unwrap();
+    let sigs = list_signatures(&pool, w.owner, w.map_id).await.unwrap();
+    assert_eq!(scanned(&sigs, "AAA-111").connection_id, Some(first.id));
+    assert_eq!(scanned(&sigs, "BBB-222").connection_id, None);
+}
+
 /// Read the connection's current state back through `get_map`.
 async fn connection_state(
     pool: &PgPool,
