@@ -60,10 +60,15 @@ describe('edgeDecorations', () => {
 		expect(deco.timeColor).toBe(timeColor('eol'));
 	});
 
-	it('labels every size except the default large', () => {
+	it('labels every known size, unknown being the only quiet one', () => {
 		expect(edgeDecorations(wormhole({ size: 'small' })).sizeLabel).toBe('S');
 		expect(edgeDecorations(wormhole({ size: 'xl' })).sizeLabel).toBe('XL');
-		expect(edgeDecorations(wormhole({ size: 'large' })).sizeLabel).toBeNull();
+		expect(edgeDecorations(wormhole({ size: 'large' })).sizeLabel).toBe('L');
+		expect(edgeDecorations(wormhole({ size: null })).sizeLabel).toBeNull();
+	});
+
+	it('leaves a gate unlabelled, whatever size the row happens to carry', () => {
+		expect(edgeDecorations(wormhole({ kind: 'stargate', size: 'large' })).sizeLabel).toBeNull();
 	});
 
 	it('sizes the pill by how many badges it holds', () => {

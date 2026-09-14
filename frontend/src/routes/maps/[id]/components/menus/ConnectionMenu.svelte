@@ -59,7 +59,7 @@
 		close();
 	}
 
-	function setSize(size: WormholeSize) {
+	function setSize(size: WormholeSize | null) {
 		map.connections.patch(cid, { size });
 		close();
 	}
@@ -128,6 +128,19 @@
 				Set by {lockingType.signature}
 			</div>
 		{/if}
+		<!-- Nobody has read the hole yet, which is not the same as it taking a battleship. -->
+		<button
+			class="{item} disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+			disabled={lockingType !== null}
+			onclick={() => setSize(null)}
+		>
+			<span class="inline-flex w-6 justify-center font-mono text-[10px] text-muted-foreground">
+				?
+			</span>
+			Unknown
+			<span class="ml-auto"></span>
+			{@render check(connection.size === null)}
+		</button>
 		{#each SIZE_OPTIONS as o (o.value)}
 			<button
 				class="{item} disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"

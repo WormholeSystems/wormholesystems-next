@@ -13,7 +13,7 @@ export interface EdgeDecorations {
 	dashed: boolean;
 	massColor: string | null;
 	timeColor: string | null;
-	/** Only sizes worth calling out; large is the default and stays quiet. */
+	/** The known size, or null while nobody has said. A gate carries no size to show. */
 	sizeLabel: string | null;
 	badgeCount: number;
 	/** The pill's width, from how many badges it holds. */
@@ -29,7 +29,7 @@ export function edgeDecorations(c: MapConnection): EdgeDecorations {
 			c.time_status === 'critical');
 	const massColor = massBadgeColor(c.mass_status);
 	const timeColor = timeBadgeColor(c.time_status);
-	const sizeLabel = c.size !== null && c.size !== 'large' ? sizeLetter(c.size) : null;
+	const sizeLabel = c.kind === 'wormhole' && c.size !== null ? sizeLetter(c.size) : null;
 	const badgeCount =
 		(c.kind === 'stargate' ? 1 : 0) +
 		(sizeLabel ? 1 : 0) +

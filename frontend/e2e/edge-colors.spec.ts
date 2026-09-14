@@ -54,6 +54,10 @@ test('edge colors and dashes per state', async ({ page, api }) => {
 	await expect(
 		page.getByTestId('size-submenu').getByRole('button', { name: 'Frigate' }),
 	).toBeVisible();
+	// A size set by hand can be taken back off.
+	await expect(
+		page.getByTestId('size-submenu').getByRole('button', { name: 'Unknown' }),
+	).toBeVisible();
 });
 
 test('unknown status uses the neutral border token', async ({ page, api }) => {
