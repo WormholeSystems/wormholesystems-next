@@ -42,9 +42,14 @@ fn contact(var: &str) -> String {
 
 /// A client that identifies itself. Every outbound client in the app is built from one of
 /// these two, so there is one place the identity can be wrong.
+///
+/// Without timeouts a connection that goes quiet hangs its request forever, and the pollers
+/// awaiting it with it. The read timeout resets on every chunk, so large bodies still work.
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(get())
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .read_timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("http client")
 }
